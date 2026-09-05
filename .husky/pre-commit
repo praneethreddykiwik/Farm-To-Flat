@@ -1,6 +1,10 @@
-# Format staged files with prettier (via lint-staged). Use the local binary directly so pnpm's
-# "verify deps before run" never tries to reinstall in the hook shell.
-npx --no-install lint-staged
+# Format staged files with prettier (via lint-staged). Call the local binary directly so neither
+# pnpm's "verify deps before run" nor npx's .npmrc parsing runs in the hook shell.
+if [ -x node_modules/.bin/lint-staged ]; then
+  node_modules/.bin/lint-staged
+else
+  npx --no-install lint-staged
+fi
 
 # Block real secrets from reaching a mobile/web client workspace. Scan ONLY the staged content of
 # files UNDER apps/customer or apps/admin — not docs, .env.example, or this hook itself, which all
