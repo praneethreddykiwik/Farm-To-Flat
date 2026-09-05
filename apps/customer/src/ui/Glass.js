@@ -33,6 +33,23 @@ export function Glass({
   const isClear = tone === 'clear';
   const border = isDark ? colors.glassDarkBorder : colors.glassBorder;
 
+  // Real background blur only exists on iOS. On Android the dimezisBlurView method falls back to
+  // "none", so a translucent fill would let the ambient colour blobs bleed through and the surface
+  // reads as muddy. There we skip the (ineffective) BlurView and use a near-opaque frosted fill so
+  // every card, sheet and bar reads as a clean surface — matching the frosted look iOS gets for free.
+  const isIOS = Platform.OS === 'ios';
+  const fill = isDark
+    ? isIOS
+      ? colors.glassDark
+      : 'rgba(13,25,18,0.94)'
+    : isClear
+      ? isIOS
+        ? 'rgba(255,255,255,0.28)'
+        : 'rgba(255,255,255,0.55)'
+      : isIOS
+        ? colors.glass
+        : 'rgba(255,255,255,0.94)';
+
   if (wantLiquid && liquid && !isClear) {
     return (
       <View
@@ -71,7 +88,7 @@ export function Glass({
           innerStyle,
         ]}
       >
-        {!isClear && blur && (
+        {!isClear && blur && isIOS && (
           <BlurView
             intensity={intensity ?? (isDark ? 60 : 38)}
             tint={isDark ? 'dark' : 'light'}
@@ -79,18 +96,7 @@ export function Glass({
             style={StyleSheet.absoluteFill}
           />
         )}
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: isDark
-                ? colors.glassDark
-                : isClear
-                  ? 'rgba(255,255,255,0.28)'
-                  : colors.glass,
-            },
-          ]}
-        />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} />
         {!isClear && (
           <LinearGradient
             pointerEvents="none"
