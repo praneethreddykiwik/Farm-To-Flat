@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, MapPin } from 'lucide-react-native';
+import { ArrowLeft, MapPin, RotateCcw } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -21,7 +21,11 @@ import {
   Title,
 } from '../../src/ui';
 import { OrderStatusTimeline } from '../../src/components/OrderStatusTimeline';
-import { useCancelOrderMutation, useGetOrderQuery } from '../../src/api/api';
+import {
+  useCancelOrderMutation,
+  useGetOrderQuery,
+  useSetCartItemMutation,
+} from '../../src/api/api';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { colors, radius } from '../../src/theme';
 import { formatDateShort, WINDOWS } from '../../src/lib/dates';
@@ -34,7 +38,28 @@ export default function OrderDetail() {
   const dispatch = useDispatch();
   const { data, isLoading, refetch } = useGetOrderQuery(id, { pollingInterval: 30000 });
   const [cancel, { isLoading: cancelling }] = useCancelOrderMutation();
+  const [setCartItem] = useSetCartItemMutation();
+  const [reordering, setReordering] = useState(false);
   const order = data?.order;
+  // Finished orders (cancelled, delivered, or failed) can be re-ordered: refill the basket with the
+  // same items at today's prices, then drop the customer into the basket to review and check out.
+  const canReorder = !!order && ['CANCELLED', 'DELIVERED', 'PAYMENT_FAILED'].includes(order.status);
+
+  const reorder = async () => {
+    if (!order) return;
+    setReordering(true);
+    try {
+      for (const it of order.items) {
+        await setCartItem({ productId: it.productId, quantity: String(it.quantity) }).unwrap();
+      }
+      dispatch(showToast({ title: 'Added to your basket', tone: 'success' }));
+      router.push('/cart');
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || 'Could not add all items', tone: 'error' }));
+    } finally {
+      setReordering(false);
+    }
+  };
 
   const confirmCancel = () => {
     Alert.alert(
@@ -181,6 +206,24 @@ export default function OrderDetail() {
                 />
                 <Small muted center style={{ marginTop: 8 }}>
                   Free until the evening before your window.
+                </Small>
+              </Animated.View>
+            ) : null}
+
+            {canReorder ? (
+              <Animated.View
+                entering={FadeInDown.delay(180).duration(360)}
+                style={{ marginTop: 24 }}
+              >
+                <Button
+                  title="Reorder these items"
+                  variant="accent"
+                  onPress={reorder}
+                  loading={reordering}
+                  icon={<RotateCcw size={18} color={colors.ink} />}
+                />
+                <Small muted center style={{ marginTop: 8 }}>
+                  Adds the same items to your basket at today&apos;s prices.
                 </Small>
               </Animated.View>
             ) : null}

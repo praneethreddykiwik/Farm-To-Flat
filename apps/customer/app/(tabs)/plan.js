@@ -212,6 +212,32 @@ export default function Plan() {
             </Pressy>
           </View>
 
+          {!profileReady ? (
+            <Pressy
+              onPress={() => profileSheet.current?.present()}
+              haptics="soft"
+              scale={0.985}
+              style={{ marginTop: 16 }}
+              accessibilityLabel="Set up your profile to use the planner"
+            >
+              <Glass tone="dark" radius={radius.lg} innerStyle={styles.calRow}>
+                <View style={styles.setupIcon}>
+                  <Sparkles size={20} color={colors.ink} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyMedium" color={colors.inkOnDark}>
+                    Set up your profile to start
+                  </Text>
+                  <Small color="rgba(243,245,239,0.7)">
+                    Add your age and goal — the AI needs them to size portions and hit your
+                    calories.
+                  </Small>
+                </View>
+                <ArrowRight size={18} color={colors.sprout} />
+              </Glass>
+            </Pressy>
+          ) : null}
+
           {scheduled.length ? (
             <Pressy
               onPress={() => router.push('/calendar')}
@@ -505,6 +531,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tomato,
   },
   calRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  setupIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.sprout,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   inputWrap: { padding: 14 },
   input: {
