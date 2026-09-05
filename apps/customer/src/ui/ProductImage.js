@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Text } from './Text';
 import { fonts, tintOf } from '../theme';
+import { resolveStorageImage } from '../lib/supabase';
 
 /**
  * Product photograph with a designed fallback. When the admin has not uploaded a photo yet
@@ -27,8 +28,10 @@ export function ProductImage({
   const [failed, setFailed] = useState(false);
   const t = tintOf(tint);
   const dim = size === 'fill' ? { width: '100%', height: '100%' } : { width: size, height: size };
+  // Absolute URLs pass through unchanged; a Supabase Storage path becomes a public URL.
+  const src = resolveStorageImage(uri);
 
-  if (!uri || failed) {
+  if (!src || failed) {
     const initial = (name || '?').trim().charAt(0).toUpperCase();
     const fs = size === 'fill' ? 46 : Math.max(18, Math.round(size * 0.42));
     return (
@@ -81,7 +84,7 @@ export function ProductImage({
   return (
     <View style={[dim, { borderRadius: radius, overflow: 'hidden', backgroundColor: t.bg }, style]}>
       <Image
-        source={{ uri }}
+        source={{ uri: src }}
         placeholder={blurhash ? { blurhash } : undefined}
         placeholderContentFit="cover"
         contentFit="cover"

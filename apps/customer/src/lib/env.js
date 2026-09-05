@@ -10,6 +10,10 @@ export const env = {
   geminiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || null,
   geminiModel: process.env.EXPO_PUBLIC_GEMINI_MODEL || 'gemini-3.6-flash',
   razorpayKeyId: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_xxxxxxxxxxxx',
+  // Public Supabase values. Auth and user management stay server-side behind /api/v1 (per the
+  // technical design); the client uses these only to resolve read-only Storage image URLs.
+  supabaseUrl: (process.env.EXPO_PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''),
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || null,
   isExpoGo: Constants.executionEnvironment === 'storeClient',
   appVersion: Constants.expoConfig?.version ?? '0.0.0',
   easProjectId: Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId || '',
