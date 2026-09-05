@@ -28,7 +28,6 @@
     },
     "android": {
       "package": "in.farmtoflat.customer",
-      "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#0B1510",

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, RefreshControl, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +41,8 @@ export default function Home() {
   const catalog = useGetCatalogQuery();
   const windows = useGetWindowsQuery({});
   const [category, setCategory] = useState(null);
+  const listRef = useRef(null);
+  const catalogY = useRef(600); // content offset where the catalog grid starts; measured below
   const y = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
@@ -82,6 +84,16 @@ export default function Home() {
     [],
   );
 
+  // "Build a basket" shows every product and scrolls the catalog grid up into view so shopping can
+  // start straight away, instead of only resetting the (already default) category filter.
+  const buildBasket = useCallback(() => {
+    setCategory(null);
+    // Scroll the catalog grid up into view. catalogY is measured from the header's onLayout, with a
+    // sensible fallback, so it lands just below the sticky search bar on any screen size.
+    const offset = Math.max(0, catalogY.current - insets.top - 56);
+    listRef.current?.scrollToOffset?.({ offset, animated: true });
+  }, [insets.top]);
+
   const header = (
     <View>
       <Animated.View style={headerStyle}>
@@ -90,13 +102,19 @@ export default function Home() {
       </Animated.View>
       <ConfirmBanner style={{ paddingHorizontal: 20, marginBottom: 12 }} />
       <View style={{ marginTop: 4 }}>
-        <HarvestBanner nextWindow={nextWindow} onPress={() => setCategory(null)} />
+        <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />
       </View>
-      <SectionHeader
-        eyebrow="From the field"
-        title="Today’s catalog"
-        action={{ label: 'Search', onPress: () => router.push('/search') }}
-      />
+      <View
+        onLayout={(e) => {
+          catalogY.current = e.nativeEvent.layout.y;
+        }}
+      >
+        <SectionHeader
+          eyebrow="From the field"
+          title="Today’s catalog"
+          action={{ label: 'Search', onPress: () => router.push('/search') }}
+        />
+      </View>
       <CategoryChips categories={categories} selected={category} onSelect={setCategory} />
       <View style={{ height: 8 }} />
     </View>
@@ -117,6 +135,7 @@ export default function Home() {
         </View>
       ) : (
         <AnimatedFlashList
+          ref={listRef}
           data={products}
           renderItem={/** @type {any} */ (renderItem)}
           keyExtractor={(p) => /** @type {any} */ (p).id}
