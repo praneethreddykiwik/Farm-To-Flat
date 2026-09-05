@@ -1,8 +1,13 @@
-pnpm lint-staged
+# Format staged files with prettier (via lint-staged). Use the local binary directly so pnpm's
+# "verify deps before run" never tries to reinstall in the hook shell.
+npx --no-install lint-staged
 
-# Fail the commit if a secret reaches a mobile/web client workspace
-if git diff --cached --name-only | grep -qE '^apps/(customer|admin)/'; then
-  if git diff --cached | grep -qE 'SERVICE_ROLE|DATABASE_URL|RAZORPAY_KEY_SECRET|WEBHOOK_SECRET'; then
+# Block real secrets from reaching a mobile/web client workspace. Scan ONLY the staged content of
+# files UNDER apps/customer or apps/admin — not docs, .env.example, or this hook itself, which all
+# legitimately name these variables (the old version scanned the whole diff and false-blocked).
+client_files=$(git diff --cached --name-only --diff-filter=d | grep -E '^apps/(customer|admin)/' || true)
+if [ -n "$client_files" ]; then
+  if git diff --cached -- $client_files | grep -qE 'SERVICE_ROLE|DATABASE_URL|RAZORPAY_KEY_SECRET|WEBHOOK_SECRET'; then
     echo "✖ Secret detected in a client workspace. Blocked."
     exit 1
   fi
