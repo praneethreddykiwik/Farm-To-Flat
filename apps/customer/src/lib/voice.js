@@ -24,27 +24,25 @@ try {
 const Module = Speech?.ExpoSpeechRecognitionModule ?? null;
 
 /**
- * The recogniser needs a real audio input. A simulator has none, and starting there takes the whole
- * app down with a native exception, so voice is only offered on physical devices where the OS
- * reports recognition as available.
+ * Show the mic whenever the native module is linked (a dev/production build). It is absent in Expo
+ * Go, where voice cannot work — there the mic hides itself. We deliberately do NOT hide it on the
+ * simulator: the button should be visible there so the UI can be checked. What the simulator cannot
+ * do is actually *capture* — Apple's recogniser needs real audio input and crashes the app if
+ * started without it — so start() below refuses to launch capture off a physical device and shows a
+ * friendly message instead. On a real phone, both the button and capture work.
  */
 function detectSupport() {
-  if (!Module) return false;
-  if (!Device.isDevice) return false;
-  try {
-    return Module.isRecognitionAvailable() && Module.supportsRecording();
-  } catch {
-    return false;
-  }
+  return !!Module;
 }
 /** The package ships a hook for native events; stub it when absent so hook order stays stable. */
 const useEvent = Speech?.useSpeechRecognitionEvent ?? (() => {});
 
+/** True only on a real phone; used to gate actual capture (not the button's visibility). */
+export const voiceCaptureAvailable = !!Module && Device.isDevice;
+
 export const voiceSupported = detectSupport();
 if (!voiceSupported && !voiceUnavailableReason) {
-  voiceUnavailableReason = Device.isDevice
-    ? 'speech recognition unavailable on this device'
-    : 'needs a physical device (no microphone on a simulator)';
+  voiceUnavailableReason = 'voice module not linked in this build (Expo Go has no native modules)';
 }
 
 /**
@@ -79,7 +77,13 @@ export function useVoiceSearch({ onResult, onFinal, lang = 'en-IN' } = {}) {
   });
 
   const start = useCallback(async () => {
-    if (!voiceSupported || !Module) return;
+    if (!Module) return;
+    // The simulator has no usable audio input; starting capture there crashes natively. Refuse it
+    // and tell the user to use their phone, rather than taking the app down.
+    if (!voiceCaptureAvailable) {
+      setError('Voice search works on your phone — open Farm to Flat on your device to speak.');
+      return;
+    }
     setError(null);
     latest.current = '';
     try {
