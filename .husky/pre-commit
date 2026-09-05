@@ -1,0 +1,9 @@
+pnpm lint-staged
+
+# Fail the commit if a secret reaches a mobile/web client workspace
+if git diff --cached --name-only | grep -qE '^apps/(customer|admin)/'; then
+  if git diff --cached | grep -qE 'SERVICE_ROLE|DATABASE_URL|RAZORPAY_KEY_SECRET|WEBHOOK_SECRET'; then
+    echo "✖ Secret detected in a client workspace. Blocked."
+    exit 1
+  fi
+fi

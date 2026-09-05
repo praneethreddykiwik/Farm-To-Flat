@@ -1,0 +1,855 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Farm-to-Flat — Technical Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F3ED; --paper-2:#EAE8DF; --card:#FBFAF6; --code:#F1F0E8;
+    --ink:#15180F; --ink-2:#454A3C; --muted:#7B8073;
+    --field:#1E5B3D; --field-lt:#E2EBE5;
+    --brinjal:#58274A; --brinjal-lt:#F0E6EE;
+    --amber:#8A6114; --amber-lt:#F5EDDC;
+    --rule:#D8D6CB; --rule-2:#C4C1B4;
+    --display:"Fraunces",Georgia,serif;
+    --body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{display:grid;grid-template-columns:262px minmax(0,1fr);max-width:1440px;margin:0 auto}
+
+  .rail{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:30px 22px 40px;border-right:1px solid var(--rule)}
+  .brand{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .brand b{display:block;font-family:var(--display);font-size:19px;font-weight:600;text-transform:none;color:var(--ink);margin-top:5px;letter-spacing:-.01em}
+  .brand i{display:block;font-style:normal;font-size:10px;color:var(--field);margin-top:3px;letter-spacing:.1em}
+
+  .clock{margin:22px 0 24px;padding:14px;background:var(--card);border:1px solid var(--rule)}
+  .clock-lab{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .clock-num{font-family:var(--display);font-size:29px;font-weight:600;line-height:1.1;margin:4px 0 1px}
+  .clock-sub{font-size:11.5px;color:var(--ink-2);line-height:1.4}
+  .bar{height:5px;background:var(--paper-2);margin-top:10px;overflow:hidden;border-radius:3px}
+  .bar span{display:block;height:100%;width:0;background:var(--field);transition:width .45s cubic-bezier(.3,.8,.4,1)}
+  .grid15{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-top:10px}
+  .grid15 i{aspect-ratio:1;border:1px solid var(--rule-2);border-radius:2px;font-style:normal;font-family:var(--mono);font-size:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;transition:all .14s}
+  .grid15 i:hover{border-color:var(--field)}
+  .grid15 i.on{background:var(--field);border-color:var(--field);color:#fff}
+
+  .navgrp{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:20px 0 7px;padding-top:11px;border-top:1px solid var(--rule)}
+  .navgrp:first-of-type{border-top:0;padding-top:0}
+  .rail a{display:flex;gap:9px;align-items:baseline;text-decoration:none;color:var(--ink-2);padding:4px 0 4px 10px;margin-left:-10px;font-size:13.5px;border-left:2px solid transparent;transition:color .15s,border-color .15s}
+  .rail a i{font-family:var(--mono);font-size:9.5px;font-style:normal;color:var(--rule-2);flex:none;width:16px}
+  .rail a:hover{color:var(--ink)}
+  .rail a.on{color:var(--field);border-left-color:var(--field);font-weight:500}
+  .rail a.on i{color:var(--field)}
+
+  main{padding:0 clamp(22px,4.5vw,68px) 110px;min-width:0}
+  section{padding-top:70px;scroll-margin-top:20px}
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:13px}
+  h1{font-family:var(--display);font-size:clamp(38px,5.8vw,66px);font-weight:600;line-height:1.03;letter-spacing:-.025em;margin:0 0 22px;max-width:17ch}
+  h2{font-family:var(--display);font-size:clamp(25px,3.2vw,35px);font-weight:600;line-height:1.12;letter-spacing:-.018em;margin:0 0 6px}
+  h3{font-family:var(--body);font-size:13.5px;font-weight:600;letter-spacing:.03em;margin:30px 0 10px;text-transform:uppercase;color:var(--field)}
+  p{margin:0 0 14px;max-width:70ch;color:var(--ink-2)}
+  p.lead{font-size:18px;line-height:1.55;color:var(--ink);max-width:62ch}
+  strong{color:var(--ink);font-weight:600}
+  code.inl{font-family:var(--mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:2px;color:var(--field)}
+  .sechead{display:flex;gap:16px;align-items:baseline;border-top:2px solid var(--ink);padding-top:14px;margin-bottom:20px}
+  .sechead em{font-family:var(--mono);font-size:12px;font-style:normal;color:var(--field);flex:none;padding-top:8px}
+  .sechead .sub{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:5px;letter-spacing:.03em}
+
+  pre{background:var(--code);border:1px solid var(--rule);padding:16px 18px;margin:16px 0;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:#2E2E2E;position:relative}
+  pre .cm{color:var(--muted)}
+  pre .kw{color:var(--brinjal);font-weight:500}
+  pre .st{color:var(--field)}
+  .copy{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:var(--paper);border:1px solid var(--rule-2);color:var(--muted);padding:3px 8px;cursor:pointer;border-radius:2px}
+  .copy:hover{border-color:var(--field);color:var(--field)}
+
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
+  th{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:400;padding:0 10px 7px 0;border-bottom:1px solid var(--rule-2)}
+  td{padding:10px 10px 10px 0;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--ink-2)}
+  td:first-child{color:var(--ink);font-weight:500}
+  tr:hover td{background:rgba(30,91,61,.026)}
+  td .m,th .m{font-family:var(--mono)}
+
+  ul.plain{margin:12px 0;padding:0;list-style:none;max-width:70ch}
+  ul.plain li{font-size:14px;line-height:1.55;color:var(--ink-2);padding:8px 0 8px 17px;border-bottom:1px solid var(--rule);position:relative}
+  ul.plain li::before{content:"";position:absolute;left:0;top:16px;width:8px;height:1px;background:var(--field)}
+  ol.steps{margin:14px 0;padding-left:0;list-style:none;counter-reset:s;max-width:70ch}
+  ol.steps li{counter-increment:s;position:relative;padding:8px 0 8px 32px;border-bottom:1px solid var(--rule);font-size:14px;color:var(--ink-2)}
+  ol.steps li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:10px;font-family:var(--mono);font-size:10px;color:var(--field)}
+
+  .callout{background:var(--brinjal-lt);border-left:2px solid var(--brinjal);padding:15px 18px;margin:18px 0;max-width:68ch}
+  .callout p{margin:0;color:var(--ink);font-size:14px}
+  .callout b{color:var(--brinjal)}
+  .callout.warn{background:var(--amber-lt);border-left-color:var(--amber)}
+  .callout.warn b{color:var(--amber)}
+
+  .controls{position:sticky;top:0;background:var(--paper);padding:12px 0 10px;border-bottom:1px solid var(--rule);z-index:5}
+  input[type=search]{width:100%;font-family:var(--body);font-size:13.5px;padding:8px 11px;border:1px solid var(--rule-2);background:var(--card);color:var(--ink);border-radius:2px}
+  input[type=search]:focus{outline:2px solid var(--field);outline-offset:1px;border-color:transparent}
+  .cnt{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:7px;display:block}
+
+  .ep{display:grid;grid-template-columns:76px 1fr 92px;gap:12px;padding:9px 0;border-bottom:1px solid var(--rule);align-items:baseline;font-size:13.5px}
+  .ep .v{font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:2px 6px;border-radius:2px;justify-self:start;font-weight:500}
+  .v.GET{background:var(--field-lt);color:var(--field)}
+  .v.POST{background:var(--brinjal-lt);color:var(--brinjal)}
+  .v.PUT,.v.PATCH{background:var(--amber-lt);color:var(--amber)}
+  .v.DELETE{background:var(--paper-2);color:var(--ink-2)}
+  .ep .path{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+  .ep .desc{display:block;font-family:var(--body);font-size:12.5px;color:var(--muted);margin-top:2px}
+  .ep .auth{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);justify-self:end}
+  .ephead{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--field);margin:20px 0 4px;padding-top:12px;border-top:1px solid var(--rule-2)}
+
+  .day{display:grid;grid-template-columns:44px 1fr 210px;gap:14px;padding:12px 0;border-bottom:1px solid var(--rule);align-items:start;cursor:pointer}
+  .day:hover{background:rgba(30,91,61,.03)}
+  .day .n{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--field)}
+  .day b{font-size:14px;font-weight:500;display:block;color:var(--ink)}
+  .day .who{font-family:var(--mono);font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-top:3px}
+  .day .gate{font-size:12.5px;color:var(--ink-2);border-left:2px solid var(--rule);padding-left:11px}
+  .day.done{opacity:.5}
+  .day.done b{text-decoration:line-through}
+  .day.crit .n{color:var(--brinjal)}
+  .day.crit .gate{border-left-color:var(--brinjal)}
+
+  .pri{font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .pri.Critical{background:var(--brinjal);color:#fff}
+  .pri.High{background:var(--field-lt);color:var(--field)}
+  .pri.Medium{background:var(--paper-2);color:var(--muted)}
+  .tag{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .tag.in{background:var(--field);color:#fff}
+  .tag.out{background:var(--paper-2);color:var(--muted)}
+
+  footer{margin-top:80px;padding-top:20px;border-top:2px solid var(--ink);font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+
+  @media (max-width:920px){
+    .wrap{grid-template-columns:1fr}
+    .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--rule);padding:20px 22px}
+    .navbox summary{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--field);cursor:pointer;padding:9px 0;border-top:1px solid var(--rule);list-style:none}
+    .navbox summary::-webkit-details-marker{display:none}
+    .navbox summary::after{content:" +";font-weight:600}
+    .navbox[open] summary::after{content:" \2013"}
+    .railnav{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:0 14px}
+    .navgrp{grid-column:1/-1}
+    main{padding:0 22px 70px}
+    .ep,.day{grid-template-columns:1fr;gap:4px}
+    .ep .auth,.day .gate{justify-self:start;border-left:0;padding-left:0}
+  }
+  @media (min-width:921px){.navbox summary{display:none}}
+</style>
+
+<div class="wrap">
+  <nav class="rail">
+    <div class="brand">Technical design<b>Farm-to-Flat</b><i>PHASE 1 · v1.0</i></div>
+
+    <div class="clock">
+      <div class="clock-lab">Build clock</div>
+      <div class="clock-num" id="cNum">15</div>
+      <div class="clock-sub" id="cSub">days remaining · none complete</div>
+      <div class="bar"><span id="cBar"></span></div>
+      <div class="grid15" id="cGrid"></div>
+    </div>
+
+    <details class="navbox"><summary>Contents</summary><div class="railnav" id="railnav"></div></details>
+  </nav>
+
+  <main>
+    <section id="s-top">
+      <div class="eyebrow">Technical design document · companion to SRS v3.0</div>
+      <h1>Fifteen days to take an order</h1>
+      <p class="lead">Phase 1 is account, catalog, cart, coupon, wallet, Razorpay payment and a delivery window. That is all of it, and it is enough to sell food to a gated community.</p>
+      <p>This document specifies how it gets built. It is written for the two engineers implementing it and the PMO team planning around it, so it is concrete — schema, endpoints, transactions and sequencing rather than intent. Where this disagrees with the SRS, this governs Phase 1 and the SRS governs everything after.</p>
+      <div class="callout"><p><b>P1 is settled.</b> It means exactly what was agreed on the technical call. The 185-requirement scope that previously carried the Phase 1 label is now <b>P2</b> — nothing cancelled, sequence changed.</p></div>
+      <table id="phases"></table>
+    </section>
+
+    <section id="s-scope">
+      <div class="sechead"><em>01</em><div><h2>Scope</h2><div class="sub">What ships, what waits, what we are assuming</div></div></div>
+      <div id="scopein"></div>
+      <h3>Not in P1</h3>
+      <p>Listed so nobody plans against them for the fifteen days.</p>
+      <ul class="plain" id="scopeout"></ul>
+      <h3>The one thing this document cannot solve</h3>
+      <p>Phase 1 accepts money and has no fulfilment system. Aggregation, procurement, packing, routing and delivery confirmation are all P2. Orders arrive with payment attached and get fulfilled by hand.</p>
+      <div class="callout"><p><b>That is a normal way to start a pilot. It is only dangerous if it is accidental.</b> Section 10 specifies the admin screens and CSV exports that make the manual process workable — but it stays a manual process run by a named person, and that person needs agreeing before launch, not after (OQ-36).</p></div>
+      <h3>Assumptions</h3>
+      <table id="assum"></table>
+    </section>
+
+    <section id="s-arch">
+      <div class="sechead"><em>02</em><div><h2>Architecture</h2><div class="sub">Three deployables and four managed services</div></div></div>
+      <pre id="ctx"></pre>
+      <p>The API is the only process that touches Postgres. Neither client holds a database credential or a service-role key. <strong>Anything shipped to a device is public.</strong></p>
+      <h3>Stack, and why</h3>
+      <table id="stack"></table>
+      <h3>Repository</h3>
+      <pre id="repo"></pre>
+      <h3>Money</h3>
+      <p>Every monetary value is an integer number of paise. No floats, no decimals, in any column, variable, request body or response.</p>
+      <ul class="plain" id="money"></ul>
+      <h3>JavaScript guardrails</h3>
+      <p>The codebase is JavaScript. Three mechanisms substitute for the compiler and none is optional.</p>
+      <ol class="steps" id="guards"></ol>
+    </section>
+
+    <section id="s-data">
+      <div class="sechead"><em>03</em><div><h2>Data model</h2><div class="sub">Seventeen tables. P2 builds on top without altering them</div></div></div>
+      <table id="entities"></table>
+      <h3>Wallet and coupon schema</h3>
+      <pre id="prisma"></pre>
+      <h3>Indexes from day one</h3>
+      <table id="idx"></table>
+      <p>Run <code class="inl">EXPLAIN</code> on the catalog listing and the admin order list before Day 14. Those two carry all the load in Phase 1.</p>
+    </section>
+
+    <section id="s-api">
+      <div class="sechead"><em>04</em><div><h2>API</h2><div class="sub">Thirty-five endpoints. Search them</div></div></div>
+      <h3>Conventions</h3>
+      <ul class="plain" id="conv"></ul>
+      <div class="controls">
+        <input type="search" id="q" placeholder="Search endpoints — try &ldquo;wallet&rdquo;, &ldquo;coupon&rdquo;, &ldquo;admin&rdquo;" aria-label="Search endpoints">
+        <span class="cnt" id="epcnt"></span>
+      </div>
+      <div id="eps"></div>
+    </section>
+
+    <section id="s-auth">
+      <div class="sechead"><em>05</em><div><h2>Authentication</h2><div class="sub">OTP, rotating tokens, and the serialiser rule</div></div></div>
+      <h3>Customer — mobile OTP</h3>
+      <ol class="steps" id="otp"></ol>
+      <p>There is no password anywhere in the customer flow. That removes an entire class of vulnerability and a support burden.</p>
+      <h3>Tokens</h3>
+      <table id="tok"></table>
+      <ul class="plain" id="tokrules"></ul>
+      <h3>The serialiser rule</h3>
+      <p>Authorisation is enforced server-side by middleware, never by the client hiding a screen. P1 has two roles, but this is built now because it is far harder to retrofit once P2 adds five more.</p>
+      <pre id="ser"></pre>
+      <div class="callout"><p><b>Allow-list, never blocklist.</b> A blocklist that deletes forbidden keys silently leaks every new field added later. The accompanying test walks every role and asserts forbidden keys are absent, including nested — and blocks merge on failure.</p></div>
+    </section>
+
+    <section id="s-flow">
+      <div class="sechead"><em>06</em><div><h2>The order transaction</h2><div class="sub">The hardest thing in the build</div></div></div>
+      <p>It combines a coupon redemption, a wallet debit, a window decrement and a gateway leg. Any of the four can fail.</p>
+      <pre id="order"></pre>
+      <div class="callout warn"><p><b>Steps 2 to 11 are one database transaction.</b> A partial commit means a customer charged for an order that does not exist, or a coupon consumed with nothing to show for it.</p></div>
+      <h3>When it fails</h3>
+      <table id="fail"></table>
+      <h3>Wallet top-up</h3>
+      <pre id="topup"></pre>
+      <p>The wallet is credited by the webhook, never by the client telling us the payment succeeded.</p>
+    </section>
+
+    <section id="s-wallet">
+      <div class="sechead"><em>07</em><div><h2>Wallet</h2><div class="sub">Ledger, locks, closed loop, and the liability nobody tracks</div></div></div>
+      <p>Two tables. A wallet row holding the balance for fast reads, and an append-only ledger holding every movement. <strong>The ledger is the truth; the balance column is a materialised convenience.</strong></p>
+      <ul class="plain" id="wmodel"></ul>
+      <h3>Concurrency</h3>
+      <p>Two orders from two devices on the same account must not both spend the same balance. The wallet row is locked with <code class="inl">SELECT … FOR UPDATE</code> inside the order transaction, which serialises them.</p>
+      <div class="callout warn"><p><b>Do not implement this as read-then-write.</b> Write the test first: fifty concurrent orders against a ₹1,000 balance; assert nothing overspends and the ledger reconciles exactly.</p></div>
+      <h3>Closed loop — a constraint, not a preference</h3>
+      <ul class="plain" id="wloop"></ul>
+      <p>These rules keep the wallet in the shape that normally sits outside prepaid payment instrument licensing in India. It must be confirmed with a professional before money is accepted — <strong>OQ-34</strong>, and not an engineering decision.</p>
+      <h3>Accounting</h3>
+      <table id="wacct"></table>
+      <div class="callout"><p><b>The last row deserves reading twice.</b> A non-expiring balance is a permanent obligation. A thousand customers each holding ₹400 unused is <b>₹4 lakh of goods owed indefinitely</b> — against cash already spent on procurement.</p></div>
+    </section>
+
+    <section id="s-coupon">
+      <div class="sechead"><em>08</em><div><h2>Coupons</h2><div class="sub">Printed in a brochure, enforced by the database</div></div></div>
+      <pre id="code"></pre>
+      <p>Five categories with two to three coupons each, per the brochure design. Every redemption traces to a batch and therefore to a channel — which is what turns leaflet spend into a measurable number.</p>
+      <h3>Rules and where they are enforced</h3>
+      <table id="crules"></table>
+      <div class="callout warn"><p><b>The race nobody tests.</b> A coupon capped at 500 uses, hit by 600 simultaneous redemptions, over-issues if implemented as read-then-increment. Lock the coupon row inside the order transaction. The unique constraint handles per-account reuse; only the global cap needs the lock.</p></div>
+    </section>
+
+    <section id="s-pay">
+      <div class="sechead"><em>09</em><div><h2>Payments</h2><div class="sub">Razorpay, and why the webhook is the only truth</div></div></div>
+      <pre id="payflow"></pre>
+      <h3>Signature verification</h3>
+      <ul class="plain" id="sig"></ul>
+      <h3>The webhook is the source of truth</h3>
+      <p>The client tells us a payment succeeded. The client is a device in someone's hand and cannot be trusted. <strong>Money moves only when the webhook confirms it.</strong></p>
+      <ul class="plain" id="hook"></ul>
+      <h3>Reconciliation</h3>
+      <p>A daily job pulls settled payments from the Razorpay API and matches them against the payment table. Any gateway payment without an internal record, or any internal CAPTURED payment absent from the gateway, is reported. Without this, a webhook outage becomes an accounting problem discovered weeks later.</p>
+      <div class="callout"><p><b>Card numbers, CVV, UPI PINs and bank credentials never touch this system.</b> The Razorpay SDK collects them. Use the official React Native SDK, never a WebView wrapper around the checkout page.</p></div>
+    </section>
+
+    <section id="s-admin">
+      <div class="sechead"><em>10</em><div><h2>Delivery windows and admin</h2><div class="sub">Including the screen that replaces the whole P2 operations suite</div></div></div>
+      <h3>Windows in P1</h3>
+      <p>Fixed windows on configured delivery days. No travel-time feasibility — that needs the routing engine, which is P2.</p>
+      <table id="win"></table>
+      <p>Window rows are generated fourteen days ahead by a scheduled job, so capacity checks are a single indexed read rather than a computation per request. Capacity decrements under a row lock inside the order transaction, exactly like the wallet.</p>
+      <h3>Admin panel</h3>
+      <table id="adm"></table>
+      <h3>The manual fulfilment screen</h3>
+      <p>This is what stands in for the entire P2 operations suite, and it is the difference between a pilot that works and one that collapses in week one.</p>
+      <ul class="plain" id="fulfil"></ul>
+      <div class="callout"><p><b>Two SQL queries and a CSV writer — perhaps half a day.</b> It removes the need for a spreadsheet maintained by hand alongside the system, which is where pilots usually lose track of what was ordered. The highest-leverage half day in the fifteen.</p></div>
+    </section>
+
+    <section id="s-quality">
+      <div class="sechead"><em>11</em><div><h2>Quality</h2><div class="sub">Targets, and what gets tested first</div></div></div>
+      <table id="nfr"></table>
+      <h3>Testing — test-first only where it matters</h3>
+      <p>Test-first is not applied uniformly. It is applied where a bug moves money or breaks a promise. Everywhere else, tests follow the code.</p>
+      <table id="tests"></table>
+      <h3>Definition of done</h3>
+      <ol class="steps" id="dod"></ol>
+    </section>
+
+    <section id="s-sec">
+      <div class="sechead"><em>12</em><div><h2>Security and compliance</h2><div class="sub">Three items have external queues</div></div></div>
+      <ul class="plain" id="sec"></ul>
+      <h3>Regulatory — external dependencies</h3>
+      <table id="reg"></table>
+      <div class="callout warn"><p><b>The wallet item is the one most likely to be treated as a formality.</b> It is not. It concerns holding customer money, and the right time to confirm it is before the first top-up rather than after a few hundred.</p></div>
+      <h3>Environments</h3>
+      <table id="env"></table>
+      <h3>Prisma and the Supabase pooler</h3>
+      <p>Get this right on Day 1. It fails in production, not locally, which makes it expensive to find late.</p>
+      <pre id="pool"></pre>
+    </section>
+
+    <section id="s-plan">
+      <div class="sechead"><em>13</em><div><h2>The fifteen-day plan</h2><div class="sub">Tick a day as it lands — the rail keeps score</div></div></div>
+      <p>Fifteen working days plus four of buffer. Two engineers. The sequence matters more than the estimates, because several items block everything after them. Days on the critical path are marked in aubergine.</p>
+      <div id="days"></div>
+      <div class="callout"><p><b>Critical path: 1 → 2 → 9 → 10 → 11.</b> Schema, then auth, then wallet, then payments, then the transaction that combines all of them. If a day is lost, lose it from Day 12 or 13 — never from 11 or 14.</p></div>
+      <h3>What would make this slip</h3>
+      <table id="slip"></table>
+    </section>
+
+    <section id="s-risk">
+      <div class="sechead"><em>14</em><div><h2>Risks and open items</h2><div class="sub">Six technical, seven decisions</div></div></div>
+      <table id="trisk"></table>
+      <h3>Decisions blocking this document</h3>
+      <table id="oq"></table>
+      <p><strong>OQ-37 is the quiet one.</strong> Without a serviceability restriction the app will accept an order from an address nobody can deliver to — and in P1 there is no operations system to catch it before someone has paid.</p>
+    </section>
+
+    <section id="s-appx">
+      <div class="sechead"><em>15</em><div><h2>Appendix</h2><div class="sub">Environment variables and error codes</div></div></div>
+      <pre id="envvars"></pre>
+      <h3>Error codes</h3>
+      <table id="errs"></table>
+    </section>
+
+    <footer>Farm-to-Flat · Technical Design Document · Phase 1 · v1.0 · Confidential</footer>
+  </main>
+</div>
+
+<script>
+const D = {
+phases:[["P1 — this document","Account, catalog, cart, order, coupon, wallet, Razorpay payment, delivery-window selection, scheduled-slot visibility, thin admin","15 days + 4 buffer"],
+["P2 — SRS v3.0","Aggregation, procurement, distribution and labelling, route optimisation, delivery app, weight-adjusted billing, SLA escalation, support, consumables costing, profitability reporting","47–70 days"],
+["P3+","Subscriptions, demand forecasting, live tracking, vendor portal, multi-city","Not estimated"]],
+
+scopein:[["Account and login","Mobile registration, OTP verification, session management, secure token storage","FR-REG-01, FR-USR-03"],
+["Address capture","Structured community, block and flat. Serviceability check","FR-REG-02…06"],
+["Catalog","Products switched on by admin, with images, unit, increment, price. Alias search","FR-CAT-01…05, 10"],
+["Cart and order","Add, amend, remove. ₹500 minimum order value. Order number, prices locked","FR-ORD-01…07"],
+["Coupon redemption","Codes from the printed brochure, one per account, expiry-limited","FR-PRM-09…12"],
+["Wallet","Prepaid top-up, closed-loop, non-expiring, ledger-backed","FR-WAL-01…07"],
+["Payment","Razorpay for top-ups and for any balance the wallet does not cover","FR-BIL-06"],
+["Delivery window","Morning 06:00–12:00 or evening 17:00–21:00, on configured days","FR-SLT-01, 06"],
+["Scheduled slot","Which window the order is coming in. Not live tracking","FR-ORD-11"],
+["Order history","Past orders, status, amount paid, coupon applied","FR-ORD-09"],
+["Thin admin","Catalog on/off and pricing, communities, delivery days, coupon batches, order list with export","FR-ADM-01…05"]],
+
+scopeout:["Demand aggregation and the frozen procurement plan","Procurement module, cost entry, vendor assignment, shortfall handling","Distribution, packing checklists, per-flat labels, barcode scanning","Route optimisation, delivery agent app, proof of delivery, cash reconciliation","Slot feasibility from travel time — P1 has fixed windows with a capacity cap","Weight-adjusted billing, invoices, GST documents","SLA monitoring, escalation ladder, support ticket queue","Consumables costing, margin engine, profitability reporting","Stock thresholds beyond a simple per-product daily cap","Premium and express delivery"],
+
+assum:[["T1","DLT sender ID and OTP templates approved before Day 2","No login. The entire product is blocked"],
+["T2","Razorpay merchant account live before Day 9","Payment slips; wallet cannot be tested end to end"],
+["T3","Pilot community and its block/flat list confirmed before Day 3","Serviceability and addresses cannot be seeded"],
+["T4","Catalog with images and prices supplied before Day 12","Launch with placeholders, undermining the freshness claim"],
+["T5","A named person owns manual fulfilment from Day 15","Orders taken that nobody delivers"]],
+
+stack:[["Mobile","Expo / React Native, JavaScript","One codebase, both stores. OTA updates shorten the fix cycle inside 15 days"],
+["Type safety","jsconfig checkJs + JSDoc","Editor checking without a build step"],
+["Styling","NativeWind, tokens shared with admin","One design source across mobile and web"],
+["Motion","Reanimated + Moti","UI-thread animation; presets cut hand-written code"],
+["Data","Redux Toolkit + RTK Query","Caching, dedup, optimistic updates for free"],
+["API","Node + Express, ESM","Fastest path for the team; no framework learning cost"],
+["Validation","Zod at every boundary","In a JS codebase this is the only enforcement that exists"],
+["ORM","Prisma","Migrations, generated types usable from JSDoc"],
+["Database","Supabase Postgres","Relational integrity for wallet and coupon atomicity; Storage for images"],
+["Cache","Redis (Upstash)","OTP, refresh-token revocation, idempotency keys"],
+["Payments","Razorpay","Confirmed on the call. ~2% per transaction"],
+["SMS","MSG91 or Kaleyra","DLT-compliant. Supabase phone auth will not deliver in India"]],
+
+money:["Postgres BigInt. Prisma maps it to JavaScript BigInt.","BigInt does not survive JSON.stringify. packages/types exports serialiseMoney() applied globally by response middleware. Skipping it throws a TypeError rather than silently corrupting — which is the desired behaviour.","The shared &lt;Money&gt; component takes paise and renders rupees. No component formats currency itself.","Percentages are basis points — integer hundredths of a percent. 5% is 500."],
+
+guards:["Every workspace carries jsconfig.json with checkJs, strict and noEmit. Exported functions carry JSDoc @param and @returns. <code class='inl'>pnpm typecheck</code> gates CI.","Zod parses every route input, external response and webhook payload. Parse, never cast. A route registered without a schema throws at startup.","The role-scoped serialiser test suite runs on every commit and blocks merge. In TypeScript a leaked margin is a compile error; here it is a test."],
+
+entities:[["customer","A registered resident","Mobile unique. No password — OTP only"],
+["address","Delivery point","FK community, plus block and flat. One default per customer"],
+["community","Serviceable gated community","Admin-maintained. Carries delivery days and windows"],
+["block","Block or tower","Seeded per community so flat entry is constrained"],
+["product","Sellable item","is_active drives visibility. unit, increment, daily_cap"],
+["product_alias","Alternate names","Trigram-indexed for misspelling tolerance"],
+["price","Dated price per product","selling_price in paise. Effective date. History retained"],
+["cart / cart_item","Working basket","One open cart per customer"],
+["order / order_item","Placed order","Prices locked at confirmation. Status enum"],
+["delivery_window","A date + window instance","Capacity cap. Generated from community config"],
+["coupon","Discount definition","Code, type, value, expiry, batch, global cap"],
+["coupon_redemption","One use by one customer","Unique (coupon_id, customer_id) — the enforcement point"],
+["wallet","One per customer","balance_paise plus row version"],
+["wallet_ledger","Append-only money movement","Never updated, never deleted"],
+["payment","A Razorpay transaction","Gateway ids, status, signature result"],
+["idempotency_key","Replay protection","Key, endpoint, response snapshot, expiry"],
+["audit_log","Admin config changes","Entity, action, old, new, user, timestamp"]],
+
+idx:[["product_alias","GIN trigram on name","Alias search with misspelling tolerance"],
+["product","(is_active, category_id)","Catalog listing is the hottest read"],
+["order","(customer_id, created_at desc)","Order history"],
+["order","(delivery_date, window, status)","The admin fulfilment list — where ops lives"],
+["coupon","unique lower(code)","Case-insensitive redemption lookup"],
+["coupon_redemption","unique (coupon_id, customer_id)","One-per-account enforcement"],
+["wallet_ledger","(wallet_id, created_at)","Statement rendering"],
+["idempotency_key","unique (key, endpoint)","Replay protection"]],
+
+conv:["Base path <code class='inl'>/api/v1</code>. Versioned from the start so P2 can add without breaking the shipped app.","JSON only. Bearer token in Authorization. Money fields are integer paise serialised as strings.","Errors return <code class='inl'>{ error: { code, message, details? } }</code> with a stable machine-readable code. Never a stack trace, never SQL.","Every mutating endpoint accepts an Idempotency-Key header. Replays return the original response rather than acting twice.","Cursor pagination: <code class='inl'>?limit=20&amp;cursor=…</code>. No offset pagination.","Every request carries X-Request-Id, generated client-side if absent, logged end to end."],
+
+eps:[["AUTH"],["POST","/auth/otp/request","Send OTP. Rate limited","Public"],["POST","/auth/otp/verify","Verify, create or return customer, issue tokens","Public"],["POST","/auth/refresh","Rotate refresh token","Refresh"],["POST","/auth/logout","Revoke the refresh jti","Customer"],
+["PROFILE & ADDRESS"],["GET","/me","Profile, wallet balance, default address","Customer"],["POST","/addresses","Create address; validates serviceability","Customer"],["GET","/addresses","List saved addresses","Customer"],["GET","/communities","Serviceable communities and blocks","Public"],
+["CATALOG"],["GET","/catalog","Active products with current price","Public"],["GET","/catalog/search?q=","Alias-aware search","Public"],["GET","/catalog/:id","Product detail","Public"],
+["CART & ORDER"],["GET","/cart","Current cart with totals","Customer"],["PUT","/cart/items","Add or update a line","Customer"],["DELETE","/cart/items/:id","Remove a line","Customer"],["GET","/delivery-windows?date=","Available windows with remaining capacity","Customer"],["POST","/cart/coupon","Validate and attach a coupon","Customer"],["DELETE","/cart/coupon","Detach the coupon","Customer"],["POST","/orders","Place order. Idempotent. Returns payment intent if needed","Customer"],["GET","/orders","Order history","Customer"],["GET","/orders/:id","Order detail with scheduled window","Customer"],["POST","/orders/:id/cancel","Cancel before cut-off","Customer"],
+["WALLET & PAYMENT"],["GET","/wallet","Balance and paginated ledger","Customer"],["POST","/wallet/topup","Create top-up intent. Idempotent","Customer"],["POST","/payments/verify","Client confirmation. Advisory only","Customer"],["POST","/webhooks/razorpay","Gateway webhook. Signature-verified. Source of truth","Signature"],
+["ADMIN"],["POST","/admin/auth/login","Credential login","Public"],["GET","/admin/products","Catalog list","Admin"],["POST","/admin/products","Create product","Admin"],["PATCH","/admin/products/:id","Activate, deactivate, unit, increment, daily cap","Admin"],["PUT","/admin/products/:id/price","Set price with effective date","Admin"],["POST","/admin/communities","Communities, blocks, delivery days, windows","Admin"],["POST","/admin/coupons/batch","Generate a batch for a print run","Admin"],["GET","/admin/coupons/:batchId/redemptions","Redemption report by batch","Admin"],["GET","/admin/orders","Fulfilment list by date and window","Admin"],["GET","/admin/orders/export","CSV for the manual picking process","Admin"],["POST","/admin/wallet/:customerId/adjust","Manual credit or debit with mandatory reason","Admin"]],
+
+otp:["Client posts a mobile number to /auth/otp/request.","Server rate-limits: 3 per number per 15 minutes, 10 per IP per hour. Both in Redis.","Server generates a 6-digit OTP and stores a bcrypt hash under otp:{mobile} with 5-minute TTL and an attempt counter.","Sent via MSG91 on the approved DLT template. The plaintext OTP is never logged, never returned, never written to Postgres.","Client posts number plus OTP to /auth/otp/verify. Server compares against the hash and locks after 3 failures.","On success the customer is created if new, and access plus refresh tokens are issued."],
+
+tok:[["Access","15 minutes","Memory only","sub, roles, jti, exp"],["Refresh","30 days, rotating","expo-secure-store","sub, jti, family"]],
+tokrules:["Rotation: every use issues a new refresh token and revokes the previous jti in Redis.","Reuse detection: presenting a revoked jti invalidates the whole token family and forces re-login. This is how a stolen token is caught.","Never AsyncStorage for tokens. expo-secure-store only.","Logout revokes the jti server-side. Deleting the local token is not logout."],
+
+fail:[["Coupon already redeemed by this customer","Unique constraint raises. Rollback. 409 COUPON_ALREADY_USED"],
+["Window capacity exhausted mid-transaction","Rollback. 409 WINDOW_FULL, with the next available window in the response"],
+["Wallet balance changed concurrently","Row lock serialises it. The second transaction sees the true balance"],
+["Gateway payment abandoned","Order stays PENDING_PAYMENT. A job releases it after 20 minutes — wallet debit reversed, coupon redemption deleted, capacity returned"],
+["Webhook arrives after the release job","Payment refunded automatically and the customer notified. Better than silently confirming an order they walked away from"]],
+
+wmodel:["wallet_ledger is INSERT-only. No UPDATE, no DELETE, ever. Enforce with a database rule if the team is willing.","Every row records balance_after. A nightly job recomputes the ledger sum and asserts it equals the wallet balance. A mismatch is a P1 incident.","Every debit references the order that caused it. Every credit references the payment or admin adjustment. No unattributed movements."],
+wloop:["Balance is redeemable only against goods sold on this platform.","No cash-out. No withdrawal endpoint exists — not disabled, absent.","No transfer between customers. No gifting.","No interest, no yield, no reward on balance held.","Refunds go to the original payment method by default; wallet credit requires the customer to choose it."],
+wacct:[["Customer tops up ₹1,000","Cash +₹1,000. Wallet liability +₹1,000. Revenue unchanged"],
+["Customer orders ₹250 of goods","Liability −₹250. Deferred revenue +₹250"],
+["Goods delivered","Deferred revenue −₹250. Revenue +₹250"],
+["Customer never returns","Liability persists. The balance does not expire and cannot be written off"]],
+
+crules:[["One coupon per customer account","Unique constraint on (coupon_id, customer_id). The database is the guard, not application logic"],
+["Minimum order value met","Checked against the subtotal after re-pricing, before discount"],
+["Expiry date","Primary limiting mechanism. Checked at attach and again at order placement"],
+["Optional first-N cap","Supported via global_cap. Requires a row lock"],
+["One coupon per order","P1 does not stack. Attaching a second replaces the first"],
+["Validation is advisory","The cart preview may be stale. The authoritative check is inside the order transaction"]],
+
+sig:["Client handoff: HMAC-SHA256 of <code class='inl'>\"{order_id}|{payment_id}\"</code> with the key secret, compared to razorpay_signature.","Webhook: HMAC-SHA256 of the <strong>raw</strong> body with the separate webhook secret, compared to X-Razorpay-Signature.","Capture the raw body before any JSON parser touches it, or the signature will never match. This costs teams an afternoon roughly every time.","Use a constant-time comparison. Not <code class='inl'>===</code>."],
+hook:["/payments/verify updates the UI optimistically and nothing else. It never credits a wallet and never confirms an order.","The handler is idempotent on razorpay_payment_id — webhooks are delivered more than once by design.","Webhooks may arrive before the client returns. Handle both orderings.","A payment with no matching internal record is logged and alerted, never silently discarded.","Handle payment.captured, payment.failed and order.paid. Ignore the rest in P1."],
+
+win:[["Delivery days","Three per week per community","Yes, per community"],["Morning window","06:00 – 12:00","Yes"],["Evening window","17:00 – 21:00","Yes"],["Capacity per window","Integer order cap","Yes, per community per window"],["Order cut-off","Configurable hours before the window opens","Yes"],["Granular sub-slots","Not in P1","P3"]],
+
+adm:[["Catalog","List products, toggle active, set unit, increment and daily cap. Bulk activate a category"],
+["Pricing","Set selling price with an effective date. History visible"],
+["Communities","Communities, blocks, delivery days, window times, capacity"],
+["Coupons","Generate a batch for a print run, set type, value, expiry, minimum. Export codes as CSV for the printer"],
+["Orders","The fulfilment screen — see below"],
+["Customers","Search, view wallet balance and ledger, manual adjustment with mandatory reason"],
+["Reports","Orders by day, coupon redemptions by batch, total wallet liability"]],
+
+fulfil:["Filter by delivery date and window.","Grouped by community, then block, then flat.","A roll-up panel showing total quantity per product across the date — a manual stand-in for the aggregation engine, computed by one SQL GROUP BY.","CSV export in two shapes: a procurement sheet (product, total quantity) and a packing sheet (flat, items, quantities, name, mobile, amount paid).","Per-order status set by hand: PACKED, OUT_FOR_DELIVERY, DELIVERED. Three buttons, no workflow engine.","Marking DELIVERED recognises the revenue and closes the order."],
+
+nfr:[["Catalog load","Under 2s on 4G","Measured on a mid-range Android, not a simulator"],
+["Checkout round trip","Under 3s","Includes coupon validation and capacity check"],
+["Cold start","Under 2s to interactive","Hermes on, fonts preloaded, splash held"],
+["API p95","Under 400 ms","Excluding gateway calls"],
+["Availability","99% in the pilot","No maintenance within two hours of a window opening"],
+["Concurrency","100 simultaneous checkouts without oversell","Load test against wallet, coupon and capacity"],
+["Backup","Daily automated, restore tested before launch","An actual restore into a scratch project"],
+["Image memory","Catalog does not OOM on a 3 GB device","expo-image with cache limits and blurhash"]],
+
+tests:[["Wallet debit under concurrency","Failing test first: 50 concurrent orders against ₹1,000; no overspend, exact reconciliation","Critical"],
+["Coupon one-per-account","Failing test first: same customer, same coupon, twice — second must fail","Critical"],
+["Coupon global cap race","Failing test first: 600 concurrent redemptions against a cap of 500","Critical"],
+["Window capacity","Failing test first: oversell attempt against a capped window","Critical"],
+["Webhook idempotency","Same webhook delivered three times credits once","Critical"],
+["Signature verification","Tampered payload and tampered signature both rejected","Critical"],
+["Role serialiser","Every role, every forbidden field, including nested","Critical"],
+["Order placement happy path","Integration test through the full transaction","High"],
+["Money serialisation","BigInt paise survives the round trip and renders correctly","High"],
+["Alias search","karela, kakarakaya and bitter gourd return the same product","Medium"],
+["UI components","Rendering and interaction","Medium"]],
+
+dod:["<code class='inl'>pnpm typecheck</code> passes.","<code class='inl'>pnpm test</code> passes, including every Critical test.","Verified on a physical Android device.","No secret detectable in either client bundle.","Reviewed by the second engineer."],
+
+sec:["HTTPS everywhere. HSTS on the API. No plaintext transport, including to Redis.","Argon2id for admin passwords. Customers have no password.","Authorisation on every endpoint by middleware. A route without an auth declaration fails at startup.","Zod parses every input. Prisma parameterises every query — no string-built SQL.","Rate limits on OTP request, OTP verify, login, coupon validation and order placement.","Secrets in environment variables. A pre-commit hook greps the mobile workspaces for service-role keys, database URLs and gateway secrets.","Dependency audit in CI. A high-severity advisory fails the build."],
+
+reg:[["DLT registration","Sender ID and OTP templates approved with TRAI via the SMS provider. Supabase phone auth is not compliant and will not deliver","Business Owner","Day 2 — all login"],
+["Wallet / prepaid instrument","Confirm a closed-loop, non-cash-out wallet sits outside PPI licensing. Professional advice, not engineering judgement (OQ-34)","Owner + Legal","Any top-up"],
+["GST and invoicing","Registration, GSTIN on receipts, invoice numbering series (OQ-12)","Business Owner","Charging money"]],
+
+env:[["Local","Supabase dev project","Test keys","Development"],["Staging","Separate Supabase project","Test keys","QA and UAT. Never production data"],["Production","Separate Supabase project","Live keys","Pilot community"]],
+
+days:[[0,"Started in parallel, before Day 1: DLT registration, Razorpay KYC, Play Console as organisation, Apple Developer, Supabase and Redis projects","Owner + Lead","Long lead times",0],
+[1,"Monorepo, workspaces, jsconfig and typecheck in CI, tokens package, Prisma schema, migrations, seed","Both","Schema reviewed by hand before anything is built on it",1],
+[2,"Auth: OTP request and verify, MSG91, JWT with refresh rotation, jti revocation, secure storage. Admin login","Eng 1","A real OTP arrives on a real phone",1],
+[3,"Admin: catalog CRUD, activate/deactivate, unit and increment, image upload to Storage","Eng 2","Catalog manageable without a developer",0],
+[4,"Admin: pricing with effective dates; communities, blocks, delivery days, windows, capacity","Eng 2","Delivery configuration complete",0],
+[5,"Customer app shell: navigation, design system, fonts, onboarding, OTP screens, address capture with serviceability","Eng 1","A customer can register and save an address",0],
+[6,"Catalog API and screens: listing, alias search with trigram, product detail, images","Both","Catalog browsable on a device",0],
+[7,"Cart: add, amend, remove, totals, ₹500 minimum. Delivery window selection with capacity","Eng 1","Cart correct and window bookable",0],
+[8,"Coupons: batch generation, code format, admin CSV export, validation endpoint, cart attach","Eng 2","Coupon applies in the cart",0],
+[9,"Wallet: schema, ledger, top-up intent, balance and statement screens","Eng 1","Balance visible; ledger reconciles",1],
+[10,"Razorpay: order creation, SDK integration, signature verification, webhook handler, idempotency","Eng 2","A real ₹1 payment captured via webhook",1],
+[11,"Order placement transaction: coupon redemption, wallet debit, window decrement, gateway leg, idempotency, release job","Both","The critical-path transaction, end to end",1],
+[12,"Order history, order detail with scheduled window, push notifications","Eng 1","Customer can see what is coming and when",0],
+[13,"Admin fulfilment screen: filtered list, product roll-up, procurement and packing CSV exports, manual status","Eng 2","A rehearsal fulfilment runs off it",0],
+[14,"Concurrency tests, load test, security pass, secret grep, EXPLAIN on hot queries, Sentry","Both","All Critical tests green",0],
+[15,"Device testing, accessibility, real catalog and images, real payment and refund, release builds","Both","UAT with the Business Owner",0]],
+
+slip:[["DLT approval late","Total block from Day 2","Submit templates before Day 1. Test provider for development only"],
+["Razorpay KYC late","Days 10 and 11 blocked","Build against test keys; only final verification needs live"],
+["Catalog content late","Launch with placeholders","Content is not an engineering task. Assign it Day 1 (T4)"],
+["Order transaction underestimated","Day 11 overruns into buffer","The hardest single item. If not clean by end of Day 12, cut order history to buy time"],
+["Scope re-expands mid-build","Everything slips","P1 is defined in Section 01. Additions go to P2 by default"]],
+
+trisk:[["TR1","Wallet or coupon race condition ships undetected","Critical","Row locks and unique constraints, with failing tests written before the implementation"],
+["TR2","Payment confirmed client-side, wallet credited without a real payment","Critical","Webhook is the only thing that moves money"],
+["TR3","Money handled as float somewhere","High","Integer paise everywhere, BigInt in the DB, shared Money component, review checklist"],
+["TR4","A secret ships inside the mobile bundle","High","Pre-commit grep plus build-time scan. Verified Day 14"],
+["TR5","Prisma pooler misconfiguration surfaces only in production","Medium","Configured and proven on Day 1 against a deployed environment"],
+["TR6","No compiler means a type error reaches production","Medium","checkJs, JSDoc, Zod at every boundary, typecheck gating CI"]],
+
+oq:[["OQ-34","Is the closed-loop wallet outside prepaid instrument licensing?","Before Day 9"],
+["OQ-36","Who fulfils orders manually, and on what process?","Before Day 15"],
+["OQ-37","Does the app launch to one community or anyone who downloads it?","Before Day 5"],
+["OQ-35","Coupon limiting — expiry, first-N, or both?","Before Day 8"],
+["OQ-04","Delivery charge model — flat, threshold or zone?","Before Day 7"],
+["OQ-12","GST registration and invoice numbering","Before charging money"],
+["OQ-14","Catalog breadth and product content","Before Day 12"]],
+
+errs:[["OTP_RATE_LIMITED","429","Too many OTP requests for this number or IP"],["OTP_INVALID","401","Wrong or expired code"],["OTP_LOCKED","423","Three failed attempts; wait for the TTL"],["ADDRESS_NOT_SERVICEABLE","422","Outside every configured community"],["MIN_ORDER_NOT_MET","422","Subtotal below the minimum order value"],["COUPON_NOT_FOUND","404","Unknown code"],["COUPON_EXPIRED","410","Past its expiry date"],["COUPON_ALREADY_USED","409","This account has already redeemed it"],["COUPON_CAP_REACHED","409","Global cap exhausted"],["WINDOW_FULL","409","Capacity exhausted; next available in details"],["INSUFFICIENT_WALLET","422","Should not occur — wallet applies partially"],["PAYMENT_SIGNATURE_INVALID","400","Signature verification failed"],["IDEMPOTENCY_CONFLICT","409","Same key, different payload"]]
+};
+
+const CODE = {
+ctx:`  ┌───────────────────┐        ┌──────────────────┐
+  │  Customer app     │        │  Admin panel     │
+  │  React Native     │        │  React web       │
+  │  (Expo)           │        │  (Vite)          │
+  └─────────┬─────────┘        └────────┬─────────┘
+            │        HTTPS / JWT        │
+            └────────────┬──────────────┘
+                         ▼
+              ┌─────────────────────┐
+              │   API  (Node +      │
+              │   Express, JS ESM)  │
+              └──┬───────┬───────┬──┘
+                 │       │       │
+     ┌───────────▼─┐ ┌───▼────┐ ┌▼──────────────┐
+     │ Supabase    │ │ Redis  │ │ Razorpay      │
+     │ Postgres +  │ │ (OTP,  │ │ MSG91 (DLT)   │
+     │ Storage     │ │ tokens)│ │ Expo Push     │
+     └─────────────┘ └────────┘ └───────────────┘`,
+
+repo:`farm-to-flat/
+├─ apps/
+│  ├─ customer/          Expo app  (P1)
+│  ├─ admin/             Vite web  (P1, thin)
+│  └─ api/               Express   (P1)
+├─ packages/
+│  ├─ tokens/            design tokens, mobile + web
+│  ├─ schemas/           Zod schemas, shared
+│  └─ types/             JSDoc typedefs, BigInt-safe serialisers
+├─ prisma/
+│  ├─ schema.prisma
+│  ├─ migrations/
+│  └─ seed.js
+└─ turbo.json`,
+
+prisma:`model Wallet {
+  id            String   @id @default(uuid())
+  customerId    String   @unique
+  balancePaise  BigInt   @default(0)
+  version       Int      @default(0)   // optimistic lock
+  ledger        WalletLedger[]
+}
+
+model WalletLedger {
+  id            String   @id @default(uuid())
+  walletId      String
+  direction     LedgerDirection        // CREDIT | DEBIT
+  amountPaise   BigInt
+  balanceAfter  BigInt
+  source        LedgerSource           // TOPUP | ORDER | REFUND | ADJUSTMENT
+  orderId       String?
+  paymentId     String?
+  reason        String?                // required for ADJUSTMENT
+  createdBy     String?                // admin user, for ADJUSTMENT
+  createdAt     DateTime @default(now())
+  @@index([walletId, createdAt])
+}
+
+model Coupon {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  batchId       String                 // traces to a print run
+  type          CouponType             // PERCENT | FLAT | FREE_ITEM
+  valueBp       Int?                   // basis points
+  valuePaise    BigInt?
+  freeProductId String?
+  minOrderPaise BigInt   @default(50000)   // ₹500
+  expiresAt     DateTime
+  globalCap     Int?
+  redeemedCount Int      @default(0)
+  isActive      Boolean  @default(true)
+}
+
+model CouponRedemption {
+  id          String   @id @default(uuid())
+  couponId    String
+  customerId  String
+  orderId     String   @unique
+  amountPaise BigInt
+  @@unique([couponId, customerId])   // one per account, enforced by DB
+}`,
+
+ser:`// packages/types/serialise.js
+const FIELDS = {
+  customer: ["id","status","items","total","couponDiscount",
+             "walletApplied","gatewayAmount","deliveryDate","window"],
+  admin:    ["id","status","items","total","couponDiscount",
+             "walletApplied","gatewayAmount","deliveryDate","window",
+             "costPaise","marginBp","customerMobile"],
+};
+
+/** @param {object} order @param {"customer"|"admin"} role */
+export function serialiseOrder(order, role) {
+  return pick(order, FIELDS[role]);   // allow-list, never delete-keys
+}`,
+
+order:`POST /orders  { addressId, deliveryDate, window, couponCode?, useWallet }
+
+ 1  Check Idempotency-Key. If seen, return the stored response.
+ 2  BEGIN TRANSACTION
+ 3    Load cart, re-price every line from current price table
+ 4    Assert subtotal >= minimum order value (₹500)
+ 5    If couponCode:
+         lock coupon row, assert active, unexpired, cap not reached
+         INSERT coupon_redemption   -- unique(coupon,customer) fires here
+         compute discount
+ 6    Assert delivery window capacity remains; decrement it
+ 7    payable = subtotal - discount + deliveryCharge
+ 8    If useWallet:
+         SELECT ... FOR UPDATE on wallet row
+         walletApplied = min(balance, payable)
+         write wallet_ledger DEBIT, update balance
+ 9    gatewayAmount = payable - walletApplied
+10    INSERT order (status = PENDING_PAYMENT if gatewayAmount > 0
+                    else CONFIRMED)
+11  COMMIT
+12  If gatewayAmount > 0: create Razorpay order, return payment intent
+13  Store the response against the idempotency key`,
+
+topup:`POST /wallet/topup  { amountPaise }
+
+ 1  Assert amount is one of the admin-configured denominations
+ 2  Create payment row, status CREATED
+ 3  Create Razorpay order, store razorpay_order_id
+ 4  Return payment intent to the client
+ 5  Client completes payment in the Razorpay SDK
+ 6  Webhook payment.captured arrives
+ 7  Verify webhook signature
+ 8  BEGIN TRANSACTION
+      idempotency guard on razorpay_payment_id
+      lock wallet row, credit balance
+      write wallet_ledger CREDIT
+      mark payment CAPTURED
+    COMMIT
+ 9  Push notification: balance updated`,
+
+code:`FARM-K7QD9X4M
+  │    └── 8 random chars from  23456789ABCDEFGHJKMNPQRSTUVWXYZ
+  └─────── fixed prefix, aids recognition at the stall
+
+Batch: { id, name: "Brochure run 1 — Kondapur", category,
+         count: 500, printedAt, channel: "LEAFLET" }`,
+
+payflow:`Server                        Client                    Razorpay
+  │  create order (amount)                                  │
+  ├────────────────────────────────────────────────────────►│
+  │◄──────────── razorpay_order_id ─────────────────────────┤
+  ├──── payment intent ────────►│                           │
+  │                             ├──── open checkout ───────►│
+  │                             │◄─── payment_id, sig ──────┤
+  │◄── /payments/verify ────────┤   (advisory)              │
+  │                                                         │
+  │◄════════ webhook: payment.captured ═════════════════════┤
+  │           (authoritative)                               │`,
+
+pool:`# Runtime — transaction pooler, port 6543
+DATABASE_URL="postgresql://...:6543/postgres
+               ?pgbouncer=true&connection_limit=1"
+
+# Migrations only — direct connection, port 5432
+DIRECT_URL="postgresql://...:5432/postgres"
+
+# Both go in the Prisma datasource block.
+# Omitting DIRECT_URL makes migrations hang against the pooler.`,
+
+envvars:`# Database
+DATABASE_URL=            # pooler, 6543, pgbouncer=true
+DIRECT_URL=              # direct, 5432, migrations only
+
+# Supabase
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=   # SERVER ONLY. never in a bundle
+SUPABASE_ANON_KEY=           # client, storage reads only
+
+# Redis
+REDIS_URL=
+
+# Auth
+JWT_ACCESS_SECRET=
+JWT_REFRESH_SECRET=
+ACCESS_TOKEN_TTL=15m
+REFRESH_TOKEN_TTL=30d
+
+# SMS  (DLT registered)
+MSG91_AUTH_KEY=
+MSG91_SENDER_ID=
+MSG91_OTP_TEMPLATE_ID=
+
+# Razorpay
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=         # SERVER ONLY
+RAZORPAY_WEBHOOK_SECRET=     # separate from key secret
+
+# App
+MIN_ORDER_VALUE_PAISE=50000  # ₹500
+ORDER_RELEASE_MINUTES=20
+SENTRY_DSN=`
+};
+
+/* ---------- render helpers ---------- */
+const esc = s => String(s).replace(/&(?![a-z#]+;)/g,'&amp;').replace(/</g,'&lt;');
+const tbl = (id, head, rows, raw) => {
+  const el = document.getElementById(id); if(!el) return;
+  el.innerHTML = '<thead><tr>'+head.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr>'+r.map(c=>'<td>'+(raw?c:esc(c))+'</td>').join('')+'</tr>').join('')+'</tbody>';
+};
+const lst = (id, arr) => { const el=document.getElementById(id); if(el) el.innerHTML=arr.map(x=>'<li>'+x+'</li>').join(''); };
+const pre = (id, txt) => {
+  const el=document.getElementById(id); if(!el) return;
+  el.innerHTML = '<button class="copy">Copy</button>'+esc(txt);
+  el.querySelector('.copy').addEventListener('click', e=>{
+    navigator.clipboard && navigator.clipboard.writeText(txt);
+    e.target.textContent='Copied'; setTimeout(()=>e.target.textContent='Copy',1400);
+  });
+};
+
+/* ---------- nav ---------- */
+const NAV=[["Basis",[["s-top","00","Fifteen days"],["s-scope","01","Scope"]]],
+["Design",[["s-arch","02","Architecture"],["s-data","03","Data model"],["s-api","04","API"],["s-auth","05","Authentication"],["s-flow","06","The order transaction"]]],
+["Detail",[["s-wallet","07","Wallet"],["s-coupon","08","Coupons"],["s-pay","09","Payments"],["s-admin","10","Windows and admin"]]],
+["Delivery",[["s-quality","11","Quality"],["s-sec","12","Security"],["s-plan","13","The fifteen-day plan"],["s-risk","14","Risks"],["s-appx","15","Appendix"]]]];
+document.getElementById('railnav').innerHTML=NAV.map(([g,it])=>
+ '<div class="navgrp">'+g+'</div>'+it.map(([id,n,t])=>'<a href="#'+id+'" data-t="'+id+'"><i>'+n+'</i>'+t+'</a>').join('')).join('');
+
+/* ---------- content ---------- */
+tbl('phases',['Label','Contents','Effort'],D.phases);
+document.getElementById('scopein').innerHTML='<table><thead><tr><th>Capability</th><th>What it includes</th><th>SRS ref</th></tr></thead><tbody>'+
+  D.scopein.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="m" style="font-family:var(--mono);font-size:11px">'+r[2]+'</td></tr>').join('')+'</tbody></table>';
+lst('scopeout',D.scopeout.map(esc));
+tbl('assum',['#','Assumption','If false'],D.assum);
+pre('ctx',CODE.ctx); tbl('stack',['Layer','Choice','Why'],D.stack); pre('repo',CODE.repo);
+lst('money',D.money); lst('guards',D.guards);
+tbl('entities',['Table','Purpose','Notes'],D.entities); pre('prisma',CODE.prisma);
+tbl('idx',['Table','Index','Reason'],D.idx);
+lst('conv',D.conv);
+tbl('tok',['Token','Lifetime','Storage','Contents'],D.tok); lst('tokrules',D.tokrules);
+lst('otp',D.otp.map(esc)); pre('ser',CODE.ser);
+pre('order',CODE.order); tbl('fail',['Failure','Behaviour'],D.fail); pre('topup',CODE.topup);
+lst('wmodel',D.wmodel.map(esc)); lst('wloop',D.wloop.map(esc)); tbl('wacct',['Event','Accounting effect'],D.wacct);
+pre('code',CODE.code); tbl('crules',['Rule','Enforcement'],D.crules);
+pre('payflow',CODE.payflow); lst('sig',D.sig); lst('hook',D.hook.map(esc));
+tbl('win',['Setting','P1 value','Configurable'],D.win); tbl('adm',['Screen','What it does'],D.adm);
+lst('fulfil',D.fulfil.map(esc));
+tbl('nfr',['Area','Target','Verified by'],D.nfr);
+document.getElementById('tests').innerHTML='<thead><tr><th>Area</th><th>Approach</th><th>Priority</th></tr></thead><tbody>'+
+  D.tests.map(r=>'<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td><span class="pri '+r[2]+'">'+r[2]+'</span></td></tr>').join('')+'</tbody>';
+lst('dod',D.dod);
+lst('sec',D.sec.map(esc)); tbl('reg',['Item','Requirement','Owner','Blocks'],D.reg);
+tbl('env',['Environment','Database','Razorpay','Purpose'],D.env); pre('pool',CODE.pool);
+tbl('slip',['Risk','Effect','Mitigation'],D.slip);
+document.getElementById('trisk').innerHTML='<thead><tr><th>#</th><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead><tbody>'+
+  D.trisk.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td><td><span class="pri '+r[2]+'">'+r[2]+'</span></td><td>'+esc(r[3])+'</td></tr>').join('')+'</tbody>';
+tbl('oq',['Ref','Question','Needed by'],D.oq);
+pre('envvars',CODE.envvars);
+document.getElementById('errs').innerHTML='<thead><tr><th>Code</th><th>HTTP</th><th>Meaning</th></tr></thead><tbody>'+
+  D.errs.map(r=>'<tr><td style="font-family:var(--mono);font-size:12px">'+r[0]+'</td><td class="m">'+r[1]+'</td><td>'+esc(r[2])+'</td></tr>').join('')+'</tbody>';
+
+/* ---------- endpoint search ---------- */
+function renderEps(q){
+  q=(q||'').toLowerCase(); let out='', shown=0, total=0;
+  D.eps.forEach(e=>{
+    if(e.length===1){ out+='<div class="ephead" data-h="1">'+e[0]+'</div>'; return; }
+    total++;
+    const hay=(e[0]+' '+e[1]+' '+e[2]+' '+e[3]).toLowerCase();
+    if(q && !hay.includes(q)) return;
+    shown++;
+    out+='<div class="ep"><span class="v '+e[0]+'">'+e[0]+'</span>'+
+      '<span><span class="path">'+esc(e[1])+'</span><span class="desc">'+esc(e[2])+'</span></span>'+
+      '<span class="auth">'+e[3]+'</span></div>';
+  });
+  const el=document.getElementById('eps'); el.innerHTML=out;
+  // hide group headers with no visible rows
+  [...el.querySelectorAll('.ephead')].forEach(h=>{
+    let n=h.nextElementSibling, any=false;
+    while(n && !n.classList.contains('ephead')){ if(n.classList.contains('ep')) any=true; n=n.nextElementSibling; }
+    if(!any) h.style.display='none';
+  });
+  document.getElementById('epcnt').textContent=shown+' of '+total+' endpoints';
+}
+document.getElementById('q').addEventListener('input',e=>renderEps(e.target.value));
+renderEps('');
+
+/* ---------- build clock ---------- */
+const doneDays=new Set();
+document.getElementById('days').innerHTML=D.days.map(([n,work,who,gate,crit])=>
+  '<label class="day'+(crit?' crit':'')+'" data-d="'+n+'"><span class="n">'+(n===0?'—':String(n).padStart(2,'0'))+'</span>'+
+  '<span><b>'+esc(work)+'</b><span class="who">'+who+(crit?' · critical path':'')+'</span></span>'+
+  '<span class="gate">'+esc(gate)+'</span></label>').join('');
+
+const grid=document.getElementById('cGrid');
+grid.innerHTML=Array.from({length:15},(_,i)=>'<i data-d="'+(i+1)+'">'+(i+1)+'</i>').join('');
+
+function updateClock(){
+  const n=doneDays.size, left=15-n;
+  document.getElementById('cNum').textContent=left===0?'Done':left;
+  document.getElementById('cSub').textContent=left===0?'all fifteen days complete':
+    'day'+(left===1?'':'s')+' remaining · '+n+' complete';
+  document.getElementById('cBar').style.width=(n/15*100)+'%';
+  [...grid.children].forEach(c=>c.classList.toggle('on',doneDays.has(+c.dataset.d)));
+  [...document.querySelectorAll('.day')].forEach(d=>d.classList.toggle('done',doneDays.has(+d.dataset.d)));
+}
+function toggleDay(d){ if(!d) return; doneDays.has(d)?doneDays.delete(d):doneDays.add(d); updateClock(); }
+document.getElementById('days').addEventListener('click',e=>{ const r=e.target.closest('.day'); if(r) toggleDay(+r.dataset.d); });
+grid.addEventListener('click',e=>{ if(e.target.dataset.d) toggleDay(+e.target.dataset.d); });
+updateClock();
+
+/* ---------- mobile nav + scrollspy ---------- */
+const navbox=document.querySelector('.navbox');
+const wide=()=>window.matchMedia('(min-width:921px)').matches;
+navbox.open=wide();
+addEventListener('resize',()=>{ if(wide()) navbox.open=true; });
+document.getElementById('railnav').addEventListener('click',e=>{ if(e.target.closest('a') && !wide()) navbox.open=false; });
+
+const links=[...document.querySelectorAll('.rail a')];
+const spy=new IntersectionObserver(es=>{
+  es.forEach(en=>{ if(en.isIntersecting) links.forEach(l=>l.classList.toggle('on',l.dataset.t===en.target.id)); });
+},{rootMargin:'-12% 0px -72% 0px'});
+links.map(a=>document.getElementById(a.dataset.t)).filter(Boolean).forEach(s=>spy.observe(s));
+</script>

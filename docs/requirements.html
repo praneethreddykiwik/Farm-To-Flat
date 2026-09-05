@@ -1,0 +1,1564 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Farm-to-Flat — Requirements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F3ED; --paper-2:#EAE8DF; --card:#FBFAF6;
+    --ink:#15180F; --ink-2:#454A3C; --muted:#7B8073;
+    --field:#1E5B3D; --field-lt:#E2EBE5;
+    --brinjal:#58274A; --brinjal-lt:#F0E6EE;
+    --amber:#8A6114; --amber-lt:#F5EDDC;
+    --rule:#D8D6CB; --rule-2:#C4C1B4;
+    --display:"Fraunces",Georgia,serif;
+    --body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --rail:264px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{animation:none!important;transition:none!important}}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+  .wrap{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);gap:0;max-width:1400px;margin:0 auto}
+
+  /* ---------- RAIL ---------- */
+  .rail{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:32px 24px 40px;border-right:1px solid var(--rule);scrollbar-width:thin}
+  .brand{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);line-height:1.5}
+  .brand b{display:block;font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:-.01em;text-transform:none;color:var(--ink);margin-top:6px}
+
+  .meter{margin:26px 0 28px;padding:14px;background:var(--card);border:1px solid var(--rule);border-radius:2px}
+  .meter-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .meter-num{font-family:var(--display);font-size:30px;font-weight:600;line-height:1.1;margin:4px 0 2px;color:var(--brinjal)}
+  .meter-num.done{color:var(--field)}
+  .meter-sub{font-size:12px;color:var(--ink-2);line-height:1.4}
+  .bar{height:5px;background:var(--paper-2);border-radius:3px;margin-top:11px;overflow:hidden}
+  .bar span{display:block;height:100%;width:0%;background:var(--field);transition:width .5s cubic-bezier(.3,.8,.4,1)}
+
+  .navbox summary{display:none}
+  .navgrp{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;padding-top:12px;border-top:1px solid var(--rule)}
+  .navgrp:first-of-type{border-top:0;padding-top:0}
+  .rail a{display:flex;gap:10px;align-items:baseline;text-decoration:none;color:var(--ink-2);padding:5px 8px 5px 0;font-size:14px;border-left:2px solid transparent;padding-left:10px;margin-left:-10px;transition:color .15s,border-color .15s}
+  .rail a i{font-family:var(--mono);font-size:10.5px;font-style:normal;color:var(--rule-2);flex:none;width:16px}
+  .rail a:hover{color:var(--ink)}
+  .rail a.on{color:var(--field);border-left-color:var(--field);font-weight:500}
+  .rail a.on i{color:var(--field)}
+
+  /* ---------- CONTENT ---------- */
+  main{padding:0 clamp(24px,5vw,76px) 120px;min-width:0}
+  section{padding-top:76px;scroll-margin-top:24px}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  h1{font-family:var(--display);font-size:clamp(40px,6.4vw,74px);font-weight:600;line-height:1.02;letter-spacing:-.025em;margin:0 0 24px;max-width:16ch}
+  h2{font-family:var(--display);font-size:clamp(27px,3.4vw,38px);font-weight:600;line-height:1.12;letter-spacing:-.018em;margin:0 0 8px}
+  h3{font-family:var(--body);font-size:14px;font-weight:600;letter-spacing:.02em;margin:34px 0 12px;color:var(--ink)}
+  p{margin:0 0 16px;max-width:66ch;color:var(--ink-2)}
+  p.lead{font-size:19px;line-height:1.55;color:var(--ink);max-width:60ch}
+  p strong{color:var(--ink);font-weight:600}
+  .sechead{display:flex;gap:18px;align-items:baseline;border-top:2px solid var(--ink);padding-top:16px;margin-bottom:22px}
+  .sechead em{font-family:var(--mono);font-size:12px;font-style:normal;color:var(--field);flex:none;padding-top:9px}
+  .sechead .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.03em}
+
+  /* hero */
+  .hero{padding-top:64px}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:40px 0 8px}
+  .metric{background:var(--paper);padding:16px 16px 18px;display:flex;flex-direction:column}
+  .metric b{display:block;font-family:var(--display);font-size:32px;font-weight:600;line-height:1;letter-spacing:-.02em;}
+  .metric b.alt{color:var(--brinjal)}
+  .metric span{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-bottom:9px;min-height:2.4em}
+  .metric i{font-style:normal;font-size:11.5px;color:var(--muted);display:block;margin-top:5px}
+
+  /* quote */
+  blockquote{margin:22px 0;padding:2px 0 2px 20px;border-left:2px solid var(--field);max-width:62ch}
+  blockquote p{font-family:var(--display);font-size:18px;line-height:1.45;color:var(--ink);font-style:italic;margin:0}
+  blockquote cite{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-style:normal;margin-top:10px}
+
+  /* generic table */
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+  th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:400;padding:0 12px 8px 0;border-bottom:1px solid var(--rule-2)}
+  td{padding:11px 12px 11px 0;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--ink-2)}
+  td:first-child{color:var(--ink);font-weight:500}
+  tr:hover td{background:rgba(30,91,61,.028)}
+
+  .matrix td,.matrix th{text-align:center;padding-left:4px;padding-right:4px}
+  .matrix td:first-child,.matrix th:first-child{text-align:left;width:40%;padding-right:14px}
+  .matrix td:not(:first-child){font-family:var(--mono);font-size:11px;color:var(--field);letter-spacing:.04em}
+
+  /* roles */
+  .roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:22px 0}
+  .role{background:var(--card);padding:18px}
+  .role b{font-family:var(--display);font-size:20px;font-weight:600;display:block;margin-bottom:7px}
+  .role p{font-size:13.5px;margin:0 0 10px;line-height:1.5}
+  .role span{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em}
+
+  /* lifecycle */
+  .flow{border-top:1px solid var(--rule);margin-top:20px}
+  .step{display:grid;grid-template-columns:34px 190px 1fr;gap:16px;padding:13px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .step em{font-family:var(--mono);font-size:11px;font-style:normal;color:var(--rule-2)}
+  .step b{font-family:var(--body);font-size:14.5px;font-weight:600}
+  .step span{font-size:13px;color:var(--ink-2)}
+  .step small{display:block;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em;margin-top:3px}
+
+  /* pricing worked example */
+  .calc{background:var(--card);border:1px solid var(--rule);padding:22px;margin:22px 0;max-width:560px}
+  .calcrow{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px dashed var(--rule);font-size:14px}
+  .calcrow:last-child{border-bottom:0;padding-top:14px;margin-top:5px;border-top:2px solid var(--ink)}
+  .calcrow span{color:var(--ink-2)}
+  .calcrow b{font-family:var(--mono);font-size:14px;font-weight:500;white-space:nowrap}
+  .calcrow:last-child b{font-size:18px;color:var(--field)}
+
+  /* controls */
+  .controls{position:sticky;top:0;background:var(--paper);padding:14px 0 12px;border-bottom:1px solid var(--rule);margin-bottom:6px;z-index:5}
+  .searchrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  input[type=search]{flex:1;min-width:190px;font-family:var(--body);font-size:14px;padding:9px 12px;border:1px solid var(--rule-2);border-radius:2px;background:var(--card);color:var(--ink)}
+  input[type=search]:focus{outline:2px solid var(--field);outline-offset:1px;border-color:transparent}
+  .count{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;letter-spacing:.05em}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;padding:5px 10px;border:1px solid var(--rule-2);background:transparent;color:var(--ink-2);border-radius:20px;cursor:pointer;transition:all .15s}
+  .chip:hover{border-color:var(--field);color:var(--field)}
+  .chip.on{background:var(--field);border-color:var(--field);color:#fff}
+  .chip:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+
+  /* requirement rows */
+  .req{display:grid;grid-template-columns:104px 1fr 76px;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .req code{font-family:var(--mono);font-size:11.5px;color:var(--field);letter-spacing:.02em}
+  .req p{margin:0;font-size:14.5px;color:var(--ink-2);max-width:none}
+  .req .mod{font-family:var(--mono);font-size:9.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;display:block;margin-top:4px}
+  .pri{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:2px;white-space:nowrap;justify-self:start}
+  .pri.Must{background:var(--field);color:#fff}
+  .pri.Should{background:var(--field-lt);color:var(--field)}
+  .pri.Could{background:var(--paper-2);color:var(--muted)}
+  .empty{padding:34px 0;color:var(--muted);font-size:14px}
+
+  /* decisions */
+  .dec{display:grid;grid-template-columns:26px 92px 1fr 168px;gap:14px;padding:14px 0;border-bottom:1px solid var(--rule);align-items:start;cursor:pointer}
+  .dec:hover{background:rgba(88,39,74,.03)}
+  .dec input{margin:3px 0 0;width:15px;height:15px;accent-color:var(--field);cursor:pointer}
+  .dec code{font-family:var(--mono);font-size:11.5px;color:var(--brinjal)}
+  .dec b{font-size:14.5px;font-weight:500;color:var(--ink);display:block}
+  .dec small{font-size:12.5px;color:var(--muted);display:block;margin-top:3px}
+  .dec > span{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;padding-top:2px}
+  .dec.closed .q{text-decoration:line-through;color:var(--muted)}
+  .dec.closed small{text-decoration:line-through;color:var(--muted)}
+  .dec b .q{display:block;font-family:var(--body);font-size:14.5px;font-weight:500;color:var(--ink);text-transform:none;letter-spacing:0}
+  .dec.closed code{color:var(--rule-2)}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border:1px solid var(--rule);margin:22px 0}
+  .col{background:var(--card);padding:20px}
+  .col.out{background:var(--paper)}
+  .col h4{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;margin:0 0 4px;color:var(--field);font-weight:400}
+  .col.out h4{color:var(--muted)}
+  .col .note{font-size:12px;color:var(--muted);margin:0 0 14px}
+  .col ul{margin:0;padding:0;list-style:none}
+  .col li{font-size:13.5px;line-height:1.5;color:var(--ink-2);padding:7px 0 7px 17px;border-bottom:1px solid var(--rule);position:relative}
+  .col li:last-child{border-bottom:0}
+  .col li::before{content:"";position:absolute;left:0;top:14px;width:7px;height:1px;background:var(--field)}
+  .col.out li{color:var(--muted)}
+  .col.out li::before{background:var(--rule-2);top:14px;width:7px}
+  ul.plain{margin:14px 0;padding:0;list-style:none;max-width:66ch}
+  ul.plain li{font-size:14.5px;line-height:1.55;color:var(--ink-2);padding:9px 0 9px 18px;border-bottom:1px solid var(--rule);position:relative}
+  ul.plain li::before{content:"";position:absolute;left:0;top:17px;width:8px;height:1px;background:var(--field)}
+  .screens{margin:18px 0}
+  .screenrow{display:grid;grid-template-columns:130px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule)}
+  .screenrow b{font-size:14px;font-weight:600}
+  .screenrow span{font-size:13px;color:var(--ink-2);line-height:1.55}
+  ol.crit{max-width:64ch;padding-left:0;list-style:none;counter-reset:c;margin:16px 0}
+  ol.crit li{counter-increment:c;position:relative;padding:9px 0 9px 34px;border-bottom:1px solid var(--rule);font-size:14.5px;color:var(--ink-2)}
+  ol.crit li::before{content:counter(c,decimal-leading-zero);position:absolute;left:0;top:11px;font-family:var(--mono);font-size:10.5px;color:var(--field)}
+  .sev{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:2px}
+  .sev.Critical{background:var(--amber-lt);color:var(--amber)}
+  .sev.High{background:var(--field-lt);color:var(--field)}
+  .sev.Medium,.sev.Low{background:var(--paper-2);color:var(--muted)}
+  .stack{border-top:1px solid var(--rule);margin:20px 0}
+  .stackrow{display:grid;grid-template-columns:150px 116px 1fr 84px;gap:14px;padding:12px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .stackrow b{font-size:14px;font-weight:600}
+  .stackrow code{font-family:var(--mono);font-size:13px;color:var(--field)}
+  .stackrow span{font-size:13px;color:var(--ink-2)}
+  .vis{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;padding:3px 7px;border-radius:2px;justify-self:start}
+  .vis.shown{background:var(--field-lt);color:var(--field)}
+  .vis.hidden{background:var(--brinjal-lt);color:var(--brinjal)}
+  .esc{border-top:1px solid var(--rule);margin:20px 0}
+  .escrow{display:grid;grid-template-columns:48px 92px 200px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .escrow em{font-family:var(--mono);font-size:13px;font-style:normal;font-weight:500}
+  .escrow.p4 em{color:var(--muted)} .escrow.p3 em{color:var(--field)}
+  .escrow.p2 em{color:var(--amber)} .escrow.p1 em{color:var(--brinjal)}
+  .escrow code{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+  .escrow b{font-size:13.5px;font-weight:600}
+  .escrow span{font-size:13px;color:var(--ink-2)}
+  .new{font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;background:var(--brinjal);color:#fff;padding:2px 6px;border-radius:2px;margin-left:9px;vertical-align:2px}
+  .jump{display:inline-flex;align-items:center;gap:10px;background:var(--brinjal);color:#fff;text-decoration:none;font-family:var(--body);font-size:14.5px;font-weight:600;padding:13px 20px;border-radius:2px;margin:26px 0 4px;transition:transform .16s cubic-bezier(.16,1,.3,1),box-shadow .16s}
+  .jump:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(88,39,74,.24)}
+  .jump span{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.75}
+  .jump em{font-style:normal;font-size:16px;line-height:1}
+  .chan{background:var(--card);border:1px solid var(--rule);padding:20px;margin:14px 0}
+  .chan-top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+  .chan-top b{font-family:var(--display);font-size:21px;font-weight:600}
+  .chan-cost{font-family:var(--mono);font-size:15px;color:var(--field);font-weight:500;white-space:nowrap}
+  .chan-setup{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.03em;margin-bottom:12px}
+  .chan-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:12px 0 14px}
+  .chan-num{background:var(--paper);padding:10px 12px}
+  .chan-num span{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .chan-num b{font-family:var(--body);font-size:14px;font-weight:600}
+  .chan p{font-size:14px;margin:0 0 10px;max-width:none}
+  .chan .watch{font-size:13.5px;color:var(--ink-2);border-left:2px solid var(--amber);padding-left:14px;margin:0}
+  .chan .watch b{color:var(--amber);font-weight:600}
+  .promo{display:grid;grid-template-columns:26px 1fr;gap:14px;padding:16px 0;border-bottom:1px solid var(--rule);align-items:start}
+  .promo-mark{font-family:var(--mono);font-size:15px;line-height:1.2;font-weight:600}
+  .promo-mark.best,.promo-mark.good{color:var(--field)} .promo-mark.ok{color:var(--muted)} .promo-mark.avoid{color:var(--brinjal)}
+  .promo b.pn{font-size:15.5px;font-weight:600;display:block;margin-bottom:3px}
+  .promo .po{font-size:14px;color:var(--ink-2);margin:0 0 8px;max-width:none}
+  .promo .pmeta{display:flex;gap:22px;flex-wrap:wrap;font-size:13px}
+  .promo .pmeta i{font-style:normal;color:var(--muted);font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:2px}
+  .ledger{background:var(--card);border:1px solid var(--rule);padding:20px;margin:18px 0;max-width:620px}
+  .ledrow{display:grid;grid-template-columns:1fr 104px;gap:14px;padding:9px 0;border-bottom:1px dashed var(--rule);font-size:14px;align-items:baseline}
+  .ledrow:last-child{border-bottom:0;border-top:2px solid var(--ink);margin-top:5px;padding-top:13px}
+  .ledrow b{font-family:var(--mono);font-size:14px;font-weight:500;text-align:right}
+  .ledrow:last-child b{font-size:18px;color:var(--field)}
+  .ledrow small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .cmp{margin:18px 0}
+  .cmprow{display:grid;grid-template-columns:1fr 96px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule);align-items:baseline;font-size:14px}
+  .cmprow b{font-family:var(--mono);font-size:15px;text-align:right;font-weight:500}
+  .cmprow.good b{color:var(--field)} .cmprow.ok b{color:var(--ink-2)} .cmprow.bad b{color:var(--brinjal)}
+  .cmprow span{color:var(--ink-2);font-size:13px}
+  .recap{border-top:1px solid var(--rule);margin:18px 0}
+  .recaprow{display:grid;grid-template-columns:190px 1fr 90px;gap:16px;padding:14px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .recaprow b{font-size:15px;font-weight:600}
+  .recaprow span{font-size:13.5px;color:var(--ink-2)}
+  .recaprow a{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--field);text-decoration:none;border-bottom:1px solid var(--field-lt)}
+  .recaprow a:hover{border-bottom-color:var(--field)}
+  .rel{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:14px;margin:46px 0 18px;flex-wrap:wrap}
+  .rel b{font-family:var(--display);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .rel span{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .rel .tagd{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;background:var(--brinjal);color:#fff;padding:3px 8px;border-radius:2px}
+  .frow{display:grid;grid-template-columns:1fr 128px;gap:18px;padding:14px 0;border-bottom:1px solid var(--rule);align-items:start}
+  .frow b{font-size:15px;font-weight:600;display:block;margin-bottom:4px}
+  .frow p{font-size:13.5px;margin:0;color:var(--ink-2);max-width:none}
+  .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;padding:3px 6px;border-radius:2px;justify-self:start;line-height:1.35}
+  .ovrow .tag{white-space:normal;text-align:left}
+  .frow .tag{white-space:nowrap}
+  .tag.new,.tag.gap{background:var(--brinjal-lt);color:var(--brinjal)}
+  .tag.conflict{background:var(--amber-lt);color:var(--amber)}
+  .tag.extend,.tag.same{background:var(--field-lt);color:var(--field)}
+  .ov{border-top:1px solid var(--rule);margin:18px 0}
+  .ovrow{display:grid;grid-template-columns:170px 152px 1fr;gap:14px;padding:13px 0;border-bottom:1px solid var(--rule);align-items:start}
+  .ovrow b{font-size:14.5px;font-weight:600}
+  .ovrow span{font-size:13.5px;color:var(--ink-2)}
+  .answered{opacity:.78}
+  .ans{font-family:var(--mono);font-size:11px;color:var(--field);letter-spacing:.02em;display:block;margin-top:6px;text-decoration:none!important;opacity:1}
+  .dec.closed .ans{text-decoration:none!important;color:var(--field);font-weight:500}
+  
+  .callout{background:var(--brinjal-lt);border-left:2px solid var(--brinjal);padding:16px 20px;margin:22px 0;max-width:64ch}
+  .callout p{margin:0;color:var(--ink);font-size:14.5px}
+  .callout b{color:var(--brinjal)}
+
+  .impact{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:2px}
+  .impact.High{background:var(--amber-lt);color:var(--amber)}
+  .impact.Medium{background:var(--paper-2);color:var(--ink-2)}
+
+  footer{margin-top:90px;padding-top:22px;border-top:2px solid var(--ink);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr}
+    .split{grid-template-columns:1fr}
+    .screenrow{grid-template-columns:1fr;gap:3px}
+    .stackrow,.escrow{grid-template-columns:1fr;gap:3px}
+    .recaprow,.cmprow,.frow,.ovrow{grid-template-columns:1fr;gap:5px}
+    table{font-size:13px}
+    td,th{padding-right:8px}
+    .chan-top b{font-size:19px}
+    .cmprow b{text-align:left}
+    .promo .pmeta{gap:14px}
+    .navbox summary{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--field);cursor:pointer;padding:9px 0;border-top:1px solid var(--rule);list-style:none}
+    .navbox summary::-webkit-details-marker{display:none}
+    .navbox summary::after{content:" +";font-weight:600}
+    .navbox[open] summary::after{content:" \2013"}
+    .navbox[open] summary{border-bottom:1px solid var(--rule);margin-bottom:10px}
+    .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--rule);padding:22px 24px}
+    .railnav{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 16px}
+    .navgrp{grid-column:1/-1}
+    main{padding:0 24px 80px}
+    .req{grid-template-columns:1fr;gap:4px}
+    .req .pri{margin-top:4px}
+    .dec{grid-template-columns:22px 1fr;gap:10px}
+    .dec code,.dec > span,.dec b{grid-column:2}
+    .dec b{min-width:0}
+    .step{grid-template-columns:26px 1fr;gap:10px}
+    .step span{grid-column:2}
+  }
+</style>
+
+<div class="wrap">
+  <nav class="rail">
+    <div class="brand">Software requirements<b>Farm-to-Flat</b></div>
+
+    <div class="meter">
+      <div class="meter-lab">Freeze status</div>
+      <div class="meter-num" id="mNum">16</div>
+      <div class="meter-sub" id="mSub">decisions still open</div>
+      <div class="bar"><span id="mBar"></span></div>
+    </div>
+
+    <details class="navbox">
+      <summary>Contents</summary>
+      <div class="railnav" id="railnav"></div>
+    </details>
+  </nav>
+
+  <main>
+    <section class="hero" id="s-top">
+      <div class="eyebrow">Hyderabad · gated communities · v1.1 · revised 21 Aug</div>
+      <h1>Plucked last night, at your door today</h1>
+      <p class="lead">A demand-aggregation grocery platform. Orders are collected during the day, the total is harvested or bought that night, and packets are delivered against a slot the system knows it can keep.</p>
+      <p>Everything below comes from the discovery discussion. Where a requirement came from something specific that was said, the words are quoted alongside it. Use the rail to move around; the requirements section is searchable.</p>
+
+      <div class="callout"><p><b>Revised after the 21 August review.</b> The structure, roles, order journey and aggregation design were accepted unchanged. Five gaps were found, four of them affecting money directly — consumables costing, stock limits, premium delivery, SLA escalation and support. They are marked <span class="new">new</span> below.</p></div>
+
+      <a class="jump" href="#s-new"><em>&#8595;</em><div>Everything new — 1.0 and 2.0<br><span>26 Aug call · operating model · marketing · overlap check</span></div></a>
+
+      <div class="metrics" id="metrics"></div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:12px">Requirement IDs are stable. Quote them in test cases, defect reports and change requests.</p>
+    </section>
+
+    <section id="s-promise">
+      <div class="sechead"><em>01</em><div><h2>The promise</h2><div class="sub">Why anyone would pay more for a tomato</div></div></div>
+      <p>Urban households have almost no visibility into how their food is grown, fed, stored and handled. Price does not fix this. A restaurant charging ₹400–₹500 a dish can still run on aged stock, because the customer never sees the kitchen and rarely complains unless something visibly wrong turns up in the food. Where penalties land, they are absorbed as a cost of doing business.</p>
+      <p>Meat is the sharpest gap. Goat and sheep sold in the city is often bulk-procured from out of state, cage-reared and grown to maximum carcass weight — <strong>20 kg where a naturally grown animal would be 15 kg</strong>. Commercial poultry is widely assumed to be chemically accelerated. Farmed fish raised in small confined ponds carries the same suspicion. Customers already believe village-reared meat is different, because it is.</p>
+      <p>Meanwhile behaviour has shifted. Health-conscious households have cut back or stopped ordering cooked food outside altogether, particularly through monsoon, and are actively hunting for fresh alternatives.</p>
+      <blockquote><p>End of the day you are making money for your health.</p><cite>Business Owner · discovery</cite></blockquote>
+
+      <h3>What makes it work</h3>
+      <p>A large gated community concentrates that demand into one delivery point: <strong>1,000+ flats, 900+ occupied, all reachable in a single trip.</strong> The unit of profitability is not the order — it is the community. Ten orders inside one gate and the economics work.</p>
+      <table>
+        <thead><tr><th>Promise to the customer</th><th>How the business keeps it</th></tr></thead>
+        <tbody>
+          <tr><td>Plucked last night, delivered today</td><td>Demand aggregated during the day; harvest happens overnight against a known quantity</td></tr>
+          <tr><td>Chemical-free produce</td><td>Direct sourcing from identified farms, including family fields in the Shamshabad belt already supplying local shops</td></tr>
+          <tr><td>Village-quality meat and fish</td><td>Naturally fed, appropriately aged livestock rather than bulk out-of-state stock</td></tr>
+          <tr><td>An honest delivery time</td><td>Slots offered only when routing confirms they are physically achievable</td></tr>
+          <tr><td>Traceable origin</td><td>Every procurement batch stores its source, so any public claim can be backed up</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><p><b>Compliance note.</b> Competitors advertise sourcing regions and organic credentials nobody can verify. Claim only what the batch records can substantiate — it protects the brand and satisfies food-safety traceability.</p></div>
+    </section>
+
+    <section id="s-roles">
+      <div class="sechead"><em>02</em><div><h2>Six people, one system</h2><div class="sub">Each role sees a different view of the same order</div></div></div>
+      <blockquote><p>Procurement team sees differently. The distribution team sees differently, and the delivery team sees differently.</p><cite>Business Owner · discovery</cite></blockquote>
+      <div class="roles" id="roles"></div>
+      <h3>Who can do what</h3>
+      <p style="font-size:13.5px">C create · R read · U update · — no access. One person may hold several roles; permissions are the union.</p>
+      <table class="matrix" id="matrix"></table>
+      <p style="font-size:12.5px;color:var(--muted)">* Customers read their own invoice only. † Agents see only tickets raised against their own deliveries. Margin, procurement cost and consumables cost are visible to Admin alone.</p>
+    </section>
+
+    <section id="s-journey">
+      <div class="sechead"><em>03</em><div><h2>An order's journey</h2><div class="sub">One shared status model across all six views</div></div></div>
+      <p>Every transition is timestamped and attributable. Cancellation is only possible before the cut-off, because after that the goods have been committed to procurement.</p>
+      <div class="flow" id="flow"></div>
+    </section>
+
+    <section id="s-aggregation">
+      <div class="sechead"><em>04</em><div><h2>The aggregation engine</h2><div class="sub">The one thing a spreadsheet cannot do</div></div></div>
+      <p>Small household orders roll up into one procurable quantity, then break back down again — by community, by block, by flat — with no re-keying anywhere in the chain.</p>
+      <blockquote><p>I ordered ten kg. You order two kg. She ordered two kg… all that put together, today we have fifty kg tomato to procure.</p><cite>Business Owner · discovery</cite></blockquote>
+      <table>
+        <thead><tr><th>Level</th><th>Question it answers</th><th>Who reads it</th></tr></thead>
+        <tbody>
+          <tr><td>Flat</td><td>What did flat 305, Block C order?</td><td>Packing label, billing, delivery</td></tr>
+          <tr><td>Block</td><td>How much goes to Block C?</td><td>Packing and handover</td></tr>
+          <tr><td>Community</td><td>How much goes through this gate?</td><td>Distribution, vehicle loading</td></tr>
+          <tr><td>Route</td><td>How much goes on this vehicle?</td><td>Delivery planning</td></tr>
+          <tr><td>Total</td><td>How much do we buy tonight?</td><td>Procurement</td></tr>
+        </tbody>
+      </table>
+      <p>At cut-off the aggregate freezes into a <strong>Procurement Plan</strong>. After that, changes create a documented revision — never a silent edit, because someone is already standing in a field acting on the old number.</p>
+    </section>
+
+    <section id="s-money">
+      <div class="sechead"><em>05</em><div><h2>Where the margin lives</h2><div class="sub">Price is derived, never typed</div></div></div>
+      <p>Tomato moved from roughly ₹10 a kilo to nearly ₹100 within a season. A fixed price list cannot survive that. Procurement enters what the goods actually cost tonight; the system applies the configured margin and publishes tomorrow's price.</p>
+      <blockquote><p>Tomatoes I will keep ten percent margin. Brinjal five percent. For meat thirty percent… And later I may think no, I need only three percent. So everything has to have the control to tweak that.</p><cite>Business Owner · discovery</cite></blockquote>
+      <div class="calc">
+        <div class="calcrow"><span>Procurement cost entered tonight — tomato</span><b>₹10.00 / kg</b></div>
+        <div class="calcrow"><span>Allocated consumables per packet</span><b>₹1.00</b></div>
+        <div class="calcrow"><span>Margin configured for tomato</span><b>10%</b></div>
+        <div class="calcrow"><span>Rounding rule</span><b>Nearest rupee</b></div>
+        <div class="calcrow"><span>Published price, next cut-off</span><b>₹11.00 / kg</b></div>
+      </div>
+      <p>Margin resolves in precedence order — product, then category, then global default. Changes apply forward only; orders already placed keep the price they were confirmed at. Every change is versioned with who made it and when.</p>
+      <h3>What the customer never sees<span class="new">new</span></h3>
+      <p>The original model priced against procurement cost alone and missed the consumables — covers, rubber bands, stickers, printed labels. Those are a real per-packet cost, and leaving them out overstated profit on every single order.</p>
+      <blockquote><p>You are procuring tomato for ten rupees a kilo, putting ten percent margin… But how about the raw materials? The bags, the rubber bands, the stickering cost, the printing labels — everything is raw material for me.</p><cite>Business Owner · 21 August review</cite></blockquote>
+      <p>Price is built from five components. Only two of them are ever shown to the customer.</p>
+      <div class="stack" id="stack"></div>
+      <div class="callout"><p><b>Look at the arithmetic.</b> A ₹1.00 consumables cost against a 10% margin on a ₹10 product wipes out the entire margin. The control panel has to surface that when the margin is set, not at month end.</p></div>
+
+      <h3>Allocating it without anyone doing arithmetic</h3>
+      <p>Admin records a bulk purchase — 100 covers for ₹100. The system derives ₹1.00 per cover and consumes it automatically as packets are produced. No packer, agent or admin ever types a per-order figure.</p>
+      <blockquote><p>You should not give this job as a manual job to your admin or the delivery agents. The system should automatically take overall cost within our procurement.</p><cite>Business Owner · 21 August review</cite></blockquote>
+
+      <h3>What the owner sees</h3>
+      <p>Reporting runs off the <strong>actual recorded cost</strong>, not the reference cost, so profit on screen is profit in reality. Fourteen reports now cover operations, cost, revenue, margin and P&amp;L, wastage, delivery and SLA performance, community and product profitability, premium runs, consumables usage, customers and collections.</p>
+      <p>Aggregate profit was explicitly rejected as a management number on its own — the point is to be able to stop selling a product or stop serving a community on evidence.</p>
+      <blockquote><p>I need to understand how much are we making on tomatoes, how much on meat products, how much for this community. That way we can decide we are not going to serve that community, or not going to sell this product.</p><cite>Business Owner · 21 August review</cite></blockquote>
+    </section>
+
+    <section id="s-limits">
+      <div class="sechead"><em>06</em><div><h2>Selling only what we can buy<span class="new">new</span></h2><div class="sub">Stock thresholds — the exposure of procuring after you sell</div></div></div>
+      <p>This platform sells first and buys second, which creates a risk no ordinary grocery app carries: the system can accept an order the supply chain physically cannot fill. Twenty kilos of tomato is routine. Five hundred, because one community happened to order together, may simply not exist at the market that night.</p>
+      <p>Meat makes the ceiling physical rather than statistical. Promising <em>fresh</em> meat means buying live animals — two goats at roughly 15 kg each is 30 kg, and no setting changes that.</p>
+      <blockquote><p>I planned a BBQ party. I invited everybody. Today night I ordered ten kg meat… and then it is not delivered. That is going to be brand failure. So instead I will not make any profit, I will not make the business — that would be good.</p><cite>Business Owner · 21 August review</cite></blockquote>
+      <p>So admin sets a per-product ceiling for each fulfilment date. Orders eat into it first-come, first-served. At zero the product goes out of stock and cannot be added to a cart. Cancelling before cut-off puts the quantity back.</p>
+      <div class="callout"><p><b>The governing trade.</b> Refusing an order costs one sale. Accepting an order and failing to deliver costs the customer permanently.</p></div>
+
+      <h3>Premium delivery<span class="new">new</span></h3>
+      <p>The standard model batches deliveries onto one optimised route. Some orders are worth breaking that route for — a 4 a.m. drop before a morning pooja, a fixed 7 a.m. slot — and customers will pay for it. The argument for offering it is not the uplift; it is that without the option the sale disappears entirely.</p>
+      <blockquote><p>I am okay to pay extra ten rupees, no matter, because it is a demand. But did you give me that option? If you do not give me that option, I will not even consider that — I will go buy it myself.</p><cite>Business Owner · 21 August review</cite></blockquote>
+      <p>Premium orders are excluded from consolidation and planned as direct runs, capped per slot and per day, flagged in every operational view so nobody batches them by mistake, and reported separately so the business can check the uplift actually covers the dedicated trip.</p>
+    </section>
+
+    <section id="s-sla">
+      <div class="sechead"><em>07</em><div><h2>When a delivery runs late<span class="new">new</span></h2><div class="sub">The escalation ladder — identified as the competitive differentiator</div></div></div>
+      <p>This is the largest addition in the revision, and it exists to fix a failure everyone in the room had personally experienced with existing delivery apps: the order stalls, the tracker freezes on an optimistic number, nobody calls, and nobody picks up.</p>
+      <blockquote><p>Two minutes was two minutes for at least ten minutes… nobody came to pick up. It just said the delivery partner is reaching soon, and they do not pick up the call.</p><cite>Business Owner · 21 August review</cite></blockquote>
+      <p>The system detects the breach itself. No customer should have to ring to find out their order is late, and no admin should have to notice.</p>
+      <blockquote><p>I do not want any manual intervention, where someone calls and only then we realise. The system can automatically say that. It knows.</p><cite>Business Owner · 21 August review</cite></blockquote>
+      <div class="esc" id="escalation"></div>
+      <p style="font-size:13px;color:var(--muted)">Every threshold, recipient and message above is configurable. These are the defaults discussed, not fixed behaviour — the real values are OQ-21.</p>
+      <p>Three details carry most of the value. The agent gets a chance to fix it quietly at P4, with a capped snooze. The customer is told at P3 <em>with a resolution window drawn from config</em>, so the business never promises five minutes and misses. And escalation stops dead the moment delivery is confirmed.</p>
+
+      <h3>Support<span class="new">new</span></h3>
+      <p>Someone has to answer what the system now raises. In Phase 1 that is the admin, because in practice one person runs the operation — but the role, the queue and the routing exist from the start so it can become a team without rework.</p>
+      <div class="callout"><p><b>Known tension.</b> Support is expected to explain a delay, but live agent tracking sits in Phase 3. Without it, support can report status and elapsed time but not location. Whether that is enough for Phase 1 is <b>OQ-19</b>.</p></div>
+    </section>
+
+    <section id="s-scope">
+      <div class="sechead"><em>08</em><div><h2>What ships in Phase 1</h2><div class="sub">Deliberately narrow, so it ships</div></div></div>
+      <p>Phase 1 is a complete operating system for one business model in one city — not a supermarket. Five items were added on 21 August; two previously settled items were reopened as decisions (OQ-17 and OQ-18) and may come back out. Everything deferred below is recorded so it does not creep back in informally halfway through the build. Deferred is not rejected.</p>
+      <div class="split">
+        <div class="col"><h4>In scope</h4><p class="note">Built and live before the pilot</p><ul>SCOPE_IN</ul></div>
+        <div class="col out"><h4>Not in Phase 1</h4><p class="note">Deferred on purpose, tracked below</p><ul>SCOPE_OUT</ul></div>
+      </div>
+
+      <h3>What changed in v1.1</h3>
+      <table id="changelog"></table>
+
+      <h3>Where the deferred work lands</h3>
+      <table id="roadmap"></table>
+
+      <h3>What we are assuming is true</h3>
+      <p>Each of these is load-bearing. If one turns out false, the thing in the right column is what breaks.</p>
+      <table id="assumptions"></table>
+
+      <h3>What we depend on</h3>
+      <table id="deps"></table>
+
+      <h3>Constraints we design around</h3>
+      <ul class="plain" id="constraints"></ul>
+    </section>
+
+    <section id="s-requirements">
+      <div class="sechead"><em>09</em><div><h2>What the system must do</h2><div class="sub">Search or filter — every line is independently testable</div></div></div>
+      <div class="controls">
+        <div class="searchrow">
+          <input type="search" id="q" placeholder="Search requirements — try &ldquo;label&rdquo;, &ldquo;margin&rdquo;, &ldquo;offline&rdquo;" aria-label="Search requirements">
+          <span class="count" id="count"></span>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div id="reqlist"></div>
+    </section>
+
+    <section id="s-quality">
+      <div class="sechead"><em>10</em><div><h2>How well it has to work</h2><div class="sub">Non-functional requirements</div></div></div>
+      <p>These fail quietly rather than loudly, which is what makes them worth writing down. Two carry real operational weight: aggregation must finish inside a minute of cut-off, and a routing API outage must degrade to a manual stop list rather than stopping delivery.</p>
+      <div class="chips" id="nchips" style="margin:20px 0 6px"></div>
+      <div id="nfrlist"></div>
+    </section>
+
+    <section id="s-build">
+      <div class="sechead"><em>11</em><div><h2>How it gets built</h2><div class="sub">Freeze, then prototype, then code</div></div></div>
+      <blockquote><p>Let us not get into application development right away. Step one, we freeze the requirement. Step two, give me some HTML pages — how is it going to look.</p><cite>Business Owner · discovery</cite></blockquote>
+      <p>Development starts at <strong>prototype sign-off</strong>, not requirement sign-off. Static mockups and AI-generated screen images are explicitly rejected: the deliverable is a clickable prototype where pressing something produces the next screen, using realistic data.</p>
+      <div class="flow" id="phases"></div>
+
+      <h3>What the prototype has to be</h3>
+      <p>The prototype covers every screen listed below, with realistic sample data — not lorem ipsum, not placeholder imagery. Its job is to eliminate interpretation risk cheaply: a misunderstanding caught in an HTML page costs hours, the same one caught in a built module costs weeks.</p>
+      <div class="screens" id="screens"></div>
+
+      <h3>Sequencing notes</h3>
+      <p>Build aggregation and pricing first — everything downstream reads their output. Spike the routing and slot-feasibility logic early; it carries the most technical uncertainty and is the worst thing to discover late. A single-community pilot is mandatory before rollout, because building access, packet handover and cash handling only get tested in reality.</p>
+
+      <h3>When the dates get set<span class="new">new</span></h3>
+      <p>There are no dates in here, and that is a decision rather than an oversight. A schedule built on unconfirmed scope is a schedule that gets missed. The agreed sequence is:</p>
+      <div class="flow" id="schedule"></div>
+      <p>The expectation is that once the supply partner has signed off, change during actual use runs at roughly twenty to thirty percent — not fifty to sixty. Closing that gap is the entire purpose of this document.</p>
+
+      <h3>Team and working arrangement</h3>
+      <p>Delivery is by an external partner, with Kaushik participating. QA is led by Mahalakshmi. Her ability to raise reproducible defects, and the team's ability to close them, is a formal acceptance criterion rather than an informal expectation. Alternate-day review calls, with on-site presence as agreed — and each review shows working software, not a status update. Delivery is to be AI-assisted rather than traditional: two AI-capable engineers, possibly drawn from the HELM team, with the explicit goal of compressing the schedule.</p>
+      <blockquote><p>Whether they do their own coding or not does not matter to me. I see the application is working. The requirement is fulfilled. It is bug free. QA is able to report the bugs, they are able to fix the bugs.</p><cite>Business Owner · discovery</cite></blockquote>
+    </section>
+
+    <section id="s-accept">
+      <div class="sechead"><em>12</em><div><h2>Accepting the work</h2><div class="sub">What "done" means, before anyone argues about it</div></div></div>
+      <p>A build enters UAT only when all five of these hold. They are checked, not asserted.</p>
+      <ol class="crit" id="acceptance"></ol>
+
+      <h3>Defect severity and turnaround</h3>
+      <table id="defects"></table>
+
+      <h3>Change control</h3>
+      <p>After sign-off, every addition or alteration takes one path: raised in writing against the affected requirement ID, impact-assessed for scope, schedule and cost, approved or rejected by the Business Owner, then folded into a new version with the history updated.</p>
+      <div class="callout"><p><b>Verbal changes agreed on a call are not binding until they are written down.</b> This rule exists for one reason — to prevent the "I thought this, you thought that" failure the Business Owner named as unacceptable.</p></div>
+    </section>
+
+    <section id="s-open">
+      <div class="sechead"><em>13</em><div><h2>Still open</h2><div class="sub">Tick each as it closes — the rail keeps score</div></div></div>
+      <p>Thirty decisions now. The 26 August call closed seven of them outright — those are ticked and show their answer — and raised five new ones. Each remaining one changes scope, cost or schedule, so the freeze is not real until they close. The owner named against each is responsible for deciding, not for discussing.</p>
+      <div id="decisions"></div>
+      <div class="callout" id="freezeNote"><p><b>Not yet frozen.</b> Close every decision above and this document can be signed. Until then, estimates are provisional.</p></div>
+    </section>
+
+    <section id="s-risks">
+      <div class="sechead"><em>14</em><div><h2>What could go wrong</h2><div class="sub">Ten risks, ranked by what they cost</div></div></div>
+      <table id="risks"></table>
+    </section>
+
+
+    <section id="s-new">
+      <div class="sechead"><em>15</em><div><h2>What's new</h2><div class="sub">Release 1.0 from 21 August · Release 2.0 from 26 August · then the overlap check</div></div></div>
+      <p class="lead">Everything added since the first draft, gathered here rather than scattered. Release 1.0 came out of the 21 August review. Release 2.0 came out of the 26 August call and is the larger of the two — it changes how the business actually runs, not only what the software does.</p>
+      <p>The last part checks the two against each other: what 2.0 confirms, what it widens, what it contradicts, and the one thing neither has modelled.</p>
+
+      <div class="rel"><b>Release 1.0</b><span>21 August review</span></div>
+      <p>Five product changes, plus the first pass at marketing and offers. The five are detailed in full earlier in this document; the marketing and promotion work below was drafted from that discussion and has since been overtaken in places by 2.0.</p>
+
+      <h3>A. How we get the first customers <span style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em">— SUPERSEDED IN PART BY 2.5</span></h3>
+      <p>The delivery model only works at ten orders inside one gate. So the question is not "how do we reach Hyderabad" — it is "how do we get ten households in <em>one</em> community ordering on the same day." That is a very different, and much cheaper, marketing problem.</p>
+      <p>Four channels, in the order we would actually use them. The numbers assume a single community of roughly 1,000 flats with 900 occupied.</p>
+      <div id="channels"></div>
+
+      <h3>The sequence we would run</h3>
+      <p>Not all four at once. Each does a different job, and running them in order costs less than running them together.</p>
+      <div class="flow" id="mktseq"></div>
+      <div class="callout"><p><b>Total to open one community: roughly ₹8,000.</b> One stall at ₹5,000, one leaflet drop at ₹3,000, WhatsApp free. If that produces 45–70 first orders, we are paying about ₹120–₹180 to acquire a household. The second community costs the same, and the fifth costs the same — this does not get cheaper with scale, which is why the association partnership matters.</p></div>
+
+      <h3>B. What we offer to start <span style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em">— EXTENDED BY 2.6</span></h3>
+      <p>Five options were considered. They are not equal, and one of them would lose money on every order it brought in.</p>
+      <div id="promos"></div>
+
+      <h3>Why the flat 15% would hurt us</h3>
+      <p>This is worth walking through, because a launch discount is the most natural thing in the world to offer and this one is not survivable. Take a typical ₹500 order:</p>
+      <div class="ledger" id="promoledger"></div>
+      <p>Fifty-three rupees per order is what the business actually earns after the food, the packaging and the van. Now apply each offer to that same order:</p>
+      <div class="cmp" id="promocompare"></div>
+      <div class="callout"><p><b>A 15% discount is larger than the whole margin.</b> At 20 orders a day for a month that is roughly <b>₹37,000 of real loss</b>, and it sets a price the customer will expect again in month two. The free item and the free delivery buy nearly the same excitement and stay in profit.</p></div>
+      <p>The reason the gap is so sharp: the margin on vegetables is thin by design — often five to ten percent — and the consumables now take a real bite out of that. Meat at thirty percent could carry a discount. Tomatoes cannot. If a percentage discount is wanted, it should apply to <strong>meat and fish only</strong>, never the whole catalog.</p>
+
+      <h3>What the software needs for any of this</h3>
+      <p>Worth flagging plainly: <strong>the SRS does not currently support offers.</strong> Coupons, referrals and promotion engines were put out of scope for Phase 1. Every offer above therefore needs one of three things:</p>
+      <div id="promoneeds"></div>
+      <p style="font-size:13.5px;color:var(--muted)">This is now <b>OQ-26</b>: how much promotion capability goes into Phase 1. The Block unlock offer is the one that genuinely needs building, because it is automatic and conditional. The rest can run on configuration we already have.</p>
+
+      <h3>C. The five product changes of 1.0, recapped</h3>
+      <p>Each of these was added on 21 August and appears in full detail earlier in this document. This is the short version.</p>
+      <div class="recap" id="recap"></div>
+
+      <div class="rel"><b>Release 2.0</b><span>26 August call</span><span class="tagd">Larger change</span></div>
+      <p class="lead">This call changed the operating model, not just the feature list. Three delivery days instead of seven, a firm ₹500 basket minimum, a margin that is half what was previously assumed, and a physical stall inside the community that nothing in the software currently accounts for.</p>
+
+      <h3>2.1 How the business actually runs</h3>
+      <div id="r2ops"></div>
+
+      <h3>2.2 Money — the corrections</h3>
+      <p>The margin numbers moved a long way, and in the wrong direction for comfort. 1.0 was modelled on 10% for vegetables and 30% for meat. 2.0 puts it at two to five percent, scaling <em>inversely</em> with price, on a cost base that is now wider.</p>
+      <div id="r2money"></div>
+      <div class="callout"><p><b>Every margin figure shown earlier in this document assumes 1.0 rates.</b> At 2–5% on a loaded cost base, the consumables finding from 1.0 becomes sharper, not softer — a ₹1.00 packet cost against a 5% margin on a ₹10 product is already a loss before the van moves.</p></div>
+
+      <h3>2.3 Handover, proof and returns</h3>
+      <p>The doorstep became the quality gate. Two OTPs bracket the handover, and the customer is told to inspect before closing it.</p>
+      <div id="r2del"></div>
+
+      <h3>2.4 Catalog and the control panel</h3>
+      <div id="r2cat"></div>
+
+      <h3>2.5 Marketing — the full picture</h3>
+      <p>Six channels were costed, and they were explicitly ranked. Stalls lead, digital follows. The reason given for that order is a real constraint rather than a preference.</p>
+      <div id="r2mkt"></div>
+      <div class="callout"><p><b>Why digital comes second.</b> Paid advertising can target a city or an area. It cannot target one gated community — and one gated community is the entire unit of this business. Spend outside the serviceable radius is spend on people who cannot order. A stall is crude by comparison, and lands squarely on the 900 households that matter.</p></div>
+
+      <h3>What the stall actually has to earn</h3>
+      <p>₹6,000 a week for stall space is the largest fixed cost discussed, and it deserves testing against the 5% margin before it is committed to. For a single community:</p>
+      <div class="ledger" id="stallmath"></div>
+      <div class="callout"><p><b>Eighty-four orders every delivery day, from 900 flats, purely to cover the stall.</b> That is about 9% of the community ordering on every single delivery day before the business earns anything — against a viability threshold of ten orders set in 1.0. Either the fee is launch-only, or it becomes a revenue share, or the margin cannot be 5%. This is <b>OQ-29</b> and it is the most consequential open number in the document.</p></div>
+
+      <h3>2.6 Promotions</h3>
+      <div id="r2promo"></div>
+
+      <h3>2.7 Getting to launch</h3>
+      <p>Groundwork before selling. Deliveries targeted for September–October, on the three-day rhythm.</p>
+      <div class="flow" id="r2launch"></div>
+
+      <div class="rel"><b>Overlap check</b><span>1.0 measured against 2.0</span></div>
+      <p>What the second call confirmed, what it widened, what it contradicts — and the one thing neither release has modelled.</p>
+      <div class="ov" id="overlap"></div>
+      <div class="callout"><p><b>Three things need resolving before the build continues.</b> The margin correction invalidates the pricing illustrations shown earlier. The three-day delivery rhythm reshapes the slot engine's calendar. And the community stall is a whole second sales channel — with its own stock, pricing and cash reconciliation — that appears nowhere in the 185 requirements.</p></div>
+    </section>
+
+    <footer>Farm-to-Flat · Software Requirements Specification v1.1 · Draft for requirement freeze · Confidential</footer>
+  </main>
+</div>
+
+<script>
+// Requirement corpus — ported from Farm-to-Flat SRS v1.0
+// [id, text, priority, module]
+const REQS = [
+  // Registration & address
+  ["FR-REG-01","Customer registers using mobile number with OTP verification. Email is optional.","Must","Registration"],
+  ["FR-REG-02","On first address creation the app captures device GPS and maps it to a serviceable community or zone.","Must","Registration"],
+  ["FR-REG-03","Address stored as structured fields: Community, Block/Tower, Flat Number, Floor, Landmark, Recipient Name, Contact Number.","Must","Registration"],
+  ["FR-REG-04","If the location falls outside a serviceable zone, tell the customer plainly and offer to record the address for future expansion.","Must","Registration"],
+  ["FR-REG-05","Customer may save multiple addresses and nominate one as default.","Should","Registration"],
+  ["FR-REG-06","Community and Block are selected from admin-maintained masters, never free-typed, so aggregation keys stay consistent.","Must","Registration"],
+  ["FR-REG-07","Profile stores dietary preference flags used only to order the catalog sensibly, never to hide products.","Could","Registration"],
+
+  // Catalog
+  ["FR-CAT-01","Every product has a primary display name plus unlimited aliases, including regional-language and transliterated forms.","Must","Catalog"],
+  ["FR-CAT-02","Search matches primary name and every alias, tolerating partial matches and common misspellings.","Must","Catalog"],
+  ["FR-CAT-03","Listing shows a photograph, primary name, one or two common alternate names, unit of sale and current price.","Must","Catalog"],
+  ["FR-CAT-04","Products organised into admin-configurable categories and sub-categories.","Must","Catalog"],
+  ["FR-CAT-05","Each product defines its unit of measure and permitted order increments (kg in 250 g steps; piece; bunch; dozen).","Must","Catalog"],
+  ["FR-CAT-06","Optional provenance block per product: source farm/region, growing method, short description.","Should","Catalog"],
+  ["FR-CAT-07","Products marked Available, Unavailable or Seasonally Unavailable; unavailable items visible but not orderable, with optional notify-me.","Should","Catalog"],
+  ["FR-CAT-08","Products flaggable as variable-weight, which enables weight-adjusted billing under FR-BIL-03.","Must","Catalog"],
+  ["FR-CAT-09","Per-community or per-zone availability override.","Could","Catalog"],
+  ["FR-CAT-10","Catalog created and edited entirely from the control panel, including image upload, with no code deployment.","Must","Catalog"],
+
+  // Pricing
+  ["FR-PRC-01","Procurement records a per-unit cost per product per procurement date.","Must","Pricing"],
+  ["FR-PRC-02","Margin configurable at product, category and global level, resolved in that precedence order.","Must","Pricing"],
+  ["FR-PRC-03","Selling price calculated automatically as procurement cost plus the resolved margin.","Must","Pricing"],
+  ["FR-PRC-04","Admin may override a calculated price for a product and date; the override, user and timestamp are recorded.","Should","Pricing"],
+  ["FR-PRC-05","Rounding rules (nearest rupee, nearest 50 paise, always up) are admin-configurable.","Should","Pricing"],
+  ["FR-PRC-06","Margin changes apply to future orders only. Placed orders keep the price they were confirmed at.","Must","Pricing"],
+  ["FR-PRC-07","Full price history per product: procurement cost, margin applied, selling price, effective date, changed by.","Must","Pricing"],
+  ["FR-PRC-08","Optional floor and ceiling price per product; the engine warns when a derived price breaches either.","Should","Pricing"],
+  ["FR-PRC-09","Bulk margin change across a whole category in one action.","Should","Pricing"],
+  ["FR-PRC-10","Delivery charge configurable: flat, free above a threshold, or per-zone.","Must","Pricing"],
+  ["FR-PRC-11","All pricing configuration lives in the control panel. No pricing rule may require a developer.","Must","Pricing"],
+  ["FR-PRC-12","Allocated consumables cost per packet is included in the cost base used for margin reporting.","Must","Pricing"],
+  ["FR-PRC-13","Margin, procurement cost and consumables cost are never returned to the customer app by any API, nor shown on any customer invoice.","Must","Pricing"],
+  ["FR-PRC-14","Delivery charge and any premium uplift are itemised separately and visibly on the customer invoice.","Must","Pricing"],
+
+  // Ordering
+  ["FR-ORD-01","Add to cart with quantity selection respecting each product's unit and increment rules.","Must","Ordering"],
+  ["FR-ORD-02","Cart shows line totals, delivery charge, taxes and order total in real time.","Must","Ordering"],
+  ["FR-ORD-03","Admin-configurable minimum order value enforced at checkout with a clear message.","Should","Ordering"],
+  ["FR-ORD-04","Checkout requires a saved address and an available delivery slot.","Must","Ordering"],
+  ["FR-ORD-05","For variable-weight products, state clearly at checkout that the final bill reflects actual delivered weight within a stated tolerance.","Must","Ordering"],
+  ["FR-ORD-06","Free-text instruction per line item, for cutting or cleaning preferences on meat and fish.","Should","Ordering"],
+  ["FR-ORD-07","On confirmation the system generates a unique order number and locks prices for that order.","Must","Ordering"],
+  ["FR-ORD-08","Cancel or modify without penalty until that slot's cut-off; after cut-off, blocked or governed by an admin rule.","Must","Ordering"],
+  ["FR-ORD-09","Order history with status, itemised bill and delivery details.","Must","Ordering"],
+  ["FR-ORD-10","Reorder a previous order in a single action.","Could","Ordering"],
+  ["FR-ORD-11","Live order status visible to the customer through the full lifecycle.","Must","Ordering"],
+
+  // Slots
+  ["FR-SLT-01","Admin defines slot templates per zone: windows, days of week, and maximum orders or capacity units.","Must","Slots"],
+  ["FR-SLT-02","Checkout presents only slots that are actually feasible for that customer's address.","Must","Slots"],
+  ["FR-SLT-03","Feasibility computed from existing confirmed stops, travel time to the new address, service time per stop, and a configurable buffer (default one hour).","Must","Slots"],
+  ["FR-SLT-04","An exhausted slot is shown unavailable, with the next feasible slot suggested.","Must","Slots"],
+  ["FR-SLT-05","Each slot has a procurement cut-off. Orders after cut-off roll to the next eligible slot.","Must","Slots"],
+  ["FR-SLT-06","The committed slot is stored on the order and is the basis for on-time performance reporting.","Must","Slots"],
+  ["FR-SLT-07","Admin can block a slot or a whole day; the app immediately stops offering it.","Must","Slots"],
+  ["FR-SLT-08","Admin can override capacity for a specific slot on a specific date.","Should","Slots"],
+  ["FR-SLT-09","Service time, speed assumptions and buffer duration are configurable parameters, not hard-coded constants.","Must","Slots"],
+
+  // Aggregation
+  ["FR-AGG-01","At each cut-off, aggregate all confirmed orders for that fulfilment date into one procurement requirement per product.","Must","Aggregation"],
+  ["FR-AGG-02","The same dataset is simultaneously available broken down by community, by block and by individual flat.","Must","Aggregation"],
+  ["FR-AGG-03","Aggregation recalculates automatically whenever an order is added, changed or cancelled before cut-off.","Must","Aggregation"],
+  ["FR-AGG-04","After cut-off the aggregate freezes as a Procurement Plan; later changes create a documented revision, never a silent edit.","Must","Aggregation"],
+  ["FR-AGG-05","Configurable wastage buffer per product or category, added on top of demand (procure 52 kg against 50 kg ordered).","Should","Aggregation"],
+  ["FR-AGG-06","Every aggregated quantity drills down on screen to the exact contributing order lines.","Must","Aggregation"],
+  ["FR-AGG-07","Procurement plan is exportable and printable — staff work at markets and farms without reliable signal.","Must","Aggregation"],
+  ["FR-AGG-08","Flag any community whose order count for a date falls below the viability threshold (default ten).","Should","Aggregation"],
+
+  // Procurement
+  ["FR-PRO-01","Procurement sees the frozen plan for the date as an actionable checklist of product and total quantity.","Must","Procurement"],
+  ["FR-PRO-02","Each line assignable to a source: farm, vendor, market or internal field, from master data.","Must","Procurement"],
+  ["FR-PRO-03","Record actual quantity procured and actual per-unit cost against each line.","Must","Procurement"],
+  ["FR-PRO-04","Where actual falls short, record a shortfall with a reason; the system flags every affected customer order.","Must","Procurement"],
+  ["FR-PRO-05","Shortfall resolution: proportional reduction, order-received sequence, or cancel and refund. Admin-configurable with per-instance override.","Must","Procurement"],
+  ["FR-PRO-06","Mark the plan Complete, which releases it to distribution.","Must","Procurement"],
+  ["FR-PRO-07","Cost entry updates the pricing engine's reference cost for that product.","Must","Procurement"],
+  ["FR-PRO-08","Each batch stores its source, making provenance claims traceable.","Should","Procurement"],
+  ["FR-PRO-09","Procurement screens fully usable on a phone, in the field.","Must","Procurement"],
+
+  // Distribution
+  ["FR-DIS-01","Distribution sees released quantities split by community, and within each community by block and flat.","Must","Distribution"],
+  ["FR-DIS-02","Generate a packing list per order with every line item, quantity and customer instruction.","Must","Distribution"],
+  ["FR-DIS-03","Generate a printable label per packet: order number, customer name, community, block, flat, contact, slot, packet n-of-N, barcode.","Must","Distribution"],
+  ["FR-DIS-04","Labels printable individually, per community batch, or per delivery route.","Must","Distribution"],
+  ["FR-DIS-05","Packing status per order: Not Started, In Progress, Packed, Handed to Delivery.","Must","Distribution"],
+  ["FR-DIS-06","For variable-weight products the packer records actual packed weight, which flows straight to billing.","Must","Distribution"],
+  ["FR-DIS-07","Scan a packet to confirm it is on the correct route; a mismatch raises an on-screen warning.","Should","Distribution"],
+  ["FR-DIS-08","Reconciliation view comparing quantity procured against quantity packed, exposing loss and spoilage.","Should","Distribution"],
+
+  // Delivery
+  ["FR-DEL-01","Group packed orders into delivery routes by slot and geography.","Must","Delivery"],
+  ["FR-DEL-02","Compute an optimised stop sequence per route that minimises travel time and eliminates backtracking.","Must","Delivery"],
+  ["FR-DEL-03","Agent sees an ordered stop list with name, flat, contact, packet count, payment mode and amount to collect.","Must","Delivery"],
+  ["FR-DEL-04","One-tap navigation handoff to the device map application at each stop.","Must","Delivery"],
+  ["FR-DEL-05","Mark each stop Delivered, Partially Delivered or Failed, with a mandatory reason for the latter two.","Must","Delivery"],
+  ["FR-DEL-06","Proof of delivery captured as OTP and/or photograph, per admin policy.","Should","Delivery"],
+  ["FR-DEL-07","Record cash collected per COD order; maintain a per-agent daily cash reconciliation.","Must","Delivery"],
+  ["FR-DEL-08","Route recalculates if a stop is skipped or added mid-route.","Should","Delivery"],
+  ["FR-DEL-09","Actual delivery timestamp stored against the committed slot for on-time reporting.","Must","Delivery"],
+  ["FR-DEL-10","Usable with intermittent connectivity: stop list available offline, status updates queue and sync.","Should","Delivery"],
+  ["FR-DEL-11","Live agent location visible to admin during an active route.","Could","Delivery"],
+
+  // Billing
+  ["FR-BIL-01","Billing sees orders for the date grouped by community, block and flat, each with its itemised bill.","Must","Billing"],
+  ["FR-BIL-02","Invoice per order showing line items, quantity, unit price, line total, delivery charge, taxes and grand total.","Must","Billing"],
+  ["FR-BIL-03","For variable-weight products the invoice reflects actual packed weight at the locked unit rate.","Must","Billing"],
+  ["FR-BIL-04","Configurable weight variance tolerance; beyond tolerance requires billing-user confirmation before finalising.","Should","Billing"],
+  ["FR-BIL-05","Shortfalls and undelivered lines automatically excluded or credited.","Must","Billing"],
+  ["FR-BIL-06","Payment modes — cash on delivery, UPI, online — each individually enableable by admin.","Must","Billing"],
+  ["FR-BIL-07","Payment status per order: Pending, Paid, Partially Paid, Refund Due, Refunded.","Must","Billing"],
+  ["FR-BIL-08","Invoices shareable in-app and through the configured messaging channel.","Must","Billing"],
+  ["FR-BIL-09","Tax configuration — GST rates by category, GSTIN, invoice numbering series — maintained in the control panel.","Must","Billing"],
+  ["FR-BIL-10","Refunds and adjustments recorded with reason, actioning user and timestamp.","Must","Billing"],
+
+  // Admin
+  ["FR-ADM-01","Manage catalog: products, aliases, images, categories, units, increments, availability, provenance.","Must","Control panel"],
+  ["FR-ADM-02","Manage pricing: reference cost, margins at every level, rounding, floors and ceilings, delivery charges.","Must","Control panel"],
+  ["FR-ADM-03","Manage serviceability: communities, blocks, zones, geo-boundaries, viability thresholds.","Must","Control panel"],
+  ["FR-ADM-04","Manage slots: templates, capacities, cut-offs, buffers, service time, blackout dates.","Must","Control panel"],
+  ["FR-ADM-05","Manage users: create accounts, assign one or more roles, activate and deactivate.","Must","Control panel"],
+  ["FR-ADM-06","Manage masters: vendors, farms, delivery agents, vehicles.","Must","Control panel"],
+  ["FR-ADM-07","Manage policy: shortfall handling, weight tolerance, cancellation window, minimum order value.","Must","Control panel"],
+  ["FR-ADM-08","Manage content: banners, category order, featured products, static pages, notification templates.","Should","Control panel"],
+  ["FR-ADM-09","Live operational dashboard: orders today, aggregated demand, procurement, packing, routes, deliveries.","Must","Control panel"],
+  ["FR-ADM-10","Every configuration change written to an immutable audit log with old value, new value, user, timestamp.","Must","Control panel"],
+  ["FR-ADM-11","No configuration change requires a code deployment or a database edit.","Must","Control panel"],
+  ["FR-ADM-12","Manage consumables: item master, bulk purchases, rate method, per-packet consumption templates.","Must","Control panel"],
+  ["FR-ADM-13","Manage stock thresholds: per-product limits, weekday variation, per-date override, live consumption.","Must","Control panel"],
+  ["FR-ADM-14","Manage premium delivery: slot types, uplift pricing, caps per slot, day or zone.","Must","Control panel"],
+  ["FR-ADM-15","Manage SLA escalation: P4–P1 thresholds, recipients, snooze interval and cap, customer commitment window, templates.","Must","Control panel"],
+  ["FR-ADM-16","Manage support routing: support users and assignment method.","Should","Control panel"],
+
+  // Notifications
+  ["FR-NOT-01","Confirmation on order placement, including the committed slot.","Must","Notifications"],
+  ["FR-NOT-02","Notify when the order is packed, and again when it is out for delivery.","Must","Notifications"],
+  ["FR-NOT-03","Notify of any shortfall, substitution or cancellation before delivery.","Must","Notifications"],
+  ["FR-NOT-04","Send invoice and payment confirmation after delivery.","Must","Notifications"],
+  ["FR-NOT-05","Alert operations users at cut-off, on shortfall, and on delivery failure.","Should","Notifications"],
+  ["FR-NOT-06","Channels — in-app push, SMS, WhatsApp — each enableable per event type.","Should","Notifications"],
+  ["FR-NOT-07","All notification content template-driven and editable from the control panel.","Should","Notifications"],
+
+  // Access
+  ["FR-USR-01","Role-based access enforced on both the interface and the API.","Must","Access"],
+  ["FR-USR-02","A user may hold multiple roles; effective permissions are the union.","Must","Access"],
+  ["FR-USR-03","Operations users authenticate individually. Shared logins are not permitted.","Must","Access"],
+  ["FR-USR-04","Sessions expire after a configurable idle period.","Should","Access"],
+  ["FR-USR-05","Every business-significant action is attributable to an individual user.","Must","Access"],
+  ["FR-USR-06","Deactivating a user revokes access immediately without deleting their historical records.","Must","Access"],
+  ["FR-USR-07","The Support role is available and assignable, even where one admin holds it in Phase 1.","Must","Access"],
+  ["FR-USR-08","No role other than Admin may view margin, procurement cost or consumables cost.","Must","Access"],
+
+
+  // Raw materials / consumables
+  ["FR-RAW-01","Admin maintains a consumables master: item name, unit, and current stock on hand.","Must","Consumables"],
+  ["FR-RAW-02","Admin records purchases as quantity and total amount; the system derives and stores the per-unit rate.","Must","Consumables"],
+  ["FR-RAW-03","Per-unit rate recalculates on each new purchase, by latest-rate or weighted-average, admin's choice.","Must","Consumables"],
+  ["FR-RAW-04","Admin defines a consumption template per packet type — which consumables are used, and how many.","Must","Consumables"],
+  ["FR-RAW-05","When a packet is generated the templated cost is allocated automatically. No manual entry by admin, packers or agents.","Must","Consumables"],
+  ["FR-RAW-06","Allocated cost is stored on the order and feeds product-level and community-level profitability.","Must","Consumables"],
+  ["FR-RAW-07","Consumables cost is never shown to the customer, on screen or on the invoice.","Must","Consumables"],
+  ["FR-RAW-08","Stock on hand decrements as packets are produced; a reorder threshold raises an alert.","Should","Consumables"],
+  ["FR-RAW-09","Admin can add a new consumable type without a code change.","Should","Consumables"],
+  ["FR-RAW-10","Usage and cost report by date range: purchased, consumed, remaining value.","Should","Consumables"],
+
+  // Stock thresholds
+  ["FR-STK-01","Admin sets a per-product acceptance threshold — the most the system will sell for one fulfilment date.","Must","Stock limits"],
+  ["FR-STK-02","Thresholds settable per day of week, since weekend meat and fish demand differs.","Should","Stock limits"],
+  ["FR-STK-03","Orders consume the threshold first-come, first-served as they are confirmed.","Must","Stock limits"],
+  ["FR-STK-04","At zero remaining the product shows out of stock for that date and cannot be added to a cart.","Must","Stock limits"],
+  ["FR-STK-05","Where a customer wants more than remains, offer the remaining quantity rather than rejecting the line silently.","Should","Stock limits"],
+  ["FR-STK-06","Availability re-checked at checkout; an order exceeding what is left cannot be confirmed.","Must","Stock limits"],
+  ["FR-STK-07","Cancelling before cut-off returns the quantity to the available threshold.","Must","Stock limits"],
+  ["FR-STK-08","Admin can raise or lower a threshold for a specific date, effective immediately.","Must","Stock limits"],
+  ["FR-STK-09","Admin sees live consumption per product for the next fulfilment date — set, consumed, remaining.","Must","Stock limits"],
+  ["FR-STK-10","Low-confidence supply products carry a lower default threshold and warn admin as it fills.","Could","Stock limits"],
+
+  // Premium delivery
+  ["FR-EXP-01","Admin defines premium slot types with their own windows, including outside standard hours.","Must","Premium delivery"],
+  ["FR-EXP-02","Premium pricing configurable as flat uplift, percentage of order value, or per-zone rate.","Must","Premium delivery"],
+  ["FR-EXP-03","Premium slots appear at checkout beside standard ones, with the charge stated before the customer commits.","Must","Premium delivery"],
+  ["FR-EXP-04","A premium order is excluded from route consolidation and planned as a direct run.","Must","Premium delivery"],
+  ["FR-EXP-05","Admin can cap premium orders per slot, per day or per zone.","Must","Premium delivery"],
+  ["FR-EXP-06","Premium orders are visually distinct in procurement, packing and delivery views so they are not batched by mistake.","Must","Premium delivery"],
+  ["FR-EXP-07","The uplift is itemised separately on the customer invoice.","Must","Premium delivery"],
+  ["FR-EXP-08","Premium revenue and actual delivery cost are reported separately, to test whether the uplift covers the run.","Should","Premium delivery"],
+  ["FR-EXP-09","Premium slots inherit SLA monitoring, with independently configurable — usually tighter — thresholds.","Must","Premium delivery"],
+
+  // SLA escalation
+  ["FR-SLA-01","The system continuously compares each order's committed delivery time against its actual status.","Must","SLA escalation"],
+  ["FR-SLA-02","A passed commitment with no confirmation raises a ticket automatically. No human trigger.","Must","SLA escalation"],
+  ["FR-SLA-03","P4 to P1 levels, thresholds, recipients and message templates are all configurable in the control panel.","Must","SLA escalation"],
+  ["FR-SLA-04","At P4 only the delivery agent is notified, and may snooze for a configured interval.","Must","SLA escalation"],
+  ["FR-SLA-05","Snoozes are counted and capped; exceeding the cap escalates immediately regardless of elapsed time.","Should","SLA escalation"],
+  ["FR-SLA-06","At P3 a support ticket opens and the customer is proactively told the order is delayed and being addressed.","Must","SLA escalation"],
+  ["FR-SLA-07","The delay message carries a resolution commitment window from config, so the business does not promise five minutes and miss it.","Must","SLA escalation"],
+  ["FR-SLA-08","At P2 the ticket reaches admin; at P1 it reaches the configured owner or escalation board.","Must","SLA escalation"],
+  ["FR-SLA-09","Tickets carry order, customer, agent, route, committed time, elapsed breach and escalation history.","Must","SLA escalation"],
+  ["FR-SLA-10","A ticket closes on delivery confirmation, or manually with a mandatory reason.","Must","SLA escalation"],
+  ["FR-SLA-11","Escalation stops the moment delivery is confirmed. No further notification to anyone.","Must","SLA escalation"],
+  ["FR-SLA-12","Breach data reported by agent, route, community, slot and cause, separating systemic problems from one-offs.","Should","SLA escalation"],
+  ["FR-SLA-13","The same monitoring covers premium slots, on their own thresholds.","Must","SLA escalation"],
+
+  // Support
+  ["FR-SUP-01","A Support role exists with read access to orders, delivery status, tickets and customer contact details.","Must","Support"],
+  ["FR-SUP-02","In Phase 1 all support contacts and auto-raised tickets route to the admin user.","Must","Support"],
+  ["FR-SUP-03","Assignment supports multiple support users with round-robin or availability routing, configurable.","Should","Support"],
+  ["FR-SUP-04","Support can see any order's status, route position and delay reason without contacting the agent.","Must","Support"],
+  ["FR-SUP-05","Support users add notes to a ticket and record what was told to the customer.","Must","Support"],
+  ["FR-SUP-06","Support activity is attributable to an individual and retained against order history.","Must","Support"],
+
+  // Reporting
+  ["FR-RPT-01","All reports support date-range, community, zone, product and category filters.","Must","Reporting"],
+  ["FR-RPT-02","All reports exportable to Excel or CSV.","Must","Reporting"],
+  ["FR-RPT-03","Dashboard shows the day's key figures without the user running a report.","Must","Reporting"],
+  ["FR-RPT-04","Margin uses the locked selling price and the actual recorded cost, so reported profit reflects reality.","Must","Reporting"],
+  ["FR-RPT-05","Configurable daily summary delivered to the Business Owner by email or message.","Should","Reporting"],
+  ["FR-RPT-06","Profitability reportable per individual product, category and community — not only in aggregate.","Must","Reporting"],
+  ["FR-RPT-07","Every profitability figure nets off procurement cost, consumables cost and delivery cost, so it shows true contribution.","Must","Reporting"],
+  ["FR-RPT-08","Reports flag products and communities below a configured contribution threshold, to support stop-selling decisions.","Should","Reporting"],
+  ["FR-RPT-09","Perishable wastage is attributable to specific products, so high-spoilage lines can be reconsidered.","Should","Reporting"],
+];
+
+const NFRS = [
+  ["NFR-PER-01","Catalog listing and search render within 2 seconds on 4G.","Must","Performance"],
+  ["NFR-PER-02","Slot feasibility returns within 3 seconds at checkout.","Must","Performance"],
+  ["NFR-PER-03","Aggregation for a full day completes within 60 seconds of cut-off.","Must","Performance"],
+  ["NFR-PER-04","Route optimisation for up to 50 stops completes within 30 seconds.","Should","Performance"],
+  ["NFR-PER-05","Supports 2,000 households and 500 orders a day at launch, with headroom to 10x without re-architecture.","Must","Performance"],
+  ["NFR-AVL-01","99.5% monthly uptime target, excluding announced maintenance.","Should","Availability"],
+  ["NFR-AVL-02","Maintenance never falls within two hours of a slot cut-off.","Must","Availability"],
+  ["NFR-AVL-03","Routing API failure degrades gracefully to a manual stop sequence rather than blocking delivery.","Must","Availability"],
+  ["NFR-AVL-04","Automated daily backup with a documented and tested restore.","Must","Availability"],
+  ["NFR-SEC-01","All traffic over HTTPS. No unencrypted transport.","Must","Security"],
+  ["NFR-SEC-02","Secrets stored using a modern one-way hash. No plaintext credentials anywhere.","Must","Security"],
+  ["NFR-SEC-03","Authorisation enforced server-side on every endpoint, not by hiding interface elements.","Must","Security"],
+  ["NFR-SEC-04","Customer personal data reachable only by roles that operationally need it.","Must","Security"],
+  ["NFR-SEC-05","Card data never stored, processed or logged by the application.","Must","Security"],
+  ["NFR-SEC-06","Delivery agents see minimum necessary customer data, and lose access after route closure.","Should","Security"],
+  ["NFR-SEC-07","Complies with applicable Indian data protection requirements; privacy policy and consent at registration.","Must","Security"],
+  ["NFR-SEC-08","OWASP Top 10 baseline protection.","Must","Security"],
+  ["NFR-USA-01","Ordering flow completable in under two minutes by a first-time user without instruction.","Must","Usability"],
+  ["NFR-USA-02","Each operations role opens directly onto the one screen it needs that day.","Must","Usability"],
+  ["NFR-USA-03","All operations screens usable on a mid-range Android phone.","Must","Usability"],
+  ["NFR-USA-04","Legible at standard font scaling; colour never the sole carrier of meaning.","Should","Usability"],
+  ["NFR-USA-05","Telugu and Hindi customer app is a Phase 2 candidate; catalog aliases partly cover this in Phase 1.","Could","Usability"],
+];
+
+const DECISIONS = [
+  ["OQ-01","Platform — native app, cross-platform, or mobile web?","Drives effort, cost, timeline and app-store overhead","Owner + Tech Lead"],
+  ["OQ-02","Target launch date and number of pilot communities","Determines phase durations and team size","Business Owner"],
+  ["OQ-03","Payment modes at launch — cash only, or online from day one?","Gateway integration, reconciliation, refunds","Business Owner"],
+  ["OQ-04","Delivery charge model — free, flat, threshold or zone?","Unit economics and checkout design","Business Owner"],
+  ["OQ-05","Minimum order value, if any","Viability per delivery and checkout rules","Business Owner"],
+  ["OQ-06","Return, refund and quality-complaint policy for perishables","Customer trust, billing logic, support load","Business Owner"],
+  ["OQ-07","Weight variance tolerance for meat and fish, and how it is communicated","Billing disputes are the likeliest early complaint","Owner + Operations"],
+  ["OQ-08","Substitution policy — may a shortfall be substituted, or only cancelled?","Shortfall workflow and notification content","Business Owner"],
+  ["OQ-09","Number of delivery slots per day and their windows","Slot configuration and fleet sizing","Operations"],
+  ["OQ-10","Fleet model — own vehicles and staff, or contracted partners?","Route assignment, cash handling, agent onboarding","Business Owner"],
+  ["OQ-11","Packing location — central facility or per-zone points?","Distribution workflow and label printing setup","Business Owner"],
+  ["OQ-12","FSSAI licensing, GST registration, invoice numbering","Legal compliance and invoice format","Business Owner"],
+  ["OQ-13","Confirmed pilot communities and access permissions","Serviceability masters and pilot planning","Business Owner"],
+  ["OQ-14","Initial catalog breadth — how many SKUs at launch?","Content effort, photography, procurement complexity","Business Owner"],
+  ["OQ-15","Cold-chain handling for meat and fish","Food safety, packaging cost, slot timing","Operations"],
+  ["OQ-16","Budget envelope and commercial model for the dev partner","Team sizing and phase planning","Business Owner"],
+  ["OQ-17","Is multi-farm and vendor assignment needed in Phase 1, with only one supplier today?","Removing it simplifies procurement; keeping it costs build time that may go unused","Business Owner"],
+  ["OQ-18","Is shortfall handling needed in Phase 1, or do stock thresholds make it rare enough to defer?","Thresholds prevent most shortfalls, so the workflow may be redundant early","Owner + Tech Lead"],
+  ["OQ-19","Can support answer delivery enquiries without live tracking, deferred to Phase 3?","Support can report status and delay but not location","Owner + Operations"],
+  ["OQ-20","Confirmed thresholds per product, including the physical meat ceiling (two goats ≈ 30 kg)","These are selling limits — wrong values lose sales or break promises","Business Owner"],
+  ["OQ-21","Actual SLA timings, snooze interval and snooze cap","10 / 30 / 45 minutes were indicative only","Owner + Operations"],
+  ["OQ-22","Premium pricing basis and the daily cap on premium orders","A dedicated run must be covered by its uplift or it destroys margin","Business Owner"],
+  ["OQ-23","The complete consumables list and their bulk purchase rates","Covers, bands, stickers and labels were named; the list was called incomplete","Business Owner"],
+  ["OQ-24","The customer-facing resolution window used in delay messages","Promising five minutes and missing it is worse than saying nothing","Business Owner"],
+  ["OQ-25","Does alias search mean product name aliases, or location-based supplier alternatives?","Both readings appeared in the same review and produce different features","Owner + Tech Lead"],
+  ["OQ-26","How much promotion capability goes into Phase 1 — configuration only, or the conditional group offer too?","Three of the planned offers need no build; one needs new conditional logic","Owner + Tech Lead"],
+  ["OQ-27","Which launch offer is approved, and what is the per-community acquisition budget?","The approved offer determines both the build and the burn","Business Owner"],
+];
+
+const RISKS = [
+  ["R1","Overnight harvest or vendor supply fails against committed orders","High","Multiple sources per key product; shortfall policy; proactive customer notification"],
+  ["R2","Order density stays below ten per community","High","Viability flag in the system; pre-launch demand seeding in the pilot community"],
+  ["R3","Input price volatility erodes margin between order and procurement","Medium","Daily margin recalculation; floor and ceiling warnings; margin adjustable per product"],
+  ["R4","Routing API cost scales unexpectedly with volume","Medium","Cache distance results; batch calls; monitor spend; manual fallback"],
+  ["R5","Scope creep repeats the previous project's overrun","High","Requirement freeze; prototype gate; formal change control"],
+  ["R6","A fast follower copies the model","Medium","Prioritise speed to market; supplier relationships and community trust are the real moat"],
+  ["R7","Perishable wastage from over-procurement","Medium","Procure against confirmed demand; configurable buffer; wastage reporting"],
+  ["R8","Gated community access rules block flat-level delivery","Medium","Confirm access policy before onboarding; collection-point fallback"],
+  ["R9","Provenance claims cannot be substantiated","Medium","Batch-level source traceability; claim only what is verifiable"],
+  ["R10","Key-person dependency in a small delivery team","Medium","Documented code, shared repo access, handover as a phase exit condition"],
+  ["R11","Accepted orders exceed what the supply chain can physically deliver","High","Per-product acceptance thresholds; refuse the sale rather than fail the delivery"],
+  ["R12","Consumables cost quietly erodes margin on low-value, high-packaging items","High","Automatic per-packet allocation; product-level contribution reporting; floor price warnings"],
+  ["R13","SLA escalation generates alert fatigue and gets ignored","Medium","Snooze with a cap; tuneable thresholds; breach reporting by cause, to fix delays rather than re-alert"],
+  ["R14","Premium runs cost more than the uplift recovers","Medium","Caps per slot and per day; separate premium revenue and cost reporting"],
+  ["R15","Scope added in v1.1 pushes Phase 1 past its market window","High","OQ-17 and OQ-18 offer offsetting removals; confirm the list before dates are set"],
+];
+
+const LIFECYCLE = [
+  ["Placed","Customer confirms checkout","Customer, Admin"],
+  ["Confirmed","Validation passes and the slot is reserved","Customer, Admin"],
+  ["Aggregated","Cut-off reached; order folded into the frozen plan","Procurement, Admin"],
+  ["Procured","Procurement marks the plan complete","Procurement, Distribution, Admin"],
+  ["Short-supplied","Procurement records a shortfall touching this order","All ops roles, Customer"],
+  ["Packed","Packing complete and label generated","Distribution, Billing, Customer"],
+  ["Out for delivery","Packet loaded and route started","Delivery, Customer, Admin"],
+  ["Delivered","Agent confirms handover and captures proof","All"],
+  ["Delayed","Committed time passed with no confirmation — escalation active","Delivery, Support, Admin; Customer from P3"],
+  ["Invoiced","Final invoice generated after delivery","Billing, Customer, Admin"],
+  ["Rejected — no capacity","Threshold for that product was already exhausted","Customer, Admin"],
+];
+
+const ROLES = [
+  ["Customer","Order fresh produce and meat to their flat in a chosen slot","Catalog · cart · slot · tracking"],
+  ["Procurement","Know exactly what to buy or harvest tonight, and record what it cost","Plan · cost entry · sources · shortfall"],
+  ["Distribution","Split bulk procurement into per-community and per-flat packets","Allocation · packing · labels"],
+  ["Delivery","Get the right packets to the right flats in the right order","Route · stops · proof · cash"],
+  ["Billing","Produce an accurate bill per flat, reflecting delivered weight","Invoices · adjustments · payments"],
+  ["Support","Answer delivery enquiries and work the tickets the system raises","Ticket queue · order status · delay reason"],
+  ["Admin","Control pricing, margins, catalog, slots, zones and users","Control panel · margins · P&L"],
+];
+
+const MATRIX = {
+  cols: ["Cust","Proc","Dist","Deliv","Bill","Supp","Admin"],
+  rows: [
+    ["Browse and place orders",["CRU","—","—","—","—","—","R"]],
+    ["View aggregated demand",["—","R","R","—","—","—","R"]],
+    ["Enter procurement cost",["—","CU","—","—","—","—","CRU"]],
+    ["View community allocation",["—","R","RU","—","—","—","R"]],
+    ["Print packing labels",["—","—","CR","—","—","—","R"]],
+    ["View optimised route",["—","—","R","R","—","R","R"]],
+    ["Mark delivered, capture proof",["—","—","—","CU","—","—","RU"]],
+    ["Generate or adjust invoice",["R*","—","—","—","CRU","R","CRU"]],
+    ["View and work SLA tickets",["—","—","—","R†","—","CRU","CRU"]],
+    ["Configure margins and pricing",["—","—","—","—","—","—","CRU"]],
+    ["Manage consumables and thresholds",["—","R","—","—","—","—","CRU"]],
+    ["Configure SLA escalation",["—","—","—","—","—","—","CRU"]],
+    ["Manage catalog and masters",["—","—","—","—","—","—","CRU"]],
+    ["Manage users and roles",["—","—","—","—","—","—","CRU"]],
+    ["View P&L and reports",["—","—","—","—","—","—","R"]],
+  ]
+};
+
+const PHASES = [
+  ["Requirement freeze","This document, reviewed and corrected","Signed off; all sixteen decisions closed"],
+  ["Clickable prototype","Navigable HTML of every screen, with realistic data","Owner confirms the flows match his intent"],
+  ["Build","Customer app, operations modules, control panel, integrations","Feature-complete on every Must; internal QA passed"],
+  ["QA and UAT","Tested build in staging, exercised by business users","No open Critical or High defect; UAT signed"],
+  ["Pilot","Live operation in one gated community with real orders","Clean end-to-end fulfilment cycles"],
+  ["Rollout","Progressive expansion to remaining communities","Stable at target volume"],
+];
+
+const SCOPE_IN = [
+  "Customer app: registration, GPS address capture, catalog with alias search, cart, slot selection, checkout, history and tracking",
+  "Product catalog with images, regional name aliases, units of measure and category structure",
+  "Dynamic pricing engine — daily procurement cost plus configurable margin, at product and category level",
+  "Demand aggregation producing total, community-wise and flat-wise breakdowns",
+  "Procurement module with cost capture, vendor and farm assignment, shortfall handling",
+  "Distribution with community-wise allocation, packing checklists and printable per-flat labels",
+  "Delivery with multi-stop route optimisation and slot-feasibility calculation",
+  "Billing with weight-adjusted invoicing and payment status",
+  "Admin control panel covering every commercial and operational parameter",
+  "Reporting: revenue, cost, margin, P&L, order and delivery performance",
+  "Raw materials and consumables costing, with automatic per-packet allocation",
+  "Per-product stock acceptance thresholds governing what the system will sell",
+  "Premium and express delivery slots with configurable uplift pricing",
+  "Automatic delivery SLA monitoring with a configurable P4-to-P1 escalation ladder",
+  "Customer support role and ticket queue, routing to admin in Phase 1",
+  "Role-based access control across all of the above",
+];
+
+const SCOPE_OUT = [
+  "Subscriptions and standing orders — daily milk or vegetable plans",
+  "Loyalty points, referrals and coupon engines",
+  "Multi-city or multi-warehouse operation",
+  "Third-party seller onboarding — no marketplace model",
+  "Cooked or prepared food",
+  "Native customer web storefront (see OQ-01 on platform strategy)",
+  "Automated vendor payouts and a vendor self-service portal",
+  "AI demand forecasting — Phase 1 aggregates real orders, it does not predict them",
+  "Live map tracking of the delivery agent by the customer — deferred, see OQ-19",
+  "A multi-person support team with automated routing — Phase 1 routes everything to admin",
+];
+
+const ROADMAP = [
+  ["Phase 2","Subscriptions and recurring baskets on the milk and newspaper model · wallet and prepaid credit · customer web storefront · referral engine"],
+  ["Phase 3","Demand forecasting from order history, so weekend meat and fish demand is stocked ahead rather than discovered · automated procurement and threshold suggestions · vendor portal and payouts · live delivery tracking"],
+  ["Phase 4","Additional cities · franchise and partner community model · private-label packaging · dedicated multi-agent support team"],
+];
+
+const ASSUMPTIONS = [
+  ["A1","Communities permit delivery to individual flats, or to a designated collection point","Delivery model and labelling change materially"],
+  ["A2","Overnight supply of produce and meat can be secured against next-day demand","The freshness promise fails — the business model is invalid"],
+  ["A3","Customers accept a next-day slot rather than expecting instant delivery","Forces a costly quick-commerce operating model"],
+  ["A4","Ten or more orders per community per delivery day at steady state","Per-delivery cost exceeds margin"],
+  ["A5","Smartphone penetration in the target segment is effectively universal","A call-centre or web ordering channel becomes mandatory"],
+  ["A6","A mapping and routing API can be licensed at acceptable cost","Route optimisation must be built in-house or simplified"],
+];
+
+const CONSTRAINTS = [
+  "Perishables must be fulfilled same-day. Unsold stock is a direct loss, not inventory.",
+  "Input pricing is violently volatile — tomato moved from ~₹10 to ~₹100 a kilo in one season. Static pricing is not survivable.",
+  "Cut meat and fish rarely match ordered weight, so billing must tolerate a controlled variance.",
+  "The operating team is small. The system must reduce headcount need, not add coordination overhead.",
+  "The competitive window is short. Favour a fast, maintainable Phase 1 over speculative generality.",
+];
+
+const DEPENDENCIES = [
+  ["Mapping and routing API","Geocoding, distance matrix, multi-stop optimisation, slot feasibility"],
+  ["SMS / OTP gateway","Registration OTP, delivery OTP, transactional alerts — DLT-compliant templates"],
+  ["WhatsApp Business API","Order updates and invoice sharing, on approved templates"],
+  ["Payment gateway","UPI and online payment, refunds — card data never touches the application"],
+  ["Label printing","Thermal or A4 sheet labels, printable from the browser without special drivers"],
+  ["Supply agreements","Source farms including the Shamshabad-belt family fields, plus meat and fish vendors"],
+];
+
+const SCREENS = [
+  ["Customer","Onboarding · OTP login · address capture · home · category listing · alias search · product detail · cart · slot selection · payment mode · confirmation · order history · live status · profile"],
+  ["Procurement","Login · plan for date · line detail with source · cost and actual quantity entry · shortfall entry · plan completion"],
+  ["Distribution","Login · community allocation · block and flat breakdown · packing checklist · packed-weight entry · label print queue"],
+  ["Delivery","Login · today's route · optimised stop list · stop detail · navigation handoff · delivery confirmation with proof · cash summary"],
+  ["Billing","Login · orders by community and flat · invoice detail and adjustment · invoice generation · payment status board"],
+  ["Admin","Dashboard · catalog · pricing and margins · communities and zones · slots · users and roles · vendors and farms · policy · reports · audit log"],
+];
+
+const ACCEPTANCE = [
+  "Every Must requirement is implemented and demonstrable.",
+  "Each requirement maps to at least one executed test case, referenced by its ID.",
+  "No open Critical or High severity defect.",
+  "One end-to-end scenario passes with no manual intervention: order → aggregation at cut-off → procurement with cost entry → packing with label → optimised route → delivery with proof → invoice with correct weight-adjusted total.",
+  "The admin can change a margin, a slot capacity and a catalog item without developer assistance.",
+  "A product whose threshold is exhausted cannot be ordered, and the attempt is reported.",
+  "A late delivery raises a ticket automatically, escalates through the configured ladder, and stops the moment delivery is confirmed.",
+  "Consumables cost lands on an order with no manual entry, and shows up in product-level profitability.",
+];
+
+const DEFECTS = [
+  ["Critical","Blocks ordering, aggregation, delivery or billing; or causes financial error or data loss","Same business day"],
+  ["High","A core function fails but a workaround exists; significant operational impact","2 business days"],
+  ["Medium","A non-core function fails or behaves incorrectly, limited impact","Within the current sprint"],
+  ["Low","Cosmetic, wording or minor usability issue","Next release"],
+];
+
+const COST_STACK = [
+  ["Procurement cost","₹10.00 / kg","Entered by procurement that night","hidden"],
+  ["Consumables","₹1.00 / packet","Derived automatically — cover ₹0.40, label ₹0.35, band ₹0.25","hidden"],
+  ["Margin","10%","Product, then category, then global default","hidden"],
+  ["Delivery charge","Configured","Flat, threshold or per-zone","shown"],
+  ["Premium uplift","Only if chosen","Express or out-of-route slot","shown"],
+];
+
+const ESCALATION = [
+  ["P4","+10 min","Delivery agent only","Notification with snooze (default 5 min)"],
+  ["P3","+30 min","Support, and the customer","Ticket opens; customer told it is delayed and being looked into"],
+  ["P2","+45 min","Admin, on top of the above","Escalated; admin alerted the order is materially late"],
+  ["P1","Beyond P2","Escalation board / owner","Treated as an incident"],
+];
+
+const CHANGELOG = [
+  ["Raw materials and consumables costing","Covers, bands, stickers and labels cost real money and were absent from the model, overstating profit on every order","Consumables"],
+  ["Stock acceptance thresholds","Because procurement happens after selling, the system could accept orders the supply chain cannot fulfil","Stock limits"],
+  ["Premium and express delivery","Customers will pay an uplift for an out-of-route, time-specific delivery; without it the sale is lost entirely","Premium delivery"],
+  ["SLA monitoring and auto-escalation","Named by the Business Owner as the product's competitive differentiator","SLA escalation"],
+  ["Customer support role","Someone has to answer the escalations the system now raises","Support"],
+  ["Micro-level profitability","Simple P&L cannot tell you which products and communities to stop serving","Reporting"],
+  ["Scheduling approach","Dates were deliberately excluded from v1.0; the sequence for setting them is now recorded","—"],
+];
+
+const SCHEDULE_STEPS = [
+  ["Agree the Phase 1 list","The Business Owner adds anything missing before dates are discussed"],
+  ["Walk the model through with the supply partner","He is non-technical and will review it screen by screen, not clause by clause"],
+  ["Absorb his additions","Expect two to three days of further refinement"],
+  ["Freeze and sign off","The requirement is locked"],
+  ["Only then set the date","Back-plan the milestones from it, a week at a time"],
+];
+
+const MARKETING = [
+  {
+    name: "WhatsApp community groups",
+    cost: "₹0",
+    setup: "Association permission",
+    reach: "~400 of 900 households",
+    orders: "12–20 first orders",
+    cpa: "₹0",
+    how: "Every gated community already runs owner and block groups. Ask the association for permission to post once at launch and once weekly — never daily. Post the actual harvest photo from that morning, not a designed advert.",
+    watch: "Posting without permission gets you removed and remembered badly. Get the RWA on side first. One annoyed admin can close the whole community to you."
+  },
+  {
+    name: "Weekend stall inside the community",
+    cost: "≈₹5,000 per stall",
+    setup: "₹1,500–3,000 society permission · ₹800 banner and table · ₹1,500 samples · ₹1,000 staff",
+    reach: "~150 conversations in a day",
+    orders: "25–35 first orders",
+    cpa: "₹150–200",
+    how: "Saturday or Sunday morning near the clubhouse or main gate. Bring the actual produce. Let people handle it, cut a tomato open, let them smell the coriander. Sign-ups on the spot by QR, with the first order placed there and then on their phone.",
+    watch: "The highest converting channel by far, because freshness is a claim you cannot make in text. But it does not scale — one stall is one community, one weekend."
+  },
+  {
+    name: "Door-drop leaflets",
+    cost: "≈₹3,000 per month",
+    setup: "₹2,000 printing (1,000 at ₹2) · ₹1,000 distribution",
+    reach: "1,000 flats",
+    orders: "10–20 first orders",
+    cpa: "₹150–300",
+    how: "A5, one side, photograph-led. Tomorrow's price on today's leaflet, a QR to the app, and the honest line: plucked last night, at your door today. Repeat monthly so the brand stays present after the stall has gone.",
+    watch: "Lowest conversion of the three. Its real job is reinforcement between stalls, not acquisition on its own."
+  },
+  {
+    name: "Association partnership",
+    cost: "Revenue share",
+    setup: "₹2–5 per order to the community fund",
+    reach: "Whole community, endorsed",
+    orders: "Compounds over months",
+    cpa: "Variable",
+    how: "Offer the residents' association a small per-order contribution to their own fund. In return you get notice-board space, official group access and, most valuable of all, the association's implicit endorsement.",
+    watch: "The strongest long-term channel in Indian gated communities, and the slowest to arrange. Start the conversation early; expect committee meetings."
+  },
+];
+
+const PROMOS = [
+  {
+    name: "Founding 50",
+    offer: "First 50 households in a community get a free item worth ~₹40 on any order above ₹500",
+    cost: "₹2,000 per community, one time",
+    buys: "Fifty households who have tried the produce. Capped, predictable, and it ends by itself.",
+    verdict: "good"
+  },
+  {
+    name: "Block unlock",
+    offer: "When 10 households in a block order for the same day, every one of them gets free delivery",
+    cost: "≈₹400 per unlocked block",
+    buys: "Exactly the density the business model needs. Ten orders in one community is the viability threshold, and this makes residents recruit each other to reach it.",
+    verdict: "best"
+  },
+  {
+    name: "Quiet slot discount",
+    offer: "10% off goods in an under-booked slot, set by admin per day",
+    cost: "Only on orders that would not otherwise exist",
+    buys: "Route density on the runs that are currently losing money, and it flattens the delivery peak.",
+    verdict: "good"
+  },
+  {
+    name: "Free delivery, launch month",
+    offer: "No delivery charge for the first month in a new community",
+    cost: "≈₹40 per order",
+    buys: "Removes the most visible friction at checkout without touching the price of the food.",
+    verdict: "ok"
+  },
+  {
+    name: "15% off everything, launch month",
+    offer: "A flat discount across the whole catalog",
+    cost: "≈₹75 on a ₹500 order — see the arithmetic below",
+    buys: "Volume you cannot serve profitably, and a price anchor you will have to walk back.",
+    verdict: "avoid"
+  },
+];
+
+const PROMO_MATH = [
+  ["Collected from customer","₹540","₹500 goods + ₹40 delivery",""],
+  ["Cost of goods","−₹446","At a blended 12% margin",""],
+  ["Consumables","−₹6","4 packets at ~₹1.60",""],
+  ["Share of the delivery run","−₹35","One stop of ten",""],
+  ["Contribution per order","₹53","Before any offer","base"],
+];
+
+const PROMO_COMPARE = [
+  ["No offer","₹53","Healthy","good"],
+  ["Free delivery for a month","₹13","Thin, but positive","ok"],
+  ["Founding-50 free item (one order only)","₹13","Then back to ₹53","ok"],
+  ["15% off everything","−₹22","Loses money on every single order","bad"],
+];
+
+const NEW_RECAP = [
+  ["Consumables costing","Covers, rubber bands, stickers and labels are real money and were missing from the model. Admin records a bulk buy, the system allocates per packet automatically, and product profitability finally tells the truth.","s-money"],
+  ["Stock thresholds","Because we buy after we sell, the system can promise food that does not exist. A per-product daily ceiling stops that.","s-limits"],
+  ["Premium delivery","An out-of-route, time-specific drop at an uplift. Without the option the customer does not pay more — they buy elsewhere.","s-limits"],
+  ["SLA escalation","When a delivery misses its committed time the system raises a ticket itself and escalates P4 to P1. Nobody has to notice.","s-sla"],
+  ["Support","Someone has to answer what the system now raises. Admin in Phase 1, a team later.","s-sla"],
+];
+
+/* ============ RELEASE 2.0 — from the 26 August call ============ */
+
+const REL2_OPS = [
+  ["Three delivery days a week, not seven","Tuesday, Thursday and Saturday (or Mon/Wed/Fri). Driven by transport reality, not demand. This changes the whole rhythm: aggregation runs three times a week, not daily, and each run is larger.","Changes 1.0"],
+  ["Two delivery windows","Morning 6:00–12:00 and evening 5:00–9:00. Routes start at 5–6am and expand outward as order count grows.","Closes OQ-09"],
+  ["Minimum order value ₹500","Value, not quantity. Half a kilo or ten kilos does not matter — the basket total has to reach ₹500. Explicitly settled after discussing per-customer and per-flat quantity minimums.","Closes OQ-05"],
+  ["Default 100 kg cap per product","Admin sets it per item and changes it any time. First-come-first-served against the cap: 10 accepted, then 20, then 50 — the next 50 kg order is refused and offered the 20 kg that remain.","Closes OQ-20"],
+  ["Show the remaining quantity live","\"Only 20 kilos left, order quickly\" — the Amazon pattern, explicitly requested. See the conflict noted below.","Changes 1.0"],
+  ["Procurement buffer above aggregated demand","Aggregate 170 kg, buy 190 kg. The extra covers spoilage and walk-up sales at the stall.","Extends 1.0"],
+  ["A physical stall inside the community","Surplus stock sits at a stall on delivery days for walk-up buying. This is a second sales channel, not just marketing — and it is not in the software model at all yet.","New, unmodelled"],
+  ["Cold chain split by product","Meat frozen in storage but delivered fresh and direct, morning slot only. Vegetables follow the normal route.","Closes OQ-15"],
+];
+
+const REL2_MONEY = [
+  ["Margin is 2–5%, and it moves inversely with price","At ₹10 a kilo, 5%. At ₹100 a kilo, 2%. Not the flat 10% assumed in 1.0, and nowhere near the 30% floated for meat.","Corrects 1.0"],
+  ["Margin applies to fully-loaded cost","Not just procurement. Procurement + packaging + delivery + labour + association fees. Materially wider than the consumables model in 1.0.","Extends 1.0"],
+  ["The customer sees a firm price before ordering","Price is published ahead of the order and cannot be revised after procurement. If tomato is ₹100 today, the customer is told ₹100 at the point of ordering.","Confirms 1.0"],
+  ["Premium delivery priced at ₹50","A split or out-of-window delivery costs the customer roughly ₹50 on top of a ₹100 standard charge.","Closes OQ-22"],
+  ["Packaging is a brand asset, not just a cost","Attractive packaging is worth ₹15–20 of perceived value per order. Traditional presentation — leaf wrapping was discussed — as a differentiator.","New"],
+];
+
+const REL2_DELIVERY = [
+  ["Two OTPs: one to start, one to close","The agent opens the handover with a start OTP. The customer inspects the package. Only then does the customer give the closing OTP, which closes the service and releases payment.","Extends 1.0"],
+  ["Inspect before you confirm","The customer is explicitly instructed to check the package against expectation before giving the second OTP. This is the quality gate, done at the doorstep.","New"],
+  ["No OTP close means escalation","An unclosed service escalates automatically — it feeds the same ladder built in 1.0.","Extends 1.0"],
+  ["OTP delivered by WhatsApp against the order ID","Same order ID across app and WhatsApp.","New"],
+  ["Damage: report same day, replaced next delivery","24-hour window. Replacement rather than refund by default.","Closes OQ-06"],
+  ["Meat and fish are not returnable","Stated flatly. Quality is settled at the doorstep, before the closing OTP.","Closes OQ-06"],
+];
+
+const REL2_CATALOG = [
+  ["Build the control panel first","Stated directly: the control panel comes before the customer app, because everything else is fed by it.","Changes build order"],
+  ["Catalog is off by default","Around 100 vegetables, leafy greens, ground vegetables, fruits and berries loaded as masters. Admin ticks what to actually sell. Anything unticked is invisible to the customer — not greyed out, absent.","Extends 1.0"],
+  ["Per-product unit and cap","Kilograms, dozens, litres, pieces — set per product, with the cap in that unit.","Extends 1.0"],
+  ["The system decides quantity, never a phone call","Distribution and delivery cannot alter a quantity. No verbal override, no last-minute adjustment by call. If the system says 100 kg, it is 100 kg.","Extends 1.0"],
+  ["Customer helpline as a named channel","A published support number alongside in-app support.","Extends 1.0"],
+];
+
+const REL2_MARKETING = [
+  {name:"Community stalls", cost:"₹3,000 per stall · ₹6,000 a week for two", conf:"~90%", note:"Rated the single most effective channel and the one to lead with. Association permission needed. Runs on the community's own market days. Doubles as a sales point, not only a sign-up desk."},
+  {name:"Association WhatsApp groups", cost:"₹0", conf:"~90%", note:"Reaches residents at their doorstep, effectively. Requires the association to be on side first — which is the same conversation as the stall permission."},
+  {name:"Sample-packet partnership", cost:"≈₹1,000 per month per 1,000 flats", conf:"Unproven", note:"A distributor already places sample packets — honey, milk — at every flat. Cheap reach, but the precedent discussed under-delivered on what was promised, and it may be tied to app downloads."},
+  {name:"Pamphlets and brochures", cost:"≈₹3,000 a month", conf:"Moderate", note:"Reinforcement between stalls. Carries the contact number and the coupon."},
+  {name:"Newspaper insert", cost:"≈₹6,000", conf:"~40%", note:"Weakest of the physical channels for the money. Listed but not recommended as a primary."},
+  {name:"Digital — Instagram, WhatsApp Status, YouTube Shorts", cost:"Organic free · paid variable", conf:"Second line", note:"Explicitly ranked SECOND, behind stalls. The reason is a real limitation: paid targeting reaches a city or an area, never a single gated community. Organic reach is not targetable at all."},
+];
+
+const REL2_PROMOS = [
+  ["Spend ₹500, get an item free","One kilo of a chosen product free above the ₹500 threshold. Matches the Founding-50 shape already modelled.","Closes OQ-27"],
+  ["Three items at a discounted price","A small bundle offered at a set price.","New"],
+  ["Free product introduction","New or unfamiliar products given free to build the habit — the marketing team decides which. Directly aimed at the leafy-vegetable problem, where customers feel no pull.","New"],
+  ["Coupon on the packet for next time","10% off the next order, printed on the packaging, valid three to six months. Repeat purchase, not acquisition.","New"],
+  ["Discount depth varies by category","Meat can carry a discount. Leafy vegetables need one to be noticed at all. A flat catalog-wide percentage was not what was asked for.","Confirms 1.0"],
+  ["A promotion function, separately staffed","Promotions run by a named person or team with their own admin access, not by whoever is on the control panel that day.","New role"],
+];
+
+const REL2_LAUNCH = [
+  ["Association permissions and stall setup","1–3 weeks of groundwork before anything is sold. Nothing starts until permission is in hand."],
+  ["Working model reviewed and signed off","Two weeks for the clickable model. Praneeth reviews it as the sign-off artifact, not the Word document."],
+  ["Launch weekend","Stall goes up. Fresh product on display. Sign-ups and first orders taken on the spot."],
+  ["Brochure and coupon follow","Printed material carries the contact number and the repeat coupon."],
+  ["Deliveries begin","September–October, on the three-day rhythm."],
+];
+
+const REL2_OVERLAP = [
+  ["Aggregation engine","Confirmed unchanged","The roll-up and per-flat decomposition were re-walked and accepted as built in 1.0.","same"],
+  ["Six operational roles","Confirmed, plus one","Same role split. Promotions added as a separately staffed function.","extend"],
+  ["Consumables costing","Widened","1.0 costed covers, bands, stickers and labels. 2.0 puts labour, transport and association fees into the same loaded cost base.","extend"],
+  ["Margin configuration","Values corrected","1.0 modelled 10% on vegetables and 30% on meat. 2.0 says 2–5%, inversely scaled to price. Every margin illustration in this document needs restating.","conflict"],
+  ["Stock thresholds","Confirmed and valued","1.0 built the mechanism. 2.0 sets the default at 100 kg and requires the remaining quantity shown live.","extend"],
+  ["Out-of-stock display","Direct conflict","1.0 recommended a quiet indicator and explicitly warned against scarcity pressure. 2.0 asks for the Amazon pattern — \"only 20 kilos left, order quickly\".","conflict"],
+  ["Premium delivery","Confirmed and priced","Mechanism unchanged. Uplift set at about ₹50.","extend"],
+  ["SLA escalation","Confirmed, new trigger","The ladder stands. An unclosed delivery OTP becomes an additional trigger.","extend"],
+  ["Support","Confirmed, widened","Ticket queue stands. A published helpline number is added, and support must be fed by system updates rather than phone calls.","extend"],
+  ["Slot engine","Reshaped","1.0 assumed daily next-day slots. 2.0 fixes three delivery days a week and two fixed windows. The feasibility logic survives; the calendar underneath it does not.","conflict"],
+  ["Promotions (8.19)","Confirmed and expanded","The mechanism drafted in 1.0 covers the ₹500 free item and the category-limited discount. The repeat coupon and free-product introduction are new.","extend"],
+  ["Marketing","Substantially expanded","1.0 costed four physical channels. 2.0 adds digital, the sample-packet partnership, newspaper, and real association pricing.","extend"],
+  ["Community stall as a sales channel","Not modelled at all","Walk-up selling from surplus stock is a second revenue channel with its own stock, pricing and reconciliation. Nothing in the SRS covers it.","gap"],
+];
+
+const ANSWERED = {
+  "OQ-05":"₹500 minimum order VALUE, not quantity",
+  "OQ-06":"Damage reported same day, replaced next delivery, 24h window. Meat and fish not returnable",
+  "OQ-09":"Three delivery days a week · morning 6–12 and evening 5–9",
+  "OQ-15":"Meat frozen in storage, delivered fresh and direct, morning only",
+  "OQ-20":"100 kg default cap per product, admin-configurable per item",
+  "OQ-22":"Premium uplift ≈₹50 on a ₹100 standard delivery charge",
+  "OQ-27":"₹500 spend → one item free · plus a 10% repeat coupon on the packet",
+};
+
+const NEW_DECISIONS = [
+  ["OQ-28","Is the community stall a permanent sales channel, or launch-only?","It sells surplus stock to walk-ups. That needs its own stock, pricing and cash reconciliation — none of which the SRS covers","Business Owner"],
+  ["OQ-29","Is ₹6,000 a week for stall space an ongoing cost per community?","At 5% margin this single line needs roughly 84 orders every delivery day just to break even — see the arithmetic","Business Owner"],
+  ["OQ-30","Does 2–5% on fully-loaded cost actually clear the fixed costs?","Margin was quoted on a base that now includes labour, transport and association fees. The percentage may not survive that widening","Owner + Tech Lead"],
+  ["OQ-31","Out-of-stock display — quiet indicator or scarcity pressure?","1.0 recommended quiet; 2.0 asked for the Amazon pattern. Health-conscious buyers notice pressure tactics","Business Owner"],
+  ["OQ-32","Does digital advertising run at all before three communities are live?","Paid targeting cannot reach one gated community, so spend leaks outside the serviceable area","Business Owner"],
+];
+
+const STALL_MATH = [
+  ["Stall cost, one community","₹6,000 / week","Two stalls at ₹3,000",""],
+  ["Per month","₹26,000","4.33 weeks",""],
+  ["Revenue needed at 5% margin","≈₹5,46,000","Margin must cover the fee before anything else",""],
+  ["Delivery days per month","13","Three a week",""],
+  ["Revenue needed per delivery day","≈₹42,000","",""],
+  ["Orders needed per delivery day","≈84","At the ₹500 minimum order value","base"],
+];
+
+
+/* ---------- rail ---------- */
+const NAV=[
+  ["Overview",[["s-top","00","Where this stands"],["s-promise","01","The promise"],["s-roles","02","Six people, one system"]]],
+  ["The model",[["s-journey","03","An order's journey"],["s-aggregation","04","The aggregation engine"],["s-money","05","Where the margin lives"]]],
+  ["Added in v1.1",[["s-limits","06","Selling only what we can buy"],["s-sla","07","When a delivery runs late"]]],
+  ["Phase 1",[["s-scope","08","What ships in Phase 1"],["s-requirements","09","What it must do"],["s-quality","10","How well it must work"]]],
+  ["The build",[["s-build","11","How it gets built"],["s-accept","12","Accepting the work"]]],
+  ["Decisions",[["s-open","13","Still open"],["s-risks","14","What could go wrong"]]],
+  ["For the investor",[["s-new","15","Everything new, in one place"]]]
+];
+document.getElementById('railnav').innerHTML=NAV.map(([g,items])=>
+  '<div class="navgrp">'+g+'</div>'+items.map(([id,n,t])=>
+    '<a href="#'+id+'" data-t="'+id+'"><i>'+n+'</i>'+t+'</a>').join('')).join('');
+
+/* ---------- metrics ---------- */
+const mustN=REQS.filter(r=>r[2]==='Must').length;
+document.getElementById('metrics').innerHTML=[
+  ["Families in reach","2,000",""],
+  ["Flats, pilot community","900+","of 1,000+ built"],
+  ["Orders to break even","10","per community, per run"],
+  ["Requirements",String(REQS.length),mustN+" are must-have"],
+  ["Operational roles","7",""],
+  ["Decisions open","25","alt"]
+].map(([lab,val,sub])=>{
+  const alt=sub==='alt';
+  return '<div class="metric"><span>'+lab+'</span><b class="'+(alt?'alt':'')+'">'+
+    val+'</b><i>'+((sub&&!alt)?sub:'&nbsp;')+'</i></div>';
+}).join('');
+
+/* ---------- roles / matrix / flow ---------- */
+document.getElementById('roles').innerHTML=ROLES.map(([n,g,s])=>
+  '<div class="role"><b>'+n+'</b><p>'+g+'</p><span>'+s+'</span></div>').join('');
+
+document.getElementById('matrix').innerHTML=
+  '<thead><tr><th>Function</th>'+MATRIX.cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>'+
+  MATRIX.rows.map(([f,v])=>'<tr><td>'+f+'</td>'+v.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody>';
+
+document.getElementById('flow').innerHTML=LIFECYCLE.map(([n,t,w],i)=>
+  '<div class="step"><em>'+String(i+1).padStart(2,'0')+'</em><b>'+n+'<small>'+w+'</small></b><span>'+t+'</span></div>').join('');
+
+document.getElementById('phases').innerHTML=PHASES.map(([n,d,x],i)=>
+  '<div class="step"><em>'+String(i).padStart(2,'0')+'</em><b>'+n+'<small>Exit: '+x+'</small></b><span>'+d+'</span></div>').join('');
+
+/* ---------- requirements ---------- */
+const mods=[...new Set(REQS.map(r=>r[3]))];
+let fMod='All', fPri='All', fQ='';
+document.getElementById('chips').innerHTML=
+  ['All',...mods].map(m=>'<button class="chip'+(m==='All'?' on':'')+'" data-mod="'+m+'">'+m+'</button>').join('')+
+  '<span style="width:10px"></span>'+
+  ['Must','Should','Could'].map(p=>'<button class="chip" data-pri="'+p+'">'+p+'</button>').join('');
+
+function renderReqs(){
+  const q=fQ.toLowerCase();
+  const out=REQS.filter(r=>
+    (fMod==='All'||r[3]===fMod)&&(fPri==='All'||r[2]===fPri)&&
+    (!q||r[0].toLowerCase().includes(q)||r[1].toLowerCase().includes(q)||r[3].toLowerCase().includes(q)));
+  document.getElementById('count').textContent=out.length+' of '+REQS.length;
+  document.getElementById('reqlist').innerHTML= out.length? out.map(([id,t,p,m])=>
+    '<div class="req"><code>'+id+'</code><p>'+t+'<span class="mod">'+m+'</span></p><span class="pri '+p+'">'+p+'</span></div>').join('')
+    : '<div class="empty">Nothing matches that. Try a different word, or clear the filters.</div>';
+}
+document.getElementById('chips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip'); if(!b)return;
+  if(b.dataset.mod){fMod=(fMod===b.dataset.mod&&b.dataset.mod!=='All')?'All':b.dataset.mod;
+    [...document.querySelectorAll('.chip[data-mod]')].forEach(c=>c.classList.toggle('on',c.dataset.mod===fMod));}
+  else{fPri=fPri===b.dataset.pri?'All':b.dataset.pri;
+    [...document.querySelectorAll('.chip[data-pri]')].forEach(c=>c.classList.toggle('on',c.dataset.pri===fPri));}
+  renderReqs();
+});
+document.getElementById('q').addEventListener('input',e=>{fQ=e.target.value;renderReqs();});
+renderReqs();
+
+/* ---------- NFRs ---------- */
+const ngroups=[...new Set(NFRS.map(r=>r[3]))];
+let fN='All';
+document.getElementById('nchips').innerHTML=['All',...ngroups].map(g=>
+  '<button class="chip'+(g==='All'?' on':'')+'" data-n="'+g+'">'+g+'</button>').join('');
+function renderNfr(){
+  document.getElementById('nfrlist').innerHTML=NFRS.filter(r=>fN==='All'||r[3]===fN).map(([id,t,p,g])=>
+    '<div class="req"><code>'+id+'</code><p>'+t+'<span class="mod">'+g+'</span></p><span class="pri '+p+'">'+p+'</span></div>').join('');
+}
+document.getElementById('nchips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip'); if(!b)return;
+  fN=b.dataset.n;
+  [...document.querySelectorAll('.chip[data-n]')].forEach(c=>c.classList.toggle('on',c.dataset.n===fN));
+  renderNfr();
+});
+renderNfr();
+
+/* ---------- decisions + freeze meter ---------- */
+const ALL_DECISIONS=[...DECISIONS,...NEW_DECISIONS];
+const closed=new Set(Object.keys(ANSWERED));
+document.getElementById('decisions').innerHTML=ALL_DECISIONS.map(([id,q,why,who])=>{
+  const ans=ANSWERED[id];
+  return '<label class="dec'+(ans?' closed answered':'')+'" data-id="'+id+'">'+
+  '<input type="checkbox" '+(ans?'checked':'')+' aria-label="Mark '+id+' closed"><code>'+id+
+  '</code><b><span class="q">'+q+'</span><small>'+why+'</small>'+(ans?'<span class="ans">&#10003; '+ans+'</span>':'')+'</b><span>'+who+'</span></label>';
+}).join('');
+
+function updateMeter(){
+  const open=ALL_DECISIONS.length-closed.size;
+  const pct=Math.round(closed.size/ALL_DECISIONS.length*100);
+  const num=document.getElementById('mNum');
+  num.textContent=open===0?'Ready':open;
+  num.classList.toggle('done',open===0);
+  document.getElementById('mSub').textContent=open===0?'all decisions closed — this can be signed':
+    'decision'+(open===1?'':'s')+' still open';
+  document.getElementById('mBar').style.width=pct+'%';
+  const note=document.getElementById('freezeNote');
+  note.innerHTML=open===0
+    ?'<p><b>Ready to freeze.</b> Every decision is closed. From here, changes go through change control: raised in writing against a requirement ID, impact-assessed, approved, and versioned.</p>'
+    :'<p><b>Not yet frozen.</b> '+open+' of '+ALL_DECISIONS.length+' decisions still open. The 26 August call answered seven and raised five new ones \u2014 <b>OQ-29</b>, the stall economics, is the one that could change the business case rather than the build.</p>';
+}
+document.getElementById('decisions').addEventListener('change',e=>{
+  const row=e.target.closest('.dec'); if(!row)return;
+  e.target.checked?closed.add(row.dataset.id):closed.delete(row.dataset.id);
+  row.classList.toggle('closed',e.target.checked);
+  updateMeter();
+});
+updateMeter();
+
+/* ---------- risks ---------- */
+document.getElementById('risks').innerHTML=
+  '<thead><tr><th>Risk</th><th>Impact</th><th>What we do about it</th></tr></thead><tbody>'+
+  RISKS.map(([id,r,i,m])=>'<tr><td>'+r+'</td><td><span class="impact '+i+'">'+i+
+  '</span></td><td>'+m+'</td></tr>').join('')+'</tbody>';
+
+/* ---------- v1.1 additions ---------- */
+document.getElementById('stack').innerHTML=COST_STACK.map(([n,v,src,vis])=>
+  '<div class="stackrow"><b>'+n+'</b><code>'+v+'</code><span>'+src+
+  '</span><span class="vis '+vis+'">'+(vis==='shown'?'customer sees':'internal')+'</span></div>').join('');
+
+document.getElementById('escalation').innerHTML=ESCALATION.map(([lvl,t,who,act])=>
+  '<div class="escrow '+lvl.toLowerCase()+'"><em>'+lvl+'</em><code>'+t+'</code><b>'+who+
+  '</b><span>'+act+'</span></div>').join('');
+
+document.getElementById('changelog').innerHTML=
+  '<thead><tr><th>Added</th><th>Why</th><th>Filter by</th></tr></thead><tbody>'+
+  CHANGELOG.map(([a,w,f])=>'<tr><td>'+a+'</td><td>'+w+'</td><td style="font-family:var(--mono);font-size:11px">'+f+'</td></tr>').join('')+'</tbody>';
+
+document.getElementById('schedule').innerHTML=SCHEDULE_STEPS.map(([n,d],i)=>
+  '<div class="step"><em>'+String(i+1).padStart(2,'0')+'</em><b>'+n+'</b><span>'+d+'</span></div>').join('');
+
+/* ---------- phase 1 scope ---------- */
+const li=a=>a.map(x=>'<li>'+x+'</li>').join('');
+document.querySelector('#s-scope .col ul').innerHTML=li(SCOPE_IN);
+document.querySelector('#s-scope .col.out ul').innerHTML=li(SCOPE_OUT);
+document.getElementById('constraints').innerHTML=li(CONSTRAINTS);
+
+document.getElementById('roadmap').innerHTML=
+  '<thead><tr><th>When</th><th>What lands then</th></tr></thead><tbody>'+
+  ROADMAP.map(([p,d])=>'<tr><td>'+p+'</td><td>'+d+'</td></tr>').join('')+'</tbody>';
+
+document.getElementById('assumptions').innerHTML=
+  '<thead><tr><th>#</th><th>We are assuming</th><th>If it is false</th></tr></thead><tbody>'+
+  ASSUMPTIONS.map(([id,a,i])=>'<tr><td>'+id+'</td><td style="color:var(--ink)">'+a+'</td><td>'+i+'</td></tr>').join('')+'</tbody>';
+
+document.getElementById('deps').innerHTML=
+  '<thead><tr><th>Dependency</th><th>What it is for</th></tr></thead><tbody>'+
+  DEPENDENCIES.map(([n,w])=>'<tr><td>'+n+'</td><td>'+w+'</td></tr>').join('')+'</tbody>';
+
+/* ---------- prototype screens + acceptance ---------- */
+document.getElementById('screens').innerHTML=SCREENS.map(([a,l])=>
+  '<div class="screenrow"><b>'+a+'</b><span>'+l+'</span></div>').join('');
+
+document.getElementById('acceptance').innerHTML=li(ACCEPTANCE);
+
+document.getElementById('defects').innerHTML=
+  '<thead><tr><th>Severity</th><th>What it means</th><th>Fixed by</th></tr></thead><tbody>'+
+  DEFECTS.map(([s,d,t])=>'<tr><td><span class="sev '+s+'">'+s+'</span></td><td>'+d+'</td><td>'+t+'</td></tr>').join('')+'</tbody>';
+
+/* ---------- mobile nav disclosure ---------- */
+const navbox=document.querySelector('.navbox');
+const wide=()=>window.matchMedia('(min-width:901px)').matches;
+navbox.open=wide();
+addEventListener('resize',()=>{ if(wide()) navbox.open=true; });
+document.getElementById('railnav').addEventListener('click',e=>{
+  if(e.target.closest('a') && !wide()) navbox.open=false;
+});
+
+/* ---------- marketing, promos, recap ---------- */
+document.getElementById('channels').innerHTML=MARKETING.map(c=>
+  '<div class="chan"><div class="chan-top"><b>'+c.name+'</b><span class="chan-cost">'+c.cost+'</span></div>'+
+  '<div class="chan-setup">'+c.setup+'</div>'+
+  '<div class="chan-nums">'+
+    '<div class="chan-num"><span>Reach</span><b>'+c.reach+'</b></div>'+
+    '<div class="chan-num"><span>Expected</span><b>'+c.orders+'</b></div>'+
+    '<div class="chan-num"><span>Cost per customer</span><b>'+c.cpa+'</b></div>'+
+  '</div>'+
+  '<p>'+c.how+'</p><p class="watch"><b>Watch out.</b> '+c.watch+'</p></div>').join('');
+
+const MKT_SEQ=[
+  ["Two weeks before","Approach the residents' association. Permission for the stall, and permission to post in the groups. Nothing else happens until this does."],
+  ["Launch weekend","The stall. Real produce, samples, sign-ups by QR, first orders placed on the spot."],
+  ["Launch week","One WhatsApp post with that morning's harvest photo. Not a designed advert — a real photograph."],
+  ["Week two","Leaflet drop across all 1,000 flats, carrying tomorrow's actual prices."],
+  ["Month two onward","Weekly WhatsApp post, monthly leaflet, and open the association revenue-share conversation."],
+];
+document.getElementById('mktseq').innerHTML=MKT_SEQ.map(([w,d],i)=>
+  '<div class="step"><em>'+String(i+1).padStart(2,'0')+'</em><b>'+w+'</b><span>'+d+'</span></div>').join('');
+
+const VERDICT={best:'\u2605',good:'\u2713',ok:'\u2013',avoid:'\u2715'};
+document.getElementById('promos').innerHTML=PROMOS.map(p=>
+  '<div class="promo"><div class="promo-mark '+p.verdict+'">'+VERDICT[p.verdict]+'</div><div>'+
+  '<b class="pn">'+p.name+'</b><p class="po">'+p.offer+'</p>'+
+  '<div class="pmeta"><div><i>Costs us</i>'+p.cost+'</div><div><i>Buys us</i>'+p.buys+'</div></div>'+
+  '</div></div>').join('');
+
+document.getElementById('promoledger').innerHTML=PROMO_MATH.map(([l,v,n])=>
+  '<div class="ledrow"><span>'+l+(n?'<small>'+n+'</small>':'')+'</span><b>'+v+'</b></div>').join('');
+
+document.getElementById('promocompare').innerHTML=PROMO_COMPARE.map(([l,v,n,k])=>
+  '<div class="cmprow '+k+'"><span style="color:var(--ink);font-size:14px">'+l+'</span><b>'+v+'</b><span>'+n+'</span></div>').join('');
+
+const PROMO_NEEDS=[
+  ["Runs on what we already have","Free delivery and the quiet-slot discount are both just admin configuration — the delivery charge and per-product margin are already tweakable per day."],
+  ["Needs a small build","The Founding 50 needs a per-community counter and a free-item rule. Perhaps a day of work."],
+  ["Needs a real build","Block unlock is conditional and automatic — it watches order count per block and retroactively waives delivery. Genuinely new logic."],
+];
+document.getElementById('promoneeds').innerHTML=PROMO_NEEDS.map(([t,d],i)=>
+  '<div class="step"><em>'+String(i+1).padStart(2,'0')+'</em><b>'+t+'</b><span>'+d+'</span></div>').join('');
+
+document.getElementById('recap').innerHTML=NEW_RECAP.map(([n,d,link])=>
+  '<div class="recaprow"><b>'+n+'</b><span>'+d+'</span><a href="#'+link+'">Full detail</a></div>').join('');
+
+/* ---------- release 2.0 ---------- */
+const frows=a=>a.map(([t,d,tag])=>
+  '<div class="frow"><div><b>'+t+'</b><p>'+d+'</p></div>'+
+  '<span class="tag '+(tag.toLowerCase().includes('conflict')||tag.toLowerCase().includes('corrects')||tag.toLowerCase().includes('changes')?'conflict':
+     tag.toLowerCase().includes('new')||tag.toLowerCase().includes('gap')||tag.toLowerCase().includes('unmodelled')?'new':'extend')+'">'+tag+'</span></div>').join('');
+
+document.getElementById('r2ops').innerHTML=frows(REL2_OPS);
+document.getElementById('r2money').innerHTML=frows(REL2_MONEY);
+document.getElementById('r2del').innerHTML=frows(REL2_DELIVERY);
+document.getElementById('r2cat').innerHTML=frows(REL2_CATALOG);
+document.getElementById('r2promo').innerHTML=frows(REL2_PROMOS);
+
+document.getElementById('r2mkt').innerHTML=REL2_MARKETING.map(c=>
+  '<div class="chan"><div class="chan-top"><b>'+c.name+'</b><span class="chan-cost">'+c.cost+'</span></div>'+
+  '<div class="chan-setup">Confidence: '+c.conf+'</div><p>'+c.note+'</p></div>').join('');
+
+document.getElementById('stallmath').innerHTML=STALL_MATH.map(([l,v,n])=>
+  '<div class="ledrow"><span>'+l+(n?'<small>'+n+'</small>':'')+'</span><b>'+v+'</b></div>').join('');
+
+document.getElementById('r2launch').innerHTML=REL2_LAUNCH.map(([t,d],i)=>
+  '<div class="step"><em>'+String(i+1).padStart(2,'0')+'</em><b>'+t+'</b><span>'+d+'</span></div>').join('');
+
+document.getElementById('overlap').innerHTML=REL2_OVERLAP.map(([area,verdict,detail,kind])=>
+  '<div class="ovrow"><b>'+area+'</b><span class="tag '+kind+'">'+verdict+'</span><span>'+detail+'</span></div>').join('');
+
+/* ---------- scrollspy ---------- */
+const links=[...document.querySelectorAll('.rail a')];
+const secs=links.map(a=>document.getElementById(a.dataset.t)).filter(Boolean);
+const spy=new IntersectionObserver(es=>{
+  es.forEach(en=>{ if(en.isIntersecting){
+    links.forEach(l=>l.classList.toggle('on',l.dataset.t===en.target.id));
+  }});
+},{rootMargin:'-15% 0px -70% 0px',threshold:0});
+secs.forEach(s=>spy.observe(s));
+</script>

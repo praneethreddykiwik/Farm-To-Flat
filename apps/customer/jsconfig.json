@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": false,
+    "noEmit": true,
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@f2f/tokens": [
+        "../../packages/tokens/src/index.js"
+      ]
+    },
+    "skipLibCheck": true,
+    "types": [
+      "react",
+      "react-native"
+    ],
+    "maxNodeModuleJsDepth": 0
+  },
+  "include": [
+    "app/**/*.js",
+    "app/**/*.jsx",
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "nativewind-env.d.ts",
+    "types.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/__tests__"
+  ]
+}

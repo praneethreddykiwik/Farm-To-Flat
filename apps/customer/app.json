@@ -1,0 +1,97 @@
+{
+  "expo": {
+    "name": "Farm to Flat",
+    "slug": "farm-to-flat",
+    "scheme": "f2f",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "backgroundColor": "#F3F5EF",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F3F5EF"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.farmtoflat.customer",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "tez",
+          "phonepe",
+          "paytmmp"
+        ],
+        "NSLocationWhenInUseUsageDescription": "We use your location once to check whether your community is serviceable."
+      }
+    },
+    "android": {
+      "package": "in.farmtoflat.customer",
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1510",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "We use your location once to check whether your community is serviceable."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1E7A4C"
+        }
+      ],
+      "expo-dev-client",
+      "expo-image",
+      "expo-splash-screen",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Farm to Flat uses the microphone so you can search the catalog by voice.",
+          "speechRecognitionPermission": "Farm to Flat converts your speech to text to search the catalog.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": ""
+      }
+    },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}

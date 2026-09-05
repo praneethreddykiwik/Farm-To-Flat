@@ -1,0 +1,47 @@
+// CommonJS mirror for tailwind.config.js consumers (Tailwind loads config synchronously via require).
+const colors = {
+  canvas: '#F3F5EF',
+  'canvas-deep': '#E7ECE2',
+  night: '#0B1510',
+  night2: '#14241B',
+  ink: '#0E1B14',
+  ink2: '#3D4B43',
+  ink3: '#7C8781',
+  leaf: '#1E7A4C',
+  'leaf-deep': '#135A37',
+  'leaf-soft': '#DDF0E4',
+  sprout: '#CDF56A',
+  'sprout-deep': '#9FD12C',
+  mint: '#BFE9D0',
+  butter: '#F4E9B7',
+  sky: '#CFE2F3',
+  blush: '#F6D5C8',
+  lilac: '#E2D9F3',
+  tomato: '#D9532B',
+  'tomato-soft': '#FBE4DC',
+  amber: '#D89B1A',
+  'amber-soft': '#FBEFD2',
+  white: '#FFFFFF',
+};
+
+module.exports = {
+  colors,
+  borderRadius: {
+    xs: '8px',
+    sm: '12px',
+    md: '16px',
+    lg: '24px',
+    xl: '32px',
+    '2xl': '40px',
+    pill: '999px',
+  },
+  fontFamily: {
+    display: ['Fraunces_600SemiBold'],
+    'display-bold': ['Fraunces_700Bold'],
+    'display-italic': ['Fraunces_500Medium_Italic'],
+    body: ['IBMPlexSans_400Regular'],
+    'body-medium': ['IBMPlexSans_500Medium'],
+    'body-semi': ['IBMPlexSans_600SemiBold'],
+    mono: ['IBMPlexMono_500Medium'],
+  },
+};

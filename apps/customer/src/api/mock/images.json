@@ -1,0 +1,322 @@
+{
+  "p_palak": {
+    "url": "https://images.pexels.com/photos/4506881/pexels-photo-4506881.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Bogdan Krupin",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_menthi": {
+    "url": "https://images.unsplash.com/photo-1645712429486-9ace28487d1c?auto=format&fit=crop&w=800&q=75",
+    "source": "unsplash",
+    "credit": "this life's illusions",
+    "license": "Unsplash License",
+    "verified": true
+  },
+  "p_thota": {
+    "url": "https://images.pexels.com/photos/32286724/pexels-photo-32286724.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Uppsychic",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_gongura": {
+    "url": null,
+    "source": null,
+    "credit": null,
+    "license": null,
+    "verified": false,
+    "note": "no clean free photo available; botanical tile fallback"
+  },
+  "p_coriander": {
+    "url": "https://images.unsplash.com/photo-1535189487909-a262ad10c165?auto=format&fit=crop&w=800&q=75",
+    "source": "unsplash",
+    "credit": "Magdalena Olszewska",
+    "license": "Unsplash License",
+    "verified": true
+  },
+  "p_mint": {
+    "url": "https://images.pexels.com/photos/4974688/pexels-photo-4974688.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Shxxam",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_curry": {
+    "url": "https://images.pexels.com/photos/37215213/pexels-photo-37215213.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Anindo Santra",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_spring": {
+    "url": "https://images.pexels.com/photos/8599717/pexels-photo-8599717.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Polina Tankilevitch",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_ginger": {
+    "url": "https://images.pexels.com/photos/4397265/pexels-photo-4397265.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Anthony Shkraba",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_garlic": {
+    "url": "https://images.pexels.com/photos/10111494/pexels-photo-10111494.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Engin Akyurt",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_chilli": {
+    "url": "https://images.pexels.com/photos/5678084/pexels-photo-5678084.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Viktoria Slowikowska",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_lemon": {
+    "url": "https://images.pexels.com/photos/1367232/pexels-photo-1367232.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "didsss",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_tomato": {
+    "url": "https://images.pexels.com/photos/9816726/pexels-photo-9816726.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Gurpreet Singh",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_onion": {
+    "url": "https://images.pexels.com/photos/12296936/pexels-photo-12296936.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Paul Seling",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_potato": {
+    "url": "https://images.pexels.com/photos/4110456/pexels-photo-4110456.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Polina Tankilevitch",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_brinjal": {
+    "url": "https://images.pexels.com/photos/5386697/pexels-photo-5386697.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Karola G",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_okra": {
+    "url": "https://images.pexels.com/photos/2583187/pexels-photo-2583187.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Quang Nguyen Vinh",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_carrot": {
+    "url": "https://images.pexels.com/photos/6740693/pexels-photo-6740693.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Dziana Hasanbekava",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_beet": {
+    "url": null,
+    "source": null,
+    "credit": null,
+    "license": null,
+    "verified": false,
+    "note": "dropped: soil, rustic; botanical tile fallback"
+  },
+  "p_cabbage": {
+    "url": "https://images.pexels.com/photos/8538299/pexels-photo-8538299.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Antonio Filigno",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_cauli": {
+    "url": null,
+    "source": null,
+    "credit": null,
+    "license": null,
+    "verified": false,
+    "note": "dropped: staged props, not product-led; botanical tile fallback"
+  },
+  "p_capsicum": {
+    "url": "https://images.pexels.com/photos/2893635/pexels-photo-2893635.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "NC Farm Bureau Mark",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_corn": {
+    "url": "https://images.pexels.com/photos/38519271/pexels-photo-38519271.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Mackling",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_radish": {
+    "url": "https://images.pexels.com/photos/7214623/pexels-photo-7214623.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Anna Nekrashevich",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_cucumber": {
+    "url": "https://images.pexels.com/photos/4203056/pexels-photo-4203056.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Karola G",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_pumpkin": {
+    "url": "https://images.pexels.com/photos/6845306/pexels-photo-6845306.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Memoryslashvision",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_drumstick": {
+    "url": "https://images.pexels.com/photos/20466259/pexels-photo-20466259.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Sanjay Kumar Pundge",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_rawbanana": {
+    "url": "https://images.pexels.com/photos/12199572/pexels-photo-12199572.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Markus Winkler",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_karela": {
+    "url": "https://images.pexels.com/photos/32813825/pexels-photo-32813825.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Ian Panelo",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_bottle": {
+    "url": "https://images.pexels.com/photos/39130946/pexels-photo-39130946.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Ahmad Khan",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_ridge": {
+    "url": null,
+    "source": null,
+    "credit": null,
+    "license": null,
+    "verified": false,
+    "note": "dropped: dark background; botanical tile fallback"
+  },
+  "p_ivy": {
+    "url": "https://images.pexels.com/photos/39041976/pexels-photo-39041976.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Shaddam Hossain",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_snake": {
+    "url": null,
+    "source": null,
+    "credit": null,
+    "license": null,
+    "verified": false,
+    "note": "dropped: dark, busy; botanical tile fallback"
+  },
+  "p_cluster": {
+    "url": "https://images.pexels.com/photos/32421443/pexels-photo-32421443.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "The Capturist",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_frenchbean": {
+    "url": "https://images.pexels.com/photos/5202090/pexels-photo-5202090.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Karola G",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_broadbean": {
+    "url": "https://images.pexels.com/photos/7792150/pexels-photo-7792150.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "IlariaM",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_banana": {
+    "url": "https://images.pexels.com/photos/7472115/pexels-photo-7472115.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Alexas Fotos",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_papaya": {
+    "url": "https://images.pexels.com/photos/4113795/pexels-photo-4113795.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Alleksana",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_guava": {
+    "url": "https://images.pexels.com/photos/2351813/pexels-photo-2351813.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Margo White",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_pomegranate": {
+    "url": "https://images.pexels.com/photos/7156059/pexels-photo-7156059.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Gustavo Fring",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_grapes": {
+    "url": "https://images.pexels.com/photos/3987387/pexels-photo-3987387.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Ready Made",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_chicken": {
+    "url": "https://images.pexels.com/photos/6107735/pexels-photo-6107735.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Alleksana",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_mutton": {
+    "url": "https://images.pexels.com/photos/31732110/pexels-photo-31732110.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Totallyoutofframe",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_prawns": {
+    "url": "https://images.pexels.com/photos/5273798/pexels-photo-5273798.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "Ponsak Thiand",
+    "license": "Pexels License",
+    "verified": true
+  },
+  "p_eggs": {
+    "url": "https://images.pexels.com/photos/37919439/pexels-photo-37919439.jpeg?auto=compress&w=800",
+    "source": "pexels",
+    "credit": "ndaarsa",
+    "license": "Pexels License",
+    "verified": true
+  }
+}
