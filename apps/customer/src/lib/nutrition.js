@@ -510,6 +510,38 @@ export const NUTRITION = {
     edibleFraction: 1,
     tags: ['soaked', 'protein', 'healthy-fat', 'traditional'],
   },
+
+  // generational / seasonal specials
+  p_jackfruit: {
+    kcal: 95,
+    protein: 1.7,
+    carbs: 23,
+    fat: 0.6,
+    fibre: 1.5,
+    gramsPerUnit: 500,
+    edibleFraction: 0.7,
+    tags: ['veg', 'traditional', 'season-summer', 'biryani-swap'],
+  },
+  p_iceapple: {
+    kcal: 43,
+    protein: 0.8,
+    carbs: 10,
+    fat: 0.2,
+    fibre: 1,
+    gramsPerUnit: 300,
+    edibleFraction: 0.6,
+    tags: ['fruit', 'traditional', 'season-summer', 'cooling'],
+  },
+  p_ponnaganti: {
+    kcal: 60,
+    protein: 5,
+    carbs: 8,
+    fat: 1,
+    fibre: 5,
+    gramsPerUnit: 200,
+    edibleFraction: 0.8,
+    tags: ['leafy', 'iron', 'traditional', 'veg'],
+  },
 };
 
 /** Macro totals for a list of {productId, grams} (edible grams). */

@@ -15,7 +15,8 @@ const DEFAULT_PROFILE = {
   diet: 'vegetarian + eggs',
   mealsPerDay: 3,
   nonVegDaysPerWeek: 4, // how many days a week may include chicken/mutton/prawns
-  cheatMeal: false, // allow one relaxed "cheat" meal in a week/month plan
+  cheatDaysPerWeek: 0, // 0–3 relaxed "cheat" days a week (flexible eating)
+  region: 'south', // 'south' | 'north' | 'both' cooking style
   excludes: [], // tapped allergy/avoid keywords the planner must never use (items or steps)
   avoid: '',
   customInstructions: '',

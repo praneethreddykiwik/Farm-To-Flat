@@ -182,17 +182,38 @@ export const ProfileSheet = /** @type {any} */ (
           </View>
 
           <View>
-            <Label style={{ marginBottom: 8 }}>Extras</Label>
+            <Label style={{ marginBottom: 8 }}>Cheat days a week</Label>
             <View style={styles.chips}>
-              <Chip
-                label={p.cheatMeal ? '✓ Weekly cheat meal' : 'Weekly cheat meal'}
-                selected={!!p.cheatMeal}
-                onPress={() => set('cheatMeal', !p.cheatMeal)}
-              />
+              {[0, 1, 2, 3].map((n) => (
+                <Chip
+                  key={n}
+                  label={n === 0 ? 'None' : `${n}`}
+                  selected={Number(p.cheatDaysPerWeek ?? 0) === n}
+                  onPress={() => set('cheatDaysPerWeek', n)}
+                />
+              ))}
             </View>
             <Small muted style={{ marginTop: 6 }}>
-              Adds one relaxed, tasty “cheat” meal to week and month plans.
+              Flexible eating — one relaxed, tasty meal on each cheat day (week & month plans).
             </Small>
+          </View>
+
+          <View>
+            <Label style={{ marginBottom: 8 }}>Cooking style</Label>
+            <View style={styles.chips}>
+              {[
+                ['south', 'South Indian'],
+                ['north', 'North Indian'],
+                ['both', 'Both'],
+              ].map(([k, l]) => (
+                <Chip
+                  key={k}
+                  label={l}
+                  selected={(p.region || 'south') === k}
+                  onPress={() => set('region', k)}
+                />
+              ))}
+            </View>
           </View>
 
           {isNonVegDiet ? (
