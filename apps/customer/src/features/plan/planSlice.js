@@ -14,6 +14,8 @@ const DEFAULT_PROFILE = {
   goal: 'maintain',
   diet: 'vegetarian + eggs',
   mealsPerDay: 3,
+  nonVegDaysPerWeek: 4, // how many days a week may include chicken/mutton/prawns
+  excludes: [], // tapped allergy/avoid keywords the planner must never use (items or steps)
   avoid: '',
   customInstructions: '',
 };

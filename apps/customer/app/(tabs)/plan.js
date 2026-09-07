@@ -27,6 +27,7 @@ import {
 } from '../../src/ui';
 import { CartBar } from '../../src/components/CartBar';
 import { ConfirmBanner } from '../../src/components/ConfirmBanner';
+import { JourneyStrip } from '../../src/components/JourneyStrip';
 import { NutritionBars } from '../../src/components/NutritionBars';
 import { ScoreBar } from '../../src/components/ScoreBar';
 import { MealCard } from '../../src/components/MealCard';
@@ -261,6 +262,8 @@ export default function Plan() {
           ) : null}
 
           <ConfirmBanner style={{ marginTop: 12 }} />
+
+          <JourneyStrip style={{ marginTop: 16 }} />
 
           <Label style={{ marginTop: 22, marginBottom: 8 }}>Plan for</Label>
           <View style={styles.chips}>

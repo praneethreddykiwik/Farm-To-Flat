@@ -24,6 +24,30 @@ const ACTIVITY = [
   ['active', 'Gym / active'],
 ];
 const DIETS = ['vegetarian', 'vegetarian + eggs', 'non-vegetarian', 'vegan'];
+// Common allergens / dislikes to exclude with one tap. The planner drops these from items AND steps.
+const AVOID_OPTIONS = [
+  'Eggs',
+  'Chicken',
+  'Mutton',
+  'Prawns',
+  'Dairy',
+  'Peanuts',
+  'Gluten',
+  'Soy',
+  'Onion',
+  'Garlic',
+  'Brinjal',
+  'Okra',
+  'Mushroom',
+];
+// One-tap meal-timing / cooking rules appended to the standing instructions.
+const INSTRUCTION_PRESETS = [
+  'No acidic foods at lunch',
+  'Light dinner',
+  'High-protein breakfast',
+  'Dinner before 8 pm',
+  'Under 20 min to cook',
+];
 
 /**
  * The customer's standing profile and instructions. Everything here is sent with every plan request,
@@ -36,6 +60,19 @@ export const ProfileSheet = /** @type {any} */ (
     const provider = useSelector(selectProvider);
     const [p, setP] = useState(saved);
     const set = (k, v) => setP((x) => ({ ...x, [k]: v }));
+    const isExcluded = (n) => (p.excludes || []).includes(n);
+    const toggleExclude = (n) =>
+      setP((x) => {
+        const cur = x.excludes || [];
+        return { ...x, excludes: cur.includes(n) ? cur.filter((v) => v !== n) : [...cur, n] };
+      });
+    const addInstruction = (text) =>
+      setP((x) => {
+        const cur = (x.customInstructions || '').trim();
+        if (cur.toLowerCase().includes(text.toLowerCase())) return x;
+        return { ...x, customInstructions: cur ? `${cur}. ${text}` : text };
+      });
+    const isNonVegDiet = p.diet === 'non-vegetarian';
     const targets = dailyTargets(p);
     const both = !!env.groqKey && !!env.geminiKey;
 
@@ -144,21 +181,60 @@ export const ProfileSheet = /** @type {any} */ (
             </View>
           </View>
 
-          <Input
-            label="Avoid / allergies"
-            value={p.avoid}
-            onChangeText={(t) => set('avoid', t)}
-            placeholder="e.g. no brinjal, lactose intolerant"
-          />
-          <Input
-            label="Standing instructions for the planner"
-            value={p.customInstructions}
-            onChangeText={(t) => set('customInstructions', t)}
-            placeholder="e.g. South Indian breakfasts, dinner before 8 pm, keep it under 20 minutes to cook"
-            multiline
-            numberOfLines={3}
-            hint="The planner follows these every time, without you repeating them."
-          />
+          {isNonVegDiet ? (
+            <View>
+              <Label style={{ marginBottom: 8 }}>Non-veg days a week</Label>
+              <View style={styles.chips}>
+                {[0, 1, 2, 3, 4, 5].map((n) => (
+                  <Chip
+                    key={n}
+                    label={n === 0 ? 'None' : `${n}`}
+                    selected={Number(p.nonVegDaysPerWeek ?? 4) === n}
+                    onPress={() => set('nonVegDaysPerWeek', n)}
+                  />
+                ))}
+              </View>
+              <Small muted style={{ marginTop: 6 }}>
+                The rest of the week is planned vegetarian.
+              </Small>
+            </View>
+          ) : null}
+
+          <View>
+            <Label style={{ marginBottom: 8 }}>Avoid / allergies</Label>
+            <View style={styles.chips}>
+              {AVOID_OPTIONS.map((a) => (
+                <Chip key={a} label={a} selected={isExcluded(a)} onPress={() => toggleExclude(a)} />
+              ))}
+            </View>
+            <Small muted style={{ marginTop: 6 }}>
+              Tap anything you can’t eat — the planner never uses it, in a dish or its steps.
+            </Small>
+            <Input
+              value={p.avoid}
+              onChangeText={(t) => set('avoid', t)}
+              placeholder="Anything else? e.g. lactose intolerant, no seafood"
+              style={{ marginTop: 10 }}
+            />
+          </View>
+
+          <View>
+            <Label style={{ marginBottom: 8 }}>Standing instructions</Label>
+            <View style={styles.chips}>
+              {INSTRUCTION_PRESETS.map((t) => (
+                <Chip key={t} label={t} onPress={() => addInstruction(t)} />
+              ))}
+            </View>
+            <Input
+              value={p.customInstructions}
+              onChangeText={(t) => set('customInstructions', t)}
+              placeholder="e.g. South Indian breakfasts, no acidic foods at lunch"
+              multiline
+              numberOfLines={3}
+              style={{ marginTop: 10 }}
+              hint="Tap a chip or type your own. The planner follows these every time."
+            />
+          </View>
 
           {both ? (
             <View>

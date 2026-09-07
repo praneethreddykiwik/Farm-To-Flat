@@ -22,7 +22,6 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const HORIZON_DAYS = { meal: 1, day: 1, week: 7, month: 30 };
 // The model writes a rotation; long horizons are tiled from it so the response stays small and reliable.
 const TEMPLATE_DAYS = { meal: 1, day: 1, week: 7, month: 7 };
-const NONVEG_MAX_DAYS_PER_WEEK = 4;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
 
 /** @returns {{ provider: 'groq'|'gemini', model: string, key: string|null }} */
@@ -46,6 +45,11 @@ function catalogForPrompt(products) {
 
 function systemPrompt({ profile, targets, horizon, products }) {
   const days = TEMPLATE_DAYS[horizon] || 1;
+  const avoidList = [...(profile.excludes || []), profile.avoid]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(', ');
+  const nonVegDays = profile.diet === 'non-vegetarian' ? (profile.nonVegDaysPerWeek ?? 4) : 0;
   return `You are a careful dietitian assistant for a farm-to-flat grocery in Hyderabad, India.
 You plan meals ONLY from the catalog below. Every figure the customer sees is computed by the app
 from the per-100 g nutrition given here, so never invent products, never add ingredients that are not
@@ -55,14 +59,16 @@ must NOT be listed as items), and never state calorie numbers yourself.
 CUSTOMER PROFILE
 - age ${profile.age || 'unknown'}, sex ${profile.sex || 'unspecified'}, weight ${profile.weightKg || 'unknown'} kg, height ${profile.heightCm || 'unknown'} cm
 - activity: ${profile.activity || 'moderate'} · goal: ${profile.goal || 'maintain'} · diet: ${profile.diet || 'vegetarian + eggs'}
-- meals per day: EXACTLY ${profile.mealsPerDay || 3} (${Number(profile.mealsPerDay) === 1 ? 'a single main meal' : Number(profile.mealsPerDay) === 2 ? 'brunch + dinner, no separate breakfast' : Number(profile.mealsPerDay) >= 4 ? 'three meals plus one snack' : 'breakfast, lunch, dinner'}) · allergies/avoid: ${profile.avoid || 'none'}
-- standing instructions from the customer (ALWAYS follow): ${profile.customInstructions || 'none'}
+- meals per day: EXACTLY ${profile.mealsPerDay || 3} (${Number(profile.mealsPerDay) === 1 ? 'a single main meal' : Number(profile.mealsPerDay) === 2 ? 'brunch + dinner, no separate breakfast' : Number(profile.mealsPerDay) >= 4 ? 'three meals plus one snack' : 'breakfast, lunch, dinner'})
+- MUST NOT USE (allergy/dislike — never as an item AND never mentioned in any step): ${avoidList || 'none'}
+- standing instructions from the customer (ALWAYS follow, including any meal-timing rule like "no acidic foods at lunch"): ${profile.customInstructions || 'none'}
 
 DAILY TARGETS (app-computed, Mifflin–St Jeor): ${targets.kcal} kcal, ${targets.protein} g protein, ${targets.carbs} g carbs, ${targets.fat} g fat, ${targets.fibre} g fibre.
 Aim for the produce in this plan to cover 35–60% of daily kcal and as much protein as the catalog realistically allows; the rest comes from pantry staples mentioned in steps. Do not exceed 1.2× the kcal target. If the goal is not achievable with this catalog, say so in "cautions" instead of inflating quantities.
 
 HORIZON: ${horizon} → return exactly ${days} day(s)${horizon === 'month' ? ' (a 7-day rotation; the app repeats it across the month)' : ''}. ${horizon === 'meal' ? 'Return ONE meal only.' : ''}
-REALISM RULES (hard): chicken, mutton or prawns in AT MOST one meal per day and on at most 4 days in any 7; eggs at most one meal per day; never two non-veg meals on the same day; at least one leafy-green vegetable every day; breakfast is the lightest meal; a typical Indian day is 3 meals plus an optional fruit snack, not 3 heavy dishes. Return exactly the requested number of meals per day, no more.
+REALISM RULES (hard): chicken, mutton or prawns in AT MOST one meal per day and on at most ${nonVegDays} day(s) in any 7 (${nonVegDays === 0 ? 'this plan is fully VEGETARIAN — no chicken/mutton/prawns at all' : 'the other days are vegetarian'}); eggs at most one meal per day; never two non-veg meals on the same day; at least one leafy-green vegetable every day; breakfast is the lightest meal; a typical Indian day is 3 meals plus an optional fruit snack, not 3 heavy dishes. Return exactly the requested number of meals per day, no more.
+KEEP IT TIGHT: each meal uses 1–3 catalog ingredients only. Do NOT pad meals with items that add little to the day's calories or protein — every listed item must earn its place.
 Use variety across days (no product in more than ${Math.max(2, Math.ceil(days / 2))} days for a week/month plan). Per-item grams are EDIBLE grams for one person for that meal: leafy greens 50–150, vegetables 80–250, fruit 100–250, eggs 50 per egg, chicken/mutton/prawns 100–200.
 
 CATALOG (id | name | per 100 g | tags)
@@ -166,15 +172,31 @@ const clampGrams = (g) => Math.min(400, Math.max(20, Math.round(Number(g) || 0))
  * @param {{kcal:number, protein:number}} targets
  * @param {string} horizon
  */
-export function normalisePlan(raw, products, /** @type {any} */ targets, horizon) {
+export function normalisePlan(raw, products, /** @type {any} */ targets, horizon, profile = {}) {
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
+  // Allergy/dislike exclusions: drop any catalog item whose name matches a tapped or typed keyword.
+  const excl = [...(profile.excludes || []), ...String(profile.avoid || '').split(/[,;]/)]
+    .map((s) => String(s).trim().toLowerCase().replace(/s$/, ''))
+    .filter((s) => s.length >= 3);
+  const isExcludedProduct = (id) => {
+    const nm = (byId[id]?.name || '').toLowerCase();
+    return excl.some((k) => nm.includes(k));
+  };
+  // How many days a week may include meat: 0 for any vegetarian diet, else the customer's choice.
+  const nonVegCap = profile.diet === 'non-vegetarian' ? Number(profile.nonVegDaysPerWeek ?? 4) : 0;
   const days = (Array.isArray(raw?.days) ? raw.days : [])
     .slice(0, TEMPLATE_DAYS[horizon] || 1)
     .map((d, di) => {
       const meals = (Array.isArray(d?.meals) ? d.meals : [])
         .map((m) => {
           const items = (Array.isArray(m?.items) ? m.items : [])
-            .filter((it) => it && byId[it.productId] && NUTRITION[it.productId])
+            .filter(
+              (it) =>
+                it &&
+                byId[it.productId] &&
+                NUTRITION[it.productId] &&
+                !isExcludedProduct(it.productId),
+            )
             .map((it) => ({ productId: it.productId, grams: clampGrams(it.grams) }));
           if (!items.length) return null;
           return {
@@ -207,7 +229,7 @@ export function normalisePlan(raw, products, /** @type {any} */ targets, horizon
     d.meals = d.meals
       .map((m) => {
         if (!m.items.some((it) => isNonVeg(it.productId))) return m;
-        if (seen || inWindow >= NONVEG_MAX_DAYS_PER_WEEK) {
+        if (seen || inWindow >= nonVegCap) {
           const items = m.items.filter((it) => !isNonVeg(it.productId));
           if (!items.length) return null;
           const name = m.name
@@ -350,7 +372,7 @@ export async function generatePlan({ profile, request, horizon, products, provid
   }
   say('Checking every number against our table…');
   const raw = extractJSON(text);
-  const plan = normalisePlan(raw, products, targets, horizon);
+  const plan = normalisePlan(raw, products, targets, horizon, profile);
   plan.provider = usedCfg.provider;
   plan.model = usedCfg.model;
   return plan;
