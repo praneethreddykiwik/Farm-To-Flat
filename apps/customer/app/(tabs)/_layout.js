@@ -12,6 +12,9 @@ export default function TabsLayout() {
         headerShown: false,
         sceneStyle: { backgroundColor: colors.canvas },
         lazy: true,
+        // Freeze inactive tabs so backgrounded screens do no render/animation work — keeps the app
+        // responsive no matter how much you navigate between tabs.
+        freezeOnBlur: true,
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />

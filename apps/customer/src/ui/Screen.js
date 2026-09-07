@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -10,6 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
+import { useIsFocused } from 'expo-router';
 import { colors } from '../theme';
 import { selectReducedMotion } from '../features/ui/uiSlice';
 
@@ -20,18 +22,27 @@ import { selectReducedMotion } from '../features/ui/uiSlice';
  */
 export function Ambient({ variant = 'canvas', intensity = 1 }) {
   const reduced = useSelector(selectReducedMotion);
+  const focused = useIsFocused();
   const t = useSharedValue(0);
   useEffect(() => {
+    // Only the visible screen animates. Every mounted screen (all 5 tabs + anything stacked
+    // underneath) would otherwise keep this 3-blob loop running, and they pile up the more you
+    // navigate — the main cause of gradual lag on heavy use. Pause when not focused.
     if (reduced) {
       t.value = 0.5;
-      return;
+      return undefined;
+    }
+    if (!focused) {
+      cancelAnimation(t);
+      return undefined;
     }
     t.value = withRepeat(
       withTiming(1, { duration: 14000, easing: Easing.inOut(Easing.sin) }),
       -1,
       true,
     );
-  }, [reduced, t]);
+    return () => cancelAnimation(t);
+  }, [reduced, focused, t]);
 
   const b1 = useAnimatedStyle(() => ({
     transform: /** @type {any} */ ([

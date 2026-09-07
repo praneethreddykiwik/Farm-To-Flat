@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
@@ -17,7 +17,7 @@ const SLOT = {
  * One meal: header with slot + computed kcal/protein, product chips (tap → product page), expandable steps.
  * @param {{ meal: any, productsById: Record<string, any>, index?: number, compact?: boolean }} props
  */
-export function MealCard({ meal, productsById, index = 0, compact = false }) {
+function MealCardBase({ meal, productsById, index = 0, compact = false }) {
   const router = useRouter();
   const [open, setOpen] = useState(!compact);
   const s = SLOT[meal.slot] || SLOT.lunch;
@@ -113,6 +113,9 @@ export function MealCard({ meal, productsById, index = 0, compact = false }) {
     </Animated.View>
   );
 }
+
+/** Memoised: a month plan renders dozens of these; only re-render when the meal itself changes. */
+export const MealCard = memo(MealCardBase);
 
 const styles = StyleSheet.create({
   card: { padding: 14 },

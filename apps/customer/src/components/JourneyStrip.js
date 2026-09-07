@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -8,6 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
+import { useIsFocused } from 'expo-router';
 import { Sprout, Scissors, Package, Home } from 'lucide-react-native';
 import { Glass, Small, Text } from '../ui';
 import { colors, radius } from '../theme';
@@ -26,18 +28,23 @@ const STAGES = [
  */
 export function JourneyStrip({ style }) {
   const reduced = useSelector(selectReducedMotion);
+  const focused = useIsFocused();
   const [w, setW] = useState(0);
   const p = useSharedValue(0);
 
   useEffect(() => {
-    if (reduced || !w) return;
+    if (reduced || !w || !focused) {
+      cancelAnimation(p);
+      return undefined;
+    }
     p.value = 0;
     p.value = withRepeat(
       withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.cubic) }),
       -1,
       false,
     );
-  }, [reduced, w, p]);
+    return () => cancelAnimation(p);
+  }, [reduced, w, focused, p]);
 
   const dot = useAnimatedStyle(() => {
     const travel = Math.max(0, w - 16);

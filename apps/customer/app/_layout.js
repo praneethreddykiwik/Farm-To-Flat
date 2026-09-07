@@ -92,6 +92,9 @@ function Root() {
             headerShown: false,
             contentStyle: { backgroundColor: colors.canvas },
             animation: Platform.OS === 'ios' ? 'default' : 'fade_from_bottom',
+            // Freeze a screen once another is pushed over it: no background renders/animations
+            // stacking up as the user drills in and out. Kept responsive on heavy navigation.
+            freezeOnBlur: true,
           }}
         >
           <Stack.Screen name="index" />
