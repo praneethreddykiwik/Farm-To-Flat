@@ -50,6 +50,13 @@ function systemPrompt({ profile, targets, horizon, products }) {
     .filter(Boolean)
     .join(', ');
   const nonVegDays = profile.diet === 'non-vegetarian' ? (profile.nonVegDaysPerWeek ?? 4) : 0;
+  const m = new Date().getMonth();
+  const season = [10, 11, 0, 1].includes(m)
+    ? 'winter'
+    : [2, 3, 4, 5].includes(m)
+      ? 'summer'
+      : 'monsoon';
+  const cheat = !!profile.cheatMeal && (horizon === 'week' || horizon === 'month');
   return `You are a careful dietitian assistant for a farm-to-flat grocery in Hyderabad, India.
 You plan meals ONLY from the catalog below. Every figure the customer sees is computed by the app
 from the per-100 g nutrition given here, so never invent products, never add ingredients that are not
@@ -69,6 +76,9 @@ Aim for the produce in this plan to cover 35–60% of daily kcal and as much pro
 HORIZON: ${horizon} → return exactly ${days} day(s)${horizon === 'month' ? ' (a 7-day rotation; the app repeats it across the month)' : ''}. ${horizon === 'meal' ? 'Return ONE meal only.' : ''}
 REALISM RULES (hard): chicken, mutton or prawns in AT MOST one meal per day and on at most ${nonVegDays} day(s) in any 7 (${nonVegDays === 0 ? 'this plan is fully VEGETARIAN — no chicken/mutton/prawns at all' : 'the other days are vegetarian'}); eggs at most one meal per day; never two non-veg meals on the same day; at least one leafy-green vegetable every day; breakfast is the lightest meal; a typical Indian day is 3 meals plus an optional fruit snack, not 3 heavy dishes. Return exactly the requested number of meals per day, no more.
 KEEP IT TIGHT: each meal uses 1–3 catalog ingredients only. Do NOT pad meals with items that add little to the day's calories or protein — every listed item must earn its place.
+SEASON & TRADITION: it is ${season} in Hyderabad — favour vegetables that are in season now and prefer traditional South-Indian / Telangana home recipes passed down through generations (e.g. pappu, kura, pesarattu, sprout salads), not fusion food.
+SPROUTS & GRAINS (hard rule): the catalog's protein for a vegetarian/vegan plan comes mainly from SPROUTS & SOAKED GRAINS — p_moong_sprout (moong sprouts), p_chana_sprout (kala chana sprouts), p_chana_soaked (soaked chana), p_almond_soaked (soaked almonds). ${profile.diet === 'non-vegetarian' ? 'Include at least one of these on most days.' : 'Include at least one of these EVERY day (usually breakfast or a snack) — a veg high-protein day is not possible without them.'}
+${cheat ? 'CHEAT MEAL: the customer allows ONE relaxed cheat meal across this plan. Make exactly one meal the tastiest, most indulgent combo you can from the catalog, put "Cheat" at the start of its name, and keep every OTHER meal disciplined and on-target. Only one cheat meal in the whole plan.' : 'No cheat meals: keep every meal disciplined and on-target.'}
 Use variety across days (no product in more than ${Math.max(2, Math.ceil(days / 2))} days for a week/month plan). Per-item grams are EDIBLE grams for one person for that meal: leafy greens 50–150, vegetables 80–250, fruit 100–250, eggs 50 per egg, chicken/mutton/prawns 100–200.
 
 CATALOG (id | name | per 100 g | tags)

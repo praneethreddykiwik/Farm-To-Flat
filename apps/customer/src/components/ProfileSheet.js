@@ -181,6 +181,20 @@ export const ProfileSheet = /** @type {any} */ (
             </View>
           </View>
 
+          <View>
+            <Label style={{ marginBottom: 8 }}>Extras</Label>
+            <View style={styles.chips}>
+              <Chip
+                label={p.cheatMeal ? '✓ Weekly cheat meal' : 'Weekly cheat meal'}
+                selected={!!p.cheatMeal}
+                onPress={() => set('cheatMeal', !p.cheatMeal)}
+              />
+            </View>
+            <Small muted style={{ marginTop: 6 }}>
+              Adds one relaxed, tasty “cheat” meal to week and month plans.
+            </Small>
+          </View>
+
           {isNonVegDiet ? (
             <View>
               <Label style={{ marginBottom: 8 }}>Non-veg days a week</Label>

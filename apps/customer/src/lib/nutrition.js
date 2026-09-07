@@ -468,6 +468,48 @@ export const NUTRITION = {
     edibleFraction: 0.88,
     tags: ['egg', 'protein'],
   },
+
+  // sprouts & soaked grains (per 100 g edible) — traditional Indian vegetarian protein
+  p_moong_sprout: {
+    kcal: 100,
+    protein: 8,
+    carbs: 15,
+    fat: 0.5,
+    fibre: 8,
+    gramsPerUnit: 200,
+    edibleFraction: 1,
+    tags: ['sprout', 'protein', 'veg', 'traditional', 'season-summer'],
+  },
+  p_chana_sprout: {
+    kcal: 120,
+    protein: 9,
+    carbs: 20,
+    fat: 2,
+    fibre: 8,
+    gramsPerUnit: 200,
+    edibleFraction: 1,
+    tags: ['sprout', 'protein', 'veg', 'traditional', 'season-winter'],
+  },
+  p_chana_soaked: {
+    kcal: 130,
+    protein: 8.5,
+    carbs: 22,
+    fat: 2.5,
+    fibre: 9,
+    gramsPerUnit: 200,
+    edibleFraction: 1,
+    tags: ['soaked', 'grain', 'protein', 'veg', 'traditional'],
+  },
+  p_almond_soaked: {
+    kcal: 579,
+    protein: 21,
+    carbs: 22,
+    fat: 50,
+    fibre: 12,
+    gramsPerUnit: 100,
+    edibleFraction: 1,
+    tags: ['soaked', 'protein', 'healthy-fat', 'traditional'],
+  },
 };
 
 /** Macro totals for a list of {productId, grams} (edible grams). */
