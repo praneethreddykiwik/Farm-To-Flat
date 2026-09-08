@@ -5,7 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
-import { Provider, useSelector } from 'react-redux';
+import { Provider, useDispatch, useSelector } from 'react-redux';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -25,6 +25,13 @@ import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
 import { useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
+import {
+  roleResolved,
+  roleResolveFailed,
+  selectEffectiveRole,
+  selectRoleState,
+} from '../src/features/role/roleSlice';
+import { adminApi } from '../src/lib/adminApi';
 import { configureNotifications } from '../src/lib/notifications';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 
@@ -37,23 +44,69 @@ SplashScreen.setOptions?.({ duration: 320, fade: true });
  */
 function AuthGate({ ready }) {
   const auth = useSelector(selectAuth);
+  const roleState = useSelector(selectRoleState);
+  const role = useSelector(selectEffectiveRole);
   const segments = /** @type {any} */ (useSegments());
   const router = useRouter();
+  const dispatch = useDispatch();
+
+  // Resolve the staff role for the signed-in number (once). Fail-open to "customer" on any error /
+  // timeout so the app never gets stuck if the API is unreachable.
+  useEffect(() => {
+    if (auth.status !== 'signedIn' || roleState.resolved || !auth.customer?.mobile) return;
+    let alive = true;
+    const t = setTimeout(() => alive && dispatch(roleResolveFailed()), 3500);
+    adminApi
+      .resolveRole(auth.customer.mobile)
+      .then((r) => alive && dispatch(roleResolved(r)))
+      .catch(() => alive && dispatch(roleResolveFailed()))
+      .finally(() => clearTimeout(t));
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [auth.status, auth.customer, roleState.resolved, dispatch]);
 
   useEffect(() => {
     if (!ready || auth.status === 'booting') return;
     const inAuth = segments[0] === '(auth)';
+    const inStaff = segments[0] === 'staff';
     if (auth.status === 'signedOut') {
       if (!inAuth) router.replace('/(auth)/welcome');
       return;
     }
-    const needsAddress = auth.customer && !auth.customer.hasAddress;
-    if (needsAddress) {
-      if (segments[1] !== 'address') router.replace('/(auth)/address');
+    // hold routing until we know the role (dev override counts as resolved), so a staff number
+    // never flashes the shopping app.
+    if (!role.resolved) return;
+
+    const r = role.role;
+    if (r === 'PROCUREMENT') {
+      if (segments[1] !== 'procurement') router.replace('/staff/procurement');
       return;
     }
+    if (r === 'FULFILMENT') {
+      if (segments[1] !== 'fulfilment') router.replace('/staff/fulfilment');
+      return;
+    }
+    if (r === 'ADMIN') {
+      if (!inStaff) router.replace('/staff/console');
+      return;
+    }
+    if (r === 'SUPER_ADMIN') {
+      const inTabs = segments[0] === '(tabs)';
+      if (!inStaff && !inTabs) router.replace('/staff/console'); // land on the console; shop is a tap away
+      return;
+    }
+    if (!r) {
+      // normal customer — needs a delivery address before shopping
+      const needsAddress = auth.customer && !auth.customer.hasAddress;
+      if (needsAddress) {
+        if (segments[1] !== 'address') router.replace('/(auth)/address');
+        return;
+      }
+    }
     if (inAuth) router.replace('/(tabs)');
-  }, [ready, auth.status, auth.customer, segments, router]);
+  }, [ready, auth.status, auth.customer, role.role, role.resolved, segments, router]);
 
   useEffect(() => {
     if (ready && auth.status !== 'booting') SplashScreen.hideAsync().catch(() => {});
@@ -100,6 +153,7 @@ function Root() {
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="staff" />
           <Stack.Screen
             name="product/[id]"
             options={{ animation: 'fade', animationDuration: 220 }}
