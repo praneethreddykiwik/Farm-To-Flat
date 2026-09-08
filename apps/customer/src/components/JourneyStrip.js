@@ -47,7 +47,8 @@ export function JourneyStrip({ style }) {
   }, [reduced, w, focused, p]);
 
   const dot = useAnimatedStyle(() => {
-    const travel = Math.max(0, w - 16);
+    // Travel between the first and last node centres (each node is 32px, centred in a 64px stage).
+    const travel = Math.max(0, w - 64);
     return {
       transform: [{ translateX: p.value * travel }],
       opacity: p.value < 0.04 || p.value > 0.96 ? 0 : 1,
@@ -84,8 +85,8 @@ const styles = StyleSheet.create({
   track: { position: 'relative', justifyContent: 'center' },
   line: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: 32,
+    right: 32,
     top: 15,
     height: 2,
     borderRadius: 1,
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
   pulse: {
     position: 'absolute',
     top: 9,
-    left: 8,
+    left: 25,
     width: 14,
     height: 14,
     borderRadius: 7,
