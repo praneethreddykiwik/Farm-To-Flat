@@ -5,6 +5,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   IconCatalog,
+  IconChart,
   IconDash,
   IconLeaf,
   IconMap,
@@ -23,6 +24,7 @@ const NAV = [
   { section: 'Operations' },
   { to: '/orders', label: 'Orders', icon: IconReceipt },
   { to: '/fulfilment', label: 'Fulfilment', icon: IconTruck },
+  { to: '/stats', label: 'Statistics', icon: IconChart },
 ];
 
 export function Sidebar() {

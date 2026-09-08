@@ -12,6 +12,7 @@ import { Pricing } from './screens/Pricing.jsx';
 import { Communities } from './screens/Communities.jsx';
 import { Orders } from './screens/Orders.jsx';
 import { Fulfilment } from './screens/Fulfilment.jsx';
+import { Statistics } from './screens/Statistics.jsx';
 
 export function App() {
   return (
@@ -27,6 +28,7 @@ export function App() {
             <Route path="/communities" element={<Communities />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/fulfilment" element={<Fulfilment />} />
+            <Route path="/stats" element={<Statistics />} />
           </Routes>
         </main>
       </div>

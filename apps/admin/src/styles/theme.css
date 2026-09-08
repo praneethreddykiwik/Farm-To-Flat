@@ -943,6 +943,90 @@ table.data tbody tr:last-child td {
   transform: translateY(-2px);
   box-shadow: var(--shadow-soft);
 }
+.ocard {
+  cursor: grab;
+}
+.ocard:active {
+  cursor: grabbing;
+}
+.ocard--drag {
+  opacity: 0.4;
+  transform: scale(0.98) rotate(-1deg);
+}
+.ocard--fresh {
+  animation: popfresh 0.6s var(--ease-spring) both;
+  box-shadow:
+    0 0 0 2px var(--sprout),
+    var(--shadow-soft);
+}
+@keyframes popfresh {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  60% {
+    box-shadow:
+      0 0 0 3px var(--sprout),
+      var(--shadow-lift);
+  }
+}
+.board__col--over {
+  outline: 2px dashed var(--leaf);
+  outline-offset: -4px;
+  background: rgba(30, 122, 76, 0.06);
+}
+.board__empty {
+  text-align: center;
+  padding: 22px 6px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  border: 1.5px dashed var(--hairline);
+  border-radius: var(--r-md);
+}
+.daypill {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: none;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.15s var(--ease-spring),
+    filter 0.15s;
+}
+.daypill:hover {
+  transform: translateY(-1px) scale(1.06);
+  filter: brightness(1.05);
+}
+.daypill:active {
+  transform: scale(0.92);
+}
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--leaf);
+  margin-left: 9px;
+  vertical-align: middle;
+  box-shadow: 0 0 0 0 rgba(30, 122, 76, 0.5);
+  animation: livepulse 2s infinite;
+}
+@keyframes livepulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(30, 122, 76, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(30, 122, 76, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(30, 122, 76, 0);
+  }
+}
 .ocard__no {
   font-family: var(--font-mono);
   font-size: 12px;

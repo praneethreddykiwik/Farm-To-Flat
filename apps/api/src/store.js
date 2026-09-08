@@ -3,8 +3,10 @@
  * through this module, never through globals, so swapping to a real database is a matter of giving
  * these same functions a Postgres-backed implementation. State resets when the process restarts.
  *
- * Money is integer paise throughout. Nothing here emits to the wire — serialisation (and the
- * customer/operator field split) lives in serialize.js.
+ * Money is integer paise throughout. Order lines record BOTH price and cost at capture time
+ * (unitPricePaise / unitCostPaise), so revenue and margin analytics stay correct even after a
+ * product is later repriced or removed. Serialisation (and the customer/operator field split)
+ * lives in serialize.js.
  */
 import {
   CATEGORIES,
@@ -20,8 +22,6 @@ import { addDaysISO, todayISO } from './lib/dates.js';
 import { id } from './lib/ids.js';
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
-
-/** @typedef {{ items: any[] }} Cart */
 
 const db = {
   categories: clone(CATEGORIES),
@@ -39,60 +39,78 @@ const db = {
   },
 };
 
-// ── seed orders ────────────────────────────────────────────────────────────
 let seq = 4210;
-function buildSeedOrder(spec) {
-  const community = db.communities.find((c) => c.id === spec.communityId);
-  const lines = spec.lines
-    .map(([pid, qty]) => {
-      const p = db.products.find((x) => x.id === pid);
-      if (!p) return null; // unknown product id in seed -> skip, never crash
-      const quantity = Number(qty);
-      const lineTotalPaise = Math.round(p.pricePaise * quantity);
-      return {
-        id: id('ci', 8),
-        productId: p.id,
-        name: p.name,
-        unit: p.unit,
-        quantity: quantity.toFixed(3),
-        unitPricePaise: p.pricePaise,
-        lineTotalPaise,
-        note: null,
-      };
-    })
-    .filter(Boolean);
-  const subtotal = lines.reduce((s, l) => s + l.lineTotalPaise, 0);
-  const delivery = db.constants.deliveryChargePaise;
-  const total = subtotal + delivery;
-  const deliveryDate = addDaysISO(todayISO(), spec.dayOffset);
-  const createdAt = new Date(Date.now() + (spec.dayOffset - 1) * 864e5).toISOString();
-  seq += 1;
+
+/** Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped. */
+function makeLine(productId, qty) {
+  const p = db.products.find((x) => x.id === productId);
+  if (!p) return null;
+  const quantity = Number(qty);
   return {
+    id: id('ci', 8),
+    productId: p.id,
+    name: p.name,
+    unit: p.unit,
+    categoryId: p.category,
+    quantity: quantity.toFixed(3),
+    unitPricePaise: p.pricePaise,
+    unitCostPaise: p.costPaise ?? 0,
+    lineTotalPaise: Math.round(p.pricePaise * quantity),
+    lineCostPaise: Math.round((p.costPaise ?? 0) * quantity),
+    note: null,
+  };
+}
+
+/**
+ * Create + store an order. Used by the seed and by the "incoming order" simulator, and the shape
+ * the real POST /orders transaction (Adnan) will produce.
+ * @param {{customerName:string,mobile:string,communityId:string,block:string,flat:string,window:string,deliveryDate:string,status:string,lines:[string,number][],createdAt?:string}} input
+ */
+export function createOrder(input) {
+  const community = db.communities.find((c) => c.id === input.communityId);
+  const items = input.lines.map(([pid, q]) => makeLine(pid, q)).filter(Boolean);
+  const subtotal = items.reduce((s, l) => s + l.lineTotalPaise, 0);
+  const cost = items.reduce((s, l) => s + l.lineCostPaise, 0);
+  const delivery = db.constants.deliveryChargePaise;
+  const createdAt = input.createdAt || new Date().toISOString();
+  seq += 1;
+  const order = {
     id: id('ord', 10),
     orderNumber: `F2F-${seq}`,
-    status: spec.status,
-    customerName: spec.customerName,
-    mobile: spec.mobile,
-    items: lines,
+    status: input.status || 'CONFIRMED',
+    customerName: input.customerName,
+    mobile: input.mobile,
+    items,
     subtotalPaise: subtotal,
+    costPaise: cost,
     couponDiscountPaise: 0,
     deliveryChargePaise: delivery,
-    totalPaise: total,
+    totalPaise: subtotal + delivery,
     couponCode: null,
-    deliveryDate,
-    window: spec.window,
+    deliveryDate: input.deliveryDate,
+    window: input.window,
     address: {
       communityId: community?.id,
       communityName: community?.name,
       area: community?.area,
-      block: spec.block,
-      flat: spec.flat,
+      block: input.block,
+      flat: input.flat,
     },
     createdAt,
-    timeline: [{ status: spec.status, at: createdAt }],
+    timeline: [{ status: input.status || 'CONFIRMED', at: createdAt }],
   };
+  db.orders.unshift(order);
+  return clone(order);
 }
-for (const spec of SEED_ORDERS) db.orders.push(buildSeedOrder(spec));
+
+// seed the initial orders
+for (const spec of SEED_ORDERS) {
+  createOrder({
+    ...spec,
+    deliveryDate: addDaysISO(todayISO(), spec.dayOffset),
+    createdAt: new Date(Date.now() + (spec.dayOffset - 1) * 864e5).toISOString(),
+  });
+}
 db.orders.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
 // ── reads ────────────────────────────────────────────────────────────────
@@ -114,7 +132,7 @@ export const getOrder = (oid) => {
   return o ? clone(o) : null;
 };
 export const constants = () => clone(db.constants);
-export const rawProducts = () => db.products; // for search scoring (read-only use)
+export const rawProducts = () => db.products;
 
 // ── product writes (admin) ─────────────────────────────────────────────────
 export function createProduct(data) {

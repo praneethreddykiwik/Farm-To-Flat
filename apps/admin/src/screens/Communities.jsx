@@ -33,6 +33,21 @@ export function Communities() {
     }
   }
 
+  async function toggleDay(c, dayIndex) {
+    const has = c.deliveryDays.includes(dayIndex);
+    const deliveryDays = has
+      ? c.deliveryDays.filter((d) => d !== dayIndex)
+      : [...c.deliveryDays, dayIndex].sort((a, b) => a - b);
+    if (deliveryDays.length === 0) return toast('Keep at least one delivery day.', 'err');
+    try {
+      await api.patch(`/admin/communities/${c.id}`, { deliveryDays });
+      toast(`${c.name} · ${DAYNAME[dayIndex]} ${has ? 'removed' : 'added'}`);
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not update', 'err');
+    }
+  }
+
   return (
     <>
       <header className="topbar">
@@ -79,19 +94,18 @@ export function Communities() {
                   </span>
                 </div>
 
-                <div className="hstack" style={{ gap: 5, marginTop: 16 }}>
+                <div
+                  className="hstack"
+                  style={{ gap: 5, marginTop: 16 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {DAYS.map((d, i) => (
-                    <span
+                    <button
                       key={i}
-                      title={DAYNAME[i]}
+                      title={`${DAYNAME[i]} — click to ${c.deliveryDays.includes(i) ? 'remove' : 'add'}`}
+                      className="daypill"
+                      onClick={() => toggleDay(c, i)}
                       style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: 12,
-                        fontWeight: 600,
                         background: c.deliveryDays.includes(i)
                           ? 'var(--leaf)'
                           : 'rgba(14,27,20,0.05)',
@@ -99,7 +113,7 @@ export function Communities() {
                       }}
                     >
                       {d}
-                    </span>
+                    </button>
                   ))}
                   <span className="spacer" />
                   <div className="hstack" style={{ gap: 8 }} onClick={(e) => e.stopPropagation()}>

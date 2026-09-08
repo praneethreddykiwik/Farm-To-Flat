@@ -13,7 +13,9 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
 import { orderAdmin } from '../../serialize.js';
-import { getOrder, listOrders, updateOrderStatus } from '../../store.js';
+import { createOrder, getOrder, listOrders, listProducts, updateOrderStatus } from '../../store.js';
+import { listCommunities } from '../../store.js';
+import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
 
 export const adminOrdersRouter = Router();
@@ -68,6 +70,59 @@ adminOrdersRouter.get(
       counts,
       statuses: STATUSES,
     });
+  }),
+);
+
+/**
+ * DEV: fabricate a realistic incoming order and drop it on the board as CONFIRMED, so auto-listing
+ * can be seen without the customer app wired in. When Adnan's POST /orders transaction lands, real
+ * orders flow through the same createOrder() and appear here identically. Not a contract route.
+ */
+const NAMES = [
+  'Sneha Reddy',
+  'Arjun Mehta',
+  'Fatima Begum',
+  'Ravi Teja',
+  'Lakshmi Prasad',
+  'Deepak Rao',
+  'Imran Khan',
+  'Kavya Nair',
+  'Rahul Verma',
+  'Ananya Rao',
+];
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+adminOrdersRouter.post(
+  '/orders/simulate',
+  asyncHandler(async (_req, res) => {
+    const community = pick(listCommunities().filter((c) => c.isActive !== false));
+    const products = listProducts().filter((p) => p.isActive !== false);
+    const n = 3 + Math.floor(Math.random() * 4);
+    const chosen = [...products].sort(() => Math.random() - 0.5).slice(0, n);
+    const lines = chosen.map((p) => [
+      p.id,
+      Number(p.increment) * (1 + Math.floor(Math.random() * 3)),
+    ]);
+    // next serviceable day for this community
+    let deliveryDate = todayISO();
+    for (let i = 1; i <= 14; i += 1) {
+      const d = addDaysISO(todayISO(), i);
+      if (community.deliveryDays.includes(weekdayOf(d))) {
+        deliveryDate = d;
+        break;
+      }
+    }
+    const order = createOrder({
+      customerName: pick(NAMES),
+      mobile: `9${Math.floor(100000000 + Math.random() * 899999999)}`,
+      communityId: community.id,
+      block: pick(community.blocks),
+      flat: `${1 + Math.floor(Math.random() * 15)}0${1 + Math.floor(Math.random() * 8)}`,
+      window: pick(['MORNING', 'EVENING']),
+      deliveryDate,
+      status: 'CONFIRMED',
+      lines,
+    });
+    res.status(201).json({ order: orderAdmin(order) });
   }),
 );
 

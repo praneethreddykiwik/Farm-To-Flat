@@ -1,13 +1,18 @@
 /**
- * Fulfilment board — the packing bench's live view. Columns follow the fulfilment flow; each card
- * has a one-tap advance to the next state, and the whole board exports to a packing CSV. Tapping a
- * card opens the full order drawer (shared with the Orders screen).
+ * Fulfilment board — the packing bench's live view.
+ *  • Drag a card between columns to change its state (the same PATCH the buttons use), or use the
+ *    one-tap advance button. Illegal moves (skipping a step) are refused with a toast.
+ *  • Auto-listing: the board polls every few seconds, so an order placed in the app appears here on
+ *    its own — new cards flash in. "Simulate incoming order" fabricates one to demo the flow until
+ *    the customer app is pointed at this API.
+ *  • Whatever state you set is stored + served by the API, so the customer app's tracking reflects
+ *    it the moment it reads from here (USE_MOCKS=0). Tapping a card opens the full order drawer.
  */
-import { useMemo, useState } from 'react';
-import { useResource, toast } from '../lib/useApi.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote } from '../components/ui.jsx';
-import { IconDownload } from '../components/icons.jsx';
+import { IconDownload, IconPlus } from '../components/icons.jsx';
 import { OrderDrawer } from './Orders.jsx';
 import { inr, titleCase } from '../lib/format.js';
 
@@ -22,11 +27,25 @@ const COLUMNS = [
   },
   { status: 'DELIVERED', title: 'Delivered', next: null },
 ];
+/** legal moves per column, mirroring the server state machine (drag may go forward or one step back) */
+const ALLOWED = {
+  CONFIRMED: ['PACKING'],
+  PACKING: ['OUT_FOR_DELIVERY', 'CONFIRMED'],
+  OUT_FOR_DELIVERY: ['DELIVERED', 'PACKING'],
+  DELIVERED: [],
+};
+const POLL_MS = 6000;
 
 export function Fulfilment() {
   const { data, loading, error, reload } = useResource('/admin/orders');
   const [openId, setOpenId] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const [overCol, setOverCol] = useState(null);
+  const [freshIds, setFreshIds] = useState(new Set());
+  const [simulating, setSimulating] = useState(false);
+  const knownIds = useRef(null);
+  const dragging = useRef(false);
 
   const cols = useMemo(() => {
     const orders = data?.orders || [];
@@ -35,16 +54,68 @@ export function Fulfilment() {
     return map;
   }, [data]);
 
-  async function advance(o, next) {
-    setBusy(o.id);
+  // detect newly-arrived orders and flash them
+  useEffect(() => {
+    const orders = data?.orders;
+    if (!orders) return;
+    const ids = new Set(orders.map((o) => o.id));
+    if (knownIds.current) {
+      const fresh = [...ids].filter((id) => !knownIds.current.has(id));
+      if (fresh.length) {
+        setFreshIds(new Set(fresh));
+        setTimeout(() => setFreshIds(new Set()), 2400);
+      }
+    }
+    knownIds.current = ids;
+  }, [data]);
+
+  // live polling — paused while a drag is in progress so it can't yank a card mid-move
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!dragging.current) reload();
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [reload]);
+
+  const move = useCallback(
+    async (order, next) => {
+      setBusy(order.id);
+      try {
+        await api.patch(`/admin/orders/${order.id}/status`, { status: next });
+        toast(`${order.orderNumber} → ${titleCase(next)}`);
+        reload();
+      } catch (e) {
+        toast(e.message || 'Could not update', 'err');
+      } finally {
+        setBusy(null);
+      }
+    },
+    [reload],
+  );
+
+  function onDrop(targetStatus) {
+    dragging.current = false;
+    setOverCol(null);
+    const order = (data?.orders || []).find((o) => o.id === dragId);
+    setDragId(null);
+    if (!order || order.status === targetStatus) return;
+    if (!(ALLOWED[order.status] || []).includes(targetStatus)) {
+      toast(`Can't move ${titleCase(order.status)} → ${titleCase(targetStatus)}`, 'err');
+      return;
+    }
+    move(order, targetStatus);
+  }
+
+  async function simulate() {
+    setSimulating(true);
     try {
-      await api.patch(`/admin/orders/${o.id}/status`, { status: next });
-      toast(`${o.orderNumber} → ${titleCase(next)}`);
+      const { order } = await api.post('/admin/orders/simulate');
+      toast(`New order ${order.orderNumber} · ${order.customerName}`);
       reload();
     } catch (e) {
-      toast(e.message || 'Could not update', 'err');
+      toast(e.message || 'Could not simulate', 'err');
     } finally {
-      setBusy(null);
+      setSimulating(false);
     }
   }
 
@@ -60,23 +131,43 @@ export function Fulfilment() {
       <header className="topbar">
         <div>
           <h1 className="page-title">Fulfilment</h1>
-          <p className="page-sub">Live packing board · tap a card to advance it</p>
+          <p className="page-sub">
+            Live board · drag a card between columns, or tap advance
+            <span className="live-dot" title="Auto-refreshing" />
+          </p>
         </div>
-        <button className="btn btn--accent" onClick={downloadPacking}>
-          <IconDownload size={17} /> Packing list CSV
-        </button>
+        <div className="topbar__actions">
+          <button className="btn btn--ghost" onClick={simulate} disabled={simulating}>
+            <IconPlus size={17} /> {simulating ? 'Adding…' : 'Simulate incoming order'}
+          </button>
+          <button className="btn btn--accent" onClick={downloadPacking}>
+            <IconDownload size={17} /> Packing CSV
+          </button>
+        </div>
       </header>
 
       {error ? (
         <ErrorNote error={error} onRetry={reload} />
-      ) : loading ? (
+      ) : loading && !data ? (
         <div className="glass card">
           <div className="skeleton" style={{ height: 300 }} />
         </div>
       ) : (
         <div className="board">
           {COLUMNS.map((col) => (
-            <div key={col.status} className="glass board__col">
+            <div
+              key={col.status}
+              className={`glass board__col${overCol === col.status ? ' board__col--over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (overCol !== col.status) setOverCol(col.status);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget))
+                  setOverCol((s) => (s === col.status ? null : s));
+              }}
+              onDrop={() => onDrop(col.status)}
+            >
               <div className="board__colhead">
                 <span className={`badge st-${col.status}`}>
                   <span className="badge__dot" />
@@ -84,16 +175,26 @@ export function Fulfilment() {
                 </span>
                 <span className="board__count">{cols[col.status].length}</span>
               </div>
+
               {cols[col.status].length === 0 ? (
-                <div
-                  className="muted"
-                  style={{ fontSize: 12.5, padding: '18px 6px', textAlign: 'center' }}
-                >
-                  Nothing here.
-                </div>
+                <div className="board__empty">Drop here</div>
               ) : (
                 cols[col.status].map((o) => (
-                  <div key={o.id} className="ocard" onClick={() => setOpenId(o.id)}>
+                  <div
+                    key={o.id}
+                    className={`ocard${dragId === o.id ? ' ocard--drag' : ''}${freshIds.has(o.id) ? ' ocard--fresh' : ''}`}
+                    draggable
+                    onDragStart={() => {
+                      dragging.current = true;
+                      setDragId(o.id);
+                    }}
+                    onDragEnd={() => {
+                      dragging.current = false;
+                      setDragId(null);
+                      setOverCol(null);
+                    }}
+                    onClick={() => setOpenId(o.id)}
+                  >
                     <div className="hstack" style={{ justifyContent: 'space-between' }}>
                       <span className="ocard__no">{o.orderNumber}</span>
                       <span className="rupee" style={{ fontSize: 13 }}>
@@ -116,7 +217,7 @@ export function Fulfilment() {
                         disabled={busy === o.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          advance(o, col.next);
+                          move(o, col.next);
                         }}
                       >
                         {busy === o.id ? '…' : col.nextLabel}
