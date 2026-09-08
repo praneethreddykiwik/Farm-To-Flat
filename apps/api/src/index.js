@@ -35,6 +35,8 @@ import { adminOrdersRouter } from './routes/admin/orders.js';
 import { adminMetricsRouter } from './routes/admin/metrics.js';
 import { adminAnalyticsRouter } from './routes/admin/analytics.js';
 import { adminProcurementRouter } from './routes/admin/procurement.js';
+import { adminAccessRouter } from './routes/admin/access.js';
+import { accessRouter } from './routes/access.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -52,6 +54,7 @@ app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
 app.use(`${v1}/delivery-windows`, windowsRouter);
+app.use(`${v1}/access`, accessRouter); // ready seam for the app (not wired into the app yet)
 
 // ── authenticated customer contract ───────────────────────────────────────────
 app.use(`${v1}/me`, requireAuth, meRouter);
@@ -72,6 +75,7 @@ admin.use(adminOrdersRouter);
 admin.use(adminMetricsRouter);
 admin.use(adminAnalyticsRouter);
 admin.use(adminProcurementRouter);
+admin.use(adminAccessRouter);
 app.use(`${v1}/admin`, admin);
 
 app.use(v1, (req, res) =>

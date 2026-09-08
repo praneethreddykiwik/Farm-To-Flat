@@ -11,6 +11,7 @@ import {
   IconLeaf,
   IconMap,
   IconReceipt,
+  IconShield,
   IconTag,
   IconTruck,
 } from './icons.jsx';
@@ -27,6 +28,8 @@ const NAV = [
   { to: '/procurement', label: 'Procurement', icon: IconBasket },
   { to: '/fulfilment', label: 'Fulfilment', icon: IconTruck },
   { to: '/stats', label: 'Statistics', icon: IconChart },
+  { section: 'Admin' },
+  { to: '/access', label: 'Access & roles', icon: IconShield },
 ];
 
 export function Sidebar() {

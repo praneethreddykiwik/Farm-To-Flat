@@ -14,6 +14,7 @@ import { Orders } from './screens/Orders.jsx';
 import { Fulfilment } from './screens/Fulfilment.jsx';
 import { Statistics } from './screens/Statistics.jsx';
 import { Procurement } from './screens/Procurement.jsx';
+import { Access } from './screens/Access.jsx';
 
 export function App() {
   return (
@@ -31,6 +32,7 @@ export function App() {
             <Route path="/procurement" element={<Procurement />} />
             <Route path="/fulfilment" element={<Fulfilment />} />
             <Route path="/stats" element={<Statistics />} />
+            <Route path="/access" element={<Access />} />
           </Routes>
         </main>
       </div>

@@ -132,6 +132,12 @@ export const IconBasket = (p) => (
     <path d="M9.5 14v3M14.5 14v3" />
   </S>
 );
+export const IconShield = (p) => (
+  <S {...p}>
+    <path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" />
+    <path d="m9 12 2 2 4-4" />
+  </S>
+);
 export const IconClock = (p) => (
   <S {...p}>
     <circle cx="12" cy="12" r="9" />
