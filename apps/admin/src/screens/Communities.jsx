@@ -6,8 +6,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useResource, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { ErrorNote } from '../components/ui.jsx';
-import { IconMap } from '../components/icons.jsx';
+import { Drawer, ErrorNote } from '../components/ui.jsx';
+import { IconMap, IconPlus } from '../components/icons.jsx';
 import { shortDate } from '../lib/format.js';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -17,6 +17,7 @@ export function Communities() {
   const { data, loading, error, reload } = useResource('/admin/communities');
   const communities = useMemo(() => data?.communities || [], [data]);
   const [selId, setSelId] = useState(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     if (!selId && communities.length) setSelId(communities[0].id);
@@ -55,7 +56,21 @@ export function Communities() {
           <h1 className="page-title">Communities & windows</h1>
           <p className="page-sub">{communities.length} serviceable · capacity and delivery days</p>
         </div>
+        <button className="btn btn--primary" onClick={() => setAdding(true)}>
+          <IconPlus size={18} /> New community
+        </button>
       </header>
+
+      {adding && (
+        <CommunityForm
+          onClose={() => setAdding(false)}
+          onSaved={(c) => {
+            setAdding(false);
+            setSelId(c.id);
+            reload();
+          }}
+        />
+      )}
 
       {error ? (
         <ErrorNote error={error} onRetry={reload} />
@@ -232,5 +247,128 @@ function WindowSchedule({ communityId, community }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Create a new serviceable community — appears in the app's /communities immediately. */
+function CommunityForm({ onClose, onSaved }) {
+  const [f, setF] = useState({
+    name: '',
+    area: '',
+    blocks: '',
+    windowCapacity: 40,
+    deliveryDays: [2, 4, 6],
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const toggle = (i) =>
+    setF((s) => ({
+      ...s,
+      deliveryDays: s.deliveryDays.includes(i)
+        ? s.deliveryDays.filter((d) => d !== i)
+        : [...s.deliveryDays, i].sort((a, b) => a - b),
+    }));
+
+  async function save() {
+    const blocks = f.blocks
+      .split(',')
+      .map((b) => b.trim())
+      .filter(Boolean);
+    if (!f.name.trim() || !f.area.trim()) return toast('Name and area are required.', 'err');
+    if (blocks.length === 0) return toast('Add at least one block/tower.', 'err');
+    if (f.deliveryDays.length === 0) return toast('Pick at least one delivery day.', 'err');
+    setSaving(true);
+    try {
+      const { community } = await api.post('/admin/communities', {
+        name: f.name.trim(),
+        area: f.area.trim(),
+        blocks,
+        windowCapacity: Number(f.windowCapacity),
+        deliveryDays: f.deliveryDays,
+      });
+      toast(`${community.name} added — live in the app`);
+      onSaved(community);
+    } catch (e) {
+      toast(e.message || 'Could not create', 'err');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Drawer
+      title="New community"
+      subtitle="Becomes serviceable in the app right away"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn--primary" onClick={save} disabled={saving}>
+            {saving ? 'Adding…' : 'Add community'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label className="field__label">Name</label>
+        <input
+          className="field__input"
+          value={f.name}
+          onChange={set('name')}
+          placeholder="Aparna Sarovar"
+        />
+      </div>
+      <div className="field">
+        <label className="field__label">Area</label>
+        <input
+          className="field__input"
+          value={f.area}
+          onChange={set('area')}
+          placeholder="Nallagandla"
+        />
+      </div>
+      <div className="field">
+        <label className="field__label">Blocks / towers (comma-separated)</label>
+        <input
+          className="field__input"
+          value={f.blocks}
+          onChange={set('blocks')}
+          placeholder="Tower A, Tower B, Tower C"
+        />
+        <p className="field__hint">Residents pick their block when adding an address in the app.</p>
+      </div>
+      <div className="field">
+        <label className="field__label">Delivery days</label>
+        <div className="hstack" style={{ gap: 5 }}>
+          {DAYS.map((d, i) => (
+            <button
+              key={i}
+              type="button"
+              className="daypill"
+              title={DAYNAME[i]}
+              onClick={() => toggle(i)}
+              style={{
+                background: f.deliveryDays.includes(i) ? 'var(--leaf)' : 'rgba(14,27,20,0.05)',
+                color: f.deliveryDays.includes(i) ? '#fff' : 'var(--ink-3)',
+              }}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="field">
+        <label className="field__label">Capacity per window</label>
+        <input
+          className="field__input"
+          type="number"
+          min="5"
+          value={f.windowCapacity}
+          onChange={set('windowCapacity')}
+        />
+      </div>
+    </Drawer>
   );
 }

@@ -167,6 +167,40 @@ adminOrdersRouter.patch(
   }),
 );
 
+/**
+ * Batch-advance many orders to the same status in one action — used by the fulfilment board to ship
+ * a whole community together (all its orders move at once). Skips orders where the transition is
+ * illegal. This is the single point a customer push-notification batch would fire from (the push
+ * service is Adnan's; the status/tracking update is real here and the app reflects it on read).
+ */
+const AdvanceBody = z.object({
+  orderIds: z.array(z.string()).min(1).max(500),
+  status: z.enum(STATUSES),
+});
+adminOrdersRouter.post(
+  '/orders/advance',
+  validateBody(AdvanceBody),
+  asyncHandler(async (req, res) => {
+    const { orderIds, status } = req.body;
+    const updated = [];
+    const skipped = [];
+    for (const id of orderIds) {
+      const o = getOrder(id);
+      if (!o) {
+        skipped.push({ id, reason: 'NOT_FOUND' });
+        continue;
+      }
+      if (o.status !== status && !(NEXT[o.status] || []).includes(status)) {
+        skipped.push({ id, reason: 'INVALID_TRANSITION' });
+        continue;
+      }
+      updated.push(orderAdmin(updateOrderStatus(id, status)));
+    }
+    // TODO(notifications): emit one push batch to updated[].customerId here once the push service lands.
+    res.json({ updated, count: updated.length, skipped, notified: updated.length });
+  }),
+);
+
 // ── CSV builders ────────────────────────────────────────────────────────────
 function csvEscape(v) {
   const s = String(v ?? '');

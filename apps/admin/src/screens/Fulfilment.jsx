@@ -44,6 +44,7 @@ export function Fulfilment() {
   const [overCol, setOverCol] = useState(null);
   const [freshIds, setFreshIds] = useState(new Set());
   const [simulating, setSimulating] = useState(false);
+  const [grouped, setGrouped] = useState(true);
   const knownIds = useRef(null);
   const dragging = useRef(false);
 
@@ -106,6 +107,29 @@ export function Fulfilment() {
     move(order, targetStatus);
   }
 
+  /** Advance every order of one community (in one column) together — one action, one notification batch. */
+  async function shipGroup(orders, next) {
+    const ids = orders.map((o) => o.id);
+    setBusy(`grp:${ids[0]}`);
+    try {
+      const r = await api.post('/admin/orders/advance', { orderIds: ids, status: next });
+      toast(
+        `${r.count} order${r.count !== 1 ? 's' : ''} → ${titleCase(next)} · ${r.notified} notified`,
+      );
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not advance', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const byCommunity = (arr) => {
+    const m = {};
+    for (const o of arr) (m[o.address?.communityName || '—'] ||= []).push(o);
+    return Object.entries(m).sort((a, b) => a[0].localeCompare(b[0]));
+  };
+
   async function simulate() {
     setSimulating(true);
     try {
@@ -126,6 +150,53 @@ export function Fulfilment() {
     toast('Packing CSV exported');
   }
 
+  const renderCard = (o, col) => (
+    <div
+      key={o.id}
+      className={`ocard${dragId === o.id ? ' ocard--drag' : ''}${freshIds.has(o.id) ? ' ocard--fresh' : ''}`}
+      draggable
+      onDragStart={() => {
+        dragging.current = true;
+        setDragId(o.id);
+      }}
+      onDragEnd={() => {
+        dragging.current = false;
+        setDragId(null);
+        setOverCol(null);
+      }}
+      onClick={() => setOpenId(o.id)}
+    >
+      <div className="hstack" style={{ justifyContent: 'space-between' }}>
+        <span className="ocard__no">{o.orderNumber}</span>
+        <span className="rupee" style={{ fontSize: 13 }}>
+          {inr(o.totalPaise)}
+        </span>
+      </div>
+      <div className="ocard__name">{o.customerName}</div>
+      <div className="ocard__meta">
+        <span>
+          {o.address?.block} {o.address?.flat}
+        </span>
+        <span>
+          {o.itemCount} items · {titleCase(o.window)}
+        </span>
+      </div>
+      {col.next && (
+        <button
+          className="btn btn--primary btn--sm"
+          style={{ width: '100%', marginTop: 11 }}
+          disabled={busy === o.id}
+          onClick={(e) => {
+            e.stopPropagation();
+            move(o, col.next);
+          }}
+        >
+          {busy === o.id ? '…' : col.nextLabel}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <>
       <header className="topbar">
@@ -137,6 +208,13 @@ export function Fulfilment() {
           </p>
         </div>
         <div className="topbar__actions">
+          <button
+            className={`chip${grouped ? ' is-active' : ''}`}
+            onClick={() => setGrouped((v) => !v)}
+            title="Group orders by community and ship each together"
+          >
+            Group by community
+          </button>
           <button className="btn btn--ghost" onClick={simulate} disabled={simulating}>
             <IconPlus size={17} /> {simulating ? 'Adding…' : 'Simulate incoming order'}
           </button>
@@ -178,53 +256,29 @@ export function Fulfilment() {
 
               {cols[col.status].length === 0 ? (
                 <div className="board__empty">Drop here</div>
-              ) : (
-                cols[col.status].map((o) => (
-                  <div
-                    key={o.id}
-                    className={`ocard${dragId === o.id ? ' ocard--drag' : ''}${freshIds.has(o.id) ? ' ocard--fresh' : ''}`}
-                    draggable
-                    onDragStart={() => {
-                      dragging.current = true;
-                      setDragId(o.id);
-                    }}
-                    onDragEnd={() => {
-                      dragging.current = false;
-                      setDragId(null);
-                      setOverCol(null);
-                    }}
-                    onClick={() => setOpenId(o.id)}
-                  >
-                    <div className="hstack" style={{ justifyContent: 'space-between' }}>
-                      <span className="ocard__no">{o.orderNumber}</span>
-                      <span className="rupee" style={{ fontSize: 13 }}>
-                        {inr(o.totalPaise)}
+              ) : grouped ? (
+                byCommunity(cols[col.status]).map(([community, orders]) => (
+                  <div key={community} className="commgroup">
+                    <div className="commgroup__head">
+                      <span className="commgroup__name">
+                        {community} <span className="muted">· {orders.length}</span>
                       </span>
+                      {col.next && (
+                        <button
+                          className="btn btn--accent btn--sm"
+                          disabled={busy === `grp:${orders[0].id}`}
+                          onClick={() => shipGroup(orders, col.next)}
+                          title={`Advance all ${orders.length} orders for ${community}`}
+                        >
+                          {busy === `grp:${orders[0].id}` ? '…' : `Ship all →`}
+                        </button>
+                      )}
                     </div>
-                    <div className="ocard__name">{o.customerName}</div>
-                    <div className="ocard__meta">
-                      <span>
-                        {o.address?.block} {o.address?.flat}
-                      </span>
-                      <span>
-                        {o.itemCount} items · {titleCase(o.window)}
-                      </span>
-                    </div>
-                    {col.next && (
-                      <button
-                        className="btn btn--primary btn--sm"
-                        style={{ width: '100%', marginTop: 11 }}
-                        disabled={busy === o.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          move(o, col.next);
-                        }}
-                      >
-                        {busy === o.id ? '…' : col.nextLabel}
-                      </button>
-                    )}
+                    {orders.map((o) => renderCard(o, col))}
                   </div>
                 ))
+              ) : (
+                cols[col.status].map((o) => renderCard(o, col))
               )}
             </div>
           ))}
