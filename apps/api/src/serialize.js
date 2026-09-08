@@ -46,6 +46,7 @@ export function productAdmin(p) {
     costPaise: money(cost),
     marginPaise: money(marginPaise),
     marginPct,
+    bufferPct: p.bufferPct ?? 10,
     createdAt: p.createdAt,
   };
 }

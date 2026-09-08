@@ -983,6 +983,25 @@ table.data tbody tr:last-child td {
   border: 1.5px dashed var(--hairline);
   border-radius: var(--r-md);
 }
+.buf-input {
+  width: 48px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: #fff;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  text-align: center;
+  color: var(--ink);
+  outline: none;
+  transition:
+    border 0.15s,
+    box-shadow 0.15s;
+}
+.buf-input:focus {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px var(--leaf-soft);
+}
 .daypill {
   width: 30px;
   height: 30px;

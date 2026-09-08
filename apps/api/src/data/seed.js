@@ -20,6 +20,21 @@ const CATEGORY_MARGIN = {
   cat_meat: 0.18,
 };
 
+/**
+ * Procurement buffer (whole-number %) per category — the extra to buy over what's ordered, to cover
+ * trim loss, spoilage and short weight. Perishable leaf/herb need the most headroom; hardy roots and
+ * packed goods the least. Stored per product (bufferPct) and editable on the Procurement screen.
+ */
+const CATEGORY_BUFFER = {
+  cat_leafy: 18,
+  cat_herb: 20,
+  cat_gourd: 10,
+  cat_veg: 8,
+  cat_fruit: 10,
+  cat_sprout: 5,
+  cat_meat: 6,
+};
+
 export const CATEGORIES = [
   { id: 'cat_leafy', name: 'Leafy greens', tint: 'mint', order: 1 },
   { id: 'cat_veg', name: 'Vegetables', tint: 'butter', order: 2 },
@@ -678,6 +693,7 @@ export const PRODUCTS = RAW_PRODUCTS.map((p) => {
     variableWeight: !!p.variableWeight,
     isActive: true,
     costPaise,
+    bufferPct: CATEGORY_BUFFER[p.category] ?? 10,
     createdAt: '2026-08-01T00:00:00.000Z',
   };
 });

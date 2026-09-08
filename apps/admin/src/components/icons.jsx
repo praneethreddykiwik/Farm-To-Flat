@@ -125,6 +125,13 @@ export const IconChart = (p) => (
     <path d="M8 15v-3M12 15V9M16 15v-6" />
   </S>
 );
+export const IconBasket = (p) => (
+  <S {...p}>
+    <path d="M5 10h14l-1.2 9.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8L5 10z" />
+    <path d="M9 10 12 4l3 6" />
+    <path d="M9.5 14v3M14.5 14v3" />
+  </S>
+);
 export const IconClock = (p) => (
   <S {...p}>
     <circle cx="12" cy="12" r="9" />

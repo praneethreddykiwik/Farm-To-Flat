@@ -4,6 +4,7 @@
  */
 import { NavLink } from 'react-router-dom';
 import {
+  IconBasket,
   IconCatalog,
   IconChart,
   IconDash,
@@ -23,6 +24,7 @@ const NAV = [
   { to: '/communities', label: 'Communities', icon: IconMap },
   { section: 'Operations' },
   { to: '/orders', label: 'Orders', icon: IconReceipt },
+  { to: '/procurement', label: 'Procurement', icon: IconBasket },
   { to: '/fulfilment', label: 'Fulfilment', icon: IconTruck },
   { to: '/stats', label: 'Statistics', icon: IconChart },
 ];

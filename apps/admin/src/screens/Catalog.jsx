@@ -174,6 +174,7 @@ function ProductForm({ product, categories, onClose, onSaved }) {
     priceR: product ? String(toRupees(product.pricePaise)) : '',
     costR: product ? String(toRupees(product.costPaise)) : '',
     dailyCap: product?.dailyCap || 50,
+    bufferPct: product?.bufferPct ?? 10,
     farm: product?.farm || '',
     aliases: (product?.aliases || []).join(', '),
     image: product?.image || '',
@@ -199,6 +200,7 @@ function ProductForm({ product, categories, onClose, onSaved }) {
       pricePaise: price,
       costPaise: cost,
       dailyCap: Number(f.dailyCap),
+      bufferPct: Number(f.bufferPct),
       farm: f.farm.trim() || undefined,
       aliases: f.aliases
         .split(',')
@@ -357,6 +359,22 @@ function ProductForm({ product, categories, onClose, onSaved }) {
             onChange={set('dailyCap')}
           />
         </div>
+      </div>
+      <div className="field">
+        <label className="field__label">Procurement buffer (%)</label>
+        <input
+          className="field__input"
+          type="number"
+          min="0"
+          max="100"
+          value={f.bufferPct}
+          onChange={set('bufferPct')}
+          placeholder="10"
+        />
+        <p className="field__hint">
+          Extra bought over what's ordered — spoilage / trim / short-weight headroom. Perishables
+          higher.
+        </p>
       </div>
       <div className="field">
         <label className="field__label">Farm / source</label>

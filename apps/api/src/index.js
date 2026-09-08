@@ -22,6 +22,7 @@ import { adminCommunitiesRouter } from './routes/admin/communities.js';
 import { adminOrdersRouter } from './routes/admin/orders.js';
 import { adminMetricsRouter } from './routes/admin/metrics.js';
 import { adminAnalyticsRouter } from './routes/admin/analytics.js';
+import { adminProcurementRouter } from './routes/admin/procurement.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -46,6 +47,7 @@ admin.use(adminCommunitiesRouter);
 admin.use(adminOrdersRouter);
 admin.use(adminMetricsRouter);
 admin.use(adminAnalyticsRouter);
+admin.use(adminProcurementRouter);
 app.use(`${v1}/admin`, admin);
 
 // Anything else under /api/v1 (auth, cart, orders, wallet, payments) is Adnan's / a later phase.

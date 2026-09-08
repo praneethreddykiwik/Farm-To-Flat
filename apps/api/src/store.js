@@ -141,6 +141,7 @@ export function createProduct(data) {
     createdAt: new Date().toISOString(),
     blurhash: null,
     isActive: true,
+    bufferPct: 10,
     ...data,
     aliases: data.aliases || [],
   };

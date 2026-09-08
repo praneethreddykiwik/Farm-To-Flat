@@ -33,6 +33,7 @@ const CreateProduct = z.object({
   increment: z.string().regex(/^\d+(\.\d+)?$/),
   pricePaise: paise,
   costPaise: paise.optional(),
+  bufferPct: z.number().min(0).max(100).optional(),
   dailyCap: z.number().int().positive().max(100000),
   farm: z.string().max(80).optional(),
   image: z.string().url().nullable().optional(),
