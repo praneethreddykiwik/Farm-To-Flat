@@ -83,6 +83,60 @@ function orderItems(items) {
   }));
 }
 
+/** Customer view of a customer (contract shape). */
+export function customerPublic(c, { isNew, hasAddress } = {}) {
+  return {
+    id: c.id,
+    mobile: c.mobile,
+    name: c.name ?? null,
+    email: c.email ?? null,
+    hasAddress: !!hasAddress,
+    ...(isNew !== undefined ? { isNew } : {}),
+  };
+}
+
+/** Customer-facing order line — NEVER emits cost/margin. */
+function orderItemsCustomer(items) {
+  return items.map((it) => ({
+    id: it.id,
+    productId: it.productId,
+    name: it.name,
+    unit: it.unit,
+    increment: it.increment,
+    image: it.image ?? null,
+    blurhash: it.blurhash ?? null,
+    tint: it.tint,
+    variableWeight: !!it.variableWeight,
+    quantity: it.quantity,
+    unitPricePaise: money(it.unitPricePaise),
+    lineTotalPaise: money(it.lineTotalPaise),
+    note: it.note || null,
+  }));
+}
+
+/** Customer-facing order (contract Order shape). No cost/margin fields. */
+export function orderCustomer(o) {
+  return {
+    id: o.id,
+    orderNumber: o.orderNumber,
+    status: o.status,
+    items: orderItemsCustomer(o.items),
+    subtotalPaise: money(o.subtotalPaise),
+    couponDiscountPaise: money(o.couponDiscountPaise || 0),
+    deliveryChargePaise: money(o.deliveryChargePaise || 0),
+    totalPaise: money(o.totalPaise),
+    walletAppliedPaise: money(o.walletAppliedPaise || 0),
+    gatewayAmountPaise: money(o.gatewayAmountPaise || 0),
+    couponCode: o.couponCode || null,
+    deliveryDate: o.deliveryDate,
+    window: o.window,
+    address: o.address,
+    createdAt: o.createdAt,
+    timeline: o.timeline,
+    canCancel: ['CONFIRMED', 'PENDING_PAYMENT'].includes(o.status),
+  };
+}
+
 /** Operator order — used by the admin order list + fulfilment screens. */
 export function orderAdmin(o) {
   return {

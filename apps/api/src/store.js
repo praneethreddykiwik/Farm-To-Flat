@@ -42,7 +42,7 @@ const db = {
 let seq = 4210;
 
 /** Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped. */
-function makeLine(productId, qty) {
+function makeLine(productId, qty, note = null) {
   const p = db.products.find((x) => x.id === productId);
   if (!p) return null;
   const quantity = Number(qty);
@@ -51,45 +51,62 @@ function makeLine(productId, qty) {
     productId: p.id,
     name: p.name,
     unit: p.unit,
+    increment: p.increment,
+    image: p.image,
+    tint: db.categories.find((c) => c.id === p.category)?.tint,
+    variableWeight: !!p.variableWeight,
     categoryId: p.category,
     quantity: quantity.toFixed(3),
     unitPricePaise: p.pricePaise,
     unitCostPaise: p.costPaise ?? 0,
     lineTotalPaise: Math.round(p.pricePaise * quantity),
     lineCostPaise: Math.round((p.costPaise ?? 0) * quantity),
-    note: null,
+    note: note || null,
   };
 }
 
 /**
- * Create + store an order. Used by the seed and by the "incoming order" simulator, and the shape
- * the real POST /orders transaction (Adnan) will produce.
- * @param {{customerName:string,mobile:string,communityId:string,block:string,flat:string,window:string,deliveryDate:string,status:string,lines:[string,number][],createdAt?:string}} input
+ * Create + store an order. Used by the seed, the "incoming order" simulator, and the real customer
+ * order transaction (POST /orders). Lines may be `[productId, qty]` pairs or
+ * `{ productId, quantity, note }` objects. Money fields default sensibly when omitted.
+ * @param {any} input
  */
 export function createOrder(input) {
   const community = db.communities.find((c) => c.id === input.communityId);
-  const items = input.lines.map(([pid, q]) => makeLine(pid, q)).filter(Boolean);
+  const items = (input.lines || [])
+    .map((l) =>
+      Array.isArray(l) ? makeLine(l[0], l[1]) : makeLine(l.productId, l.quantity, l.note),
+    )
+    .filter(Boolean);
   const subtotal = items.reduce((s, l) => s + l.lineTotalPaise, 0);
   const cost = items.reduce((s, l) => s + l.lineCostPaise, 0);
-  const delivery = db.constants.deliveryChargePaise;
+  const delivery = input.deliveryChargePaise ?? db.constants.deliveryChargePaise;
+  const discount = input.couponDiscountPaise ?? 0;
+  const total = Math.max(0, subtotal - discount + delivery);
+  const walletApplied = input.walletAppliedPaise ?? 0;
+  const gateway = input.gatewayAmountPaise ?? total - walletApplied;
   const createdAt = input.createdAt || new Date().toISOString();
+  const status = input.status || 'CONFIRMED';
   seq += 1;
   const order = {
     id: id('ord', 10),
     orderNumber: `F2F-${seq}`,
-    status: input.status || 'CONFIRMED',
+    status,
+    customerId: input.customerId || null,
     customerName: input.customerName,
     mobile: input.mobile,
     items,
     subtotalPaise: subtotal,
     costPaise: cost,
-    couponDiscountPaise: 0,
+    couponDiscountPaise: discount,
     deliveryChargePaise: delivery,
-    totalPaise: subtotal + delivery,
-    couponCode: null,
+    totalPaise: total,
+    walletAppliedPaise: walletApplied,
+    gatewayAmountPaise: gateway,
+    couponCode: input.couponCode || null,
     deliveryDate: input.deliveryDate,
     window: input.window,
-    address: {
+    address: input.address || {
       communityId: community?.id,
       communityName: community?.name,
       area: community?.area,
@@ -97,7 +114,7 @@ export function createOrder(input) {
       flat: input.flat,
     },
     createdAt,
-    timeline: [{ status: input.status || 'CONFIRMED', at: createdAt }],
+    timeline: [{ status, at: createdAt }],
   };
   db.orders.unshift(order);
   return clone(order);
@@ -131,6 +148,20 @@ export const getOrder = (oid) => {
   const o = db.orders.find((x) => x.id === oid);
   return o ? clone(o) : null;
 };
+/** Orders belonging to one customer, newest first (customer-facing /orders). */
+export const listOrdersForCustomer = (customerId) =>
+  clone(db.orders.filter((o) => o.customerId === customerId));
+export const getOrderForCustomer = (oid, customerId) => {
+  const o = db.orders.find((x) => x.id === oid && x.customerId === customerId);
+  return o ? clone(o) : null;
+};
+/** Mutate an order in place by id (used by the order transaction for cancel / status). */
+export function patchOrder(oid, fn) {
+  const o = db.orders.find((x) => x.id === oid);
+  if (!o) return null;
+  fn(o);
+  return clone(o);
+}
 export const constants = () => clone(db.constants);
 export const rawProducts = () => db.products;
 

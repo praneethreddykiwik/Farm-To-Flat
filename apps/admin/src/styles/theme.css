@@ -983,6 +983,25 @@ table.data tbody tr:last-child td {
   border: 1.5px dashed var(--hairline);
   border-radius: var(--r-md);
 }
+.tick {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1.5px solid var(--hairline);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #fff;
+  transition: all 0.15s var(--ease-spring);
+}
+.tick:hover {
+  border-color: var(--leaf);
+}
+.tick--on {
+  background: var(--leaf);
+  border-color: var(--leaf);
+}
 .buf-input {
   width: 48px;
   padding: 5px 6px;

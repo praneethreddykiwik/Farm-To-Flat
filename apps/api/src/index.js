@@ -1,12 +1,12 @@
 /**
  * Farm-to-Flat API. Base path /api/v1. The frozen contract is docs/api-contract.md; a working
- * reference of the customer routes lives in apps/customer/src/api/mock/server.js.
+ * reference lives in apps/customer/src/api/mock/server.js.
  *
- * Owner: Tharun (catalog, cart, windows, admin) + Adnan (auth, wallet, order transaction, payments).
- * THIS build implements Tharun's platform surface — public catalog/communities/windows and the full
- * admin panel API — over an in-memory store (src/store.js) seeded from src/data/seed.js. Auth,
- * wallet, and the money transaction are stubbed at the boundary and land with Adnan's service +
- * the Prisma/Postgres swap (see README).
+ * This build implements the FULL customer contract (auth, profile, addresses, catalog, cart,
+ * windows, the order transaction, wallet, payments, devices, AI passthrough) over an in-memory
+ * store, PLUS the operator/admin surface (Tharun). It is a drop-in for the app's mock: point the
+ * app at it with EXPO_PUBLIC_USE_MOCKS=0 and EXPO_PUBLIC_API_URL. Prisma/Postgres + Adnan's real
+ * auth/payments swap in behind store.js / customer-store.js without route changes.
  */
 import cors from 'cors';
 import express from 'express';
@@ -14,8 +14,20 @@ import helmet from 'helmet';
 import pinoHttp from 'pino-http';
 
 import { ApiError } from './http.js';
+import { requireAuth } from './routes/require-auth.js';
+
+// public
+import { authRouter } from './routes/auth.js';
 import { catalogRouter } from './routes/catalog.js';
 import { communitiesRouter, windowsRouter } from './routes/communities.js';
+// authenticated (customer contract)
+import { meRouter, addressesRouter } from './routes/me.js';
+import { cartRouter } from './routes/cart.js';
+import { customerOrdersRouter } from './routes/customer-orders.js';
+import { walletRouter, paymentsRouter } from './routes/wallet.js';
+import { devicesRouter } from './routes/devices.js';
+import { aiRouter } from './routes/ai.js';
+// admin (operator)
 import { adminAuth } from './routes/admin/auth.js';
 import { adminProductsRouter } from './routes/admin/products.js';
 import { adminCommunitiesRouter } from './routes/admin/communities.js';
@@ -27,19 +39,31 @@ import { adminProcurementRouter } from './routes/admin/procurement.js';
 const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
-app.use(cors()); // dev: allow the Vite panel on :5173. Lock to the admin origin in production.
+app.use(cors());
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(pinoHttp());
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api', ts: Date.now() }));
 
-// ── public (frozen contract) ────────────────────────────────────────────────
 const v1 = '/api/v1';
+
+// ── public ──────────────────────────────────────────────────────────────────
+app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
 app.use(`${v1}/delivery-windows`, windowsRouter);
 
-// ── admin (operator panel) ────────────────────────────────────────────────
+// ── authenticated customer contract ───────────────────────────────────────────
+app.use(`${v1}/me`, requireAuth, meRouter);
+app.use(`${v1}/addresses`, requireAuth, addressesRouter);
+app.use(`${v1}/cart`, requireAuth, cartRouter);
+app.use(`${v1}/orders`, requireAuth, customerOrdersRouter);
+app.use(`${v1}/wallet`, requireAuth, walletRouter);
+app.use(`${v1}/payments`, requireAuth, paymentsRouter);
+app.use(`${v1}/devices`, requireAuth, devicesRouter);
+app.use(`${v1}/ai`, requireAuth, aiRouter);
+
+// ── admin (operator panel) ─────────────────────────────────────────────────
 const admin = express.Router();
 admin.use(adminAuth);
 admin.use(adminProductsRouter);
@@ -50,7 +74,6 @@ admin.use(adminAnalyticsRouter);
 admin.use(adminProcurementRouter);
 app.use(`${v1}/admin`, admin);
 
-// Anything else under /api/v1 (auth, cart, orders, wallet, payments) is Adnan's / a later phase.
 app.use(v1, (req, res) =>
   res.status(501).json({
     error: { code: 'NOT_IMPLEMENTED', message: `No route for ${req.method} ${req.path}` },
@@ -78,7 +101,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, HOST, () => {
     // eslint-disable-next-line no-console
-    console.log(`f2f-api listening on http://${HOST}:${PORT}  (in-memory store)`);
+    console.log(`f2f-api listening on http://${HOST}:${PORT}  (in-memory store · full contract)`);
   });
 }
 

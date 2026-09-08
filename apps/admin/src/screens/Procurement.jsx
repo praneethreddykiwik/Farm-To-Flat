@@ -2,13 +2,14 @@
  * Procurement — the buy list. Every open order's items, grouped by product, so the operator knows
  * exactly how much to procure: ordered quantity + a per-item buffer (spoilage / trim / short-weight,
  * editable inline) rounded up to a purchase unit, with the cost of buying it. Filter to one delivery
- * date to build a single run's list; export it as a purchase CSV. Also summarised by farm/source.
+ * date to build a single run's list, apply a run-level buffer override, tick items off as bought
+ * (shared checklist), and export the purchase CSV. Also summarised by farm/source.
  */
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { CountRupee, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
-import { IconDownload } from '../components/icons.jsx';
+import { IconCheck, IconDownload } from '../components/icons.jsx';
 import { inr, shortDate } from '../lib/format.js';
 
 const UNIT_SHORT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: 'pack' };
@@ -17,9 +18,14 @@ const qty = (q, unit) =>
 
 export function Procurement() {
   const [date, setDate] = useState('all');
-  const [editBuf, setEditBuf] = useState({}); // productId -> string while editing
-  const q = date !== 'all' ? `?date=${date}` : '';
-  const { data, loading, error, reload } = useResource(`/admin/procurement${q}`);
+  const [override, setOverride] = useState(''); // run-level buffer override %
+  const [editBuf, setEditBuf] = useState({});
+
+  const params = new URLSearchParams();
+  if (date !== 'all') params.set('date', date);
+  if (override !== '' && Number(override) >= 0) params.set('bufferPct', override);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const { data, loading, error, reload } = useResource(`/admin/procurement${qs}`);
 
   const dates = data?.dates || [];
 
@@ -31,7 +37,7 @@ export function Procurement() {
     });
     const bufferPct = Number(rawValue);
     if (!Number.isFinite(bufferPct) || bufferPct < 0 || bufferPct > 100) return;
-    if (bufferPct === Number(currentPct)) return; // unchanged
+    if (bufferPct === Number(currentPct)) return;
     try {
       await api.patch(`/admin/products/${productId}`, { bufferPct });
       toast('Buffer updated');
@@ -41,12 +47,27 @@ export function Procurement() {
     }
   }
 
+  async function toggleProcured(productId, next) {
+    try {
+      await api.post('/admin/procurement/mark', {
+        productId,
+        date: date !== 'all' ? date : undefined,
+        procured: next,
+      });
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not update', 'err');
+    }
+  }
+
   function downloadCsv() {
     const a = document.createElement('a');
-    a.href = api.url(`/admin/procurement/export.csv${q}`);
+    a.href = api.url(`/admin/procurement/export.csv${qs}`);
     a.click();
     toast('Purchase list exported');
   }
+
+  const overrideActive = data?.filters?.bufferOverride != null;
 
   return (
     <>
@@ -65,7 +86,7 @@ export function Procurement() {
       {!loading && !error && data && (
         <section
           className="stat-grid stagger"
-          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}
         >
           <div className="glass stat">
             <div className="stat__value">
@@ -76,6 +97,13 @@ export function Procurement() {
           <div className="glass stat">
             <div className="stat__value">{data.skuCount}</div>
             <div className="stat__label">Distinct products</div>
+          </div>
+          <div className="glass stat">
+            <div className="stat__value">
+              {data.procuredCount}
+              <span style={{ fontSize: 18, color: 'var(--ink-3)' }}> / {data.skuCount}</span>
+            </div>
+            <div className="stat__label">Bought so far</div>
           </div>
           <div className="glass stat">
             <div className="stat__value">{data.orderCount}</div>
@@ -103,6 +131,28 @@ export function Procurement() {
             {shortDate(d)}
           </button>
         ))}
+        <span className="spacer" />
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          Run buffer
+        </span>
+        <input
+          className="buf-input"
+          type="number"
+          min="0"
+          max="100"
+          placeholder="auto"
+          value={override}
+          onChange={(e) => setOverride(e.target.value)}
+          style={{ width: 62 }}
+        />
+        <span className="muted" style={{ fontSize: 12 }}>
+          %
+        </span>
+        {overrideActive && (
+          <button className="chip is-active" onClick={() => setOverride('')} title="Clear override">
+            override on ✕
+          </button>
+        )}
       </div>
 
       {error ? (
@@ -133,6 +183,7 @@ export function Procurement() {
                   <table className="data">
                     <thead>
                       <tr>
+                        <th style={{ width: 40 }}></th>
                         <th>Product</th>
                         <th style={{ textAlign: 'right' }}>Ordered</th>
                         <th style={{ textAlign: 'center', width: 90 }}>Buffer</th>
@@ -144,12 +195,32 @@ export function Procurement() {
                       {g.items.map((it) => {
                         const editing = editBuf[it.productId] !== undefined;
                         return (
-                          <tr key={it.productId}>
+                          <tr
+                            key={it.productId}
+                            style={it.procured ? { opacity: 0.55 } : undefined}
+                          >
+                            <td>
+                              <button
+                                className={`tick${it.procured ? ' tick--on' : ''}`}
+                                onClick={() => toggleProcured(it.productId, !it.procured)}
+                                title={it.procured ? 'Bought — click to undo' : 'Mark as bought'}
+                                aria-label="Mark procured"
+                              >
+                                {it.procured && <IconCheck size={13} />}
+                              </button>
+                            </td>
                             <td>
                               <div className="prodcell">
                                 <Thumb name={it.name} tint={g.tint} />
                                 <div>
-                                  <div className="prodcell__name">{it.name}</div>
+                                  <div
+                                    className="prodcell__name"
+                                    style={
+                                      it.procured ? { textDecoration: 'line-through' } : undefined
+                                    }
+                                  >
+                                    {it.name}
+                                  </div>
                                   <div className="prodcell__alias">
                                     {it.farm} · {it.orders} order{it.orders > 1 ? 's' : ''}
                                   </div>
@@ -174,6 +245,12 @@ export function Procurement() {
                                     saveBuffer(it.productId, e.target.value, it.bufferPct)
                                   }
                                   onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                                  disabled={overrideActive}
+                                  title={
+                                    overrideActive
+                                      ? 'Run override active — clear it to edit per item'
+                                      : ''
+                                  }
                                 />
                                 <span className="muted" style={{ fontSize: 12 }}>
                                   %
