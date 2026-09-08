@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, MapPin, RotateCcw } from 'lucide-react-native';
+import { ArrowLeft, MapPin, RotateCcw, Share2 } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -44,6 +44,39 @@ export default function OrderDetail() {
   // Finished orders (cancelled, delivered, or failed) can be re-ordered: refill the basket with the
   // same items at today's prices, then drop the customer into the basket to review and check out.
   const canReorder = !!order && ['CANCELLED', 'DELIVERED', 'PAYMENT_FAILED'].includes(order.status);
+
+  const rupees = (p) => `₹${(Number(p) / 100).toFixed(2)}`;
+  const shareInvoice = async () => {
+    if (!order) return;
+    const lines = order.items
+      .map(
+        (it) => `• ${it.name} — ${formatQty(it.quantity, it.unit)}   ${rupees(it.lineTotalPaise)}`,
+      )
+      .join('\n');
+    const msg = [
+      `Farm to Flat — invoice`,
+      `${order.orderNumber} · ${formatDateShort(order.deliveryDate)} · ${WINDOWS[order.window]?.label}`,
+      `${order.address.block} · ${order.address.flat}, ${order.address.communityName}`,
+      '',
+      lines,
+      '',
+      `Subtotal   ${rupees(order.subtotalPaise)}`,
+      Number(order.couponDiscountPaise) > 0
+        ? `Coupon ${order.couponCode}   −${rupees(order.couponDiscountPaise)}`
+        : null,
+      Number(order.walletAppliedPaise) > 0
+        ? `Paid from wallet   −${rupees(order.walletAppliedPaise)}`
+        : null,
+      `Total   ${rupees(order.totalPaise)}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    try {
+      await Share.share({ message: msg });
+    } catch {
+      /* user dismissed the share sheet */
+    }
+  };
 
   const reorder = async () => {
     if (!order) return;
@@ -105,7 +138,16 @@ export default function OrderDetail() {
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
           </Pressy>
-          {order ? <Mono muted>{order.orderNumber}</Mono> : null}
+          {order ? (
+            <View style={styles.headerRight}>
+              <Mono muted>{order.orderNumber}</Mono>
+              <Pressy onPress={shareInvoice} haptics="select" accessibilityLabel="Share invoice">
+                <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
+                  <Share2 size={18} color={colors.ink} />
+                </Glass>
+              </Pressy>
+            </View>
+          ) : null}
         </View>
 
         {isLoading || !order ? (
@@ -247,6 +289,7 @@ function Row({ label, paise, color = undefined }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   addr: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   item: {

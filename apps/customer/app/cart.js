@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
@@ -10,7 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { ShoppingBasket, Ticket, Trash2, X } from 'lucide-react-native';
+import { NotebookPen, ShoppingBasket, Ticket, Trash2, X } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -29,14 +29,26 @@ import {
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCart, useCartLine } from '../src/hooks/useCart';
-import { useRemoveCartItemMutation, useRemoveCouponMutation } from '../src/api/api';
+import {
+  useRemoveCartItemMutation,
+  useRemoveCouponMutation,
+  useSetCartItemMutation,
+} from '../src/api/api';
 import { showToast } from '../src/features/ui/uiSlice';
-import { colors, motion, radius } from '../src/theme';
+import { colors, fonts, motion, radius } from '../src/theme';
 import { haptic } from '../src/lib/haptics';
 
 function Line({ item }) {
   const { quantity, setQuantity } = useCartLine({ id: item.productId, name: item.name });
   const [remove] = useRemoveCartItemMutation();
+  const [setCartItem] = useSetCartItemMutation();
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState(item.note || '');
+  const saveNote = () => {
+    const v = note.trim();
+    setCartItem({ productId: item.productId, quantity: String(quantity), note: v || null });
+    setNoteOpen(false);
+  };
   return (
     <Animated.View
       layout={LinearTransition.springify().damping(18)}
@@ -70,6 +82,31 @@ function Line({ item }) {
             size="sm"
           />
         </View>
+        {noteOpen ? (
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            onBlur={saveNote}
+            onSubmitEditing={saveNote}
+            autoFocus
+            placeholder="e.g. clean and cut into curry pieces"
+            placeholderTextColor={colors.ink3}
+            returnKeyType="done"
+            style={styles.noteInput}
+          />
+        ) : (
+          <Pressy
+            onPress={() => setNoteOpen(true)}
+            haptics="soft"
+            style={styles.noteBtn}
+            accessibilityLabel={item.note ? 'Edit note' : 'Add a note'}
+          >
+            <NotebookPen size={13} color={colors.leafDeep} />
+            <Small color={item.note ? colors.ink2 : colors.leafDeep} numberOfLines={1}>
+              {item.note ? `“${item.note}”` : 'Add a note'}
+            </Small>
+          </Pressy>
+        )}
       </View>
       <View
         style={{ alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch' }}
@@ -316,6 +353,20 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
   },
   trash: { padding: 6, marginRight: -6, marginBottom: -4 },
+  noteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, maxWidth: 180 },
+  noteInput: {
+    marginTop: 8,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.ink,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    minWidth: 200,
+  },
   coupon: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   couponIcon: {
     width: 40,
