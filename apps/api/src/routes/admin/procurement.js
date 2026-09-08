@@ -19,6 +19,7 @@ import { getProduct, listCategories, listOrders } from '../../store.js';
 import { planProcurement } from '../../lib/procure.js';
 import { money, formatINR } from '../../lib/money.js';
 import { todayISO } from '../../lib/dates.js';
+import { CSV_HEADERS, LANGS, YES, categoryName, productName, unitLabel } from '../../lib/i18n.js';
 
 export const adminProcurementRouter = Router();
 
@@ -165,9 +166,10 @@ adminProcurementRouter.post(
 adminProcurementRouter.get(
   '/procurement/export.csv',
   asyncHandler(async (req, res) => {
+    const lang = LANGS.includes(String(req.query.lang)) ? String(req.query.lang) : 'en';
     const { agg } = collect(req.query);
     const categories = listCategories();
-    const catName = (id) => categories.find((c) => c.id === id)?.name || id;
+    const catEnglish = (id) => categories.find((c) => c.id === id)?.name || id;
     const dateKey = dateKeyOf(req.query);
     const override = overrideOf(req.query);
     const lines = [...agg.values()]
@@ -177,35 +179,27 @@ adminProcurementRouter.get(
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const header = [
-      'Category',
-      'Product',
-      'Source',
-      'Orders',
-      'Required',
-      'Unit',
-      'Buffer %',
-      'To procure',
-      'Est. cost',
-      'Bought',
-    ];
-    const rows = lines.map((l) => [
-      catName(l.categoryId),
-      l.name,
-      l.farm,
-      l.orders,
-      l.requiredQty,
-      l.unit,
-      l.bufferPct,
-      l.procureQty,
-      formatINR(l.procureCostPaise),
-      l.procured ? 'yes' : '',
-    ]);
-    const csv = [header, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
+    const rows = lines.map((l) => {
+      const product = getProduct(l.productId);
+      return [
+        categoryName(l.categoryId, catEnglish(l.categoryId), lang),
+        product ? productName(product, lang) : l.name,
+        l.farm,
+        l.orders,
+        l.requiredQty,
+        unitLabel(l.unit, lang),
+        l.bufferPct,
+        l.procureQty,
+        formatINR(l.procureCostPaise),
+        l.procured ? YES[lang] : '',
+      ];
+    });
+    // UTF-8 BOM so Excel opens Devanagari / Telugu correctly
+    const csv = '﻿' + [CSV_HEADERS[lang], ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="f2f-procurement-${req.query.date || todayISO()}.csv"`,
+      `attachment; filename="f2f-procurement-${lang}-${req.query.date || todayISO()}.csv"`,
     );
     res.send(csv);
   }),

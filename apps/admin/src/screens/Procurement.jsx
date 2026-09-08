@@ -16,10 +16,17 @@ const UNIT_SHORT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: '
 const qty = (q, unit) =>
   `${Number(q).toLocaleString('en-IN', { maximumFractionDigits: 2 })} ${UNIT_SHORT[unit] || ''}`;
 
+const LANG_OPTS = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'हिंदी · Hindi' },
+  { code: 'te', label: 'తెలుగు · Telugu' },
+];
+
 export function Procurement() {
   const [date, setDate] = useState('all');
   const [override, setOverride] = useState(''); // run-level buffer override %
   const [editBuf, setEditBuf] = useState({});
+  const [langMenu, setLangMenu] = useState(false);
 
   const params = new URLSearchParams();
   if (date !== 'all') params.set('date', date);
@@ -60,11 +67,14 @@ export function Procurement() {
     }
   }
 
-  function downloadCsv() {
+  function downloadCsv(lang = 'en') {
+    const p = new URLSearchParams(params);
+    if (lang !== 'en') p.set('lang', lang);
     const a = document.createElement('a');
-    a.href = api.url(`/admin/procurement/export.csv${qs}`);
+    a.href = api.url(`/admin/procurement/export.csv${p.toString() ? `?${p.toString()}` : ''}`);
     a.click();
-    toast('Purchase list exported');
+    setLangMenu(false);
+    toast(`Purchase list exported · ${LANG_OPTS.find((l) => l.code === lang).label.split(' ')[0]}`);
   }
 
   const overrideActive = data?.filters?.bufferOverride != null;
@@ -78,9 +88,28 @@ export function Procurement() {
             What to buy for the open orders · quantity + buffer, rounded to purchase units
           </p>
         </div>
-        <button className="btn btn--accent" onClick={downloadCsv}>
-          <IconDownload size={17} /> Purchase list CSV
-        </button>
+        <div className="dropdown">
+          <button className="btn btn--accent" onClick={() => setLangMenu((v) => !v)}>
+            <IconDownload size={17} /> Purchase list CSV ▾
+          </button>
+          {langMenu && (
+            <>
+              <div className="dropdown__scrim" onClick={() => setLangMenu(false)} />
+              <div className="dropdown__menu">
+                <div className="dropdown__label">Download in</div>
+                {LANG_OPTS.map((l) => (
+                  <button
+                    key={l.code}
+                    className="dropdown__item"
+                    onClick={() => downloadCsv(l.code)}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       {!loading && !error && data && (
@@ -104,6 +133,25 @@ export function Procurement() {
               <span style={{ fontSize: 18, color: 'var(--ink-3)' }}> / {data.skuCount}</span>
             </div>
             <div className="stat__label">Bought so far</div>
+            <div
+              style={{
+                height: 6,
+                borderRadius: 6,
+                background: 'rgba(14,27,20,0.06)',
+                overflow: 'hidden',
+                marginTop: 10,
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${data.skuCount ? (data.procuredCount / data.skuCount) * 100 : 0}%`,
+                  background: 'linear-gradient(90deg, var(--leaf), var(--sprout-deep))',
+                  borderRadius: 6,
+                  transition: 'width 0.6s var(--ease-out)',
+                }}
+              />
+            </div>
           </div>
           <div className="glass stat">
             <div className="stat__value">{data.orderCount}</div>
@@ -154,6 +202,13 @@ export function Procurement() {
           </button>
         )}
       </div>
+
+      {!loading && !error && data && data.byCategory.length > 0 && (
+        <p className="muted" style={{ fontSize: 12.5, margin: '-4px 2px 0', maxWidth: 720 }}>
+          Tick each item as you buy it. <b>To procure</b> = ordered + buffer, rounded up to a whole
+          purchase unit (kg in half-kilos) — buffer covers spoilage, trim and short weight.
+        </p>
+      )}
 
       {error ? (
         <ErrorNote error={error} onRetry={reload} />
