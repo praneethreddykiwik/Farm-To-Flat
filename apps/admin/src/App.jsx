@@ -1,53 +1,36 @@
 /**
- * Admin web panel — skeleton. Owner: Tharun. This is the shell only; the real screens (catalog CRUD,
- * pricing, communities/windows, order list, and the fulfilment screen + CSV export) mount inside a
- * router here. It talks to the same /api/v1 the mobile app uses, and shares the design tokens in
- * packages/tokens so the admin and app look like one product.
+ * Admin panel shell. Owner: Tharun. Real screens for the platform surface — dashboard, catalog,
+ * pricing, communities/windows, orders, and the fulfilment board — talking to the same /api/v1 the
+ * mobile app uses, and sharing the design language of the customer app (see styles/theme.css).
  */
-const SCREENS = [
-  ['Catalog', 'Products, aliases, images, categories, availability'],
-  ['Pricing', 'Procurement cost, margins, rounding, price history'],
-  ['Communities & windows', 'Serviceable communities, blocks, delivery windows and capacity'],
-  ['Orders', 'Order list, filters, status'],
-  ['Fulfilment', 'Packing + delivery view and CSV exports — the highest-leverage screen'],
-];
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { Background, Toaster } from './components/ui.jsx';
+import { Sidebar } from './components/Sidebar.jsx';
+import { Dashboard } from './screens/Dashboard.jsx';
+import { Catalog } from './screens/Catalog.jsx';
+import { Pricing } from './screens/Pricing.jsx';
+import { Communities } from './screens/Communities.jsx';
+import { Orders } from './screens/Orders.jsx';
+import { Fulfilment } from './screens/Fulfilment.jsx';
 
 export function App() {
   return (
-    <main
-      style={{
-        fontFamily: 'system-ui, sans-serif',
-        maxWidth: 720,
-        margin: '0 auto',
-        padding: '48px 24px',
-        color: '#0e1b14',
-      }}
-    >
-      <p style={{ color: '#1e7a4c', fontWeight: 600, letterSpacing: '0.02em', margin: 0 }}>
-        Farm to Flat
-      </p>
-      <h1 style={{ fontSize: 30, margin: '6px 0 4px' }}>Admin panel</h1>
-      <p style={{ color: '#5f6b63', margin: '0 0 28px' }}>
-        Skeleton. Build the screens below and route them here — see <code>CONTRIBUTING.md</code> and{' '}
-        <code>docs/api-contract.md</code>.
-      </p>
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {SCREENS.map(([name, desc]) => (
-          <li
-            key={name}
-            style={{
-              padding: '14px 0',
-              borderTop: '1px solid #e7ece2',
-              display: 'grid',
-              gridTemplateColumns: '190px 1fr',
-              gap: 16,
-            }}
-          >
-            <b>{name}</b>
-            <span style={{ color: '#5f6b63' }}>{desc}</span>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <BrowserRouter>
+      <Background />
+      <div className="shell">
+        <Sidebar />
+        <main className="main">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/catalog" element={<Catalog />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/communities" element={<Communities />} />
+            <Route path="/orders" element={<Orders />} />
+            <Route path="/fulfilment" element={<Fulfilment />} />
+          </Routes>
+        </main>
+      </div>
+      <Toaster />
+    </BrowserRouter>
   );
 }

@@ -1,66 +1,81 @@
 /**
- * Farm-to-Flat API — skeleton. Owner: Adnan (money + auth + order transaction), Tharun (catalog,
- * cart, windows, admin endpoints). Base path /api/v1. The frozen contract is docs/api-contract.md;
- * a working reference of every route lives in apps/customer/src/api/mock/server.js.
+ * Farm-to-Flat API. Base path /api/v1. The frozen contract is docs/api-contract.md; a working
+ * reference of the customer routes lives in apps/customer/src/api/mock/server.js.
  *
- * This file boots an Express app with health, security headers, structured logging and the error
- * shape the app expects. Add real routers under src/routes and mount them below. Do NOT put any
- * business logic here.
+ * Owner: Tharun (catalog, cart, windows, admin) + Adnan (auth, wallet, order transaction, payments).
+ * THIS build implements Tharun's platform surface — public catalog/communities/windows and the full
+ * admin panel API — over an in-memory store (src/store.js) seeded from src/data/seed.js. Auth,
+ * wallet, and the money transaction are stubbed at the boundary and land with Adnan's service +
+ * the Prisma/Postgres swap (see README).
  */
+import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
 
+import { ApiError } from './http.js';
+import { catalogRouter } from './routes/catalog.js';
+import { communitiesRouter, windowsRouter } from './routes/communities.js';
+import { adminAuth } from './routes/admin/auth.js';
+import { adminProductsRouter } from './routes/admin/products.js';
+import { adminCommunitiesRouter } from './routes/admin/communities.js';
+import { adminOrdersRouter } from './routes/admin/orders.js';
+import { adminMetricsRouter } from './routes/admin/metrics.js';
+
 const app = express();
+app.disable('x-powered-by');
 app.use(helmet());
+app.use(cors()); // dev: allow the Vite panel on :5173. Lock to the admin origin in production.
 app.use(express.json());
-app.use(pinoHttp());
+if (process.env.NODE_ENV !== 'test') app.use(pinoHttp());
 
-// Liveness probe — deploy target smoke-tests this.
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api' }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api', ts: Date.now() }));
 
-/**
- * Boundary validation. Every route wraps its input in a Zod schema and calls this — parse, never
- * cast. A route registered without one should be considered a bug.
- * @param {import('zod').ZodTypeAny} schema
- */
-export function validate(schema) {
-  /** @type {import('express').RequestHandler} */
-  return (req, res, next) => {
-    const r = schema.safeParse(req.body);
-    if (!r.success) {
-      return res.status(422).json({
-        error: { code: 'VALIDATION_FAILED', message: 'Invalid request', details: r.error.issues },
-      });
-    }
-    req.body = r.data;
-    next();
-  };
-}
+// ── public (frozen contract) ────────────────────────────────────────────────
+const v1 = '/api/v1';
+app.use(`${v1}/catalog`, catalogRouter);
+app.use(`${v1}/communities`, communitiesRouter);
+app.use(`${v1}/delivery-windows`, windowsRouter);
 
-// ── mount real routers here as they are built ──────────────────────────────
-// import { authRouter } from './routes/auth.js';        // Adnan
-// import { catalogRouter } from './routes/catalog.js';  // Tharun
-// app.use('/api/v1/auth', authRouter);
-// app.use('/api/v1/catalog', catalogRouter);
+// ── admin (operator panel) ────────────────────────────────────────────────
+const admin = express.Router();
+admin.use(adminAuth);
+admin.use(adminProductsRouter);
+admin.use(adminCommunitiesRouter);
+admin.use(adminOrdersRouter);
+admin.use(adminMetricsRouter);
+app.use(`${v1}/admin`, admin);
 
-// Anything under /api/v1 that isn't built yet returns the contract's error shape, not a stack trace.
-app.use('/api/v1', (_req, res) =>
-  res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Route not built yet' } }),
+// Anything else under /api/v1 (auth, cart, orders, wallet, payments) is Adnan's / a later phase.
+app.use(v1, (req, res) =>
+  res.status(501).json({
+    error: { code: 'NOT_IMPLEMENTED', message: `No route for ${req.method} ${req.path}` },
+  }),
 );
 
-// Global error handler — never leak a stack trace or SQL to the client.
+// ── error handler — contract shape, never a stack trace ──────────────────────
 /** @type {import('express').ErrorRequestHandler} */
 app.use((err, req, res, _next) => {
-  req.log?.error(err);
+  if (err instanceof ApiError) {
+    return res.status(err.status).json({
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.details ? { details: err.details } : {}),
+      },
+    });
+  }
+  req.log?.error?.(err);
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Something went wrong' } });
 });
 
 const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || '0.0.0.0';
-app.listen(PORT, HOST, () => {
-  // eslint-disable-next-line no-console
-  console.log(`f2f-api listening on http://${HOST}:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, HOST, () => {
+    // eslint-disable-next-line no-console
+    console.log(`f2f-api listening on http://${HOST}:${PORT}  (in-memory store)`);
+  });
+}
 
 export { app };
