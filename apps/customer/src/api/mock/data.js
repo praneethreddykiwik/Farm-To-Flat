@@ -18,6 +18,72 @@ export const CATEGORIES = [
 
 const U = (id) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&q=70`;
 
+/**
+ * Clean, high-quality product photos for every catalog item.
+ *  - SP: Spoonacular ingredient CDN — studio shots on a white background (one consistent look).
+ *  - WM: Wikimedia Commons (CC / public domain) for regional items Spoonacular lacks.
+ * All URLs verified HTTP 200. In production these move to Supabase Storage (resolveStorageImage);
+ * a team-curated entry in images.json still wins over these.
+ */
+const SP = (file) => `https://img.spoonacular.com/ingredients_500x500/${file}`;
+const WM = (path) => `https://upload.wikimedia.org/wikipedia/commons/${path}`;
+const CATALOG_IMAGES = {
+  p_palak: SP('spinach.jpg'),
+  p_menthi: SP('fenugreek.jpg'),
+  p_thota: SP('amaranth.jpg'),
+  p_gongura: SP('sorrel.jpg'),
+  p_ponnaganti: WM(
+    'thumb/9/95/Alternanthera_sessilis_at_Kadavoor.jpg/960px-Alternanthera_sessilis_at_Kadavoor.jpg',
+  ),
+  p_coriander: SP('cilantro.png'),
+  p_mint: SP('mint.jpg'),
+  p_curry: SP('curry-leaves.jpg'),
+  p_spring: SP('spring-onions.jpg'),
+  p_ginger: SP('ginger.jpg'),
+  p_garlic: SP('garlic.jpg'),
+  p_chilli: SP('serrano-pepper.jpg'),
+  p_lemon: SP('lemon.jpg'),
+  p_tomato: SP('tomato.jpg'),
+  p_onion: SP('red-onion.jpg'),
+  p_potato: SP('red-potatoes.jpg'),
+  p_brinjal: SP('eggplant.jpg'),
+  p_okra: SP('okra.jpg'),
+  p_carrot: SP('carrots.jpg'),
+  p_beet: SP('beets.jpg'),
+  p_cabbage: SP('cabbage.jpg'),
+  p_cauli: SP('cauliflower.jpg'),
+  p_capsicum: SP('green-pepper.jpg'),
+  p_corn: SP('corn-on-the-cob.jpg'),
+  p_radish: SP('radishes.jpg'),
+  p_cucumber: SP('cucumber.jpg'),
+  p_pumpkin: SP('pumpkin.jpg'),
+  p_drumstick: SP('moringa.jpg'),
+  p_rawbanana: SP('plantains.jpg'),
+  p_jackfruit: SP('jackfruit.jpg'),
+  p_karela: SP('bitter-melon.jpg'),
+  p_bottle: SP('bottle-gourd.jpg'),
+  p_ridge: WM('thumb/c/c6/Ridge_Gourd_20020400_1.jpg/960px-Ridge_Gourd_20020400_1.jpg'),
+  p_ivy: WM('b/b5/Ivy_gourd.jpg'),
+  p_snake: SP('snake-gourd.jpg'),
+  p_cluster: SP('cluster-beans.jpg'),
+  p_frenchbean: WM('thumb/2/2a/Stringlesss_green_beans.jpg/960px-Stringlesss_green_beans.jpg'),
+  p_broadbean: SP('broad-beans.jpg'),
+  p_banana: SP('bananas.jpg'),
+  p_papaya: SP('papaya.jpg'),
+  p_guava: SP('guava.jpg'),
+  p_pomegranate: SP('pomegranate.jpg'),
+  p_grapes: SP('white-grapes.jpg'),
+  p_iceapple: WM('b/bb/Palmyra_fruit_-NUNGU.jpg'),
+  p_moong_sprout: SP('bean-sprouts.jpg'),
+  p_chana_sprout: SP('bean-sprouts.jpg'),
+  p_chana_soaked: SP('chickpeas.jpg'),
+  p_almond_soaked: SP('almonds.jpg'),
+  p_chicken: SP('chicken-breast.jpg'),
+  p_mutton: SP('lamb-chops.jpg'),
+  p_prawns: SP('shrimp.jpg'),
+  p_eggs: SP('egg.jpg'),
+};
+
 /** unit: KG (increment 0.25), BUNCH, PIECE, DOZEN, PACK */
 const RAW_PRODUCTS = [
   // Leafy greens
@@ -666,9 +732,10 @@ const RAW_PRODUCTS = [
 /** Verified, licensed product photos (see images.json for credits) override the seed placeholders. */
 export const PRODUCTS = RAW_PRODUCTS.map((p) => {
   const img = IMAGES[p.id];
-  return img?.url
-    ? { ...p, image: img.url, blurhash: null, imageCredit: `${img.credit} · ${img.source}` }
-    : p;
+  if (img?.url)
+    return { ...p, image: img.url, blurhash: null, imageCredit: `${img.credit} · ${img.source}` };
+  const url = CATALOG_IMAGES[p.id];
+  return url ? { ...p, image: url, blurhash: null } : p;
 });
 
 export const COMMUNITIES = [
