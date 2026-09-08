@@ -16,3 +16,4 @@ web-build/
 coverage/
 .eas/
 .pnpm-store/
+.claude/
