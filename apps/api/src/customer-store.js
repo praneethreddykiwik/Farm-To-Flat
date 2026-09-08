@@ -303,6 +303,10 @@ export function priceCart(cid) {
 export function setCartItem(cid, { productId, quantity, note }) {
   const prod = getProduct(productId);
   if (!prod) return { error: { status: 404, code: 'NOT_FOUND', message: 'Product not found' } };
+  if (prod.availability && prod.availability !== 'AVAILABLE')
+    return {
+      error: { status: 409, code: 'UNAVAILABLE', message: `${prod.name} is sold out right now.` },
+    };
   const qty = Number(quantity);
   const inc = Number(prod.increment);
   if (!(qty >= 0) || Math.abs(Math.round(qty / inc) * inc - qty) > 1e-6)

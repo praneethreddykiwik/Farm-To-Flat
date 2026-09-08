@@ -1030,6 +1030,70 @@ table.data tbody tr:last-child td {
 .dropdown__item:hover {
   background: var(--leaf-soft);
 }
+/* availability badge (clickable in the catalog table) + segmented selector */
+.avail {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    transform 0.15s var(--ease-spring),
+    filter 0.15s;
+}
+.avail:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+.avail:active {
+  transform: scale(0.96);
+}
+.av-available {
+  color: var(--leaf-deep);
+  background: var(--leaf-soft);
+}
+.av-sold {
+  color: #9a6a00;
+  background: var(--amber-soft);
+}
+.av-hidden {
+  color: var(--ink-2);
+  background: rgba(14, 27, 20, 0.07);
+}
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: rgba(14, 27, 20, 0.05);
+  width: 100%;
+}
+.seg__btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-pill);
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: all 0.16s var(--ease-out);
+}
+.seg__btn:hover {
+  color: var(--ink);
+}
+.seg__btn.is-active.av-available {
+  background: var(--leaf);
+  color: #fff;
+}
+.seg__btn.is-active.av-sold {
+  background: var(--amber);
+  color: #fff;
+}
+.seg__btn.is-active.av-hidden {
+  background: var(--ink-2);
+  color: #fff;
+}
 .tick {
   width: 24px;
   height: 24px;

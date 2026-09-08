@@ -32,6 +32,7 @@ export function productPublic(p) {
     blurhash: p.blurhash || null,
     variableWeight: !!p.variableWeight,
     isActive: p.isActive !== false,
+    availability: p.availability || (p.isActive === false ? 'HIDDEN' : 'AVAILABLE'),
   };
 }
 

@@ -12,6 +12,14 @@ import { UNIT_LABEL, inr, toPaise, toRupees } from '../lib/format.js';
 
 const UNITS = ['KG', 'BUNCH', 'PIECE', 'DOZEN', 'PACK'];
 
+/** Availability states (order = the cycle when you click the badge in the table). */
+const AVAIL = {
+  AVAILABLE: { label: 'Available', cls: 'av-available', next: 'SOLD_OUT' },
+  SOLD_OUT: { label: 'Sold out', cls: 'av-sold', next: 'HIDDEN' },
+  HIDDEN: { label: 'Hidden', cls: 'av-hidden', next: 'AVAILABLE' },
+};
+const availOf = (p) => p.availability || (p.isActive === false ? 'HIDDEN' : 'AVAILABLE');
+
 export function Catalog() {
   const { data, loading, error, reload } = useResource('/admin/products');
   const [q, setQ] = useState('');
@@ -29,6 +37,17 @@ export function Catalog() {
       return `${p.name} ${(p.aliases || []).join(' ')}`.toLowerCase().includes(nq);
     });
   }, [products, q, cat]);
+
+  async function cycleAvailability(p) {
+    const next = AVAIL[availOf(p)].next;
+    try {
+      await api.patch(`/admin/products/${p.id}`, { availability: next });
+      toast(`${p.name} · ${AVAIL[next].label}`);
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not update', 'err');
+    }
+  }
 
   return (
     <>
@@ -124,10 +143,17 @@ export function Catalog() {
                       {p.dailyCap}
                     </td>
                     <td>
-                      <span className={`badge ${p.isActive ? 'st-CONFIRMED' : 'st-CANCELLED'}`}>
+                      <button
+                        className={`badge avail ${AVAIL[availOf(p)].cls}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cycleAvailability(p);
+                        }}
+                        title="Click to change availability"
+                      >
                         <span className="badge__dot" />
-                        {p.isActive ? 'Live' : 'Hidden'}
-                      </span>
+                        {AVAIL[availOf(p)].label}
+                      </button>
                     </td>
                     <td>
                       <button
@@ -178,7 +204,7 @@ function ProductForm({ product, categories, onClose, onSaved }) {
     farm: product?.farm || '',
     aliases: (product?.aliases || []).join(', '),
     image: product?.image || '',
-    isActive: product ? product.isActive : true,
+    availability: product ? availOf(product) : 'AVAILABLE',
     variableWeight: product ? product.variableWeight : false,
   }));
   const [saving, setSaving] = useState(false);
@@ -207,7 +233,7 @@ function ProductForm({ product, categories, onClose, onSaved }) {
         .map((a) => a.trim())
         .filter(Boolean),
       image: f.image.trim() || null,
-      isActive: !!f.isActive,
+      availability: f.availability,
       variableWeight: !!f.variableWeight,
     };
     try {
@@ -404,11 +430,26 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           placeholder="https://…"
         />
       </div>
+      <div className="field">
+        <label className="field__label">Availability</label>
+        <div className="seg">
+          {Object.entries(AVAIL).map(([code, a]) => (
+            <button
+              key={code}
+              type="button"
+              className={`seg__btn ${a.cls}${f.availability === code ? ' is-active' : ''}`}
+              onClick={() => setF((s) => ({ ...s, availability: code }))}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+        <p className="field__hint">
+          <b>Available</b> — customers can order it. <b>Sold out</b> — shown in the app but can't be
+          added to cart. <b>Hidden</b> — removed from the app catalog.
+        </p>
+      </div>
       <div className="hstack" style={{ gap: 20, marginTop: 4 }}>
-        <label className="hstack" style={{ gap: 8, cursor: 'pointer' }}>
-          <input type="checkbox" checked={f.isActive} onChange={set('isActive')} />{' '}
-          <span style={{ fontSize: 13.5 }}>Live in app</span>
-        </label>
         <label className="hstack" style={{ gap: 8, cursor: 'pointer' }}>
           <input type="checkbox" checked={f.variableWeight} onChange={set('variableWeight')} />{' '}
           <span style={{ fontSize: 13.5 }}>Variable weight</span>

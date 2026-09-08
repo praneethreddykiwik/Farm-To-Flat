@@ -759,6 +759,7 @@ export const PRODUCTS = RAW_PRODUCTS.map((p) => {
     blurhash: null,
     variableWeight: !!p.variableWeight,
     isActive: true,
+    availability: 'AVAILABLE', // AVAILABLE | SOLD_OUT | HIDDEN
     costPaise,
     bufferPct: CATEGORY_BUFFER[p.category] ?? 10,
     createdAt: '2026-08-01T00:00:00.000Z',

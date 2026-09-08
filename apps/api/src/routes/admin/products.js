@@ -39,7 +39,16 @@ const CreateProduct = z.object({
   image: z.string().url().nullable().optional(),
   variableWeight: z.boolean().optional(),
   isActive: z.boolean().optional(),
+  availability: z.enum(['AVAILABLE', 'SOLD_OUT', 'HIDDEN']).optional(),
 });
+
+/** Availability drives the public catalog: HIDDEN is filtered out (isActive false). */
+function syncAvailability(body) {
+  if (body.availability) body.isActive = body.availability !== 'HIDDEN';
+  else if (body.isActive === false) body.availability = 'HIDDEN';
+  else if (body.isActive === true) body.availability = 'AVAILABLE';
+  return body;
+}
 
 const UpdateProduct = CreateProduct.partial();
 
@@ -62,7 +71,7 @@ adminProductsRouter.post(
     const cats = listCategories();
     if (!cats.find((c) => c.id === req.body.category))
       throw fail(422, 'VALIDATION', 'Unknown category.');
-    const product = createProduct(req.body);
+    const product = createProduct(syncAvailability(req.body));
     res.status(201).json({ product: productAdmin(product) });
   }),
 );
@@ -74,7 +83,7 @@ adminProductsRouter.patch(
     if (!getProduct(req.params.id)) throw fail(404, 'NOT_FOUND', 'Product not found');
     if (req.body.category && !listCategories().find((c) => c.id === req.body.category))
       throw fail(422, 'VALIDATION', 'Unknown category.');
-    const product = updateProduct(req.params.id, req.body);
+    const product = updateProduct(req.params.id, syncAvailability(req.body));
     res.json({ product: productAdmin(product) });
   }),
 );
