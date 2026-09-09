@@ -4,11 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SearchX } from 'lucide-react-native';
+import { useSelector } from 'react-redux';
 import { Ambient, Chip, Display, EmptyState, Label, Small } from '../src/ui';
 import { SearchBar } from '../src/components/SearchBar';
 import { ProductCard } from '../src/components/ProductCard';
 import { CartBar } from '../src/components/CartBar';
+import { DietToggle } from '../src/components/DietToggle';
 import { useGetCatalogQuery, useLazySearchCatalogQuery } from '../src/api/api';
+import { filterByDiet, selectDietPref } from '../src/features/ui/uiSlice';
 import { colors } from '../src/theme';
 
 const GUTTER = 20;
@@ -30,6 +33,7 @@ export default function Search() {
   const [q, setQ] = useState('');
   const [trigger, result] = useLazySearchCatalogQuery();
   const catalog = useGetCatalogQuery();
+  const dietPref = useSelector(selectDietPref);
 
   useEffect(() => {
     const term = q.trim();
@@ -40,10 +44,13 @@ export default function Search() {
 
   const active = q.trim().length >= 2;
   const products = useMemo(
-    () => (active ? result.data?.products || [] : []),
-    [active, result.data],
+    () => filterByDiet(active ? result.data?.products || [] : [], dietPref),
+    [active, result.data, dietPref],
   );
-  const popular = useMemo(() => (catalog.data?.products || []).slice(0, 12), [catalog.data]);
+  const popular = useMemo(
+    () => filterByDiet(catalog.data?.products || [], dietPref).slice(0, 12),
+    [catalog.data, dietPref],
+  );
 
   return (
     <View style={styles.root}>
@@ -61,6 +68,7 @@ export default function Search() {
           style={{ marginTop: 16 }}
           onSubmit={Keyboard.dismiss}
         />
+        <DietToggle style={{ marginTop: 14 }} />
       </View>
 
       {!active ? (

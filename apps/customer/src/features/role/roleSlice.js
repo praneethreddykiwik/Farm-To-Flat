@@ -70,7 +70,6 @@ export const selectEffectiveRole = (s) => {
 };
 export const selectRoleState = (s) => s.role;
 export const selectIsStaff = (s) => !!selectEffectiveRole(s).role;
-export const selectAiVisible = (s) => {
-  const r = selectEffectiveRole(s);
-  return !r.role ? false : !!r.aiAccess; // normal customers never see AI; staff per their grant
-};
+// AI is super-admin only. Customers never see it, and neither do admin / procurement / fulfilment —
+// the whole AI planner (Dietitian tab, profile entry, plan features) is hidden for everyone else.
+export const selectAiVisible = (s) => selectEffectiveRole(s).role === 'SUPER_ADMIN';

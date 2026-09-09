@@ -748,6 +748,19 @@ const RAW_PRODUCTS = [
   },
 ];
 
+// What's in season right now (editable per-product in admin). Seasonal produce for this window in
+// the Hyderabad belt — the "in season now" section on the shop surfaces these first.
+const SEASONAL_IDS = new Set([
+  'p_mango',
+  'p_jackfruit',
+  'p_corn',
+  'p_pumpkin',
+  'p_guava',
+  'p_ponnaganti',
+  'p_gongura',
+  'p_beet',
+]);
+
 /** Products with operator-only fields (costPaise) filled from the category margin default. */
 export const PRODUCTS = RAW_PRODUCTS.map((p) => {
   const margin = CATEGORY_MARGIN[p.category] ?? 0.3;
@@ -758,6 +771,8 @@ export const PRODUCTS = RAW_PRODUCTS.map((p) => {
     image: PRODUCT_IMAGES[p.id] ?? p.image ?? null,
     blurhash: null,
     variableWeight: !!p.variableWeight,
+    diet: p.diet || (p.category === 'cat_meat' ? 'NONVEG' : 'VEG'),
+    isSeasonal: p.isSeasonal ?? SEASONAL_IDS.has(p.id),
     isActive: true,
     availability: 'AVAILABLE', // AVAILABLE | SOLD_OUT | HIDDEN
     costPaise,

@@ -193,6 +193,37 @@ export function deleteProduct(pid) {
   return true;
 }
 
+// ── coupon writes (admin) ───────────────────────────────────────────────────
+export const getCoupon = (code) => {
+  const c = db.coupons.find((x) => x.code.toLowerCase() === String(code).toLowerCase());
+  return c ? clone(c) : null;
+};
+export function createCoupon(data) {
+  const coupon = {
+    batchId: 'batch_admin',
+    expiresAt: '2030-12-31T23:59:59+05:30',
+    globalCap: null,
+    redeemedCount: 0,
+    isActive: true,
+    ...data,
+    code: String(data.code).toUpperCase(),
+  };
+  db.coupons.push(coupon);
+  return clone(coupon);
+}
+export function updateCoupon(code, patch) {
+  const c = db.coupons.find((x) => x.code.toLowerCase() === String(code).toLowerCase());
+  if (!c) return null;
+  Object.assign(c, patch);
+  return clone(c);
+}
+export function deleteCoupon(code) {
+  const i = db.coupons.findIndex((x) => x.code.toLowerCase() === String(code).toLowerCase());
+  if (i === -1) return false;
+  db.coupons.splice(i, 1);
+  return true;
+}
+
 // ── community writes (admin) ────────────────────────────────────────────────
 export function updateCommunity(cid, patch) {
   const c = db.communities.find((x) => x.id === cid);

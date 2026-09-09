@@ -11,17 +11,19 @@ const staff = new Map();
 
 const byMobile = (mobile) => [...staff.values()].find((s) => s.mobile === mobile);
 
-// one example super admin so the page isn't empty — replace with the real owner number.
+// Seed staff so every role works the moment the API boots (survives restarts of the in-memory
+// store). Replace these with the real team numbers on the admin "Access & roles" page.
 (function seed() {
-  const s = {
-    id: id('stf', 8),
-    mobile: '9999900001',
-    name: 'Owner (example)',
-    role: 'SUPER_ADMIN',
-    aiAccess: true,
-    createdAt: new Date().toISOString(),
-  };
-  staff.set(s.id, s);
+  const seeded = [
+    { mobile: '9999900001', name: 'Owner (example)', role: 'SUPER_ADMIN', aiAccess: true },
+    { mobile: '9848033333', name: 'Admin (example)', role: 'ADMIN', aiAccess: false },
+    { mobile: '9848011111', name: 'Procurement (example)', role: 'PROCUREMENT', aiAccess: false },
+    { mobile: '9848022222', name: 'Fulfilment (example)', role: 'FULFILMENT', aiAccess: false },
+  ];
+  for (const row of seeded) {
+    const s = { id: id('stf', 8), ...row, createdAt: new Date().toISOString() };
+    staff.set(s.id, s);
+  }
 })();
 
 export const listStaff = () => [...staff.values()].sort((a, b) => a.role.localeCompare(b.role));

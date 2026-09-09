@@ -29,6 +29,7 @@ import {
 } from '../src/api/api';
 import { customerUpdated, selectCustomer } from '../src/features/auth/authSlice';
 import { profileUpdated, selectProfile } from '../src/features/plan/planSlice';
+import { selectAiVisible } from '../src/features/role/roleSlice';
 import { showToast } from '../src/features/ui/uiSlice';
 import { useSignOut } from '../src/hooks/useSession';
 import { colors, fonts, radius } from '../src/theme';
@@ -72,6 +73,7 @@ export default function Profile() {
   const dispatch = useDispatch();
   const customer = useSelector(selectCustomer);
   const dietProfile = useSelector(selectProfile);
+  const aiVisible = useSelector(selectAiVisible);
   const { data } = useGetAddressesQuery();
   const [setDefault] = useSetDefaultAddressMutation();
   const [registerDevice] = useRegisterDeviceMutation();
@@ -313,19 +315,22 @@ export default function Profile() {
                 thumbColor={colors.white}
               />
             }
+            last={!aiVisible}
           />
-          <Row
-            icon={<Sparkles size={18} color={colors.ink} />}
-            label="Dietitian profile"
-            value={
-              dietProfile.age
-                ? `${dietProfile.age} y · ${dietProfile.goal} · ${dietProfile.mealsPerDay} meals a day`
-                : null
-            }
-            hint="Age, goal, standing instructions"
-            onPress={() => router.push('/(tabs)/plan')}
-            last
-          />
+          {aiVisible ? (
+            <Row
+              icon={<Sparkles size={18} color={colors.ink} />}
+              label="Dietitian profile"
+              value={
+                dietProfile.age
+                  ? `${dietProfile.age} y · ${dietProfile.goal} · ${dietProfile.mealsPerDay} meals a day`
+                  : null
+              }
+              hint="Age, goal, standing instructions"
+              onPress={() => router.push('/(tabs)/plan')}
+              last
+            />
+          ) : null}
         </Glass>
 
         <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>

@@ -38,6 +38,8 @@ const CreateProduct = z.object({
   farm: z.string().max(80).optional(),
   image: z.string().url().nullable().optional(),
   variableWeight: z.boolean().optional(),
+  diet: z.enum(['VEG', 'NONVEG']).optional(),
+  isSeasonal: z.boolean().optional(),
   isActive: z.boolean().optional(),
   availability: z.enum(['AVAILABLE', 'SOLD_OUT', 'HIDDEN']).optional(),
 });

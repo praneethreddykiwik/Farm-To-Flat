@@ -47,6 +47,9 @@ export const api = createApi({
     }),
     searchCatalog: b.query({ query: (q) => `/catalog/search?q=${encodeURIComponent(q)}` }),
     getProduct: b.query({ query: (id) => `/catalog/${id}` }),
+    // Available coupons + their terms. Pass the cart subtotal (paise) so each carries an accurate
+    // "Add ₹X more to unlock" line.
+    getCoupons: b.query({ query: (subtotalPaise = 0) => `/coupons?subtotal=${subtotalPaise}` }),
 
     // ---- cart ----
     getCart: b.query({ query: () => '/cart', providesTags: ['Cart'] }),
@@ -145,6 +148,7 @@ export const {
   useCreateAddressMutation,
   useSetDefaultAddressMutation,
   useGetCatalogQuery,
+  useGetCouponsQuery,
   useSearchCatalogQuery,
   useLazySearchCatalogQuery,
   useGetProductQuery,

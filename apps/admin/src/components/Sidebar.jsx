@@ -13,6 +13,7 @@ import {
   IconReceipt,
   IconShield,
   IconTag,
+  IconTicket,
   IconTruck,
 } from './icons.jsx';
 
@@ -22,6 +23,7 @@ const NAV = [
   { section: 'Catalog' },
   { to: '/catalog', label: 'Products', icon: IconCatalog },
   { to: '/pricing', label: 'Pricing & margins', icon: IconTag },
+  { to: '/coupons', label: 'Coupons', icon: IconTicket },
   { to: '/communities', label: 'Communities', icon: IconMap },
   { section: 'Operations' },
   { to: '/orders', label: 'Orders', icon: IconReceipt },

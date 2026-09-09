@@ -144,3 +144,9 @@ export const IconClock = (p) => (
     <path d="M12 7v5l3 2" />
   </S>
 );
+export const IconTicket = (p) => (
+  <S {...p}>
+    <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z" />
+    <path d="M14 6v12" strokeDasharray="2 2" />
+  </S>
+);

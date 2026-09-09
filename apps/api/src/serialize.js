@@ -6,8 +6,57 @@
  * procurement figure. The admin serialiser is the operator panel and DOES expose cost + margin, so
  * Tharun can price. There is a test (serialize.test.js) that greps the public shape for leaks.
  */
-import { listCategories } from './store.js';
+import { getProduct, listCategories } from './store.js';
 import { money } from './lib/money.js';
+
+const rupees = (paise) => `₹${Math.round(Number(paise) / 100).toLocaleString('en-IN')}`;
+
+/** Human "what you get" line for a coupon, e.g. "10% off", "₹100 off", "Free coriander". */
+export function couponDiscountText(c) {
+  if (c.type === 'PERCENT') return `${Math.round(c.valueBp / 100)}% off`;
+  if (c.type === 'FLAT') return `${rupees(c.valuePaise)} off`;
+  if (c.type === 'FREE_ITEM') return `Free ${getProduct(c.freeProductId)?.name || 'item'}`;
+  return c.label || 'Discount';
+}
+
+/**
+ * Customer-facing coupon — terms only, never internal caps. `unlockText` tells the shopper exactly
+ * what's needed, e.g. "Spend ₹500 to unlock" or (when their basket already qualifies) null.
+ */
+export function couponPublic(c, subtotalPaise = 0) {
+  const min = Number(c.minOrderPaise || 0);
+  const met = Number(subtotalPaise) >= min;
+  return {
+    code: c.code,
+    label: c.label || couponDiscountText(c),
+    type: c.type,
+    discountText: couponDiscountText(c),
+    minOrderPaise: money(min),
+    minOrderText: min > 0 ? `Spend ${rupees(min)} to unlock` : 'No minimum',
+    unlockText:
+      !met && min > 0 ? `Add ${rupees(min - Number(subtotalPaise))} more to unlock` : null,
+    meetsMinimum: met,
+    expiresAt: c.expiresAt,
+  };
+}
+
+/** Operator coupon — the full row incl. caps and redemption count. */
+export function couponAdmin(c) {
+  return {
+    code: c.code,
+    label: c.label || couponDiscountText(c),
+    type: c.type,
+    valueBp: c.valueBp ?? null,
+    valuePaise: c.valuePaise != null ? money(c.valuePaise) : null,
+    freeProductId: c.freeProductId ?? null,
+    discountText: couponDiscountText(c),
+    minOrderPaise: money(c.minOrderPaise || 0),
+    expiresAt: c.expiresAt,
+    globalCap: c.globalCap ?? null,
+    redeemedCount: c.redeemedCount ?? 0,
+    isActive: c.isActive !== false,
+  };
+}
 
 let _cats = null;
 const cats = () => (_cats ||= listCategories());
@@ -31,9 +80,17 @@ export function productPublic(p) {
     image: p.image,
     blurhash: p.blurhash || null,
     variableWeight: !!p.variableWeight,
+    diet: dietOf(p),
+    isSeasonal: !!p.isSeasonal,
     isActive: p.isActive !== false,
     availability: p.availability || (p.isActive === false ? 'HIDDEN' : 'AVAILABLE'),
   };
+}
+
+/** Veg / non-veg. Explicit p.diet wins; otherwise everything in Meat & fish is non-veg, rest veg. */
+export function dietOf(p) {
+  if (p.diet === 'VEG' || p.diet === 'NONVEG') return p.diet;
+  return p.category === 'cat_meat' ? 'NONVEG' : 'VEG';
 }
 
 /** Operator product — everything the public shape has, PLUS cost and derived margin. */

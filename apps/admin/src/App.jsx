@@ -15,6 +15,7 @@ import { Fulfilment } from './screens/Fulfilment.jsx';
 import { Statistics } from './screens/Statistics.jsx';
 import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
+import { Coupons } from './screens/Coupons.jsx';
 
 export function App() {
   return (
@@ -27,6 +28,7 @@ export function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/coupons" element={<Coupons />} />
             <Route path="/communities" element={<Communities />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/procurement" element={<Procurement />} />

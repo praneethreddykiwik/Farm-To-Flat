@@ -22,8 +22,11 @@ import { ConfirmBanner } from '../../src/components/ConfirmBanner';
 import { ProductCard } from '../../src/components/ProductCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { CartBar } from '../../src/components/CartBar';
+import { DietToggle } from '../../src/components/DietToggle';
+import { SeasonalRail } from '../../src/components/SeasonalRail';
 import { useGetCatalogQuery, useGetMeQuery, useGetWindowsQuery } from '../../src/api/api';
 import { selectCustomer } from '../../src/features/auth/authSlice';
+import { filterByDiet, selectDietPref } from '../../src/features/ui/uiSlice';
 import { colors, radius } from '../../src/theme';
 import { KV_KEYS, kv } from '../../src/lib/kv';
 
@@ -41,6 +44,7 @@ export default function Home() {
   const catalog = useGetCatalogQuery();
   const windows = useGetWindowsQuery({});
   const [category, setCategory] = useState(null);
+  const dietPref = useSelector(selectDietPref);
   const listRef = useRef(null);
   const catalogY = useRef(600); // content offset where the catalog grid starts; measured below
   const y = useSharedValue(0);
@@ -52,9 +56,18 @@ export default function Home() {
   const data = catalog.data || cached;
   const categories = data?.categories || [];
   const products = useMemo(() => {
-    const all = data?.products || [];
-    return category ? all.filter((p) => p.categoryId === category) : all;
-  }, [data, category]);
+    const byDiet = filterByDiet(data?.products || [], dietPref);
+    return category ? byDiet.filter((p) => p.categoryId === category) : byDiet;
+  }, [data, category, dietPref]);
+  // "In season now" rail — only on the unfiltered shop view, and respecting the veg/non-veg choice.
+  const seasonal = useMemo(
+    () =>
+      filterByDiet(
+        (data?.products || []).filter((p) => p.isSeasonal),
+        dietPref,
+      ),
+    [data, dietPref],
+  );
   const nextWindow = windows.data?.windows?.find((w) => w.isOpen) || null;
 
   // Sticky glass search bar: fades in as the header scrolls away.
@@ -104,6 +117,7 @@ export default function Home() {
       <View style={{ marginTop: 4 }}>
         <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />
       </View>
+      {!category ? <SeasonalRail products={seasonal} /> : null}
       <View
         onLayout={(e) => {
           catalogY.current = e.nativeEvent.layout.y;
@@ -114,6 +128,9 @@ export default function Home() {
           title="Today’s catalog"
           action={{ label: 'Search', onPress: () => router.push('/search') }}
         />
+      </View>
+      <View style={styles.dietRow}>
+        <DietToggle />
       </View>
       <CategoryChips categories={categories} selected={category} onSelect={setCategory} />
       <View style={{ height: 8 }} />
@@ -164,7 +181,7 @@ export default function Home() {
               tintColor={colors.leaf}
             />
           }
-          extraData={category}
+          extraData={`${category}|${dietPref}`}
         />
       )}
       <Animated.View
@@ -183,6 +200,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   search: { marginHorizontal: GUTTER, marginTop: 18, marginBottom: 16 },
+  dietRow: { paddingHorizontal: GUTTER, paddingBottom: 12 },
   sticky: { position: 'absolute', left: GUTTER, right: GUTTER },
   skeleton: { paddingHorizontal: GUTTER },
 });

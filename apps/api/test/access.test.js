@@ -21,13 +21,15 @@ describe('access & roles', () => {
   });
 
   it('assigns a number a role and resolves it for the app', async () => {
+    // A number NOT in the boot seed (the seed pre-fills 9999900001 / 9848033333 / 9848011111 /
+    // 9848022222 so every role works on first run).
     const add = await request(app)
       .post('/api/v1/admin/access')
-      .send({ mobile: '9848022222', role: 'FULFILMENT', name: 'Driver' });
+      .send({ mobile: '9700000022', role: 'FULFILMENT', name: 'Driver' });
     expect(add.status).toBe(201);
     expect(add.body.staff.sections).toEqual(['fulfilment']);
 
-    const resolve = await request(app).get('/api/v1/access/resolve?mobile=9848022222');
+    const resolve = await request(app).get('/api/v1/access/resolve?mobile=9700000022');
     expect(resolve.body).toMatchObject({ isStaff: true, role: 'FULFILMENT', aiAccess: false });
     expect(resolve.body.sections).toEqual(['fulfilment']);
   });
@@ -41,7 +43,7 @@ describe('access & roles', () => {
   it('super admin always gets AI; others can be toggled', async () => {
     const add = await request(app)
       .post('/api/v1/admin/access')
-      .send({ mobile: '9848033333', role: 'ADMIN' });
+      .send({ mobile: '9700000033', role: 'ADMIN' });
     expect(add.body.staff.aiAccess).toBe(false);
     const on = await request(app)
       .patch(`/api/v1/admin/access/${add.body.staff.id}`)

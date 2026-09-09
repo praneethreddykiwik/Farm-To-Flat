@@ -23,6 +23,7 @@ import { colors, motion, radius } from '../theme';
 import { selectBagPulse } from '../features/ui/uiSlice';
 import { useGetCartQuery } from '../api/api';
 import { selectIsSignedIn } from '../features/auth/authSlice';
+import { selectAiVisible } from '../features/role/roleSlice';
 
 const ICONS = {
   index: Home,
@@ -59,16 +60,27 @@ export function TabBar({ state, descriptors, navigation }) {
   const { data } = useGetCartQuery(undefined, { skip: !signedIn });
   const count = data?.cart?.items?.length || 0;
   const pulse = useSelector(selectBagPulse);
+  // AI planner (the "plan" tab) is super-admin only. expo-router consumes the screen's `href`
+  // before it reaches these descriptors, so hiding via href:null doesn't take effect in a custom
+  // tab bar — gate the route by name here instead, which is authoritative.
+  const aiVisible = useSelector(selectAiVisible);
   const visible = state.routes.filter(
     (r) =>
       descriptors[r.key]?.options?.tabBarButton !== null &&
-      descriptors[r.key]?.options?.href !== null,
+      descriptors[r.key]?.options?.href !== null &&
+      (r.name !== 'plan' || aiVisible),
   );
 
-  const idx = useSharedValue(state.index);
+  // Position of the focused tab WITHIN the visible set (plan may be filtered out), so the sliding
+  // indicator lands on the right tab even when a route is hidden.
+  const activeVisible = Math.max(
+    0,
+    visible.findIndex((r) => r.key === state.routes[state.index]?.key),
+  );
+  const idx = useSharedValue(activeVisible);
   useEffect(() => {
-    idx.value = withSpring(state.index, motion.spring);
-  }, [state.index, idx]);
+    idx.value = withSpring(activeVisible, motion.spring);
+  }, [activeVisible, idx]);
 
   const bagScale = useSharedValue(1);
   useEffect(() => {
