@@ -32,10 +32,15 @@ const db = {
   orders: [],
   /** window bookings, key `${communityId}|${date}|${window}` -> count */
   windows: new Map(),
+  /** actual-cost records from procurement, key `${dateKey}|${productId}` -> record. Resets on restart. */
+  procurementRecords: new Map(),
   constants: {
     minOrderValuePaise: MIN_ORDER_VALUE_PAISE,
     deliveryChargePaise: DELIVERY_CHARGE_PAISE,
     topupDenominationsPaise: TOPUP_DENOMINATIONS_PAISE,
+    // Procurement cost-variance buffer. If the price actually paid is within ±costBufferPct of the
+    // estimate, the buy is auto-approved; otherwise it waits for admin approval. Admin editable.
+    procurement: { costBufferPct: 2, autoApprove: true },
   },
 };
 
@@ -192,6 +197,64 @@ export function deleteProduct(pid) {
   db.products.splice(i, 1);
   return true;
 }
+
+// ── procurement cost-buffer approval ────────────────────────────────────────
+export const getProcurementSettings = () => clone(db.constants.procurement);
+export function updateProcurementSettings(patch) {
+  const s = db.constants.procurement;
+  if (patch.costBufferPct != null)
+    s.costBufferPct = Math.max(0, Math.min(100, Number(patch.costBufferPct)));
+  if (patch.autoApprove != null) s.autoApprove = !!patch.autoApprove;
+  return clone(s);
+}
+
+/** Decide a buy's status from how far the paid price strayed from the estimate. */
+function decideStatus(estCostPaise, actualCostPaise, settings) {
+  const est = Number(estCostPaise);
+  if (!est || est <= 0) return { status: 'NEEDS_APPROVAL', variancePct: null };
+  const variancePct = ((Number(actualCostPaise) - est) / est) * 100;
+  const within = Math.abs(variancePct) <= Number(settings.costBufferPct || 0);
+  return {
+    status: settings.autoApprove && within ? 'AUTO_APPROVED' : 'NEEDS_APPROVAL',
+    variancePct: Math.round(variancePct * 10) / 10,
+  };
+}
+
+/** Procurement submits what they actually paid for a line. Returns the decided record. */
+export function submitProcurementCost({ productId, dateKey, estCostPaise, actualCostPaise }) {
+  const settings = db.constants.procurement;
+  const { status, variancePct } = decideStatus(estCostPaise, actualCostPaise, settings);
+  const record = {
+    productId,
+    dateKey: dateKey || 'all',
+    estCostPaise: Number(estCostPaise),
+    actualCostPaise: Number(actualCostPaise),
+    variancePct,
+    bufferPctAtSubmit: settings.costBufferPct,
+    status,
+    submittedAt: new Date().toISOString(),
+    decidedAt: status === 'AUTO_APPROVED' ? new Date().toISOString() : null,
+  };
+  db.procurementRecords.set(`${record.dateKey}|${productId}`, record);
+  return clone(record);
+}
+
+/** Admin approves or rejects a line that fell outside the buffer. */
+export function decideProcurementCost({ productId, dateKey, decision }) {
+  const key = `${dateKey || 'all'}|${productId}`;
+  const r = db.procurementRecords.get(key);
+  if (!r) return null;
+  r.status = decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+  r.decidedAt = new Date().toISOString();
+  return clone(r);
+}
+
+export const getProcurementRecord = (productId, dateKey) =>
+  clone(db.procurementRecords.get(`${dateKey || 'all'}|${productId}`) || null);
+export const listProcurementRecords = (dateKey) =>
+  [...db.procurementRecords.values()]
+    .filter((r) => !dateKey || r.dateKey === dateKey || r.dateKey === 'all')
+    .map((r) => clone(r));
 
 // ── coupon writes (admin) ───────────────────────────────────────────────────
 export const getCoupon = (code) => {

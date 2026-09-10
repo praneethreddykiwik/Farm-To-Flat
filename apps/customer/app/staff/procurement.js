@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
@@ -15,6 +15,14 @@ const LANGS = [
   { code: 'hi', label: 'हिंदी' },
   { code: 'te', label: 'తెలుగు' },
 ];
+
+// How each cost-approval state looks. null = the buyer hasn't entered a price yet.
+const STATUS = {
+  AUTO_APPROVED: { label: '✓ Auto-approved', bg: colors.leafSoft, fg: colors.leafDeep },
+  NEEDS_APPROVAL: { label: '⏳ Awaiting admin', bg: '#f6ecd4', fg: '#8a5a12' },
+  APPROVED: { label: '✓ Approved', bg: colors.leafSoft, fg: colors.leafDeep },
+  REJECTED: { label: '✕ Rejected', bg: '#f7dcd6', fg: '#8a2f22' },
+};
 
 export default function StaffProcurement() {
   const role = useSelector(selectEffectiveRole);
@@ -35,14 +43,45 @@ export default function StaffProcurement() {
     Linking.openURL(url).catch(() => {});
   }
 
+  // Update one line in place after its price is submitted, so the list doesn't flash a full reload.
+  const patchLine = useCallback((productId, record) => {
+    setData((d) => {
+      if (!d) return d;
+      const byCategory = d.byCategory.map((g) => ({
+        ...g,
+        items: g.items.map((it) =>
+          it.productId === productId
+            ? {
+                ...it,
+                actualCostPaise: String(record.actualCostPaise),
+                variancePct: record.variancePct,
+                approvalStatus: record.status,
+              }
+            : it,
+        ),
+      }));
+      const needsApprovalCount = byCategory
+        .flatMap((g) => g.items)
+        .filter((it) => it.approvalStatus === 'NEEDS_APPROVAL').length;
+      return { ...d, byCategory, needsApprovalCount };
+    });
+  }, []);
+
+  const buffer = data?.settings?.costBufferPct;
+  const autoOn = data?.settings?.autoApprove;
+
   return (
     <View style={styles.root}>
       <StaffHeader
         title="Procurement"
-        subtitle="What to buy for the open orders"
+        subtitle="Buy the list, enter what you paid"
         roleLabel={role.label || 'Procurement'}
       />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {error ? (
           <Empty text={error} onRetry={load} />
         ) : !data ? (
@@ -54,6 +93,21 @@ export default function StaffProcurement() {
               <Kpi value={String(data.skuCount)} label="Products" />
               <Kpi value={String(data.orderCount)} label="Open orders" />
             </View>
+
+            {buffer != null ? (
+              <View style={styles.bufferNote}>
+                <Text style={styles.bufferNoteText}>
+                  {autoOn
+                    ? `Prices within ±${buffer}% of the estimate approve automatically. Beyond that, the admin is asked.`
+                    : 'Every price you enter goes to the admin for approval.'}
+                </Text>
+                {data.needsApprovalCount > 0 ? (
+                  <Text style={styles.bufferPending}>
+                    {data.needsApprovalCount} waiting on admin approval
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
 
             <View style={styles.dlCard}>
               <Text style={styles.dlTitle}>Download purchase list</Text>
@@ -75,27 +129,93 @@ export default function StaffProcurement() {
                   </Text>
                 </View>
                 {g.items.map((it) => (
-                  <View key={it.productId} style={styles.row}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.itemName}>{it.name}</Text>
-                      <Text style={styles.itemSub}>
-                        {it.farm} · {it.orders} order{it.orders > 1 ? 's' : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.qtyCol}>
-                      <Text style={styles.ordered}>{qty(it.requiredQty, it.unit)} ordered</Text>
-                      <Text style={styles.procure}>Buy {qty(it.procureQty, it.unit)}</Text>
-                      <Text style={styles.buffer}>+{it.bufferPct}% buffer</Text>
-                    </View>
-                    <Text style={styles.cost}>{inr(it.procureCostPaise)}</Text>
-                  </View>
+                  <ProcureItem key={it.productId} item={it} onSubmitted={patchLine} />
                 ))}
               </View>
             ))}
-            <View style={{ height: 40 }} />
+            <View style={{ height: 60 }} />
           </>
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+function ProcureItem({ item, onSubmitted }) {
+  const [paid, setPaid] = useState(
+    item.actualCostPaise != null ? String(Number(item.actualCostPaise) / 100) : '',
+  );
+  const [busy, setBusy] = useState(false);
+  const st = STATUS[item.approvalStatus];
+
+  async function save() {
+    const rupees = parseFloat(paid);
+    if (!Number.isFinite(rupees) || rupees < 0) return;
+    setBusy(true);
+    try {
+      const { record } = await adminApi.submitProcurementCost(
+        item.productId,
+        Math.round(rupees * 100),
+      );
+      onSubmitted(item.productId, record);
+    } catch {
+      // leave the input as-is so they can retry
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={styles.item}>
+      <View style={styles.itemTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          <Text style={styles.itemSub}>
+            {item.farm} · {item.orders} order{item.orders > 1 ? 's' : ''}
+          </Text>
+        </View>
+        <View style={styles.qtyCol}>
+          <Text style={styles.procure}>Buy {qty(item.procureQty, item.unit)}</Text>
+          <Text style={styles.estCost}>est {inr(item.procureCostPaise)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.payRow}>
+        <View style={styles.inputWrap}>
+          <Text style={styles.rupee}>₹</Text>
+          <TextInput
+            style={styles.input}
+            value={paid}
+            onChangeText={setPaid}
+            placeholder="what you paid"
+            placeholderTextColor={colors.ink3}
+            keyboardType="decimal-pad"
+            returnKeyType="done"
+            onSubmitEditing={save}
+          />
+        </View>
+        <Pressable
+          style={[styles.saveBtn, busy && { opacity: 0.5 }]}
+          disabled={busy}
+          onPress={save}
+        >
+          <Text style={styles.saveText}>{busy ? '…' : 'Save'}</Text>
+        </Pressable>
+      </View>
+
+      {st ? (
+        <View style={styles.statusRow}>
+          <View style={[styles.statusBadge, { backgroundColor: st.bg }]}>
+            <Text style={[styles.statusText, { color: st.fg }]}>{st.label}</Text>
+          </View>
+          {item.variancePct != null ? (
+            <Text style={styles.variance}>
+              {item.variancePct > 0 ? '+' : ''}
+              {item.variancePct}% vs estimate
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -135,6 +255,14 @@ const styles = StyleSheet.create({
   kpiBig: { flex: 1.3 },
   kpiValue: { fontFamily: fonts.display, fontSize: 22, color: colors.ink, letterSpacing: -0.5 },
   kpiLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3, marginTop: 4 },
+  bufferNote: {
+    backgroundColor: 'rgba(14,27,20,0.04)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
+  bufferNoteText: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2, lineHeight: 18 },
+  bufferPending: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: '#8a5a12', marginTop: 6 },
   dlCard: {
     backgroundColor: colors.white,
     borderRadius: 18,
@@ -171,28 +299,49 @@ const styles = StyleSheet.create({
   },
   groupName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink },
   groupSub: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.ink3 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  item: {
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: colors.hairline,
-    gap: 10,
   },
+  itemTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   itemName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink },
   itemSub: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3, marginTop: 1 },
   qtyCol: { alignItems: 'flex-end' },
-  ordered: { fontFamily: fonts.body, fontSize: 11, color: colors.ink3 },
   procure: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink },
-  buffer: { fontFamily: fonts.body, fontSize: 10.5, color: colors.amber },
-  cost: {
-    fontFamily: fonts.display,
+  estCost: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3, marginTop: 1 },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  inputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.canvas,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingHorizontal: 12,
+  },
+  rupee: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink3 },
+  input: {
+    flex: 1,
+    fontFamily: fonts.bodyMedium,
     fontSize: 15,
     color: colors.ink,
-    minWidth: 62,
-    textAlign: 'right',
+    paddingVertical: 10,
+    paddingLeft: 6,
   },
+  saveBtn: {
+    backgroundColor: colors.leaf,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+  },
+  saveText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.white },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusText: { fontFamily: fonts.bodySemi, fontSize: 11.5 },
+  variance: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3 },
   emptyBox: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   retry: {
     backgroundColor: colors.white,

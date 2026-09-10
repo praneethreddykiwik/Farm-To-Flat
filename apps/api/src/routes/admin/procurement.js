@@ -15,7 +15,17 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../http.js';
 import { validateBody } from '../../validate.js';
-import { getProduct, listCategories, listOrders } from '../../store.js';
+import {
+  decideProcurementCost,
+  getProcurementRecord,
+  getProcurementSettings,
+  getProduct,
+  listCategories,
+  listOrders,
+  listProcurementRecords,
+  submitProcurementCost,
+  updateProcurementSettings,
+} from '../../store.js';
 import { planProcurement } from '../../lib/procure.js';
 import { money, formatINR } from '../../lib/money.js';
 import { todayISO } from '../../lib/dates.js';
@@ -65,6 +75,8 @@ function toLine(a, { override, dateKey }) {
   const unitCost = product?.costPaise ?? 0;
   const plan = planProcurement(a.qty, bufferPct, a.unit);
   const procureCost = Math.round(plan.procureQty * unitCost);
+  // Actual-cost record (if procurement has entered what they paid) drives the approval state.
+  const rec = getProcurementRecord(a.productId, dateKey);
   return {
     productId: a.productId,
     name: a.name,
@@ -78,6 +90,10 @@ function toLine(a, { override, dateKey }) {
     procureQty: plan.procureQty.toFixed(3),
     unitCostPaise: money(unitCost),
     procureCostPaise: money(procureCost),
+    // cost-buffer approval: null until procurement enters the price actually paid
+    actualCostPaise: rec ? money(rec.actualCostPaise) : null,
+    variancePct: rec ? rec.variancePct : null,
+    approvalStatus: rec ? rec.status : null, // AUTO_APPROVED | NEEDS_APPROVAL | APPROVED | REJECTED
     procured: procured.get(`${dateKey}|${a.productId}`) === true,
     _procureCost: procureCost,
   };
@@ -140,6 +156,8 @@ adminProcurementRouter.get(
       orderCount: orders.length,
       skuCount: lines.length,
       procuredCount: lines.filter((l) => l.procured).length,
+      settings: getProcurementSettings(),
+      needsApprovalCount: lines.filter((l) => l.approvalStatus === 'NEEDS_APPROVAL').length,
       totalProcureCostPaise: money(totalCost),
       byCategory: byCategory.map((g) => ({
         ...g,
@@ -160,6 +178,103 @@ adminProcurementRouter.post(
     if (req.body.procured) procured.set(key, true);
     else procured.delete(key);
     res.json({ ok: true, productId: req.body.productId, procured: req.body.procured });
+  }),
+);
+
+// ── cost-buffer settings (admin) ────────────────────────────────────────────
+adminProcurementRouter.get(
+  '/procurement/settings',
+  asyncHandler(async (_req, res) => {
+    res.json({ settings: getProcurementSettings() });
+  }),
+);
+
+adminProcurementRouter.patch(
+  '/procurement/settings',
+  validateBody(
+    z.object({
+      costBufferPct: z.number().min(0).max(100).optional(),
+      autoApprove: z.boolean().optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    res.json({ settings: updateProcurementSettings(req.body) });
+  }),
+);
+
+// Procurement enters the price actually paid for a line. Server auto-approves within the buffer,
+// otherwise marks it as needing admin approval, and returns the decision.
+adminProcurementRouter.post(
+  '/procurement/cost',
+  validateBody(
+    z.object({
+      productId: z.string().min(1),
+      date: z.string().optional(),
+      actualCostPaise: z.number().int().nonnegative(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const product = getProduct(req.body.productId);
+    if (!product)
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown product.' } });
+    // Re-derive the estimate for this line from the current open orders, so it can't be spoofed.
+    const { agg } = collect({ date: req.body.date });
+    const a = agg.get(req.body.productId);
+    const line = a
+      ? toLine(a, { override: overrideOf(req.query), dateKey: req.body.date || 'all' })
+      : null;
+    const estCostPaise = line ? Number(line.procureCostPaise) : Math.round(product.costPaise ?? 0);
+    const record = submitProcurementCost({
+      productId: req.body.productId,
+      dateKey: req.body.date,
+      estCostPaise,
+      actualCostPaise: req.body.actualCostPaise,
+    });
+    res.status(201).json({ record });
+  }),
+);
+
+// Everything currently waiting on the admin, newest first.
+adminProcurementRouter.get(
+  '/procurement/approvals',
+  asyncHandler(async (req, res) => {
+    const records = listProcurementRecords(req.query.date ? String(req.query.date) : undefined)
+      .filter((r) => r.status === 'NEEDS_APPROVAL')
+      .map((r) => {
+        const p = getProduct(r.productId);
+        return {
+          ...r,
+          estCostPaise: money(r.estCostPaise),
+          actualCostPaise: money(r.actualCostPaise),
+          name: p?.name || r.productId,
+          unit: p?.unit || null,
+        };
+      })
+      .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
+    res.json({ approvals: records, count: records.length });
+  }),
+);
+
+adminProcurementRouter.post(
+  '/procurement/approve',
+  validateBody(
+    z.object({
+      productId: z.string().min(1),
+      date: z.string().optional(),
+      decision: z.enum(['APPROVE', 'REJECT']),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const record = decideProcurementCost({
+      productId: req.body.productId,
+      dateKey: req.body.date,
+      decision: req.body.decision,
+    });
+    if (!record)
+      return res
+        .status(404)
+        .json({ error: { code: 'NOT_FOUND', message: 'No submitted cost for that line.' } });
+    res.json({ record });
   }),
 );
 

@@ -1,0 +1,333 @@
+// Farm-to-Flat production database — Postgres (Supabase).
+//
+// This mirrors the current in-memory store (apps/api/src/store.js + customer-store.js) one-to-one,
+// so the API's route contracts don't change when we swap the Maps for real tables. Money is ALWAYS
+// integer paise (Int) — never floats. Apply with:  pnpm prisma migrate dev --name init
+//
+// DATABASE_URL = Supabase pooler (port 6543, ?pgbouncer=true) for the app at runtime.
+// DIRECT_URL   = Supabase direct (port 5432) for migrations only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────── enums ───────────────────────────
+enum Unit {
+  KG
+  BUNCH
+  PIECE
+  DOZEN
+  PACK
+}
+
+enum Diet {
+  VEG
+  NONVEG
+}
+
+enum Availability {
+  AVAILABLE
+  SOLD_OUT
+  HIDDEN
+}
+
+enum CouponType {
+  PERCENT
+  FLAT
+  FREE_ITEM
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  PACKING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum DeliveryWindow {
+  MORNING
+  EVENING
+}
+
+enum StaffRole {
+  SUPER_ADMIN
+  ADMIN
+  PROCUREMENT
+  FULFILMENT
+}
+
+enum LedgerType {
+  TOPUP
+  SPEND
+  REFUND
+  ADJUSTMENT
+}
+
+enum PaymentStatus {
+  CREATED
+  CAPTURED
+  FAILED
+}
+
+enum ProcurementStatus {
+  AUTO_APPROVED
+  NEEDS_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+// ─────────────────────────── catalog ───────────────────────────
+model Category {
+  id       String    @id
+  name     String
+  tint     String?
+  order    Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id             String       @id @default(cuid())
+  category       Category     @relation(fields: [categoryId], references: [id])
+  categoryId     String
+  name           String
+  aliases        String[]     @default([])
+  unit           Unit
+  increment      Decimal      @db.Decimal(10, 3)
+  pricePaise     Int
+  costPaise      Int          @default(0) // operator-only; never serialized to customers
+  dailyCap       Int          @default(100)
+  bufferPct      Int          @default(10)
+  farm           String?
+  image          String?
+  blurhash       String?
+  variableWeight Boolean      @default(false)
+  diet           Diet         @default(VEG)
+  isSeasonal     Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  availability   Availability @default(AVAILABLE)
+  createdAt      DateTime     @default(now())
+  orderItems     OrderItem[]
+
+  @@index([categoryId])
+  @@index([diet])
+  @@index([isSeasonal])
+}
+
+model Community {
+  id             String    @id @default(cuid())
+  name           String
+  area           String?
+  blocks         String[]  @default([])
+  deliveryDays   Int[]     @default([]) // 0=Sun … 6=Sat
+  cutoffHours    Int       @default(10)
+  windowCapacity Int       @default(30)
+  isActive       Boolean   @default(true)
+  addresses      Address[]
+}
+
+model Coupon {
+  code          String     @id
+  label         String?
+  type          CouponType
+  valueBp       Int? // PERCENT: basis points (1000 = 10%)
+  valuePaise    Int? // FLAT: rupees off, in paise
+  freeProductId String? // FREE_ITEM
+  minOrderPaise Int        @default(0)
+  batchId       String?
+  expiresAt     DateTime
+  globalCap     Int?
+  redeemedCount Int        @default(0)
+  isActive      Boolean    @default(true)
+  redemptions   CouponRedemption[]
+}
+
+// One redemption per customer per coupon (enforces "already used on your account").
+model CouponRedemption {
+  id         String   @id @default(cuid())
+  coupon     Coupon   @relation(fields: [couponCode], references: [code])
+  couponCode String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String
+  createdAt  DateTime @default(now())
+
+  @@unique([couponCode, customerId])
+}
+
+// ─────────────────────────── customers & auth ───────────────────────────
+model Customer {
+  id                String             @id @default(cuid())
+  mobile            String             @unique
+  name              String?
+  walletBalancePaise Int               @default(0)
+  createdAt         DateTime           @default(now())
+  addresses         Address[]
+  orders            Order[]
+  ledger            WalletLedger[]
+  payments          Payment[]
+  devices           Device[]
+  sessions          Session[]
+  redemptions       CouponRedemption[]
+}
+
+// Refresh tokens (rotated on use). Short-lived OTPs belong in Redis (REDIS_URL), not here.
+model Session {
+  refreshToken String   @id
+  customer     Customer @relation(fields: [customerId], references: [id])
+  customerId   String
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([customerId])
+}
+
+model Device {
+  expoPushToken String   @id
+  customer      Customer @relation(fields: [customerId], references: [id])
+  customerId    String
+  createdAt     DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model Address {
+  id            String    @id @default(cuid())
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  customerId    String
+  community     Community @relation(fields: [communityId], references: [id])
+  communityId   String
+  block         String
+  flat          String
+  landmark      String?
+  recipientName String?
+  contactNumber String?
+  isDefault     Boolean   @default(false)
+  orders        Order[]
+
+  @@index([customerId])
+}
+
+// ─────────────────────────── orders ───────────────────────────
+model Order {
+  id                  String         @id @default(cuid())
+  orderNumber         String         @unique
+  customer            Customer       @relation(fields: [customerId], references: [id])
+  customerId          String
+  address             Address        @relation(fields: [addressId], references: [id])
+  addressId           String
+  status              OrderStatus    @default(PENDING_PAYMENT)
+  deliveryDate        String // ISO date (delivery run key)
+  window              DeliveryWindow
+  subtotalPaise       Int
+  couponCode          String?
+  couponDiscountPaise Int            @default(0)
+  deliveryChargePaise Int            @default(0)
+  totalPaise          Int
+  createdAt           DateTime       @default(now())
+  items               OrderItem[]
+  timeline            OrderEvent[]
+  payments            Payment[]
+
+  @@index([status])
+  @@index([deliveryDate, window])
+  @@index([customerId])
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        String
+  product        Product @relation(fields: [productId], references: [id])
+  productId      String
+  name           String // snapshot at order time
+  unit           Unit
+  quantity       Decimal @db.Decimal(10, 3)
+  unitPricePaise Int
+  unitCostPaise  Int // operator-only
+  lineTotalPaise Int
+  lineCostPaise  Int // operator-only
+  note           String?
+
+  @@index([orderId])
+}
+
+model OrderEvent {
+  id      String      @id @default(cuid())
+  order   Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+  status  OrderStatus
+  at      DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+// ─────────────────────────── money ───────────────────────────
+model WalletLedger {
+  id         String     @id @default(cuid())
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  customerId String
+  amountPaise Int // signed: +topup/refund, -spend
+  type       LedgerType
+  ref        String? // order id / payment id
+  createdAt  DateTime   @default(now())
+
+  @@index([customerId])
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  customerId       String
+  order            Order?        @relation(fields: [orderId], references: [id])
+  orderId          String?
+  purpose          String // ORDER | WALLET_TOPUP
+  amountPaise      Int
+  status           PaymentStatus @default(CREATED)
+  razorpayOrderId  String?
+  razorpayPaymentId String?
+  createdAt        DateTime      @default(now())
+
+  @@index([customerId])
+  @@index([orderId])
+}
+
+// ─────────────────────────── operations ───────────────────────────
+model Staff {
+  id        String    @id @default(cuid())
+  mobile    String    @unique
+  name      String?
+  role      StaffRole
+  aiAccess  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+}
+
+// The price procurement actually paid for a line, and its approval state against the cost buffer.
+model ProcurementRecord {
+  dateKey         String
+  productId       String
+  estCostPaise    Int
+  actualCostPaise Int
+  variancePct     Float?
+  status          ProcurementStatus
+  submittedAt     DateTime          @default(now())
+  decidedAt       DateTime?
+
+  @@id([dateKey, productId])
+}
+
+// App-wide settings (min order, procurement buffer, etc.) as a single row.
+model AppConfig {
+  id                        Int      @id @default(1)
+  minOrderValuePaise        Int      @default(50000)
+  deliveryChargePaise       Int      @default(0)
+  procurementCostBufferPct  Int      @default(2)
+  procurementAutoApprove    Boolean  @default(true)
+  updatedAt                 DateTime @updatedAt
+}

@@ -43,7 +43,14 @@ import { accessRouter } from './routes/access.js';
 const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
-app.use(cors());
+// CORS: in production, lock to an allowlist — set CORS_ORIGIN to a comma-separated list of the
+// admin/site origins (e.g. "https://admin.farmtoflat.in"). When unset (local dev) it reflects any
+// origin so the local admin panel and tools work without configuration.
+const corsOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(cors(corsOrigins.length ? { origin: corsOrigins, credentials: true } : {}));
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(pinoHttp());
 

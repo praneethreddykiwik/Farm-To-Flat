@@ -7,7 +7,18 @@
  */
 export function adminAuth(req, res, next) {
   const required = process.env.ADMIN_TOKEN;
-  if (!required) return next(); // dev: open. TODO(Adnan): replace with JWT + role check.
+  if (!required) {
+    // Fail CLOSED in production: never serve the operator panel open to the internet. In dev it
+    // stays open so the local panel works without config. TODO(Adnan): replace with JWT + role.
+    if (process.env.NODE_ENV === 'production') {
+      return res
+        .status(503)
+        .json({
+          error: { code: 'ADMIN_NOT_CONFIGURED', message: 'Admin auth is not configured.' },
+        });
+    }
+    return next();
+  }
   const provided = req.header('x-admin-token');
   if (provided !== required) {
     return res

@@ -23,6 +23,13 @@ export const adminApi = {
   metrics: () => j(`${ADMIN}/metrics`),
   procurement: (qs = '') => j(`${ADMIN}/procurement${qs}`),
   procurementCsvUrl: (qs = '') => `${ADMIN}/procurement/export.csv${qs}`,
+  /** Procurement submits the price actually paid for a line; server auto-approves or flags it. */
+  submitProcurementCost: (productId, actualCostPaise, date) =>
+    j(`${ADMIN}/procurement/cost`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, actualCostPaise, ...(date ? { date } : {}) }),
+    }),
   orders: (qs = '') => j(`${ADMIN}/orders${qs}`),
   order: (id) => j(`${ADMIN}/orders/${id}`),
   advance: (orderIds, status) =>

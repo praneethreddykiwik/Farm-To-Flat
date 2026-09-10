@@ -5,7 +5,7 @@
  * date to build a single run's list, apply a run-level buffer override, tick items off as bought
  * (shared checklist), and export the purchase CSV. Also summarised by farm/source.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { CountRupee, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
@@ -33,6 +33,83 @@ export function Procurement() {
   if (override !== '' && Number(override) >= 0) params.set('bufferPct', override);
   const qs = params.toString() ? `?${params.toString()}` : '';
   const { data, loading, error, reload } = useResource(`/admin/procurement${qs}`);
+
+  // Cost-buffer approval — settings + the flagged buys awaiting a decision.
+  const { data: settingsData, reload: reloadSettings } = useResource('/admin/procurement/settings');
+  const settings = settingsData?.settings;
+  const [bufPct, setBufPct] = useState('');
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  useEffect(() => {
+    if (settings) {
+      setBufPct(String(settings.costBufferPct));
+      setAutoApprove(!!settings.autoApprove);
+    }
+  }, [settings]);
+
+  const {
+    data: apprData,
+    loading: apprLoading,
+    error: apprError,
+    reload: reloadApprovals,
+  } = useResource('/admin/procurement/approvals');
+  const approvals = apprData?.approvals || [];
+  const apprCount = apprData?.count ?? approvals.length;
+  const [deciding, setDeciding] = useState({});
+
+  async function saveSettings(patch, msg) {
+    setSavingSettings(true);
+    try {
+      const r = await api.patch('/admin/procurement/settings', patch);
+      if (r?.settings) {
+        setBufPct(String(r.settings.costBufferPct));
+        setAutoApprove(!!r.settings.autoApprove);
+      }
+      toast(msg || 'Settings saved');
+      reloadSettings();
+    } catch (e) {
+      toast(e.message || 'Could not save', 'err');
+      if (settings) setAutoApprove(!!settings.autoApprove); // revert optimistic toggle
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+  function saveBuffer() {
+    const n = Number(bufPct);
+    if (!Number.isInteger(n) || n < 0 || n > 100)
+      return toast('Enter a whole number between 0 and 100.', 'err');
+    if (settings && n === Number(settings.costBufferPct)) return;
+    saveSettings({ costBufferPct: n }, 'Buffer saved');
+  }
+  function toggleAutoApprove() {
+    const next = !autoApprove;
+    setAutoApprove(next); // optimistic — reverted on error
+    saveSettings({ autoApprove: next }, next ? 'Auto-approve on' : 'Every buy needs approval');
+  }
+
+  async function decide(productId, decision) {
+    setDeciding((s) => ({ ...s, [productId]: decision }));
+    try {
+      await api.post('/admin/procurement/approve', { productId, decision });
+      toast(decision === 'APPROVE' ? 'Buy approved' : 'Buy rejected');
+      reloadApprovals();
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not update', 'err');
+      setDeciding((s) => {
+        const n = { ...s };
+        delete n[productId];
+        return n;
+      });
+    }
+  }
+
+  const varPct = (v) =>
+    `${v > 0 ? '+' : ''}${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`;
+  const varTint = (v) =>
+    v > 0
+      ? { bg: '#fbe3e1', fg: 'var(--tomato)' }
+      : { bg: 'var(--leaf-soft)', fg: 'var(--leaf-deep)' };
 
   const dates = data?.dates || [];
 
@@ -111,6 +188,124 @@ export function Procurement() {
           )}
         </div>
       </header>
+
+      <div className="grid-2" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+        {/* cost-buffer approval settings */}
+        <div className="glass card reveal">
+          <div className="card__head">
+            <h2 className="card__title" style={{ fontSize: 15 }}>
+              Cost-buffer approval
+            </h2>
+          </div>
+          <div className="field">
+            <label className="field__label">
+              Auto-approve within ±{bufPct === '' ? 0 : bufPct}% of the estimate
+            </label>
+            <div className="hstack" style={{ gap: 8 }}>
+              <input
+                className="field__input"
+                type="number"
+                min="0"
+                max="100"
+                value={bufPct}
+                onChange={(e) => setBufPct(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveBuffer()}
+                style={{ width: 110 }}
+              />
+              <span className="muted" style={{ fontSize: 13 }}>
+                %
+              </span>
+              <button className="btn btn--primary" onClick={saveBuffer} disabled={savingSettings}>
+                Save
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <label className="field__label">Approval mode</label>
+            <div>
+              <button
+                type="button"
+                className={`chip${autoApprove ? ' is-active' : ''}`}
+                onClick={toggleAutoApprove}
+                disabled={savingSettings}
+                title="Toggle auto-approve"
+              >
+                {autoApprove ? 'Auto-approve on' : 'Every buy needs approval'}
+              </button>
+            </div>
+          </div>
+          <p className="field__hint">
+            If the price paid is within this band of the estimate, the buy is approved
+            automatically. Outside it, it waits here for your approval.
+          </p>
+        </div>
+
+        {/* buys awaiting approval */}
+        <div className="glass card reveal">
+          <div className="card__head">
+            <h2 className="card__title" style={{ fontSize: 15 }}>
+              Awaiting approval{apprCount ? ` · ${apprCount}` : ''}
+            </h2>
+          </div>
+          {apprError ? (
+            <ErrorNote error={apprError} onRetry={reloadApprovals} />
+          ) : apprLoading ? (
+            <TableSkeleton rows={3} />
+          ) : approvals.length === 0 ? (
+            <div className="empty">Nothing waiting — everything&rsquo;s within budget.</div>
+          ) : (
+            <div className="vstack" style={{ gap: 0 }}>
+              {approvals.map((a, i) => {
+                const tint = varTint(a.variancePct);
+                const busy = deciding[a.productId];
+                return (
+                  <div
+                    key={a.productId}
+                    className="hstack"
+                    style={{
+                      justifyContent: 'space-between',
+                      padding: '12px 0',
+                      borderTop: i === 0 ? 'none' : '1px solid var(--hairline)',
+                      gap: 10,
+                    }}
+                  >
+                    <div>
+                      <div className="hstack" style={{ gap: 8 }}>
+                        <span style={{ fontWeight: 600 }}>{a.name}</span>
+                        <span className="badge" style={{ background: tint.bg, color: tint.fg }}>
+                          {varPct(a.variancePct)}
+                        </span>
+                      </div>
+                      <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>
+                        <span className="rupee">{inr(a.estCostPaise)}</span> →{' '}
+                        <span className="rupee">{inr(a.actualCostPaise)}</span>
+                        {a.unit ? ` · ${a.unit}` : ''}
+                      </div>
+                    </div>
+                    <div className="hstack" style={{ gap: 6 }}>
+                      <button
+                        className="btn btn--primary"
+                        onClick={() => decide(a.productId, 'APPROVE')}
+                        disabled={!!busy}
+                      >
+                        {busy === 'APPROVE' ? '…' : 'Approve'}
+                      </button>
+                      <button
+                        className="btn btn--ghost"
+                        onClick={() => decide(a.productId, 'REJECT')}
+                        style={{ color: 'var(--tomato)' }}
+                        disabled={!!busy}
+                      >
+                        {busy === 'REJECT' ? '…' : 'Reject'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
 
       {!loading && !error && data && (
         <section
