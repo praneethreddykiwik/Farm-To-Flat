@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
+import { personName, email, flat, floor, shortText, mobile } from '../lib/validators.js';
 import { customerPublic } from '../serialize.js';
 import { money } from '../lib/money.js';
 import {
@@ -38,8 +39,8 @@ meRouter.patch(
   '/',
   validateBody(
     z.object({
-      name: z.string().max(80).optional(),
-      email: z.string().email().nullable().optional(),
+      name: personName.optional(),
+      email: email.nullable().optional(),
     }),
   ),
   asyncHandler(async (req, res) => {
@@ -58,15 +59,15 @@ addressesRouter.get(
 );
 
 const AddressBody = z.object({
-  communityId: z.string().optional(),
-  block: z.string().min(1),
-  flat: z.string().min(1),
-  floor: z.string().nullable().optional(),
-  landmark: z.string().nullable().optional(),
-  recipientName: z.string().optional(),
-  contactNumber: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  communityId: z.string().min(1).max(60).optional(),
+  block: z.string().trim().min(1).max(40),
+  flat,
+  floor: floor.nullable().optional(),
+  landmark: shortText(80).nullable().optional(),
+  recipientName: personName.optional(),
+  contactNumber: mobile.optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   isDefault: z.boolean().optional(),
 });
 addressesRouter.post(

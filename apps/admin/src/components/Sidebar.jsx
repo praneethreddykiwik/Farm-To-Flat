@@ -9,6 +9,7 @@ import {
   IconChart,
   IconDash,
   IconLeaf,
+  IconLifeBuoy,
   IconMap,
   IconReceipt,
   IconShield,
@@ -32,6 +33,7 @@ const NAV = [
   { to: '/stats', label: 'Statistics', icon: IconChart },
   { section: 'Admin' },
   { to: '/access', label: 'Access & roles', icon: IconShield },
+  { to: '/settings', label: 'Support contact', icon: IconLifeBuoy },
 ];
 
 export function Sidebar() {

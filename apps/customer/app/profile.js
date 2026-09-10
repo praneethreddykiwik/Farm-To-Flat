@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -21,8 +21,10 @@ import {
 } from 'lucide-react-native';
 import { Ambient, Button, Display, Glass, Label, Pressy, Small, Text } from '../src/ui';
 import { EditFieldSheet } from '../src/components/EditFieldSheet';
+import { checkEmail, checkName } from '../src/lib/validators';
 import {
   useGetAddressesQuery,
+  useGetSupportQuery,
   useRegisterDeviceMutation,
   useSetDefaultAddressMutation,
   useUpdateMeMutation,
@@ -75,6 +77,8 @@ export default function Profile() {
   const dietProfile = useSelector(selectProfile);
   const aiVisible = useSelector(selectAiVisible);
   const { data } = useGetAddressesQuery();
+  const { data: supportData } = useGetSupportQuery();
+  const support = supportData?.support;
   const [setDefault] = useSetDefaultAddressMutation();
   const [registerDevice] = useRegisterDeviceMutation();
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
@@ -193,8 +197,9 @@ export default function Profile() {
                 value: customer?.name || '',
                 placeholder: 'Vivek Goud',
                 autoCapitalize: 'words',
+                maxLength: 40,
                 hint: 'The delivery team asks for this at your door.',
-                validate: (v) => (v.length < 2 ? 'Enter your name' : null),
+                validate: checkName,
               })
             }
           />
@@ -225,8 +230,9 @@ export default function Profile() {
                 placeholder: 'you@example.com',
                 keyboardType: 'email-address',
                 autoCapitalize: 'none',
+                maxLength: 120,
                 hint: 'We send invoices here. Optional.',
-                validate: (v) => (v && !/^\S+@\S+\.\S+$/.test(v) ? 'Check that address' : null),
+                validate: checkEmail,
               })
             }
           />
@@ -332,6 +338,34 @@ export default function Profile() {
             />
           ) : null}
         </Glass>
+
+        {support && (support.email || support.phone) ? (
+          <>
+            <Label style={{ marginTop: 26, marginBottom: 8 }}>Help &amp; support</Label>
+            <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
+              {support.email ? (
+                <Row
+                  icon={<Mail size={18} color={colors.ink} />}
+                  label="Email us"
+                  value={support.email}
+                  onPress={() => Linking.openURL(`mailto:${support.email}`).catch(() => {})}
+                  last={!support.phone}
+                />
+              ) : null}
+              {support.phone ? (
+                <Row
+                  icon={<Phone size={18} color={colors.ink} />}
+                  label="Call us"
+                  value={support.phone}
+                  onPress={() =>
+                    Linking.openURL(`tel:${support.phone.replace(/\s/g, '')}`).catch(() => {})
+                  }
+                  last
+                />
+              ) : null}
+            </Glass>
+          </>
+        ) : null}
 
         <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>

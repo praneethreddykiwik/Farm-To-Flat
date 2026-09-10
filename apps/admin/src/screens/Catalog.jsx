@@ -8,7 +8,7 @@ import { useResource, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconEdit, IconPlus, IconSearch, IconTrash } from '../components/icons.jsx';
-import { UNIT_LABEL, inr, toPaise, toRupees } from '../lib/format.js';
+import { UNIT_LABEL, inr, noLead, num, toPaise, toRupees } from '../lib/format.js';
 
 const UNITS = ['KG', 'BUNCH', 'PIECE', 'DOZEN', 'PACK'];
 
@@ -208,12 +208,40 @@ function ProductForm({ product, categories, onClose, onSaved }) {
     variableWeight: product ? product.variableWeight : false,
   }));
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const set = (k) => (e) =>
     setF((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
   const price = toPaise(f.priceR || 0);
   const cost = toPaise(f.costR || 0);
   const marginPct = price > 0 ? Math.round(((price - cost) / price) * 1000) / 10 : 0;
+
+  async function uploadImage(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast('Image must be under 5 MB', 'err');
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not read the file'));
+        reader.readAsDataURL(file);
+      });
+      const dataBase64 = String(dataUrl).split(',')[1] || '';
+      const { url } = await api.post('/admin/products/upload-image', {
+        contentType: file.type,
+        dataBase64,
+      });
+      setF((s) => ({ ...s, image: url }));
+      toast('Image uploaded');
+    } catch (err) {
+      toast(err.message || 'Could not upload image', 'err');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function save() {
     if (!f.name.trim() || !(price > 0)) return toast('Name and a price are required.', 'err');
@@ -289,8 +317,9 @@ function ProductForm({ product, categories, onClose, onSaved }) {
         <input
           className="field__input"
           value={f.name}
-          onChange={set('name')}
+          onChange={(e) => setF((s) => ({ ...s, name: noLead(e.target.value) }))}
           placeholder="Tomato"
+          maxLength={80}
         />
       </div>
       <div className="field__row">
@@ -322,8 +351,9 @@ function ProductForm({ product, categories, onClose, onSaved }) {
             className="field__input"
             type="number"
             min="0"
+            inputMode="decimal"
             value={f.priceR}
-            onChange={set('priceR')}
+            onChange={(e) => setF((s) => ({ ...s, priceR: num(e.target.value, { max: 100000 }) }))}
             placeholder="36"
           />
         </div>
@@ -333,8 +363,9 @@ function ProductForm({ product, categories, onClose, onSaved }) {
             className="field__input"
             type="number"
             min="0"
+            inputMode="decimal"
             value={f.costR}
-            onChange={set('costR')}
+            onChange={(e) => setF((s) => ({ ...s, costR: num(e.target.value, { max: 100000 }) }))}
             placeholder="26"
           />
         </div>
@@ -370,8 +401,9 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           <label className="field__label">Increment</label>
           <input
             className="field__input"
+            inputMode="decimal"
             value={f.increment}
-            onChange={set('increment')}
+            onChange={(e) => setF((s) => ({ ...s, increment: num(e.target.value, { max: 1000 }) }))}
             placeholder="0.25"
           />
         </div>
@@ -381,8 +413,11 @@ function ProductForm({ product, categories, onClose, onSaved }) {
             className="field__input"
             type="number"
             min="1"
+            inputMode="numeric"
             value={f.dailyCap}
-            onChange={set('dailyCap')}
+            onChange={(e) =>
+              setF((s) => ({ ...s, dailyCap: num(e.target.value, { max: 100000, integer: true }) }))
+            }
           />
         </div>
       </div>
@@ -393,8 +428,11 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           type="number"
           min="0"
           max="100"
+          inputMode="numeric"
           value={f.bufferPct}
-          onChange={set('bufferPct')}
+          onChange={(e) =>
+            setF((s) => ({ ...s, bufferPct: num(e.target.value, { max: 100, integer: true }) }))
+          }
           placeholder="10"
         />
         <p className="field__hint">
@@ -407,8 +445,9 @@ function ProductForm({ product, categories, onClose, onSaved }) {
         <input
           className="field__input"
           value={f.farm}
-          onChange={set('farm')}
+          onChange={(e) => setF((s) => ({ ...s, farm: noLead(e.target.value) }))}
           placeholder="Shamshabad belt"
+          maxLength={60}
         />
       </div>
       <div className="field">
@@ -418,17 +457,40 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           value={f.aliases}
           onChange={set('aliases')}
           placeholder="tamata, tamatar, టమాటా"
+          maxLength={200}
         />
         <p className="field__hint">Powers alias search in the app — add Telugu / Hindi names.</p>
       </div>
       <div className="field">
-        <label className="field__label">Image URL</label>
-        <input
-          className="field__input"
-          value={f.image}
-          onChange={set('image')}
-          placeholder="https://…"
-        />
+        <label className="field__label">Image</label>
+        <div className="hstack" style={{ gap: 12, alignItems: 'flex-start' }}>
+          {f.image && <Thumb name={f.name} image={f.image} tint={product?.tint} />}
+          <div style={{ flex: 1 }}>
+            <input
+              className="field__input"
+              value={f.image}
+              onChange={set('image')}
+              placeholder="https://…"
+              maxLength={500}
+            />
+            <label
+              className="btn btn--ghost btn--sm"
+              style={{ marginTop: 8, cursor: uploading ? 'default' : 'pointer' }}
+            >
+              {uploading ? 'Uploading…' : 'Upload image'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/avif"
+                onChange={uploadImage}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+            </label>
+          </div>
+        </div>
+        <p className="field__hint">
+          Paste a URL or upload a file (PNG, JPEG, WebP, AVIF · max 5 MB).
+        </p>
       </div>
       <div className="field">
         <label className="field__label">Availability</label>

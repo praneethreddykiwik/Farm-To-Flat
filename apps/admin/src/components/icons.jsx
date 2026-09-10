@@ -150,3 +150,10 @@ export const IconTicket = (p) => (
     <path d="M14 6v12" strokeDasharray="2 2" />
   </S>
 );
+export const IconLifeBuoy = (p) => (
+  <S {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="3.5" />
+    <path d="m4.9 4.9 4.6 4.6M14.5 14.5l4.6 4.6M19.1 4.9l-4.6 4.6M9.5 14.5l-4.6 4.6" />
+  </S>
+);

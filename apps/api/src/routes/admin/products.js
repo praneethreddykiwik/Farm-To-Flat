@@ -19,6 +19,7 @@ import {
   listProducts,
   updateProduct,
 } from '../../store.js';
+import { allowedImageTypes, storageEnabled, uploadProductImage } from '../../lib/storage.js';
 
 export const adminProductsRouter = Router();
 
@@ -95,6 +96,33 @@ adminProductsRouter.delete(
   asyncHandler(async (req, res) => {
     if (!deleteProduct(req.params.id)) throw fail(404, 'NOT_FOUND', 'Product not found');
     res.json({ ok: true });
+  }),
+);
+
+/**
+ * Upload a product image to Supabase Storage and return its public URL. The admin sends the file as
+ * base64; the URL then goes into the product's `image` field (create/edit). Server-side upload keeps
+ * the storage key off the browser.
+ */
+const UploadImage = z.object({
+  contentType: z.enum(/** @type {any} */ (allowedImageTypes)),
+  dataBase64: z.string().min(1),
+});
+adminProductsRouter.post(
+  '/products/upload-image',
+  validateBody(UploadImage),
+  asyncHandler(async (req, res) => {
+    if (!storageEnabled)
+      throw fail(
+        501,
+        'STORAGE_OFF',
+        'Image storage is not configured (set SUPABASE_URL + service key).',
+      );
+    const buffer = Buffer.from(req.body.dataBase64, 'base64');
+    if (buffer.length === 0) throw fail(422, 'VALIDATION', 'Empty image.');
+    if (buffer.length > 5 * 1024 * 1024) throw fail(413, 'TOO_LARGE', 'Image must be under 5 MB.');
+    const url = await uploadProductImage({ buffer, contentType: req.body.contentType });
+    res.status(201).json({ url });
   }),
 );
 

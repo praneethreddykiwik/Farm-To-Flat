@@ -8,7 +8,7 @@ import { useResource, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote } from '../components/ui.jsx';
 import { IconMap, IconPlus } from '../components/icons.jsx';
-import { shortDate } from '../lib/format.js';
+import { noLead, num, shortDate } from '../lib/format.js';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAYNAME = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -260,7 +260,6 @@ function CommunityForm({ onClose, onSaved }) {
     deliveryDays: [2, 4, 6],
   });
   const [saving, setSaving] = useState(false);
-  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
   const toggle = (i) =>
     setF((s) => ({
       ...s,
@@ -316,8 +315,9 @@ function CommunityForm({ onClose, onSaved }) {
         <input
           className="field__input"
           value={f.name}
-          onChange={set('name')}
+          onChange={(e) => setF((s) => ({ ...s, name: noLead(e.target.value) }))}
           placeholder="Aparna Sarovar"
+          maxLength={60}
         />
       </div>
       <div className="field">
@@ -325,8 +325,9 @@ function CommunityForm({ onClose, onSaved }) {
         <input
           className="field__input"
           value={f.area}
-          onChange={set('area')}
+          onChange={(e) => setF((s) => ({ ...s, area: noLead(e.target.value) }))}
           placeholder="Nallagandla"
+          maxLength={60}
         />
       </div>
       <div className="field">
@@ -334,8 +335,9 @@ function CommunityForm({ onClose, onSaved }) {
         <input
           className="field__input"
           value={f.blocks}
-          onChange={set('blocks')}
+          onChange={(e) => setF((s) => ({ ...s, blocks: noLead(e.target.value) }))}
           placeholder="Tower A, Tower B, Tower C"
+          maxLength={200}
         />
         <p className="field__hint">Residents pick their block when adding an address in the app.</p>
       </div>
@@ -365,8 +367,14 @@ function CommunityForm({ onClose, onSaved }) {
           className="field__input"
           type="number"
           min="5"
+          inputMode="numeric"
           value={f.windowCapacity}
-          onChange={set('windowCapacity')}
+          onChange={(e) =>
+            setF((s) => ({
+              ...s,
+              windowCapacity: num(e.target.value, { max: 100000, integer: true }),
+            }))
+          }
         />
       </div>
     </Drawer>

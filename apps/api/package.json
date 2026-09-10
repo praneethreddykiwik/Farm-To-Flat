@@ -8,13 +8,22 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "typecheck": "tsc -p jsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:push": "prisma db push",
+    "db:seed": "node --env-file=.env prisma/seed.mjs",
+    "db:setup": "prisma db push && node --env-file=.env prisma/seed.mjs",
+    "db:reset": "prisma db push --force-reset --accept-data-loss && node --env-file=.env prisma/seed.mjs",
+    "db:studio": "prisma studio",
+    "db:storage": "node --env-file=.env prisma/storage-setup.mjs"
   },
   "dependencies": {
+    "@prisma/client": "6.16.0",
+    "@supabase/supabase-js": "2.116.0",
     "cors": "2.8.6",
     "express": "4.22.2",
     "helmet": "8.3.0",
     "pino-http": "10.5.0",
+    "prisma": "6.16.0",
     "zod": "3.25.76"
   },
   "devDependencies": {

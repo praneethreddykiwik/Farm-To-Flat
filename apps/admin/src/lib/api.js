@@ -4,7 +4,9 @@
  * Every non-2xx response carries the contract envelope { error: { code, message } }, which we
  * surface as a thrown ApiError so screens can show the operator a real message.
  */
-const BASE = '/api/v1';
+// In dev the Vite proxy handles /api → localhost:4000, so no base URL is needed. In production set
+// VITE_API_URL (e.g. https://api.farmtoflat.in) so the built site calls the live API directly.
+const BASE = `${import.meta.env.VITE_API_URL || ''}/api/v1`;
 
 export class ApiError extends Error {
   constructor(status, code, message, details) {

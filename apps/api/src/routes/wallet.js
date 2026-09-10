@@ -17,6 +17,12 @@ import {
   ledgerPush,
   releaseCoupon,
 } from '../customer-store.js';
+import {
+  createRazorpayOrder,
+  razorpayEnabled,
+  razorpayKeyId,
+  verifyRazorpaySignature,
+} from '../lib/razorpay.js';
 
 export const walletRouter = Router();
 
@@ -41,10 +47,20 @@ walletRouter.post(
     if (!constants().topupDenominationsPaise.includes(amount))
       throw fail(422, 'VALIDATION', 'Choose one of the top-up amounts.');
     const pay = createPayment(req.customerId, { purpose: 'TOPUP', amountPaise: amount });
+    // Create a REAL Razorpay order so the app's checkout has a valid order to pay against.
+    if (razorpayEnabled) {
+      const order = await createRazorpayOrder({
+        amountPaise: amount,
+        receipt: pay.id,
+        notes: { purpose: 'TOPUP', customerId: req.customerId },
+      });
+      pay.razorpayOrderId = order.id;
+    }
     res.status(201).json({
       paymentIntent: {
         paymentId: pay.id,
         razorpayOrderId: pay.razorpayOrderId,
+        keyId: razorpayKeyId,
         amountPaise: money(amount),
         description: 'Wallet top-up',
       },
@@ -94,6 +110,17 @@ paymentsRouter.post(
         }
       }
       return res.json({ status: 'FAILED' });
+    }
+
+    // With real Razorpay, the checkout returns a signature we MUST verify with the key secret before
+    // capturing — never trust the client's "success" alone. (Production also confirms via webhook.)
+    if (razorpayEnabled && (razorpayPaymentId || req.body.razorpaySignature)) {
+      const ok = verifyRazorpaySignature({
+        orderId: req.body.razorpayOrderId || pay.razorpayOrderId,
+        paymentId: razorpayPaymentId,
+        signature: req.body.razorpaySignature,
+      });
+      if (!ok) throw fail(400, 'SIGNATURE_INVALID', 'Payment could not be verified.');
     }
 
     pay.status = 'CAPTURED';

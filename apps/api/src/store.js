@@ -41,6 +41,13 @@ const db = {
     // Procurement cost-variance buffer. If the price actually paid is within ±costBufferPct of the
     // estimate, the buy is auto-approved; otherwise it waits for admin approval. Admin editable.
     procurement: { costBufferPct: 2, autoApprove: true },
+    // Support contact shown in the app. Each channel is shown to customers only when its toggle is on.
+    support: {
+      email: 'support@farmtoflat.in',
+      phone: '',
+      showEmail: true,
+      showPhone: false,
+    },
   },
 };
 
@@ -196,6 +203,25 @@ export function deleteProduct(pid) {
   if (i === -1) return false;
   db.products.splice(i, 1);
   return true;
+}
+
+// ── support contact ──────────────────────────────────────────────────────────
+export const getSupport = () => clone(db.constants.support);
+export function updateSupport(patch) {
+  const s = db.constants.support;
+  if (patch.email !== undefined) s.email = String(patch.email).trim();
+  if (patch.phone !== undefined) s.phone = String(patch.phone).trim();
+  if (patch.showEmail !== undefined) s.showEmail = !!patch.showEmail;
+  if (patch.showPhone !== undefined) s.showPhone = !!patch.showPhone;
+  return clone(s);
+}
+/** Customer-facing: each channel only when its toggle is on. */
+export function publicSupport() {
+  const s = db.constants.support;
+  return {
+    email: s.showEmail && s.email ? s.email : null,
+    phone: s.showPhone && s.phone ? s.phone : null,
+  };
 }
 
 // ── procurement cost-buffer approval ────────────────────────────────────────

@@ -55,6 +55,12 @@ export function Fulfilment() {
     return map;
   }, [data]);
 
+  // cancellation requests can come from any stage — filter on the boolean, not on status
+  const cancelReqs = useMemo(
+    () => (data?.orders || []).filter((o) => o.cancelRequested === true),
+    [data],
+  );
+
   // detect newly-arrived orders and flash them
   useEffect(() => {
     const orders = data?.orders;
@@ -123,6 +129,20 @@ export function Fulfilment() {
       reload();
     } catch (e) {
       toast(e.message || 'Could not advance', 'err');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Approve or decline a cancellation request. Approve → CANCELLED (server refunds + releases coupon). */
+  async function decideCancel(order, decision) {
+    setBusy(`cancel:${order.id}`);
+    try {
+      await api.post(`/admin/orders/${order.id}/cancel-decision`, { decision });
+      toast(decision === 'APPROVE' ? 'Cancellation approved' : 'Request declined');
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not update', 'err');
     } finally {
       setBusy(null);
     }
@@ -265,6 +285,62 @@ export function Fulfilment() {
     );
   };
 
+  /** A cancellation-request card — an action list item, not a drag target. */
+  const renderCancelCard = (o) => {
+    const isBusy = busy === `cancel:${o.id}`;
+    return (
+      <div key={o.id} className="ocard ocard--cancel" onClick={() => setOpenId(o.id)}>
+        <div className="hstack" style={{ justifyContent: 'space-between' }}>
+          <span className="ocard__no">{o.orderNumber}</span>
+          <span className="rupee" style={{ fontSize: 13 }}>
+            {inr(o.totalPaise)}
+          </span>
+        </div>
+        <div className="ocard__name">{o.customerName}</div>
+        <div className="ocard__meta">
+          <span>
+            {o.address?.communityName} · {o.address?.block} {o.address?.flat}
+          </span>
+        </div>
+        <div className="hstack" style={{ marginTop: 8 }}>
+          <span className={`badge st-${o.status}`} style={{ fontSize: 11 }}>
+            <span className="badge__dot" />
+            {titleCase(o.status)}
+          </span>
+        </div>
+        {o.cancelReason && (
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Reason: {o.cancelReason}
+          </div>
+        )}
+        <div className="hstack" style={{ gap: 8, marginTop: 11 }}>
+          <button
+            className="btn btn--primary btn--sm"
+            style={{ flex: 1, background: 'var(--tomato)', boxShadow: 'none' }}
+            disabled={isBusy}
+            onClick={(e) => {
+              e.stopPropagation();
+              decideCancel(o, 'APPROVE');
+            }}
+          >
+            {isBusy ? '…' : 'Approve cancellation'}
+          </button>
+          <button
+            className="btn btn--ghost btn--sm"
+            style={{ color: 'var(--tomato)' }}
+            disabled={isBusy}
+            onClick={(e) => {
+              e.stopPropagation();
+              decideCancel(o, 'DECLINE');
+            }}
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <header className="topbar">
@@ -335,6 +411,22 @@ export function Fulfilment() {
               )}
             </div>
           ))}
+
+          {/* Cancellation requests — always the final stack, flat list, not a drag target */}
+          <div className="glass board__col board__col--cancel">
+            <div className="board__colhead">
+              <span className="badge st-CANCELLED">
+                <span className="badge__dot" />
+                Cancellation requests
+              </span>
+              <span className="board__count">{cancelReqs.length}</span>
+            </div>
+            {cancelReqs.length === 0 ? (
+              <div className="board__empty">No requests</div>
+            ) : (
+              cancelReqs.map((o) => renderCancelCard(o))
+            )}
+          </div>
         </div>
       )}
 

@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { orderCustomer } from '../serialize.js';
+import { createRazorpayOrder, razorpayEnabled, razorpayKeyId } from '../lib/razorpay.js';
 import {
   bookedFor,
   book,
@@ -133,9 +134,18 @@ customerOrdersRouter.post(
     let paymentIntent = null;
     if (gateway > 0) {
       const pay = createPayment(cid, { purpose: 'ORDER', orderId: order.id, amountPaise: gateway });
+      if (razorpayEnabled) {
+        const rzOrder = await createRazorpayOrder({
+          amountPaise: gateway,
+          receipt: pay.id,
+          notes: { purpose: 'ORDER', orderId: order.id, customerId: cid },
+        });
+        pay.razorpayOrderId = rzOrder.id;
+      }
       paymentIntent = {
         paymentId: pay.id,
         razorpayOrderId: pay.razorpayOrderId,
+        keyId: razorpayKeyId,
         amountPaise: String(gateway),
         description: `Order ${order.orderNumber}`,
       };
@@ -163,28 +173,53 @@ customerOrdersRouter.get(
   }),
 );
 
+/**
+ * Cancel an order. If it hasn't been paid/started (PENDING_PAYMENT) it's cancelled immediately and
+ * any wallet money is refunded. Once it's CONFIRMED or further (the farm procures and packs against
+ * it), a straight cancel isn't safe — so it becomes a CANCELLATION REQUEST that surfaces on the
+ * operator's Fulfilment board for approval. The refund/coupon release happens when the operator
+ * approves, not before.
+ */
 customerOrdersRouter.post(
   '/:id/cancel',
+  validateBody(z.object({ reason: z.string().max(300).optional() })),
   asyncHandler(async (req, res) => {
     const cid = req.customerId;
     const existing = getOrderForCustomer(req.params.id, cid);
     if (!existing) throw fail(404, 'NOT_FOUND', 'Order not found');
-    if (!['CONFIRMED', 'PENDING_PAYMENT'].includes(existing.status))
-      throw fail(409, 'CANNOT_CANCEL', 'This order has already been packed.');
+    if (existing.status === 'CANCELLED') throw fail(409, 'CANNOT_CANCEL', 'Already cancelled.');
+    if (existing.status === 'DELIVERED')
+      throw fail(409, 'CANNOT_CANCEL', 'This order has already been delivered.');
+    if (existing.cancelRequested)
+      // already asked — idempotent, just return it
+      return res.json({ order: orderCustomer(existing), cancelRequested: true });
+
+    // Not yet paid/started → cancel outright and refund now.
+    if (existing.status === 'PENDING_PAYMENT') {
+      const updated = patchOrder(req.params.id, (o) => {
+        o.status = 'CANCELLED';
+        o.timeline.push({ status: 'CANCELLED', at: new Date().toISOString() });
+      });
+      if (existing.walletAppliedPaise > 0)
+        ledgerPush(
+          cid,
+          'CREDIT',
+          existing.walletAppliedPaise,
+          'REFUND',
+          existing.orderNumber,
+          `Refund for ${existing.orderNumber}`,
+        );
+      if (existing.couponCode) releaseCoupon(cid, existing.couponCode);
+      return res.json({ order: orderCustomer(updated), cancelled: true });
+    }
+
+    // CONFIRMED / PACKING / OUT_FOR_DELIVERY → ask the operator to approve.
     const updated = patchOrder(req.params.id, (o) => {
-      o.status = 'CANCELLED';
-      o.timeline.push({ status: 'CANCELLED', at: new Date().toISOString() });
+      o.cancelRequested = true;
+      o.cancelReason = req.body.reason || null;
+      o.cancelRequestedAt = new Date().toISOString();
+      o.timeline.push({ status: 'CANCEL_REQUESTED', at: o.cancelRequestedAt });
     });
-    if (existing.walletAppliedPaise > 0)
-      ledgerPush(
-        cid,
-        'CREDIT',
-        existing.walletAppliedPaise,
-        'REFUND',
-        existing.orderNumber,
-        `Refund for ${existing.orderNumber}`,
-      );
-    if (existing.couponCode) releaseCoupon(cid, existing.couponCode);
-    res.json({ order: orderCustomer(updated) });
+    res.json({ order: orderCustomer(updated), cancelRequested: true });
   }),
 );

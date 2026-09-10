@@ -50,6 +50,8 @@ export const api = createApi({
     // Available coupons + their terms. Pass the cart subtotal (paise) so each carries an accurate
     // "Add ₹X more to unlock" line.
     getCoupons: b.query({ query: (subtotalPaise = 0) => `/coupons?subtotal=${subtotalPaise}` }),
+    // Support contact the app shows (email/phone, each only if the admin enabled it).
+    getSupport: b.query({ query: () => '/support' }),
 
     // ---- cart ----
     getCart: b.query({ query: () => '/cart', providesTags: ['Cart'] }),
@@ -149,6 +151,7 @@ export const {
   useSetDefaultAddressMutation,
   useGetCatalogQuery,
   useGetCouponsQuery,
+  useGetSupportQuery,
   useSearchCatalogQuery,
   useLazySearchCatalogQuery,
   useGetProductQuery,

@@ -191,7 +191,10 @@ export function orderCustomer(o) {
     address: o.address,
     createdAt: o.createdAt,
     timeline: o.timeline,
-    canCancel: ['CONFIRMED', 'PENDING_PAYMENT'].includes(o.status),
+    cancelRequested: !!o.cancelRequested,
+    cancelReason: o.cancelReason || null,
+    // Can start a cancellation unless it's already done, delivered, or a request is pending.
+    canCancel: !['DELIVERED', 'CANCELLED'].includes(o.status) && !o.cancelRequested,
   };
 }
 
@@ -215,5 +218,8 @@ export function orderAdmin(o) {
     address: o.address,
     createdAt: o.createdAt,
     timeline: o.timeline,
+    cancelRequested: !!o.cancelRequested,
+    cancelReason: o.cancelReason || null,
+    cancelRequestedAt: o.cancelRequestedAt || null,
   };
 }

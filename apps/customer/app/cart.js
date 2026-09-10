@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +30,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCart, useCartLine } from '../src/hooks/useCart';
 import {
+  useGetCouponsQuery,
   useRemoveCartItemMutation,
   useRemoveCouponMutation,
   useSetCartItemMutation,
@@ -125,23 +126,39 @@ function Line({ item }) {
   );
 }
 
-function MinimumBar({ subtotal, minimum }) {
-  const pct = Math.min(1, Number(subtotal) / Number(minimum));
+/**
+ * Progress toward the ₹500 minimum first, then — once that's met — toward the next coupon the basket
+ * hasn't unlocked yet (e.g. "Spend ₹150 more to unlock 15% off"). Tracks live as the total grows.
+ */
+function MinimumBar({ subtotal, minimum, nextCoupon }) {
+  const sub = Number(subtotal);
+  const min = Number(minimum);
+  const belowMin = sub < min;
+  // The current goal: the ₹500 minimum, else the next locked coupon's threshold.
+  const target = belowMin ? min : nextCoupon ? Number(nextCoupon.minOrderPaise) : min;
+  const pct = target > 0 ? Math.min(1, sub / target) : 1;
   const style = useAnimatedStyle(() => ({
     width: withSpring(`${Math.round(pct * 100)}%`, motion.springSoft),
   }));
-  const short = Number(minimum) - Number(subtotal);
+
+  let message;
+  if (belowMin) {
+    message = `₹${Math.ceil((min - sub) / 100)} more to reach the ₹500 minimum`;
+  } else if (nextCoupon) {
+    const more = Math.ceil((Number(nextCoupon.minOrderPaise) - sub) / 100);
+    message = `Spend ₹${more} more to unlock ${nextCoupon.discountText}`;
+  } else {
+    message = 'Minimum reached — all offers unlocked 🎉';
+  }
+  const fillColor = belowMin ? colors.amber : colors.leaf;
+
   return (
     <View style={{ marginTop: 14 }}>
       <View style={styles.track}>
-        <Animated.View
-          style={[styles.fill, { backgroundColor: pct >= 1 ? colors.leaf : colors.amber }, style]}
-        />
+        <Animated.View style={[styles.fill, { backgroundColor: fillColor }, style]} />
       </View>
       <Small muted style={{ marginTop: 6 }}>
-        {short > 0
-          ? `₹${Math.ceil(short / 100)} more to reach the ₹500 minimum`
-          : 'Minimum reached. Delivery is free.'}
+        {message}
       </Small>
     </View>
   );
@@ -153,6 +170,14 @@ export default function Cart() {
   const dispatch = useDispatch();
   const { cart, isLoading } = useCart();
   const [removeCoupon] = useRemoveCouponMutation();
+  // The next coupon the basket hasn't unlocked yet — drives the progressive "spend ₹X more" nudge.
+  const { data: couponData } = useGetCouponsQuery(Number(cart?.subtotalPaise || 0), {
+    skip: !cart,
+  });
+  const nextCoupon = useMemo(() => {
+    const locked = (couponData?.coupons || []).filter((c) => !c.meetsMinimum);
+    return locked.sort((a, b) => Number(a.minOrderPaise) - Number(b.minOrderPaise))[0] || null;
+  }, [couponData]);
   const items = cart?.items || [];
   const isSheet = Platform.OS === 'ios';
 
@@ -287,7 +312,11 @@ export default function Cart() {
                       />
                     ) : null}
                     <Row label="Delivery" paise={cart.deliveryChargePaise} free />
-                    <MinimumBar subtotal={cart.subtotalPaise} minimum={cart.minOrderValuePaise} />
+                    <MinimumBar
+                      subtotal={cart.subtotalPaise}
+                      minimum={cart.minOrderValuePaise}
+                      nextCoupon={nextCoupon}
+                    />
                   </Glass>
                 </Animated.View>
               </ScrollView>

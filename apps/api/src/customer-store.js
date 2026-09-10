@@ -12,6 +12,8 @@ const DEV_OTP = '123456';
 const cs = {
   /** mobile -> { otp, attempts, expiresAt } */
   otp: new Map(),
+  /** mobile -> [timestamps] — OTP request rate limiter */
+  otpRate: new Map(),
   /** customerId -> customer */
   customers: new Map(),
   /** mobile -> customerId */
@@ -41,9 +43,36 @@ const wallet = (cid) =>
 const redemptions = (cid) => cs.redemptions.get(cid) || cs.redemptions.set(cid, new Set()).get(cid);
 
 // ── auth / otp ──────────────────────────────────────────────────────────────
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+/**
+ * Request a login OTP. Security:
+ *  - In production the code is RANDOM and is NEVER returned in the response (it must be delivered by
+ *    SMS via MSG91 — wired in the auth pass). Only dev/test use the fixed 123456 for convenience.
+ *  - Rate-limited per number (max 5 requests / 10 min) to stop SMS-bombing / abuse.
+ * @returns {{ ok:true, expiresInSeconds:number, devOtp?:string } | { error:{status,code,message} }}
+ */
 export function requestOtp(mobile) {
-  cs.otp.set(mobile, { otp: DEV_OTP, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
-  return { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
+  if (process.env.NODE_ENV !== 'test') {
+    const now = Date.now();
+    const hits = (cs.otpRate.get(mobile) || []).filter((t) => now - t < 10 * 60 * 1000);
+    if (hits.length >= 5)
+      return {
+        error: {
+          status: 429,
+          code: 'RATE_LIMITED',
+          message: 'Too many code requests. Please wait a few minutes.',
+        },
+      };
+    hits.push(now);
+    cs.otpRate.set(mobile, hits);
+  }
+  const otp = IS_PROD ? String(Math.floor(100000 + Math.random() * 900000)) : DEV_OTP;
+  cs.otp.set(mobile, { otp, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
+  // TODO(auth pass): in production, send `otp` to `mobile` via MSG91 here.
+  return IS_PROD
+    ? { ok: true, expiresInSeconds: 300 } // never leak the code in prod
+    : { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
 }
 
 /** @returns {{ ok:true, customer:any, isNew:boolean } | { error:{status,code,message} }} */

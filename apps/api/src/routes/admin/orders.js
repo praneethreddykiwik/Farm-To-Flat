@@ -13,8 +13,16 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
 import { orderAdmin } from '../../serialize.js';
-import { createOrder, getOrder, listOrders, listProducts, updateOrderStatus } from '../../store.js';
+import {
+  createOrder,
+  getOrder,
+  listOrders,
+  listProducts,
+  patchOrder,
+  updateOrderStatus,
+} from '../../store.js';
 import { listCommunities } from '../../store.js';
+import { ledgerPush, releaseCoupon } from '../../customer-store.js';
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
 
@@ -198,6 +206,48 @@ adminOrdersRouter.post(
     }
     // TODO(notifications): emit one push batch to updated[].customerId here once the push service lands.
     res.json({ updated, count: updated.length, skipped, notified: updated.length });
+  }),
+);
+
+/**
+ * Resolve a customer's cancellation request from the Fulfilment board.
+ *   APPROVE  → order CANCELLED, wallet money refunded, coupon released.
+ *   DECLINE  → request cleared, the order stays in its current stage.
+ */
+const CancelDecisionBody = z.object({ decision: z.enum(['APPROVE', 'DECLINE']) });
+adminOrdersRouter.post(
+  '/orders/:id/cancel-decision',
+  validateBody(CancelDecisionBody),
+  asyncHandler(async (req, res) => {
+    const o = getOrder(req.params.id);
+    if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    if (!o.cancelRequested) throw fail(409, 'NO_REQUEST', 'No cancellation request on this order.');
+
+    if (req.body.decision === 'APPROVE') {
+      const updated = patchOrder(req.params.id, (ord) => {
+        ord.status = 'CANCELLED';
+        ord.cancelRequested = false;
+        ord.timeline.push({ status: 'CANCELLED', at: new Date().toISOString() });
+      });
+      if (o.customerId && o.walletAppliedPaise > 0)
+        ledgerPush(
+          o.customerId,
+          'CREDIT',
+          o.walletAppliedPaise,
+          'REFUND',
+          o.orderNumber,
+          `Refund for ${o.orderNumber}`,
+        );
+      if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
+      return res.json({ order: orderAdmin(updated) });
+    }
+
+    const updated = patchOrder(req.params.id, (ord) => {
+      ord.cancelRequested = false;
+      ord.cancelReason = null;
+      ord.timeline.push({ status: 'CANCEL_DECLINED', at: new Date().toISOString() });
+    });
+    res.json({ order: orderAdmin(updated) });
   }),
 );
 

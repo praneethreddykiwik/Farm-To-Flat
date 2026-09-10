@@ -23,6 +23,7 @@ import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
+import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
 import { useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
 import {
@@ -188,6 +189,7 @@ function Root() {
         </Stack>
       ) : null}
       <ToastHost />
+      <KeyboardDoneBar />
     </View>
   );
 }

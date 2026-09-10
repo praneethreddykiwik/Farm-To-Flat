@@ -10,7 +10,7 @@ import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { CountRupee, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconCheck, IconDownload } from '../components/icons.jsx';
-import { inr, shortDate } from '../lib/format.js';
+import { inr, num, shortDate } from '../lib/format.js';
 
 const UNIT_SHORT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: 'pack' };
 const qty = (q, unit) =>
@@ -207,8 +207,9 @@ export function Procurement() {
                 type="number"
                 min="0"
                 max="100"
+                inputMode="numeric"
                 value={bufPct}
-                onChange={(e) => setBufPct(e.target.value)}
+                onChange={(e) => setBufPct(num(e.target.value, { max: 100, integer: true }))}
                 onKeyDown={(e) => e.key === 'Enter' && saveBuffer()}
                 style={{ width: 110 }}
               />
@@ -383,9 +384,10 @@ export function Procurement() {
           type="number"
           min="0"
           max="100"
+          inputMode="numeric"
           placeholder="auto"
           value={override}
-          onChange={(e) => setOverride(e.target.value)}
+          onChange={(e) => setOverride(num(e.target.value, { max: 100, integer: true }))}
           style={{ width: 62 }}
         />
         <span className="muted" style={{ fontSize: 12 }}>
@@ -487,9 +489,16 @@ export function Procurement() {
                                   type="number"
                                   min="0"
                                   max="100"
+                                  inputMode="numeric"
                                   value={editing ? editBuf[it.productId] : it.bufferPct}
                                   onChange={(e) =>
-                                    setEditBuf((s) => ({ ...s, [it.productId]: e.target.value }))
+                                    setEditBuf((s) => ({
+                                      ...s,
+                                      [it.productId]: num(e.target.value, {
+                                        max: 100,
+                                        integer: true,
+                                      }),
+                                    }))
                                   }
                                   onBlur={(e) =>
                                     saveBuffer(it.productId, e.target.value, it.bufferPct)

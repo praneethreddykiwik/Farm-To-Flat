@@ -975,6 +975,17 @@ table.data tbody tr:last-child td {
   outline-offset: -4px;
   background: rgba(30, 122, 76, 0.06);
 }
+/* cancellation-requests column — tomato accent to signal cancellation */
+.board__col--cancel {
+  box-shadow: inset 3px 0 0 var(--tomato);
+}
+.ocard--cancel {
+  border-color: var(--tomato-soft);
+  cursor: pointer;
+}
+.ocard--cancel:active {
+  cursor: pointer;
+}
 /* consolidated community card (grouped fulfilment) */
 .commcard {
   border: 1.5px solid var(--leaf-soft);

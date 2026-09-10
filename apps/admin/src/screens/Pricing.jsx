@@ -8,7 +8,7 @@ import { useResource, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconCheck } from '../components/icons.jsx';
-import { inr, toPaise, toRupees } from '../lib/format.js';
+import { inr, num, toPaise, toRupees } from '../lib/format.js';
 
 export function Pricing() {
   const { data, loading, error, reload } = useResource('/admin/products');
@@ -163,8 +163,11 @@ export function Pricing() {
                           style={{ padding: '7px 10px' }}
                           type="number"
                           min="0"
+                          inputMode="decimal"
                           value={costR}
-                          onChange={(ev) => edit(p.id, 'costR', ev.target.value, p)}
+                          onChange={(ev) =>
+                            edit(p.id, 'costR', num(ev.target.value, { max: 100000 }), p)
+                          }
                         />
                       </td>
                       <td>
@@ -173,8 +176,11 @@ export function Pricing() {
                           style={{ padding: '7px 10px' }}
                           type="number"
                           min="0"
+                          inputMode="decimal"
                           value={priceR}
-                          onChange={(ev) => edit(p.id, 'priceR', ev.target.value, p)}
+                          onChange={(ev) =>
+                            edit(p.id, 'priceR', num(ev.target.value, { max: 100000 }), p)
+                          }
                         />
                       </td>
                       <td style={{ textAlign: 'right' }}>

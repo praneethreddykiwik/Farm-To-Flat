@@ -44,3 +44,30 @@ export const UNIT_LABEL = {
   DOZEN: '/dozen',
   PACK: '/pack',
 };
+
+/**
+ * Input sanitizers — keep bad data out of the admin fields. Money/quantity stay non-negative
+ * numeric strings (callers still convert rupees → integer paise on save — never store a float).
+ */
+/** Strip to digits and cap length — for numeric text inputs (e.g. a mobile number). */
+export const digits = (v, max = 10) =>
+  String(v ?? '')
+    .replace(/\D/g, '')
+    .slice(0, max);
+/** Valid Indian mobile: 10 digits starting 6–9. */
+export const isMobile = (v) => /^[6-9]\d{9}$/.test(String(v || ''));
+/** Basic email shape. */
+export const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || ''));
+/** Non-negative numeric string: strips junk, blocks negatives, caps at max. integer drops the dot. */
+export function num(v, { max = Infinity, integer = false } = {}) {
+  let s = String(v ?? '').replace(integer ? /[^\d]/g : /[^\d.]/g, '');
+  if (!integer) {
+    const [head, ...rest] = s.split('.');
+    s = rest.length ? `${head}.${rest.join('')}` : head;
+  }
+  if (s === '' || s === '.') return s;
+  if (Number(s) > max) return String(max);
+  return s;
+}
+/** Trim leading whitespace — for name/label fields (blocks leading-space-only values). */
+export const noLead = (v) => String(v ?? '').replace(/^\s+/, '');

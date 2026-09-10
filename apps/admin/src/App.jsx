@@ -16,6 +16,7 @@ import { Statistics } from './screens/Statistics.jsx';
 import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
 import { Coupons } from './screens/Coupons.jsx';
+import { Settings } from './screens/Settings.jsx';
 
 export function App() {
   return (
@@ -35,6 +36,7 @@ export function App() {
             <Route path="/fulfilment" element={<Fulfilment />} />
             <Route path="/stats" element={<Statistics />} />
             <Route path="/access" element={<Access />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>

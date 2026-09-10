@@ -16,6 +16,7 @@ import {
   Search,
   ShoppingBag,
   Sparkles,
+  User,
   Wallet,
 } from 'lucide-react-native';
 import { Glass, Pressy, Text } from '../ui';
@@ -32,19 +33,22 @@ const ICONS = {
   orders: ReceiptText,
   wallet: Wallet,
   bag: ShoppingBag,
+  account: User,
 };
 
 function TabIcon({ name, focused, color }) {
   const Icon = ICONS[name] || Leaf;
-  const s = useSharedValue(1);
+  // Lift the active icon (translate, never scale) so it "pops" but stays razor-sharp — scaling the
+  // icon inside the liquid-glass bar is what made it look blurry. The sliding sprout indicator
+  // underneath carries the liquid motion.
+  const y = useSharedValue(0);
   useEffect(() => {
-    if (focused)
-      s.value = withSequence(withSpring(1.18, motion.springSnappy), withSpring(1, motion.spring));
-  }, [focused, s]);
-  const st = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+    y.value = withSpring(focused ? -3 : 0, motion.spring);
+  }, [focused, y]);
+  const st = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
   return (
     <Animated.View style={st}>
-      <Icon size={22} color={color} strokeWidth={focused ? 2.4 : 2} />
+      <Icon size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
     </Animated.View>
   );
 }
@@ -159,7 +163,7 @@ export function TabBar({ state, descriptors, navigation }) {
 const styles = StyleSheet.create({
   host: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   inner: { paddingHorizontal: 6, paddingVertical: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', width: 300, height: 56 },
+  row: { flexDirection: 'row', alignItems: 'center', width: 340, height: 56 },
   tab: { flex: 1, height: 56, alignItems: 'center', justifyContent: 'center' },
   indicator: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: radius.pill },
   indicatorFill: { flex: 1, borderRadius: radius.pill, backgroundColor: colors.sprout },

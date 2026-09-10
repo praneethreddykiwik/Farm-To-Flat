@@ -8,6 +8,7 @@
  * app at it with EXPO_PUBLIC_USE_MOCKS=0 and EXPO_PUBLIC_API_URL. Prisma/Postgres + Adnan's real
  * auth/payments swap in behind store.js / customer-store.js without route changes.
  */
+import './load-env.js'; // load apps/api/.env before anything reads process.env
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -38,6 +39,7 @@ import { adminAnalyticsRouter } from './routes/admin/analytics.js';
 import { adminProcurementRouter } from './routes/admin/procurement.js';
 import { adminAccessRouter } from './routes/admin/access.js';
 import { adminCouponsRouter } from './routes/admin/coupons.js';
+import { supportRouter, adminSupportRouter } from './routes/support.js';
 import { accessRouter } from './routes/access.js';
 
 const app = express();
@@ -51,7 +53,7 @@ const corsOrigins = (process.env.CORS_ORIGIN || '')
   .map((s) => s.trim())
   .filter(Boolean);
 app.use(cors(corsOrigins.length ? { origin: corsOrigins, credentials: true } : {}));
-app.use(express.json());
+app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
 if (process.env.NODE_ENV !== 'test') app.use(pinoHttp());
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api', ts: Date.now() }));
@@ -64,6 +66,7 @@ app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
 app.use(`${v1}/delivery-windows`, windowsRouter);
 app.use(`${v1}/coupons`, couponsRouter);
+app.use(`${v1}/support`, supportRouter);
 app.use(`${v1}/access`, accessRouter); // ready seam for the app (not wired into the app yet)
 
 // ── authenticated customer contract ───────────────────────────────────────────
@@ -87,6 +90,7 @@ admin.use(adminAnalyticsRouter);
 admin.use(adminProcurementRouter);
 admin.use(adminAccessRouter);
 admin.use(adminCouponsRouter);
+admin.use(adminSupportRouter);
 app.use(`${v1}/admin`, admin);
 
 app.use(v1, (req, res) =>

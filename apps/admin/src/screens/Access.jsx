@@ -8,6 +8,7 @@ import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote, TableSkeleton } from '../components/ui.jsx';
 import { IconPlus, IconShield, IconTrash } from '../components/icons.jsx';
+import { digits, isMobile, noLead } from '../lib/format.js';
 
 const ROLE_TINT = {
   SUPER_ADMIN: { bg: 'var(--sprout)', fg: 'var(--night)' },
@@ -60,6 +61,7 @@ export function Access() {
   }
 
   const grouped = roles.map((r) => ({ role: r, members: staff.filter((s) => s.role === r.code) }));
+  const mobileBad = !!f.mobile && !isMobile(f.mobile); // only flag once something's typed
 
   return (
     <>
@@ -104,20 +106,25 @@ export function Access() {
             <input
               className="field__input"
               value={f.mobile}
-              onChange={(e) =>
-                setF((s) => ({ ...s, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))
-              }
+              onChange={(e) => setF((s) => ({ ...s, mobile: digits(e.target.value, 10) }))}
               placeholder="98480 00000"
               inputMode="numeric"
+              maxLength={10}
             />
+            {mobileBad && (
+              <p className="field__hint" style={{ color: 'var(--tomato)' }}>
+                10 digits, starting 6–9.
+              </p>
+            )}
           </div>
           <div className="field">
             <label className="field__label">Name (optional)</label>
             <input
               className="field__input"
               value={f.name}
-              onChange={(e) => setF((s) => ({ ...s, name: e.target.value }))}
+              onChange={(e) => setF((s) => ({ ...s, name: noLead(e.target.value) }))}
               placeholder="Ravi · buyer"
+              maxLength={60}
             />
           </div>
         </div>
@@ -136,7 +143,7 @@ export function Access() {
               )}
             </span>
           </label>
-          <button className="btn btn--primary" onClick={add}>
+          <button className="btn btn--primary" onClick={add} disabled={!isMobile(f.mobile)}>
             <IconPlus size={17} /> Add member
           </button>
         </div>

@@ -39,6 +39,16 @@ export default function TabsLayout() {
       />
       <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
       <Tabs.Screen name="wallet" options={{ title: 'Wallet' }} />
+      <Tabs.Screen
+        name="account"
+        options={{ title: 'Profile' }}
+        listeners={{
+          tabPress: (/** @type {any} */ e) => {
+            e.preventDefault();
+            router.push('/profile');
+          },
+        }}
+      />
     </Tabs>
   );
 }

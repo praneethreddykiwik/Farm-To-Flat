@@ -10,6 +10,7 @@ import { useRequestOtpMutation } from '../../src/api/api';
 import { setPendingMobile } from '../../src/features/auth/authSlice';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { haptic } from '../../src/lib/haptics';
+import { checkMobile, cleanMobile, isMobileValid } from '../../src/lib/validators';
 
 export default function PhoneScreen() {
   const router = useRouter();
@@ -18,11 +19,12 @@ export default function PhoneScreen() {
   const [error, setError] = useState(null);
   const [requestOtp, { isLoading }] = useRequestOtpMutation();
   const input = useRef(null);
-  const valid = /^[6-9]\d{9}$/.test(mobile);
+  const valid = isMobileValid(mobile);
 
   const submit = async () => {
-    if (!valid) {
-      setError('Enter a 10-digit Indian mobile number');
+    const problem = checkMobile(mobile);
+    if (problem) {
+      setError(problem);
       haptic.warning();
       return;
     }
@@ -84,7 +86,7 @@ export default function PhoneScreen() {
             value={mobile}
             onChangeText={(t) => {
               setError(null);
-              setMobile(t.replace(/\D/g, '').slice(0, 10));
+              setMobile(cleanMobile(t));
             }}
             keyboardType="number-pad"
             textContentType="telephoneNumber"

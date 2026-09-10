@@ -3,7 +3,10 @@ packages:
   - "packages/*"
 nodeLinker: hoisted
 allowBuilds:
+  '@prisma/client': set this to true or false
+  '@prisma/engines': set this to true or false
   esbuild: set this to true or false
+  prisma: set this to true or false
   unrs-resolver: false
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.22'

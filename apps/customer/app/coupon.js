@@ -88,12 +88,18 @@ export default function Coupon() {
             label="Coupon code"
             value={code}
             onChangeText={(t) => {
-              setCode(t.toUpperCase());
+              setCode(
+                t
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9-]/g, '')
+                  .slice(0, 24),
+              );
               setError(null);
             }}
             placeholder="FARM-XXXXXXXX"
             autoCapitalize="characters"
             autoCorrect={false}
+            maxLength={24}
             mono
             error={error}
             leading={<Ticket size={18} color={colors.ink3} />}

@@ -1,9 +1,13 @@
 import React, { forwardRef, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Glass } from './Glass';
 import { Small, Text } from './Text';
+import { KEYBOARD_DONE_ID } from './KeyboardDone';
 import { colors, fonts, motion, radius } from '../theme';
+
+// Numeric keyboards lack a return/Done key — attach the shared "Done" bar so they can be dismissed.
+const NUMERIC_KEYBOARDS = new Set(['number-pad', 'decimal-pad', 'phone-pad', 'numeric']);
 
 /**
  * Glass text field with a floating label and an animated focus ring.
@@ -50,6 +54,11 @@ export const Input = /** @type {any} */ (
                 ref={ref}
                 placeholderTextColor={colors.ink3}
                 selectionColor={colors.leaf}
+                inputAccessoryViewID={
+                  Platform.OS === 'ios' && NUMERIC_KEYBOARDS.has(rest.keyboardType)
+                    ? KEYBOARD_DONE_ID
+                    : undefined
+                }
                 {...rest}
                 onFocus={(e) => {
                   setFocused(true);

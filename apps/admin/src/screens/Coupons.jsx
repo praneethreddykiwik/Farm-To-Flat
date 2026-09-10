@@ -9,7 +9,7 @@ import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote, TableSkeleton } from '../components/ui.jsx';
 import { IconPlus, IconTicket, IconTrash } from '../components/icons.jsx';
-import { inr, toPaise } from '../lib/format.js';
+import { inr, noLead, num, toPaise } from '../lib/format.js';
 
 /** Discount types — the segmented picker mirrors Access's role picker. */
 const TYPES = [
@@ -124,10 +124,14 @@ export function Coupons() {
               onChange={(e) =>
                 setF((s) => ({
                   ...s,
-                  code: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
+                  code: e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9-]/g, '')
+                    .slice(0, 24),
                 }))
               }
               placeholder="FRESH10"
+              maxLength={24}
             />
           </div>
           <div className="field">
@@ -135,8 +139,9 @@ export function Coupons() {
             <input
               className="field__input"
               value={f.label}
-              onChange={set('label')}
+              onChange={(e) => setF((s) => ({ ...s, label: noLead(e.target.value) }))}
               placeholder="Welcome offer"
+              maxLength={60}
             />
           </div>
         </div>
@@ -168,8 +173,14 @@ export function Coupons() {
                 type="number"
                 min="1"
                 max="100"
+                inputMode="numeric"
                 value={f.percentOff}
-                onChange={set('percentOff')}
+                onChange={(e) =>
+                  setF((s) => ({
+                    ...s,
+                    percentOff: num(e.target.value, { max: 100, integer: true }),
+                  }))
+                }
                 placeholder="10"
               />
               <p className="field__hint">Whole number, 1–100.</p>
@@ -182,8 +193,11 @@ export function Coupons() {
                 className="field__input"
                 type="number"
                 min="0"
+                inputMode="decimal"
                 value={f.valueR}
-                onChange={set('valueR')}
+                onChange={(e) =>
+                  setF((s) => ({ ...s, valueR: num(e.target.value, { max: 100000 }) }))
+                }
                 placeholder="100"
               />
             </div>
@@ -211,8 +225,11 @@ export function Coupons() {
               className="field__input"
               type="number"
               min="0"
+              inputMode="decimal"
               value={f.minOrderR}
-              onChange={set('minOrderR')}
+              onChange={(e) =>
+                setF((s) => ({ ...s, minOrderR: num(e.target.value, { max: 100000 }) }))
+              }
               placeholder="0"
             />
             <p className="field__hint">Leave blank or 0 for no minimum.</p>

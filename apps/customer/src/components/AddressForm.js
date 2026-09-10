@@ -10,6 +10,14 @@ import { useCreateAddressMutation, useGetCommunitiesQuery } from '../api/api';
 import { customerUpdated } from '../features/auth/authSlice';
 import { showToast } from '../features/ui/uiSlice';
 import { haptic } from '../lib/haptics';
+import {
+  checkFlat,
+  checkName,
+  cleanFlat,
+  cleanFloor,
+  cleanName,
+  cleanText,
+} from '../lib/validators';
 
 /** @param {any} props */
 function Picker({ label, value, placeholder, icon, onPress, disabled = false }) {
@@ -101,8 +109,10 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
     const e = {};
     if (!communityId) e.community = 'Choose your community';
     if (!block) e.block = 'Choose your block';
-    if (!flat.trim()) e.flat = 'Enter your flat number';
-    if (!name.trim()) e.name = 'Who should we hand it to?';
+    const flatErr = checkFlat(flat);
+    if (flatErr) e.flat = flatErr;
+    const nameErr = checkName(name);
+    if (nameErr) e.name = nameErr;
     setErrors(e);
     if (Object.keys(e).length) {
       haptic.warning();
@@ -193,9 +203,10 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
             <Input
               label="Flat number"
               value={flat}
-              onChangeText={setFlat}
+              onChangeText={(t) => setFlat(cleanFlat(t))}
               placeholder="1204"
               autoCapitalize="characters"
+              maxLength={12}
               error={errors.flat}
               style={{ flex: 1.2 }}
               leading={<MapPin size={18} color={colors.ink3} />}
@@ -203,25 +214,28 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
             <Input
               label="Floor"
               value={floor}
-              onChangeText={setFloor}
+              onChangeText={(t) => setFloor(cleanFloor(t))}
               placeholder="12"
               keyboardType="number-pad"
+              maxLength={3}
               style={{ flex: 0.8 }}
             />
           </View>
           <Input
             label="Landmark (optional)"
             value={landmark}
-            onChangeText={setLandmark}
+            onChangeText={(t) => setLandmark(cleanText(t, 80))}
             placeholder="Near the clubhouse lift"
+            maxLength={80}
           />
           <Input
             label="Recipient name"
             value={name}
-            onChangeText={setName}
+            onChangeText={(t) => setName(cleanName(t))}
             placeholder="Who should we hand it to?"
             autoCapitalize="words"
             textContentType="name"
+            maxLength={40}
             error={errors.name}
             leading={<User size={18} color={colors.ink3} />}
           />
