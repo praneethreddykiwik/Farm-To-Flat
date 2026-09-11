@@ -6,6 +6,7 @@
  */
 import { constants, getProduct, listCommunities, listCoupons } from './store.js';
 import { id, shortId } from './lib/ids.js';
+import { msg91Enabled, sendOtpSms } from './lib/msg91.js';
 
 const DEV_OTP = '123456';
 
@@ -50,9 +51,9 @@ const IS_PROD = process.env.NODE_ENV === 'production';
  *  - In production the code is RANDOM and is NEVER returned in the response (it must be delivered by
  *    SMS via MSG91 — wired in the auth pass). Only dev/test use the fixed 123456 for convenience.
  *  - Rate-limited per number (max 5 requests / 10 min) to stop SMS-bombing / abuse.
- * @returns {{ ok:true, expiresInSeconds:number, devOtp?:string } | { error:{status,code,message} }}
+ * @returns {Promise<{ ok:true, expiresInSeconds:number, devOtp?:string } | { error:{status,code,message} }>}
  */
-export function requestOtp(mobile) {
+export async function requestOtp(mobile) {
   if (process.env.NODE_ENV !== 'test') {
     const now = Date.now();
     const hits = (cs.otpRate.get(mobile) || []).filter((t) => now - t < 10 * 60 * 1000);
@@ -69,10 +70,29 @@ export function requestOtp(mobile) {
   }
   const otp = IS_PROD ? String(Math.floor(100000 + Math.random() * 900000)) : DEV_OTP;
   cs.otp.set(mobile, { otp, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
-  // TODO(auth pass): in production, send `otp` to `mobile` via MSG91 here.
-  return IS_PROD
-    ? { ok: true, expiresInSeconds: 300 } // never leak the code in prod
-    : { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
+
+  // Deliver the code by SMS. Only in production (dev/test use the fixed 123456 and skip SMS). When
+  // MSG91 isn't configured yet, we can't deliver — surface that rather than pretending it was sent.
+  if (IS_PROD) {
+    if (msg91Enabled) {
+      try {
+        await sendOtpSms({ mobile, otp });
+      } catch {
+        return {
+          error: {
+            status: 502,
+            code: 'OTP_SEND_FAILED',
+            message: "Couldn't send the code right now. Please try again.",
+          },
+        };
+      }
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('[otp] MSG91 not configured — OTP generated but not delivered.');
+    }
+    return { ok: true, expiresInSeconds: 300 }; // never leak the code in prod
+  }
+  return { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
 }
 
 /** @returns {{ ok:true, customer:any, isNew:boolean } | { error:{status,code,message} }} */

@@ -25,7 +25,9 @@ authRouter.post(
   '/otp/request',
   validateBody(z.object({ mobile })),
   asyncHandler(async (req, res) => {
-    res.json(requestOtp(req.body.mobile));
+    const r = await requestOtp(req.body.mobile);
+    if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    res.json(r);
   }),
 );
 

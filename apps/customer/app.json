@@ -7,23 +7,15 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "backgroundColor": "#F3F5EF",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F3F5EF"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "in.farmtoflat.customer",
       "infoPlist": {
-        "LSApplicationQueriesSchemes": [
-          "tez",
-          "phonepe",
-          "paytmmp"
-        ],
-        "NSLocationWhenInUseUsageDescription": "We use your location once to check whether your community is serviceable."
+        "LSApplicationQueriesSchemes": ["tez", "phonepe", "paytmmp"],
+        "NSLocationWhenInUseUsageDescription": "We use your location once to check whether your community is serviceable.",
+        "NSSpeechRecognitionUsageDescription": "Farm to Flat converts your speech to text to search the catalog.",
+        "NSMicrophoneUsageDescription": "Farm to Flat uses the microphone so you can search the catalog by voice."
       }
     },
     "android": {
@@ -38,7 +30,10 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "VIBRATE"
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -64,15 +59,20 @@
       ],
       "expo-dev-client",
       "expo-image",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F3F5EF"
+        }
+      ],
       [
         "expo-speech-recognition",
         {
           "microphonePermission": "Farm to Flat uses the microphone so you can search the catalog by voice.",
           "speechRecognitionPermission": "Farm to Flat converts your speech to text to search the catalog.",
-          "androidSpeechServicePackages": [
-            "com.google.android.googlequicksearchbox"
-          ]
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
       ]
     ],
@@ -82,7 +82,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": ""
+        "projectId": "7e9c80f3-2c2a-47dc-9006-e6750c5105e3"
       }
     },
     "updates": {
