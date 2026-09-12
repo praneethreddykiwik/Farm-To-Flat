@@ -326,8 +326,13 @@ export function Fulfilment() {
             {isBusy ? '…' : 'Approve cancellation'}
           </button>
           <button
-            className="btn btn--ghost btn--sm"
-            style={{ color: 'var(--tomato)' }}
+            className="btn btn--sm"
+            style={{
+              color: 'var(--ink)',
+              background: 'var(--panel, #fff)',
+              border: '1px solid var(--line)',
+              boxShadow: 'none',
+            }}
             disabled={isBusy}
             onClick={(e) => {
               e.stopPropagation();

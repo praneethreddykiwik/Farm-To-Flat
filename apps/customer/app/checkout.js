@@ -295,13 +295,37 @@ export default function Checkout() {
               : 'No balance yet. Everything goes via Razorpay.'
           }
           right={
-            <Switch
-              value={useWallet && balance > 0}
-              disabled={balance === 0}
-              onValueChange={setUseWallet}
-              trackColor={{ true: colors.leaf, false: 'rgba(14,27,20,0.15)' }}
-              thumbColor={colors.white}
-            />
+            balance === 0 ? (
+              // Wallet empty: tapping explains why it can't be turned on (instead of a dead toggle).
+              <Pressy
+                haptics="warning"
+                onPress={() =>
+                  dispatch(
+                    showToast({
+                      title: 'Your wallet is empty',
+                      message: 'Add money to your wallet to pay with it.',
+                      tone: 'neutral',
+                    }),
+                  )
+                }
+              >
+                <View pointerEvents="none">
+                  <Switch
+                    value={false}
+                    disabled
+                    trackColor={{ true: colors.leaf, false: 'rgba(14,27,20,0.15)' }}
+                    thumbColor={colors.white}
+                  />
+                </View>
+              </Pressy>
+            ) : (
+              <Switch
+                value={useWallet}
+                onValueChange={setUseWallet}
+                trackColor={{ true: colors.leaf, false: 'rgba(14,27,20,0.15)' }}
+                thumbColor={colors.white}
+              />
+            )
           }
           delay={180}
         />

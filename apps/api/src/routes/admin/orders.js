@@ -22,8 +22,15 @@ import {
   updateOrderStatus,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
-import { ledgerPush, releaseCoupon, getDevices } from '../../customer-store.js';
+import { ledgerPush, releaseCoupon, getDevices, getCustomer } from '../../customer-store.js';
 import { notifyOrderStatus } from '../../lib/push.js';
+
+// Orders snapshot the customer name at order time; show the customer's CURRENT name in the operator
+// panel so a profile rename reflects everywhere (falls back to the snapshot for guest/seed orders).
+const liveName = (o) => {
+  const c = o?.customerId ? getCustomer(o.customerId) : null;
+  return c?.name ? { ...o, customerName: c.name } : o;
+};
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
 
@@ -74,7 +81,7 @@ adminOrdersRouter.get(
     for (const s of STATUSES) counts[s] = 0;
     for (const o of all) counts[o.status] = (counts[o.status] || 0) + 1;
     res.json({
-      orders: filtered.map(orderAdmin),
+      orders: filtered.map((o) => orderAdmin(liveName(o))),
       total: filtered.length,
       counts,
       statuses: STATUSES,
@@ -139,9 +146,9 @@ adminOrdersRouter.get(
   '/orders/export.csv',
   asyncHandler(async (req, res) => {
     const type = req.query.type === 'manifest' ? 'manifest' : 'packing';
-    const orders = applyFilters(listOrders(), req.query).filter(
-      (o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status),
-    );
+    const orders = applyFilters(listOrders(), req.query)
+      .filter((o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status))
+      .map(liveName);
     const csv = type === 'manifest' ? manifestCsv(orders) : packingCsv(orders);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="f2f-${type}-${Date.now()}.csv"`);
@@ -154,7 +161,7 @@ adminOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: orderAdmin(o) });
+    res.json({ order: orderAdmin(liveName(o)) });
   }),
 );
 

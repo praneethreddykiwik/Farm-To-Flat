@@ -395,7 +395,17 @@ export function updateCommunity(cid, patch) {
   return clone(c);
 }
 export function createCommunity(data) {
-  const community = { id: id('com', 8), isActive: true, ...data, blocks: data.blocks || [] };
+  const community = {
+    id: id('com', 8),
+    isActive: true,
+    ...data,
+    blocks: data.blocks || [],
+    // New communities deliver every day by default (so windows appear immediately); the admin can
+    // then narrow the days per community. Capacity + cutoff get sensible defaults too.
+    deliveryDays: data.deliveryDays?.length ? data.deliveryDays : [0, 1, 2, 3, 4, 5, 6],
+    cutoffHours: data.cutoffHours ?? 10,
+    windowCapacity: data.windowCapacity ?? 40,
+  };
   db.communities.push(community);
   persist.communityUpsert(community);
   return clone(community);

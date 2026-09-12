@@ -27,6 +27,7 @@ const emptyForm = {
   freeProductId: '',
   minOrderR: '',
   label: '',
+  globalCap: '',
 };
 
 export function Coupons() {
@@ -50,6 +51,9 @@ export function Coupons() {
       type: f.type,
       label: f.label.trim() || undefined,
       minOrderPaise: f.minOrderR ? toPaise(f.minOrderR) : 0,
+      // Total redemptions allowed across all customers (blank = unlimited). Each customer can still
+      // only use a coupon once, regardless of this cap.
+      globalCap: f.globalCap && Number(f.globalCap) > 0 ? Number(f.globalCap) : undefined,
     };
     if (f.type === 'PERCENT') {
       const pct = Number(f.percentOff);
@@ -233,6 +237,27 @@ export function Coupons() {
               placeholder="0"
             />
             <p className="field__hint">Leave blank or 0 for no minimum.</p>
+          </div>
+          <div className="field">
+            <label className="field__label">Usage limit (total, optional)</label>
+            <input
+              className="field__input"
+              type="number"
+              min="1"
+              inputMode="numeric"
+              value={f.globalCap}
+              onChange={(e) =>
+                setF((s) => ({
+                  ...s,
+                  globalCap: num(e.target.value, { max: 1000000, integer: true }),
+                }))
+              }
+              placeholder="Unlimited"
+            />
+            <p className="field__hint">
+              How many times this code can be redeemed in total. Blank = unlimited. (Each customer
+              can use it once either way.)
+            </p>
           </div>
         </div>
 
