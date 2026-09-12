@@ -16,6 +16,9 @@ import pinoHttp from 'pino-http';
 
 import { ApiError } from './http.js';
 import { requireAuth } from './routes/require-auth.js';
+import { loadAll, persistEnabled } from './persistence.js';
+import { hydrate } from './store.js';
+import { hydrateStaff } from './access-store.js';
 
 // public
 import { authRouter } from './routes/auth.js';
@@ -117,11 +120,28 @@ app.use((err, req, res, _next) => {
 
 const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || '0.0.0.0';
-if (process.env.NODE_ENV !== 'test') {
+
+/** Load master data from Supabase into the in-memory cache before serving (source of truth). */
+async function boot() {
+  let source = 'in-memory seed';
+  if (persistEnabled) {
+    try {
+      const data = await loadAll();
+      hydrate(data);
+      hydrateStaff(data.staff);
+      source = `Supabase (${data.products.length} products, ${data.staff.length} staff)`;
+    } catch (e) {
+      // Fall back to seed so the API still boots if the DB is unreachable.
+      // eslint-disable-next-line no-console
+      console.error('[boot] Supabase load failed — using in-memory seed:', e?.message || e);
+    }
+  }
   app.listen(PORT, HOST, () => {
     // eslint-disable-next-line no-console
-    console.log(`f2f-api listening on http://${HOST}:${PORT}  (in-memory store · full contract)`);
+    console.log(`f2f-api listening on http://${HOST}:${PORT}  (data: ${source})`);
   });
 }
+
+if (process.env.NODE_ENV !== 'test') boot();
 
 export { app };

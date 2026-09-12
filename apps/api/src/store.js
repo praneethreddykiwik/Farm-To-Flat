@@ -20,6 +20,7 @@ import {
 } from './data/seed.js';
 import { addDaysISO, todayISO } from './lib/dates.js';
 import { id } from './lib/ids.js';
+import { persist } from './persistence.js';
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -142,6 +143,32 @@ for (const spec of SEED_ORDERS) {
 }
 db.orders.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
+/**
+ * Replace the seeded master data with what was loaded from Supabase at boot (persistence.loadAll).
+ * Orders stay in-memory (stage 2). Called once, before the server accepts requests.
+ */
+export function hydrate(data) {
+  if (data.categories?.length) db.categories = data.categories;
+  if (data.products) db.products = data.products;
+  if (data.communities) db.communities = data.communities;
+  if (data.coupons) db.coupons = data.coupons;
+  const cfg = data.config;
+  if (cfg) {
+    db.constants.minOrderValuePaise = cfg.minOrderValuePaise ?? db.constants.minOrderValuePaise;
+    db.constants.deliveryChargePaise = cfg.deliveryChargePaise ?? db.constants.deliveryChargePaise;
+    db.constants.procurement = {
+      costBufferPct: cfg.procurementCostBufferPct ?? db.constants.procurement.costBufferPct,
+      autoApprove: cfg.procurementAutoApprove ?? db.constants.procurement.autoApprove,
+    };
+    db.constants.support = {
+      email: cfg.supportEmail ?? '',
+      phone: cfg.supportPhone ?? '',
+      showEmail: cfg.supportShowEmail ?? true,
+      showPhone: cfg.supportShowPhone ?? false,
+    };
+  }
+}
+
 // ── reads ────────────────────────────────────────────────────────────────
 export const listCategories = () => clone(db.categories);
 export const listProducts = () => clone(db.products);
@@ -190,18 +217,21 @@ export function createProduct(data) {
     aliases: data.aliases || [],
   };
   db.products.push(product);
+  persist.productUpsert(product);
   return clone(product);
 }
 export function updateProduct(pid, patch) {
   const p = db.products.find((x) => x.id === pid);
   if (!p) return null;
   Object.assign(p, patch);
+  persist.productUpsert(p);
   return clone(p);
 }
 export function deleteProduct(pid) {
   const i = db.products.findIndex((x) => x.id === pid);
   if (i === -1) return false;
   db.products.splice(i, 1);
+  persist.productDelete(pid);
   return true;
 }
 
@@ -213,6 +243,12 @@ export function updateSupport(patch) {
   if (patch.phone !== undefined) s.phone = String(patch.phone).trim();
   if (patch.showEmail !== undefined) s.showEmail = !!patch.showEmail;
   if (patch.showPhone !== undefined) s.showPhone = !!patch.showPhone;
+  persist.configUpdate({
+    supportEmail: s.email,
+    supportPhone: s.phone,
+    supportShowEmail: s.showEmail,
+    supportShowPhone: s.showPhone,
+  });
   return clone(s);
 }
 /** Customer-facing: each channel only when its toggle is on. */
@@ -231,6 +267,10 @@ export function updateProcurementSettings(patch) {
   if (patch.costBufferPct != null)
     s.costBufferPct = Math.max(0, Math.min(100, Number(patch.costBufferPct)));
   if (patch.autoApprove != null) s.autoApprove = !!patch.autoApprove;
+  persist.configUpdate({
+    procurementCostBufferPct: s.costBufferPct,
+    procurementAutoApprove: s.autoApprove,
+  });
   return clone(s);
 }
 
@@ -298,18 +338,21 @@ export function createCoupon(data) {
     code: String(data.code).toUpperCase(),
   };
   db.coupons.push(coupon);
+  persist.couponUpsert(coupon);
   return clone(coupon);
 }
 export function updateCoupon(code, patch) {
   const c = db.coupons.find((x) => x.code.toLowerCase() === String(code).toLowerCase());
   if (!c) return null;
   Object.assign(c, patch);
+  persist.couponUpsert(c);
   return clone(c);
 }
 export function deleteCoupon(code) {
   const i = db.coupons.findIndex((x) => x.code.toLowerCase() === String(code).toLowerCase());
   if (i === -1) return false;
-  db.coupons.splice(i, 1);
+  const [removed] = db.coupons.splice(i, 1);
+  persist.couponDelete(removed.code);
   return true;
 }
 
@@ -318,11 +361,13 @@ export function updateCommunity(cid, patch) {
   const c = db.communities.find((x) => x.id === cid);
   if (!c) return null;
   Object.assign(c, patch);
+  persist.communityUpsert(c);
   return clone(c);
 }
 export function createCommunity(data) {
   const community = { id: id('com', 8), isActive: true, ...data, blocks: data.blocks || [] };
   db.communities.push(community);
+  persist.communityUpsert(community);
   return clone(community);
 }
 

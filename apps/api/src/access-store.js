@@ -5,11 +5,19 @@
  */
 import { id } from './lib/ids.js';
 import { ROLE_META } from './lib/roles.js';
+import { persist } from './persistence.js';
 
 /** @type {Map<string, any>} id -> staff */
 const staff = new Map();
 
 const byMobile = (mobile) => [...staff.values()].find((s) => s.mobile === mobile);
+
+/** Replace the seeded staff with the rows loaded from Supabase at boot. */
+export function hydrateStaff(rows) {
+  if (!rows?.length) return;
+  staff.clear();
+  for (const r of rows) staff.set(r.id, { ...r });
+}
 
 // Seed staff so every role works the moment the API boots (survives restarts of the in-memory
 // store). Replace these with the real team numbers on the admin "Access & roles" page.
@@ -55,6 +63,7 @@ export function addStaff({ mobile, role, name, aiAccess }) {
     createdAt: new Date().toISOString(),
   };
   staff.set(s.id, s);
+  persist.staffUpsert(s);
   return { staff: s };
 }
 
@@ -64,9 +73,11 @@ export function updateStaff(sid, patch) {
   if (patch.role && ROLE_META[patch.role]) s.role = patch.role;
   if (patch.name !== undefined) s.name = patch.name?.trim() || null;
   if (patch.aiAccess !== undefined) s.aiAccess = !!patch.aiAccess;
+  persist.staffUpsert(s);
   return s;
 }
 
 export function removeStaff(sid) {
+  persist.staffDelete(sid);
   return staff.delete(sid);
 }

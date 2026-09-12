@@ -322,12 +322,16 @@ model ProcurementRecord {
   @@id([dateKey, productId])
 }
 
-// App-wide settings (min order, procurement buffer, etc.) as a single row.
+// App-wide settings (min order, procurement buffer, support contact) as a single row.
 model AppConfig {
   id                        Int      @id @default(1)
   minOrderValuePaise        Int      @default(50000)
   deliveryChargePaise       Int      @default(0)
   procurementCostBufferPct  Int      @default(2)
   procurementAutoApprove    Boolean  @default(true)
+  supportEmail              String?  @default("support@farmtoflat.in")
+  supportPhone              String?  @default("")
+  supportShowEmail          Boolean  @default(true)
+  supportShowPhone          Boolean  @default(false)
   updatedAt                 DateTime @updatedAt
 }
