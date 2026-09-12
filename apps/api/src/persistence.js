@@ -1,16 +1,15 @@
 /**
- * Supabase persistence for the master data (catalog, communities, coupons, staff, settings).
+ * Supabase persistence for ALL data — master (catalog, communities, coupons, staff, settings) and
+ * transactional (customers, addresses, orders, wallet, payments, sessions, devices, redemptions).
  *
- * Model chosen with the team: Supabase is the SOURCE OF TRUTH. On boot we load every master-data
- * table into the in-memory store (store.js / access-store.js); every admin write updates the cache
+ * Model chosen with the team: Supabase is the SOURCE OF TRUTH. On boot we load every table into the
+ * in-memory store (store.js / customer-store.js / access-store.js); every write updates the cache
  * AND writes through to Supabase. On a single server the app therefore always reads current data and
  * it survives restarts. Reads stay synchronous, so routes and serializers are untouched.
  *
  * Disabled under NODE_ENV=test (the suite keeps its fast, offline in-memory path) or when no
  * DATABASE_URL is set (pure local demo). Writes are fire-and-forget with error logging so a slow DB
- * never blocks a response; the cache already reflects the change.
- *
- * Transactional data (customers, orders, wallet) is NOT here yet — that is stage 2.
+ * never blocks a response; the cache already reflects the change. Carts and OTPs stay ephemeral.
  */
 import { prisma } from './db.js';
 
