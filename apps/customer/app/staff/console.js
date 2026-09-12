@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
@@ -10,6 +10,13 @@ import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 const inr = (paise) => `₹${(Number(paise) / 100).toLocaleString('en-IN')}`;
 
 const SECTIONS = [
+  {
+    key: 'orders',
+    title: 'Orders',
+    sub: 'Every order, live · search + filter by status',
+    icon: '🧾',
+    href: '/staff/orders',
+  },
   {
     key: 'procurement',
     title: 'Procurement',
@@ -81,6 +88,19 @@ export default function StaffConsole() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>Open the shopping app</Text>
                 <Text style={styles.cardSub}>Home, basket, orders, wallet + the AI planner</Text>
+              </View>
+              <Text style={styles.chev}>›</Text>
+            </Pressable>
+            <Pressable
+              style={styles.card}
+              onPress={() => Linking.openURL('https://farm-to-flat.vercel.app').catch(() => {})}
+            >
+              <Text style={styles.cardIcon}>🖥️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Full admin panel</Text>
+                <Text style={styles.cardSub}>
+                  Products, pricing, coupons, communities, statistics, access — opens the web panel
+                </Text>
               </View>
               <Text style={styles.chev}>›</Text>
             </Pressable>
