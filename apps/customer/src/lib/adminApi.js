@@ -5,12 +5,18 @@
  * the app is pointed at a deployed API, this uses env.apiUrl automatically.
  */
 import { env } from './env';
+import { store } from '../store';
 
 const V1 = `${env.apiUrl}/api/v1`;
 const ADMIN = `${V1}/admin`;
 
-async function j(url, opts) {
-  const r = await fetch(url, opts);
+async function j(url, opts = {}) {
+  // Send the signed-in staff member's session so the server authorises them by role (no shared
+  // secret embedded in the app). The admin endpoints accept a valid staff Bearer token.
+  const token = store.getState()?.auth?.accessToken;
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const r = await fetch(url, { ...opts, headers });
   const isJson = (r.headers.get('content-type') || '').includes('application/json');
   const body = isJson ? await r.json() : await r.text();
   if (!r.ok) throw new Error((isJson && body?.error?.message) || `HTTP ${r.status}`);
