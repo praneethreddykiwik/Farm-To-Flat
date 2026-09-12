@@ -339,6 +339,21 @@ export default function Profile() {
           ) : null}
         </Glass>
 
+        {aiVisible ? (
+          <>
+            <Label style={{ marginTop: 26, marginBottom: 8 }}>Super admin</Label>
+            <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
+              <Row
+                icon={<ShieldCheck size={18} color={colors.ink} />}
+                label="Operations console"
+                hint="Procurement, fulfilment, dashboard"
+                onPress={() => router.push('/staff/console')}
+                last
+              />
+            </Glass>
+          </>
+        ) : null}
+
         {support && (support.email || support.phone) ? (
           <>
             <Label style={{ marginTop: 26, marginBottom: 8 }}>Help &amp; support</Label>

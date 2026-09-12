@@ -107,8 +107,11 @@ function AuthGate({ ready }) {
       return;
     }
     if (r === 'SUPER_ADMIN') {
-      const inTabs = segments[0] === '(tabs)';
-      if (!inStaff && !inTabs) router.replace('/staff/console'); // land on the console; shop is a tap away
+      // Land on the ops console straight after sign-in, but then let the super admin use the WHOLE
+      // shopping app — the tab group AND its detail routes (calendar, product, cart, order, checkout).
+      // The old check bounced them back to the console the moment they left the tab group, so tapping
+      // the calendar (a top-level route) kicked them out. Only redirect from the auth screens now.
+      if (inAuth) router.replace('/staff/console');
       return;
     }
     if (!r) {
