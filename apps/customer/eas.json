@@ -23,7 +23,7 @@
       "ios": { "simulator": false },
       "env": {
         "EXPO_PUBLIC_USE_MOCKS": "0",
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-HOSTED-API"
+        "EXPO_PUBLIC_API_URL": "https://farm-to-flat.onrender.com"
       }
     },
     "production": { "channel": "production", "autoIncrement": true }
