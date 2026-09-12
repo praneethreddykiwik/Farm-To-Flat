@@ -7,6 +7,9 @@
 // In dev the Vite proxy handles /api → localhost:4000, so no base URL is needed. In production set
 // VITE_API_URL (e.g. https://api.farmtoflat.in) so the built site calls the live API directly.
 const BASE = `${import.meta.env.VITE_API_URL || ''}/api/v1`;
+// When the hosted API sets ADMIN_TOKEN, the operator panel must send it. Set VITE_ADMIN_TOKEN to the
+// same value at build time. Left blank in local dev (the API is open there).
+const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN || '';
 
 export class ApiError extends Error {
   constructor(status, code, message, details) {
@@ -18,9 +21,12 @@ export class ApiError extends Error {
 }
 
 async function request(method, path, body) {
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  if (ADMIN_TOKEN) headers['x-admin-token'] = ADMIN_TOKEN;
   const res = await fetch(BASE + path, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const isJson = (res.headers.get('content-type') || '').includes('application/json');

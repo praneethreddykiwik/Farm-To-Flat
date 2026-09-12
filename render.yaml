@@ -1,0 +1,47 @@
+# Render blueprint for the Farm-to-Flat API (Node/Express, pnpm monorepo).
+# Deploy: Render Dashboard → New → Blueprint → pick this repo. Then fill the secret env vars
+# (marked sync:false) in the dashboard — copy them from apps/api/.env. NEVER commit secrets here.
+services:
+  - type: web
+    name: f2f-api
+    runtime: node
+    plan: free # cold-starts after ~15 min idle; fine for testing. Upgrade to Starter for always-on.
+    rootDir: . # build from the repo root (pnpm workspace)
+    buildCommand: corepack enable && pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
+    startCommand: node apps/api/src/index.js
+    healthCheckPath: /health
+    autoDeploy: true # redeploy on every push to the connected branch
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: ALLOW_DEV_OTP # keep the 123456 test code (no SMS) until DLT/MSG91 is live. Remove for launch.
+        value: "1"
+      - key: HOST
+        value: 0.0.0.0
+      # ── secrets: set these in the Render dashboard (copy from apps/api/.env) ──
+      - key: DATABASE_URL # Supabase POOLER url (port 6543, ?pgbouncer=true)
+        sync: false
+      - key: DIRECT_URL # Supabase DIRECT url (port 5432)
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: ADMIN_TOKEN # any long random string; the admin site sends it as x-admin-token
+        sync: false
+      - key: CORS_ORIGIN # your Vercel admin URL, e.g. https://farm-to-flat.vercel.app
+        sync: false
+      # optional (leave unset until configured): MSG91_AUTH_KEY, MSG91_SENDER_ID,
+      # MSG91_OTP_TEMPLATE_ID, REDIS_URL, SENTRY_DSN

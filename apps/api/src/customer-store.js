@@ -126,6 +126,9 @@ export function hydrateCustomerData({
 
 // ── auth / otp ──────────────────────────────────────────────────────────────
 const IS_PROD = process.env.NODE_ENV === 'production';
+// Keep the fixed 123456 code (and skip SMS) even in production when ALLOW_DEV_OTP=1 — for a hosted
+// TEST deployment before DLT/MSG91 is live. REMOVE this env var for the real public launch.
+const USE_DEV_OTP = !IS_PROD || process.env.ALLOW_DEV_OTP === '1';
 
 /**
  * Request a login OTP. Security:
@@ -149,12 +152,12 @@ export async function requestOtp(mobile) {
     hits.push(now);
     cs.otpRate.set(mobile, hits);
   }
-  const otp = IS_PROD ? String(Math.floor(100000 + Math.random() * 900000)) : DEV_OTP;
+  const otp = USE_DEV_OTP ? DEV_OTP : String(Math.floor(100000 + Math.random() * 900000));
   cs.otp.set(mobile, { otp, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-  // Deliver the code by SMS. Only in production (dev/test use the fixed 123456 and skip SMS). When
-  // MSG91 isn't configured yet, we can't deliver — surface that rather than pretending it was sent.
-  if (IS_PROD) {
+  // Real production (USE_DEV_OTP off): deliver a random code by SMS and never return it. Otherwise
+  // (dev / test / a test deployment with ALLOW_DEV_OTP=1) use the fixed 123456 and skip SMS.
+  if (!USE_DEV_OTP) {
     if (msg91Enabled) {
       try {
         await sendOtpSms({ mobile, otp });
