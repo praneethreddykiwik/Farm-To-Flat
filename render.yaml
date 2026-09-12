@@ -7,7 +7,9 @@ services:
     runtime: node
     plan: free # cold-starts after ~15 min idle; fine for testing. Upgrade to Starter for always-on.
     rootDir: . # build from the repo root (pnpm workspace)
-    buildCommand: corepack enable && pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
+    # pnpm is provided automatically via the root package.json "packageManager" field — do NOT run
+    # `corepack enable` (it fails on Render's read-only /usr/bin).
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
     startCommand: node apps/api/src/index.js
     healthCheckPath: /health
     autoDeploy: true # redeploy on every push to the connected branch
