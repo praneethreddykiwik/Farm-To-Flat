@@ -141,14 +141,23 @@ function MinimumBar({ subtotal, minimum, nextCoupon }) {
     width: withSpring(`${Math.round(pct * 100)}%`, motion.springSoft),
   }));
 
+  // Progressive, tier-by-tier nudge:
+  //  • below ₹500  → how much more to reach the minimum, and the first offer it unlocks
+  //  • past ₹500   → how much more to reach the NEXT offer (10% → 15% → 20% …)
+  //  • all unlocked→ celebrate
+  const rupeesTo = (t) => Math.ceil((t - sub) / 100);
+  const built = Math.floor(sub / 100);
   let message;
   if (belowMin) {
-    message = `₹${Math.ceil((min - sub) / 100)} more to reach the ₹500 minimum`;
+    // A coupon whose threshold is at/below the ₹500 minimum is the first reward you get at ₹500.
+    const firstReward = nextCoupon && Number(nextCoupon.minOrderPaise) <= min ? nextCoupon : null;
+    message = firstReward
+      ? `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach ₹500 and unlock ${firstReward.discountText}`
+      : `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach the ₹500 minimum`;
   } else if (nextCoupon) {
-    const more = Math.ceil((Number(nextCoupon.minOrderPaise) - sub) / 100);
-    message = `Spend ₹${more} more to unlock ${nextCoupon.discountText}`;
+    message = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to avail ${nextCoupon.discountText}`;
   } else {
-    message = 'Minimum reached — all offers unlocked 🎉';
+    message = "You've unlocked every offer 🎉";
   }
   const fillColor = belowMin ? colors.amber : colors.leaf;
 

@@ -25,7 +25,12 @@ import { formatDateShort, WINDOWS } from '../../src/lib/dates';
 export default function Orders() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data, isLoading, isFetching, refetch } = useGetOrdersQuery();
+  // Keep the list live so status changes from the ops board appear without a manual pull-to-refresh.
+  const { data, isLoading, isFetching, refetch } = useGetOrdersQuery(undefined, {
+    pollingInterval: 15000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
   const orders = data?.orders || [];
 
   return (

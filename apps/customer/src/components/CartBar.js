@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 import { ArrowRight, ShoppingBag } from 'lucide-react-native';
@@ -11,10 +12,14 @@ import { useCart } from '../hooks/useCart';
  * Floating "view basket" bar that slides up above the tab bar the moment the basket has anything in it.
  * Total rolls digit by digit as quantities change.
  */
-export function CartBar({ bottom = 96 }) {
+export function CartBar({ bottom }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { cart, count } = useCart();
   if (!cart || count === 0) return null;
+  // Sit clearly ABOVE the floating tab bar (its pill is ~68 tall on top of the safe-area padding),
+  // with a real gap so the two glass bars never touch/merge.
+  const barBottom = bottom ?? Math.max(insets.bottom, 12) + 68 + 16;
   const short = Number(cart.minOrderValuePaise) - Number(cart.subtotalPaise);
   return (
     <Animated.View
@@ -22,7 +27,7 @@ export function CartBar({ bottom = 96 }) {
       exiting={FadeOutDown.duration(200)}
       layout={LinearTransition.springify().damping(18)}
       pointerEvents="box-none"
-      style={[styles.host, { bottom }]}
+      style={[styles.host, { bottom: barBottom }]}
     >
       <Pressy
         onPress={() => router.push('/cart')}

@@ -36,7 +36,13 @@ export default function OrderDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const { data, isLoading, refetch } = useGetOrderQuery(id, { pollingInterval: 30000 });
+  // Poll while this screen is open so an admin status change (Confirmed → Packing → …) shows up
+  // within a few seconds and the timeline animates forward on its own.
+  const { data, isLoading, refetch } = useGetOrderQuery(id, {
+    pollingInterval: 10000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
   const [cancel, { isLoading: cancelling }] = useCancelOrderMutation();
   const [setCartItem] = useSetCartItemMutation();
   const [reordering, setReordering] = useState(false);
