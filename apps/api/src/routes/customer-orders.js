@@ -48,6 +48,7 @@ const OrderBody = z.object({
   window: z.enum(['MORNING', 'EVENING']),
   couponCode: z.string().nullable().optional(),
   useWallet: z.boolean().optional(),
+  deliveryNote: z.string().trim().max(200).optional(), // "leave with the guard", gate code, etc.
 });
 
 customerOrdersRouter.post(
@@ -55,7 +56,7 @@ customerOrdersRouter.post(
   validateBody(OrderBody),
   asyncHandler(async (req, res) => {
     const cid = req.customerId;
-    const { addressId, deliveryDate, window, couponCode, useWallet } = req.body;
+    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote } = req.body;
     const priced = priceCart(cid);
     if (priced.items.length === 0) throw fail(422, 'CART_EMPTY', 'Your basket is empty.');
     if (!priced.meetsMinimum)
@@ -109,6 +110,7 @@ customerOrdersRouter.post(
       },
       deliveryDate,
       window,
+      deliveryNote: deliveryNote || null,
       lines: rawCart(cid).items.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,

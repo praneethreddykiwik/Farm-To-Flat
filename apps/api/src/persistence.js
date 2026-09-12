@@ -194,6 +194,7 @@ const orderToRow = (o) => ({
   gatewayAmountPaise: o.gatewayAmountPaise ?? 0,
   deliveryDate: o.deliveryDate ?? null,
   window: o.window ?? null,
+  deliveryNote: o.deliveryNote ?? null,
   cancelRequested: !!o.cancelRequested,
   cancelReason: o.cancelReason ?? null,
   cancelRequestedAt: o.cancelRequestedAt ?? null,

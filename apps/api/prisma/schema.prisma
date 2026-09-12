@@ -211,6 +211,7 @@ model Order {
   gatewayAmountPaise  Int      @default(0)
   deliveryDate        String?
   window              String?
+  deliveryNote        String?
   cancelRequested     Boolean  @default(false)
   cancelReason        String?
   cancelRequestedAt   String?

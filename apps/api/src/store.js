@@ -122,6 +122,7 @@ export function createOrder(input) {
     couponCode: input.couponCode || null,
     deliveryDate: input.deliveryDate,
     window: input.window,
+    deliveryNote: input.deliveryNote || null,
     address: input.address || {
       communityId: community?.id,
       communityName: community?.name,

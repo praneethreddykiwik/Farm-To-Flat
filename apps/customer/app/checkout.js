@@ -10,6 +10,7 @@ import {
   Button,
   Display,
   Glass,
+  Input,
   Label,
   Money,
   Pressy,
@@ -82,6 +83,7 @@ export default function Checkout() {
   const [removeCoupon] = useRemoveCouponMutation();
   const [addressId, setAddressId] = useState(null);
   const [slot, setSlot] = useState(null);
+  const [deliveryNote, setDeliveryNote] = useState('');
   const [useWallet, setUseWallet] = useState(true);
   const [intent, setIntent] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(null);
@@ -165,6 +167,7 @@ export default function Checkout() {
         window: chosenSlot.window,
         couponCode: cart?.coupon?.code,
         useWallet,
+        deliveryNote: deliveryNote.trim() || undefined,
       }).unwrap();
       setPendingOrder(res.order);
       if (!res.paymentIntent) {
@@ -302,6 +305,22 @@ export default function Checkout() {
           }
           delay={180}
         />
+
+        <Animated.View
+          entering={FadeInDown.delay(210).duration(360).springify().damping(18)}
+          style={{ marginTop: 20 }}
+        >
+          <Label>Delivery instructions (optional)</Label>
+          <Glass radius={radius.lg} innerStyle={{ padding: 12, marginTop: 8 }}>
+            <Input
+              value={deliveryNote}
+              onChangeText={(t) => setDeliveryNote(t.slice(0, 200))}
+              placeholder="Leave with the guard, gate code, call on arrival…"
+              maxLength={200}
+              autoCapitalize="sentences"
+            />
+          </Glass>
+        </Animated.View>
 
         <Animated.View
           entering={FadeInDown.delay(240).duration(360).springify().damping(18)}
