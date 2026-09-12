@@ -260,7 +260,9 @@ function CommunityForm({ onClose, onSaved }) {
     area: '',
     blocks: '',
     windowCapacity: 40,
-    deliveryDays: [2, 4, 6],
+    // Start a new community delivering every day (admin deselects the days it doesn't serve),
+    // so it has full windows immediately instead of only Tue/Thu/Sat.
+    deliveryDays: [0, 1, 2, 3, 4, 5, 6],
   });
   const [saving, setSaving] = useState(false);
   const toggle = (i) =>

@@ -28,9 +28,11 @@ const CreateCommunity = z.object({
   area: z.string().min(1).max(80),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  deliveryDays: z.array(weekday).min(1).max(7),
+  // Optional on create: when omitted, the store defaults to all 7 delivery days + capacity 40, so a
+  // new community immediately has windows (the admin can then narrow the days).
+  deliveryDays: z.array(weekday).min(1).max(7).optional(),
   cutoffHours: z.number().int().min(0).max(48).optional(),
-  windowCapacity: z.number().int().positive().max(1000),
+  windowCapacity: z.number().int().positive().max(1000).optional(),
   blocks: z.array(z.string().max(40)).max(100),
 });
 const UpdateCommunity = CreateCommunity.partial().extend({ isActive: z.boolean().optional() });
