@@ -1,22 +1,49 @@
 /**
  * Thin client to the platform API's operator + access endpoints, for the STAFF experience (super
  * admin / admin / procurement / fulfilment). The customer flows stay on the in-app mock; only the
- * staff screens talk to the real API (on the simulator localhost:4000 resolves to the host). When
- * the app is pointed at a deployed API, this uses env.apiUrl automatically.
+ * staff screens talk to the real API. Authorises with the signed-in staff member's own Bearer
+ * session (no shared secret in the app), and refreshes it once on a 401 so the ops console keeps
+ * working after the API restarts (e.g. a free-tier host waking from sleep drops in-memory sessions).
  */
 import { env } from './env';
 import { store } from '../store';
+import { accessRefreshed } from '../features/auth/authSlice';
+import { readRefreshToken, saveRefreshToken } from '../features/auth/secure';
 
 const V1 = `${env.apiUrl}/api/v1`;
 const ADMIN = `${V1}/admin`;
 
-async function j(url, opts = {}) {
-  // Send the signed-in staff member's session so the server authorises them by role (no shared
-  // secret embedded in the app). The admin endpoints accept a valid staff Bearer token.
+// One in-flight refresh shared by concurrent calls.
+let refreshing = null;
+async function refreshSession() {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const refreshToken = await readRefreshToken();
+    if (!refreshToken) return null;
+    const r = await fetch(`${V1}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (data?.refreshToken) await saveRefreshToken(data.refreshToken);
+    if (data?.accessToken) store.dispatch(accessRefreshed(data.accessToken));
+    return data?.accessToken || null;
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function j(url, opts = {}, retried = false) {
   const token = store.getState()?.auth?.accessToken;
   const headers = { ...(opts.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(url, { ...opts, headers });
+  if (r.status === 401 && !retried && (await refreshSession())) {
+    return j(url, opts, true); // retry once with the refreshed session
+  }
   const isJson = (r.headers.get('content-type') || '').includes('application/json');
   const body = isJson ? await r.json() : await r.text();
   if (!r.ok) throw new Error((isJson && body?.error?.message) || `HTTP ${r.status}`);
