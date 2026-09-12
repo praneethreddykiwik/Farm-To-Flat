@@ -313,21 +313,30 @@ export function Fulfilment() {
             Reason: {o.cancelReason}
           </div>
         )}
-        <div className="hstack" style={{ gap: 8, marginTop: 11 }}>
+        <div className="hstack" style={{ gap: 8, marginTop: 11, width: '100%' }}>
           <button
             className="btn btn--primary btn--sm"
-            style={{ flex: 1, background: 'var(--tomato)', boxShadow: 'none' }}
+            style={{
+              flex: 2,
+              minWidth: 0,
+              justifyContent: 'center',
+              background: 'var(--tomato)',
+              boxShadow: 'none',
+            }}
             disabled={isBusy}
             onClick={(e) => {
               e.stopPropagation();
               decideCancel(o, 'APPROVE');
             }}
           >
-            {isBusy ? '…' : 'Approve cancellation'}
+            {isBusy ? '…' : 'Approve'}
           </button>
           <button
             className="btn btn--sm"
             style={{
+              flex: 1,
+              minWidth: 0,
+              justifyContent: 'center',
               color: 'var(--ink)',
               background: 'var(--panel, #fff)',
               border: '1px solid var(--line)',
