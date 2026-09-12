@@ -122,38 +122,46 @@ export default function OtpScreen() {
           style={{ marginTop: 28 }}
           accessibilityLabel="One-time code"
         >
-          <Animated.View style={[styles.boxes, shakeStyle]}>
-            {digits.map((d, i) => {
-              const active = i === code.length;
-              return (
-                <Glass
-                  key={i}
-                  radius={radius.md}
-                  elevated={active}
-                  style={styles.boxWrap}
-                  innerStyle={[styles.box, active && styles.boxActive, error && styles.boxError]}
-                >
-                  <Text style={styles.digit}>{d}</Text>
-                  {active && !d ? <View style={styles.caret} /> : null}
-                </Glass>
-              );
-            })}
-          </Animated.View>
-          <TextInput
-            ref={input}
-            value={code}
-            onChangeText={(t) => {
-              setError(null);
-              setCode(t.replace(/\D/g, '').slice(0, LEN));
-            }}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            autoComplete="sms-otp"
-            autoFocus
-            maxLength={LEN}
-            style={styles.hidden}
-            caretHidden
-          />
+          <View style={styles.boxRow}>
+            <Animated.View style={[styles.boxes, shakeStyle]}>
+              {digits.map((d, i) => {
+                const active = i === code.length;
+                return (
+                  <Glass
+                    key={i}
+                    radius={radius.md}
+                    elevated={active}
+                    style={styles.boxWrap}
+                    innerStyle={[styles.box, active && styles.boxActive, error && styles.boxError]}
+                  >
+                    <Text style={styles.digit}>{d}</Text>
+                    {active && !d ? <View style={styles.caret} /> : null}
+                  </Glass>
+                );
+              })}
+            </Animated.View>
+            {/* Invisible input laid OVER the boxes: transparent text + hidden native caret so
+                Android never shows its blinking cursor (caretHidden alone is unreliable there).
+                Covering the whole row also makes every box tappable. */}
+            <TextInput
+              ref={input}
+              value={code}
+              onChangeText={(t) => {
+                setError(null);
+                setCode(t.replace(/\D/g, '').slice(0, LEN));
+              }}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="sms-otp"
+              autoFocus
+              maxLength={LEN}
+              caretHidden
+              selectionColor="transparent"
+              cursorColor="transparent"
+              underlineColorAndroid="transparent"
+              style={styles.overlayInput}
+            />
+          </View>
         </Pressy>
         {error ? (
           <Small color={colors.tomato} style={{ marginTop: 10 }}>
@@ -189,6 +197,7 @@ export default function OtpScreen() {
 const styles = StyleSheet.create({
   back: { alignSelf: 'flex-start', marginTop: 8 },
   backInner: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  boxRow: { position: 'relative' },
   boxes: { flexDirection: 'row', gap: 8 },
   boxWrap: { flex: 1 },
   box: { height: 60, alignItems: 'center', justifyContent: 'center' },
@@ -196,6 +205,18 @@ const styles = StyleSheet.create({
   boxError: { borderWidth: 1.5, borderColor: colors.tomato },
   digit: { fontFamily: fonts.mono, fontSize: 24, color: colors.ink },
   caret: { width: 2, height: 24, backgroundColor: colors.leaf, borderRadius: 1 },
-  hidden: { position: 'absolute', opacity: 0, height: 1, width: 1 },
+  // Fills the boxes exactly; text is transparent (digits render in the boxes behind) and the caret
+  // is hidden, so there is no stray blinking line on Android.
+  overlayInput: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 0,
+    color: 'transparent',
+    textAlign: 'center',
+    fontSize: 1,
+  },
   resendRow: { alignItems: 'center', marginTop: 14 },
 });
