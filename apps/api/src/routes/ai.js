@@ -22,19 +22,58 @@ const PlanBody = z.object({
   horizon: z.enum(['meal', 'day', 'week', 'month']).default('day'),
 });
 
-function systemPrompt() {
+// The app only needs a compact rotation from the model: one day for meal/day, seven for week, and a
+// seven-day rotation for month (the app tiles it to 30 itself — see normalisePlan in the client's
+// src/lib/ai.js). Capping the day count is what keeps the JSON small enough not to truncate, which is
+// exactly why "This week" / "A month" used to fail while "Today" worked.
+const TEMPLATE_DAYS = { meal: 1, day: 1, week: 7, month: 7 };
+
+function systemPrompt(horizon) {
   const cats = listCategories();
   const catalog = listProducts()
     .filter((p) => p.isActive !== false)
     .map((p) => `${p.id} ${p.name} (${(p.aliases || []).slice(0, 2).join('/')}) ${p.unit}`)
     .join('; ');
+  const days = TEMPLATE_DAYS[horizon] || 1;
   return [
     'You are a South-Indian dietitian planning meals ONLY from this grocery catalog.',
     `Categories: ${cats.map((c) => c.name).join(', ')}.`,
     `Catalog items (id name aliases unit): ${catalog}.`,
+    `Return EXACTLY ${days} day object(s) in "days" — no more.${
+      horizon === 'month'
+        ? ' These seven days are a rotation the app repeats across the month.'
+        : ''
+    }`,
+    'Keep it compact: max 4 short steps per meal (≤ 12 words each), dish names ≤ 5 words.',
     'Return STRICT JSON: { title, summary, days:[{ day, meals:[{ slot, name, items:[{productId, grams}], steps, prepMinutes }] }], cautions }.',
     'Every productId MUST be from the catalog. No prose outside JSON.',
   ].join('\n');
+}
+
+/**
+ * Parse model output into an object, tolerating a run that got cut off mid-array (long horizons).
+ * Mirrors the client's extractJSON: try whole, then the first {...} block, then keep every complete
+ * day object and close the structure. Throws only if nothing usable survives.
+ */
+function extractJSON(text) {
+  const t = String(text || '').trim();
+  try {
+    return JSON.parse(t);
+  } catch {}
+  const m = t.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      return JSON.parse(m[0]);
+    } catch {}
+  }
+  const cut = Math.max(t.lastIndexOf('{ "day"'), t.lastIndexOf('{"day"'));
+  if (cut > 0) {
+    const head = t.slice(0, cut).replace(/,\s*$/, '');
+    try {
+      return JSON.parse(`${head}]}`);
+    } catch {}
+  }
+  throw fail(502, 'AI_INCOMPLETE', 'The planner sent an incomplete plan. Please try again.');
 }
 
 async function callGroq(key, prompt, user) {
@@ -48,12 +87,13 @@ async function callGroq(key, prompt, user) {
         { role: 'user', content: user },
       ],
       temperature: 0.6,
+      max_tokens: 12000,
+      response_format: { type: 'json_object' },
     }),
   });
   if (!r.ok) throw fail(502, 'AI_UPSTREAM', `Planner upstream error (${r.status}).`);
   const data = await r.json();
-  const text = data.choices?.[0]?.message?.content || '{}';
-  return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  return extractJSON(data.choices?.[0]?.message?.content || '{}');
 }
 
 async function callGemini(key, prompt, user) {
@@ -65,14 +105,13 @@ async function callGemini(key, prompt, user) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: prompt }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
-        generationConfig: { responseMimeType: 'application/json' },
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 12000 },
       }),
     },
   );
   if (!r.ok) throw fail(502, 'AI_UPSTREAM', `Planner upstream error (${r.status}).`);
   const data = await r.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  return JSON.parse(text);
+  return extractJSON(data.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '{}');
 }
 
 aiRouter.post(
@@ -88,13 +127,29 @@ aiRouter.post(
         'AI planner needs a server key (GROQ_API_KEY or GEMINI_API_KEY). In dev the app calls the provider directly.',
       );
 
-    const prompt = systemPrompt();
+    const prompt = systemPrompt(req.body.horizon);
     const user = JSON.stringify({
       profile: req.body.profile || {},
       request: req.body.request || '',
       horizon: req.body.horizon,
     });
-    const plan = groq ? await callGroq(groq, prompt, user) : await callGemini(gemini, prompt, user);
+    // Try the primary provider; if it errors (Groq's free tier is only 8k tokens/min, so a second
+    // plan within a minute 429s), fall back to the other provider so the customer still gets a plan.
+    const providers = [
+      groq && (() => callGroq(groq, prompt, user)),
+      gemini && (() => callGemini(gemini, prompt, user)),
+    ].filter(Boolean);
+    let plan;
+    let lastErr;
+    for (const run of providers) {
+      try {
+        plan = await run();
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!plan) throw lastErr || fail(502, 'AI_UPSTREAM', 'The planner is unavailable right now.');
     res.json({ plan });
   }),
 );
