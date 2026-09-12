@@ -79,7 +79,10 @@ export function Communities() {
           <div className="skeleton" style={{ height: 200 }} />
         </div>
       ) : (
-        <div className="grid-2--even" style={{ gridTemplateColumns: '1fr 1.1fr' }}>
+        <div
+          className="grid-2 grid-2--even"
+          style={{ gridTemplateColumns: '1fr 1.1fr', alignItems: 'start' }}
+        >
           <div className="vstack stagger" style={{ gap: 14 }}>
             {communities.map((c) => (
               <div
