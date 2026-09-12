@@ -39,13 +39,32 @@ export function PlanShoppingList({ shopping, productsById, onSchedule, compact }
   const total = lines.reduce((s, l) => s + l.paise, 0);
 
   const addAll = async () => {
+    if (adding || !lines.length) return;
     setAdding(true);
     try {
-      for (const l of lines)
-        await setCartItem({ productId: l.p.id, quantity: String(l.qty) }).unwrap();
+      // Fire the adds in parallel (a month plan has ~36 lines — doing them one-by-one over the network
+      // took many seconds and looked frozen) and don't let one bad line abort the rest.
+      const results = await Promise.allSettled(
+        lines.map((l) => setCartItem({ productId: l.p.id, quantity: String(l.qty) }).unwrap()),
+      );
+      const added = results.filter((r) => r.status === 'fulfilled').length;
       dispatch(pulseBag());
+      if (added === 0) {
+        dispatch(
+          showToast({ title: 'Could not add these items. Please try again.', tone: 'error' }),
+        );
+        return;
+      }
       haptic.success();
-      dispatch(showToast({ title: `${lines.length} items added to your basket`, tone: 'success' }));
+      dispatch(
+        showToast({
+          title:
+            added === lines.length
+              ? `${added} items added to your basket`
+              : `${added} of ${lines.length} items added`,
+          tone: 'success',
+        }),
+      );
       router.push('/cart');
     } catch (e) {
       dispatch(showToast({ title: e?.message || 'Could not add everything', tone: 'error' }));
@@ -93,8 +112,10 @@ export function PlanShoppingList({ shopping, productsById, onSchedule, compact }
           </Animated.View>
         ))}
         <View style={styles.totalRow}>
-          <Small muted>{lines.length} products · rounded up to sale units</Small>
-          <Money paise={total} variant="h3" />
+          <Small muted style={{ flex: 1, marginRight: 12 }} numberOfLines={2}>
+            {lines.length} products · rounded up to sale units
+          </Small>
+          <Money paise={total} variant="h3" style={{ flexShrink: 0 }} />
         </View>
       </Glass>
       {!compact ? (

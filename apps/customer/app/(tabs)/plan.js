@@ -465,10 +465,13 @@ export default function Plan() {
 
       <ProfileSheet ref={profileSheet} />
 
+      {/* Explicit snapPoints: dynamic sizing + the horizontal date strip inside computes a 0-height
+          sheet on Android, so "Add to calendar" appeared to do nothing. A fixed height presents reliably. */}
       <Sheet
         ref={scheduleSheet}
         title="Start on"
         subtitle="Ingredients arrive the morning of the first day. We remind you to order the evening before."
+        snapPoints={['58%']}
       >
         <ScrollView
           horizontal

@@ -23,6 +23,15 @@ const HORIZON_DAYS = { meal: 1, day: 1, week: 7, month: 30 };
 // The model writes a rotation; long horizons are tiled from it so the response stays small and reliable.
 const TEMPLATE_DAYS = { meal: 1, day: 1, week: 7, month: 7 };
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
+// Canonical meal-of-day labels by how many meals a day has. The model tends to tag every meal
+// 'lunch', so we relabel by position: a 3-meal day is breakfast/lunch/dinner, a 4-meal day adds an
+// afternoon snack. This is what the customer sees, and it keeps each meal's steps under the right slot.
+const SLOT_LAYOUT = {
+  1: ['lunch'],
+  2: ['breakfast', 'dinner'],
+  3: ['breakfast', 'lunch', 'dinner'],
+  4: ['breakfast', 'lunch', 'snack', 'dinner'],
+};
 
 /** @returns {{ provider: 'groq'|'gemini', model: string, key: string|null }} */
 export function aiConfig(override) {
@@ -207,7 +216,7 @@ export function normalisePlan(raw, products, /** @type {any} */ targets, horizon
   const days = (Array.isArray(raw?.days) ? raw.days : [])
     .slice(0, TEMPLATE_DAYS[horizon] || 1)
     .map((d, di) => {
-      const meals = (Array.isArray(d?.meals) ? d.meals : [])
+      let meals = (Array.isArray(d?.meals) ? d.meals : [])
         .map((m) => {
           const items = (Array.isArray(m?.items) ? m.items : [])
             .filter(
@@ -230,8 +239,11 @@ export function normalisePlan(raw, products, /** @type {any} */ targets, horizon
             totals: totalsFor(items),
           };
         })
-        .filter(Boolean)
-        .sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
+        .filter(Boolean);
+      // Relabel by position (the model tags nearly everything 'lunch'), so the day reads
+      // breakfast → lunch → dinner in the order the model wrote the meals.
+      const layout = SLOT_LAYOUT[meals.length] || SLOTS;
+      meals = meals.map((m, i) => ({ ...m, slot: layout[Math.min(i, layout.length - 1)] }));
       const all = meals.flatMap((m) => m.items);
       return { day: di + 1, meals, totals: totalsFor(all) };
     });

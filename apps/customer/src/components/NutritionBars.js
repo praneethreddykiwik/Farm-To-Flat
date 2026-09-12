@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -18,13 +18,18 @@ const ROWS = [
 ];
 
 function Bar({ label, value, target, unit, color, index, dark }) {
+  // Animate a numeric pixel width, not a percentage string: reanimated cannot animate a `%` width on
+  // Android (the fill renders at 0 and the coloured bar is invisible), so we measure the track once
+  // with onLayout and drive px instead. Works identically on both platforms.
+  const [trackW, setTrackW] = useState(0);
   const w = useSharedValue(0);
   const pct = Math.min(1, target ? value / target : 0);
   useEffect(() => {
+    if (!trackW) return;
     w.value = 0;
-    w.value = withDelay(index * motion.stagger, withSpring(pct, motion.springSoft));
-  }, [pct, index, w]);
-  const fill = useAnimatedStyle(() => ({ width: `${Math.round(w.value * 100)}%` }));
+    w.value = withDelay(index * motion.stagger, withSpring(pct * trackW, motion.springSoft));
+  }, [pct, index, trackW, w]);
+  const fill = useAnimatedStyle(() => ({ width: w.value }));
   const ink = dark ? colors.inkOnDark : colors.ink;
   const muted = dark ? 'rgba(243,245,239,0.6)' : colors.ink3;
   return (
@@ -37,7 +42,10 @@ function Bar({ label, value, target, unit, color, index, dark }) {
           {value} / {target} {unit} · {Math.round(pct * 100)}%
         </Mono>
       </View>
-      <View style={[styles.track, dark && { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+      <View
+        style={[styles.track, dark && { backgroundColor: 'rgba(255,255,255,0.12)' }]}
+        onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
+      >
         <Animated.View style={[styles.fill, { backgroundColor: color }, fill]} />
       </View>
     </View>

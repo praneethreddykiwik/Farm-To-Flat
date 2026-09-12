@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -16,12 +16,15 @@ import { colors, fonts, motion } from '../theme';
  */
 export function ScoreBar({ percent, label, caption, dark, delay = 0, color }) {
   const p = Math.max(0, Math.min(100, Math.round(percent || 0)));
+  // Numeric px width via onLayout — an animated `%` width does not render on Android (see NutritionBars).
+  const [trackW, setTrackW] = useState(0);
   const w = useSharedValue(0);
   useEffect(() => {
+    if (!trackW) return;
     w.value = 0;
-    w.value = withDelay(delay, withSpring(p, motion.springSoft));
-  }, [p, delay, w]);
-  const fill = useAnimatedStyle(() => ({ width: `${w.value}%` }));
+    w.value = withDelay(delay, withSpring((p / 100) * trackW, motion.springSoft));
+  }, [p, delay, trackW, w]);
+  const fill = useAnimatedStyle(() => ({ width: w.value }));
   const ink = dark ? colors.inkOnDark : colors.ink;
   const tone = color || (p >= 75 ? colors.sprout : p >= 45 ? colors.amber : colors.tomato);
   return (
@@ -32,7 +35,10 @@ export function ScoreBar({ percent, label, caption, dark, delay = 0, color }) {
         </Text>
         <Text style={[styles.pct, { color: dark ? colors.sprout : colors.leafDeep }]}>{p}%</Text>
       </View>
-      <View style={[styles.track, dark && { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+      <View
+        style={[styles.track, dark && { backgroundColor: 'rgba(255,255,255,0.12)' }]}
+        onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
+      >
         <Animated.View style={[styles.fill, { backgroundColor: tone }, fill]} />
       </View>
       {caption ? (
