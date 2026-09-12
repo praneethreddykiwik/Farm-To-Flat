@@ -136,6 +136,9 @@ export const api = createApi({
       invalidatesTags: ['Wallet', 'Orders', 'Me'],
     }),
     registerDevice: b.mutation({ query: (body) => ({ url: '/devices', method: 'POST', body }) }),
+
+    // ---- ai planner (production path; keeps the provider key server-side) ----
+    aiPlan: b.mutation({ query: (body) => ({ url: '/ai/plan', method: 'POST', body }) }),
   }),
 });
 
@@ -169,4 +172,5 @@ export const {
   useCreateTopupMutation,
   useVerifyPaymentMutation,
   useRegisterDeviceMutation,
+  useAiPlanMutation,
 } = api;

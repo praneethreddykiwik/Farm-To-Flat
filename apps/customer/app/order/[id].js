@@ -125,18 +125,35 @@ export default function OrderDetail() {
   };
 
   const confirmCancel = () => {
+    // An order that hasn't been paid yet cancels instantly with an immediate refund. Once it's
+    // CONFIRMED (the farm procures and packs against it) a straight cancel isn't safe — it becomes a
+    // request our team reviews on the ops board. Tell the customer which one is about to happen so
+    // the "under review" outcome is never a surprise.
+    const willReview = !!order && order.status !== 'PENDING_PAYMENT';
     Alert.alert(
-      'Cancel this order?',
-      'Anything paid from your wallet is returned instantly. Gateway payments are refunded to the original method.',
+      willReview ? 'Request cancellation?' : 'Cancel this order?',
+      willReview
+        ? 'Your order is already confirmed and being prepared, so our team will quickly review this request. You can cancel anytime before it’s packed — we’ll message you the moment it’s confirmed.'
+        : 'Anything paid from your wallet is returned instantly. Gateway payments are refunded to the original method.',
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: 'Keep order', style: 'cancel' },
         {
-          text: 'Cancel order',
+          text: willReview ? 'Request cancellation' : 'Cancel order',
           style: 'destructive',
           onPress: async () => {
             try {
-              await cancel(id).unwrap();
-              dispatch(showToast({ title: 'Order cancelled', tone: 'success' }));
+              const res = await cancel(id).unwrap();
+              if (res?.cancelRequested) {
+                dispatch(
+                  showToast({
+                    title: 'Cancellation requested',
+                    message: 'Our team is reviewing it — you’ll get a message once it’s confirmed.',
+                    tone: 'success',
+                  }),
+                );
+              } else {
+                dispatch(showToast({ title: 'Order cancelled', tone: 'success' }));
+              }
               refetch();
             } catch (e) {
               dispatch(showToast({ title: e?.message || 'Could not cancel', tone: 'error' }));
@@ -277,8 +294,23 @@ export default function OrderDetail() {
                   loading={cancelling}
                 />
                 <Small muted center style={{ marginTop: 8 }}>
-                  Free until the evening before your window.
+                  {order.status === 'PENDING_PAYMENT'
+                    ? 'Free until the evening before your window.'
+                    : 'Cancel anytime before it’s packed — our team reviews the request.'}
                 </Small>
+              </Animated.View>
+            ) : order.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(order.status) ? (
+              <Animated.View
+                entering={FadeInDown.delay(180).duration(360)}
+                style={{ marginTop: 24 }}
+              >
+                <Glass style={styles.reviewBanner}>
+                  <Label style={{ color: colors.leafDeep }}>Cancellation under review</Label>
+                  <Small muted style={{ marginTop: 6 }}>
+                    Our team is reviewing your cancellation request. You’ll get a message the moment
+                    it’s confirmed — no charge until then.
+                  </Small>
+                </Glass>
               </Animated.View>
             ) : null}
 
@@ -331,4 +363,10 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  reviewBanner: {
+    padding: 16,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.leafDeep + '33',
+  },
 });

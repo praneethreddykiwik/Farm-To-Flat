@@ -45,5 +45,11 @@ services:
         sync: false
       - key: CORS_ORIGIN # your Vercel admin URL, e.g. https://farm-to-flat.vercel.app
         sync: false
+      # AI meal planner: the server calls the provider so the key never ships in the app bundle.
+      # At least ONE of these is required for the "Build my plan" feature (else the route returns 501).
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       # optional (leave unset until configured): MSG91_AUTH_KEY, MSG91_SENDER_ID,
       # MSG91_OTP_TEMPLATE_ID, REDIS_URL, SENTRY_DSN

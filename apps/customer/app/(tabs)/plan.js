@@ -33,7 +33,7 @@ import { ScoreBar } from '../../src/components/ScoreBar';
 import { MealCard } from '../../src/components/MealCard';
 import { PlanShoppingList } from '../../src/components/PlanShoppingList';
 import { ProfileSheet } from '../../src/components/ProfileSheet';
-import { useGetCatalogQuery } from '../../src/api/api';
+import { useAiPlanMutation, useGetCatalogQuery } from '../../src/api/api';
 import {
   draftSet,
   planScheduled,
@@ -87,6 +87,7 @@ export default function Plan() {
   const scheduled = useSelector(selectScheduled);
   const catalog = useGetCatalogQuery();
   const products = useMemo(() => catalog.data?.products || [], [catalog.data]);
+  const [aiPlan] = useAiPlanMutation();
   const productsById = useMemo(
     () => Object.fromEntries(products.map((p) => [p.id, p])),
     [products],
@@ -119,6 +120,7 @@ export default function Plan() {
         products,
         provider: provider || undefined,
         onProgress: setStage,
+        serverPlan: (body) => aiPlan(body).unwrap(),
       });
       dispatch(draftSet(plan));
       haptic.success();

@@ -353,7 +353,15 @@ export function normalisePlan(raw, products, /** @type {any} */ targets, horizon
 /**
  * @param {{ profile: object, request: string, horizon: 'meal'|'day'|'week'|'month', products: any[], provider?: 'groq'|'gemini', onProgress?: (stage: string) => void }} args
  */
-export async function generatePlan({ profile, request, horizon, products, provider, onProgress }) {
+export async function generatePlan({
+  profile,
+  request,
+  horizon,
+  products,
+  provider,
+  onProgress,
+  serverPlan,
+}) {
   const targets = dailyTargets(profile);
   const say = (m) => onProgress?.(m);
   say(
@@ -369,7 +377,16 @@ export async function generatePlan({ profile, request, horizon, products, provid
   const user = `Customer request: ${request || 'Plan my meals.'}\nHorizon: ${horizon}. Return JSON only.`;
   let text;
   if (!env.useMocks && !cfg.key) {
-    text = await callServer({ body: { profile, request, horizon } });
+    // Production: no provider key ships in the bundle, so the plan is generated on our server. Route
+    // it through the RTK Query transport (serverPlan) so it carries the customer's Bearer token and
+    // gets the same single-flight 401 refresh as every other call — a raw fetch here 401s with
+    // "Please sign in again." because the /ai route is behind requireAuth.
+    if (serverPlan) {
+      const data = await serverPlan({ profile, request, horizon });
+      text = typeof data?.plan === 'string' ? data.plan : JSON.stringify(data?.plan ?? data);
+    } else {
+      text = await callServer({ body: { profile, request, horizon } });
+    }
   } else if (!cfg.key) {
     throw new Error(
       `No ${cfg.provider} API key configured. Add EXPO_PUBLIC_${cfg.provider.toUpperCase()}_API_KEY to apps/customer/.env`,
