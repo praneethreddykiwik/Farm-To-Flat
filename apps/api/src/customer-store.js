@@ -544,6 +544,8 @@ export function registerDevice(cid, token) {
     persist.deviceUpsert(cid, token);
   }
 }
+/** A customer's registered Expo push tokens (for the push sender). */
+export const getDevices = (cid) => [...(cs.devices.get(cid) || [])];
 
 /** test helper */
 export function _reset() {

@@ -1,5 +1,5 @@
 import '../global.css';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -33,7 +33,8 @@ import {
   selectRoleState,
 } from '../src/features/role/roleSlice';
 import { adminApi } from '../src/lib/adminApi';
-import { configureNotifications } from '../src/lib/notifications';
+import { configureNotifications, registerForPush } from '../src/lib/notifications';
+import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -50,6 +51,18 @@ function AuthGate({ ready }) {
   const segments = /** @type {any} */ (useSegments());
   const router = useRouter();
   const dispatch = useDispatch();
+  const [registerDevice] = useRegisterDeviceMutation();
+  const pushDone = useRef(false);
+
+  // Register this phone for order push-notifications once after sign-in (asks permission, gets the
+  // Expo token, hands it to the server). Fail-open — a denied permission just means no push.
+  useEffect(() => {
+    if (auth.status !== 'signedIn' || pushDone.current) return;
+    pushDone.current = true;
+    registerForPush()
+      .then((token) => token && registerDevice({ expoPushToken: token }))
+      .catch(() => {});
+  }, [auth.status, registerDevice]);
 
   // Resolve the staff role for the signed-in number (once). Fail-open to "customer" on any error /
   // timeout so the app never gets stuck if the API is unreachable.

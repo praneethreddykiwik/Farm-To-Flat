@@ -22,7 +22,8 @@ import {
   updateOrderStatus,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
-import { ledgerPush, releaseCoupon } from '../../customer-store.js';
+import { ledgerPush, releaseCoupon, getDevices } from '../../customer-store.js';
+import { notifyOrderStatus } from '../../lib/push.js';
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
 
@@ -171,6 +172,7 @@ adminOrdersRouter.patch(
       });
     }
     const updated = updateOrderStatus(req.params.id, req.body.status);
+    notifyOrderStatus(updated, getDevices); // push the customer their new status
     res.json({ order: orderAdmin(updated) });
   }),
 );
@@ -202,9 +204,10 @@ adminOrdersRouter.post(
         skipped.push({ id, reason: 'INVALID_TRANSITION' });
         continue;
       }
-      updated.push(orderAdmin(updateOrderStatus(id, status)));
+      const row = updateOrderStatus(id, status);
+      notifyOrderStatus(row, getDevices); // push each customer their new status
+      updated.push(orderAdmin(row));
     }
-    // TODO(notifications): emit one push batch to updated[].customerId here once the push service lands.
     res.json({ updated, count: updated.length, skipped, notified: updated.length });
   }),
 );
@@ -229,6 +232,7 @@ adminOrdersRouter.post(
         ord.cancelRequested = false;
         ord.timeline.push({ status: 'CANCELLED', at: new Date().toISOString() });
       });
+      notifyOrderStatus(updated, getDevices);
       if (o.customerId && o.walletAppliedPaise > 0)
         ledgerPush(
           o.customerId,
