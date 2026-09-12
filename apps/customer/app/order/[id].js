@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +30,17 @@ import { showToast } from '../../src/features/ui/uiSlice';
 import { colors, radius } from '../../src/theme';
 import { formatDateShort, WINDOWS } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
+import { notifyLocal } from '../../src/lib/notifications';
+
+// In-app banner shown when the ops board advances THIS order while the screen is open. Works with no
+// Firebase (the phone schedules it locally); background push (app closed) is the FCM part, later.
+const STATUS_ALERT = {
+  CONFIRMED: ['Order confirmed 🌱', "We'll harvest it fresh."],
+  PACKING: ['Packing your order 📦', 'Weighed and bagged this morning.'],
+  OUT_FOR_DELIVERY: ['On its way 🛵', 'Heading to your block now.'],
+  DELIVERED: ['Delivered ✅', 'Left at your door — enjoy!'],
+  CANCELLED: ['Order cancelled', 'This order was cancelled.'],
+};
 
 export default function OrderDetail() {
   const { id } = useLocalSearchParams();
@@ -47,6 +58,19 @@ export default function OrderDetail() {
   const [setCartItem] = useSetCartItemMutation();
   const [reordering, setReordering] = useState(false);
   const order = data?.order;
+
+  // Fire a local banner when the status actually changes (not on first load).
+  const prevStatus = useRef(null);
+  useEffect(() => {
+    const s = order?.status;
+    if (!s) return;
+    if (prevStatus.current && prevStatus.current !== s && STATUS_ALERT[s]) {
+      const [title, body] = STATUS_ALERT[s];
+      notifyLocal(title, body, { orderId: order.id, status: s });
+    }
+    prevStatus.current = s;
+  }, [order?.status, order?.id]);
+
   // Finished orders (cancelled, delivered, or failed) can be re-ordered: refill the basket with the
   // same items at today's prices, then drop the customer into the basket to review and check out.
   const canReorder = !!order && ['CANCELLED', 'DELIVERED', 'PAYMENT_FAILED'].includes(order.status);
