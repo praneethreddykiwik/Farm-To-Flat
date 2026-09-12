@@ -13,8 +13,26 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
+import { getCustomer } from '../customer-store.js';
+import { findStaffByMobile } from '../access-store.js';
+import { hasAi } from '../lib/roles.js';
 
 export const aiRouter = Router();
+
+/**
+ * Hard access gate for the AI planner. The route already runs behind requireAuth (any signed-in
+ * number), but the planner is for AI-enabled staff (super admin) only — a normal customer must never
+ * reach it, even by deep-linking the screen or crafting the request by hand. We resolve the caller's
+ * number to a staff record and require AI access; everyone else gets 403. This is the real boundary —
+ * the hidden tab on the client is only cosmetic.
+ */
+function requireAiAccess(req, _res, next) {
+  const cust = getCustomer(req.customerId);
+  const staff = cust && findStaffByMobile(cust.mobile);
+  if (!staff || !hasAi(staff.role, staff.aiAccess))
+    return next(fail(403, 'FORBIDDEN', 'The AI planner is not available on this account.'));
+  next();
+}
 
 const PlanBody = z.object({
   profile: z.record(z.string(), z.any()).optional(),
@@ -116,6 +134,7 @@ async function callGemini(key, prompt, user) {
 
 aiRouter.post(
   '/plan',
+  requireAiAccess,
   validateBody(PlanBody),
   asyncHandler(async (req, res) => {
     const groq = process.env.GROQ_API_KEY;

@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
@@ -44,6 +44,7 @@ import {
   selectScheduled,
 } from '../../src/features/plan/planSlice';
 import { showToast } from '../../src/features/ui/uiSlice';
+import { selectAiVisible } from '../../src/features/role/roleSlice';
 import { generatePlan } from '../../src/lib/ai';
 import { NUTRITION_SOURCE } from '../../src/lib/nutrition';
 import { scheduleOrderReminders } from '../../src/lib/reminders';
@@ -81,6 +82,7 @@ export default function Plan() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const dispatch = useDispatch();
+  const aiVisible = useSelector(selectAiVisible);
   const profile = useSelector(selectProfile);
   const provider = useSelector(selectProvider);
   const draft = useSelector(selectDraft);
@@ -172,6 +174,11 @@ export default function Plan() {
   };
 
   const dateStrip = Array.from({ length: 10 }, (_, i) => addDaysISO(todayISO(), i));
+
+  // Hard client gate: the AI planner is super-admin only. Hiding the tab isn't enough — the route is
+  // still reachable by deep link (f2f://plan) — so a normal customer who lands here is sent back to
+  // the shop. The server enforces the same rule on /ai/plan, which is the real boundary.
+  if (!aiVisible) return <Redirect href="/(tabs)" />;
 
   return (
     <View style={styles.root}>
