@@ -16,6 +16,7 @@ import {
   getWallet,
   ledgerPush,
   releaseCoupon,
+  savePayment,
 } from '../customer-store.js';
 import {
   createRazorpayOrder,
@@ -90,6 +91,7 @@ paymentsRouter.post(
 
     if (success === false) {
       pay.status = 'FAILED';
+      savePayment(pay);
       if (pay.purpose === 'ORDER') {
         const o = getOrder(pay.orderId);
         if (o && o.status === 'PENDING_PAYMENT') {
@@ -125,6 +127,7 @@ paymentsRouter.post(
 
     pay.status = 'CAPTURED';
     pay.razorpayPaymentId = razorpayPaymentId || `pay_rzp_${Date.now()}`;
+    savePayment(pay);
     if (pay.purpose === 'TOPUP') {
       ledgerPush(cid, 'CREDIT', pay.amountPaise, 'TOPUP', pay.razorpayPaymentId, 'Wallet top-up');
       return res.json({

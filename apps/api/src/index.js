@@ -16,9 +16,10 @@ import pinoHttp from 'pino-http';
 
 import { ApiError } from './http.js';
 import { requireAuth } from './routes/require-auth.js';
-import { loadAll, persistEnabled } from './persistence.js';
-import { hydrate } from './store.js';
+import { loadAll, loadTransactional, persistEnabled } from './persistence.js';
+import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { hydrateStaff } from './access-store.js';
+import { hydrateCustomerData } from './customer-store.js';
 
 // public
 import { authRouter } from './routes/auth.js';
@@ -126,10 +127,14 @@ async function boot() {
   let source = 'in-memory seed';
   if (persistEnabled) {
     try {
-      const data = await loadAll();
+      const data = await loadAll(); // master data first (communities needed to enrich addresses)
       hydrate(data);
       hydrateStaff(data.staff);
-      source = `Supabase (${data.products.length} products, ${data.staff.length} staff)`;
+      const tx = await loadTransactional();
+      hydrateCustomerData(tx);
+      hydrateOrders(tx.orders);
+      enableOrderPersistence(); // real orders now write through (import-time seed did not)
+      source = `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
     } catch (e) {
       // Fall back to seed so the API still boots if the DB is unreachable.
       // eslint-disable-next-line no-console

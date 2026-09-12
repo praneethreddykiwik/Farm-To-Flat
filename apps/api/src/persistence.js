@@ -147,57 +147,179 @@ export async function loadAll() {
   };
 }
 
+// ── transactional shapes (stage 2): customers, addresses, orders, payments ──
+const customerCreate = (c, w) => ({
+  id: c.id,
+  mobile: c.mobile,
+  name: c.name ?? null,
+  email: c.email ?? null,
+  walletBalancePaise: w?.balancePaise ?? 0,
+  walletLedger: w?.ledger ?? [],
+  createdAt: c.createdAt ? new Date(c.createdAt) : undefined,
+});
+const customerUpdate = (c, w) => ({
+  mobile: c.mobile,
+  name: c.name ?? null,
+  email: c.email ?? null,
+  ...(w ? { walletBalancePaise: w.balancePaise ?? 0, walletLedger: w.ledger ?? [] } : {}),
+});
+const addressToRow = (a, customerId) => ({
+  id: a.id,
+  customerId,
+  communityId: a.communityId,
+  block: a.block,
+  flat: a.flat,
+  floor: a.floor ?? null,
+  landmark: a.landmark ?? null,
+  recipientName: a.recipientName ?? null,
+  contactNumber: a.contactNumber ?? null,
+  isDefault: !!a.isDefault,
+});
+const orderToRow = (o) => ({
+  id: o.id,
+  orderNumber: o.orderNumber,
+  status: o.status,
+  customerId: o.customerId ?? null,
+  customerName: o.customerName ?? null,
+  mobile: o.mobile ?? null,
+  items: o.items ?? [],
+  address: o.address ?? null,
+  timeline: o.timeline ?? [],
+  subtotalPaise: o.subtotalPaise,
+  costPaise: o.costPaise ?? 0,
+  couponCode: o.couponCode ?? null,
+  couponDiscountPaise: o.couponDiscountPaise ?? 0,
+  deliveryChargePaise: o.deliveryChargePaise ?? 0,
+  totalPaise: o.totalPaise,
+  walletAppliedPaise: o.walletAppliedPaise ?? 0,
+  gatewayAmountPaise: o.gatewayAmountPaise ?? 0,
+  deliveryDate: o.deliveryDate ?? null,
+  window: o.window ?? null,
+  cancelRequested: !!o.cancelRequested,
+  cancelReason: o.cancelReason ?? null,
+  cancelRequestedAt: o.cancelRequestedAt ?? null,
+  createdAt: o.createdAt,
+});
+const paymentToRow = (p) => ({
+  id: p.id,
+  customerId: p.customerId,
+  orderId: p.orderId ?? null,
+  purpose: p.purpose,
+  amountPaise: p.amountPaise,
+  status: p.status,
+  razorpayOrderId: p.razorpayOrderId ?? null,
+  razorpayPaymentId: p.razorpayPaymentId ?? null,
+});
+
+/** Read all transactional tables. Enrichment (address community names) happens in the store. */
+export async function loadTransactional() {
+  const [customers, addresses, sessions, devices, redemptions, orders, payments] =
+    await Promise.all([
+      prisma.customer.findMany(),
+      prisma.address.findMany(),
+      prisma.session.findMany(),
+      prisma.device.findMany(),
+      prisma.couponRedemption.findMany(),
+      prisma.order.findMany(),
+      prisma.payment.findMany(),
+    ]);
+  return { customers, addresses, sessions, devices, redemptions, orders, payments };
+}
+
 const logErr = (op) => (e) =>
   // eslint-disable-next-line no-console
   console.error(`[persist] ${op} failed:`, e?.message || e);
 
-/** Write-through helpers. No-ops when persistence is off, so callers never branch. */
-export const persist = persistEnabled
-  ? {
-      productUpsert: (p) => {
-        const row = productToRow(p);
-        return prisma.product
-          .upsert({ where: { id: p.id }, create: row, update: row })
-          .catch(logErr('product.upsert'));
-      },
-      productDelete: (pid) =>
-        prisma.product.delete({ where: { id: pid } }).catch(logErr('product.delete')),
-      couponUpsert: (c) => {
-        const row = couponToRow(c);
-        return prisma.coupon
-          .upsert({ where: { code: row.code }, create: row, update: row })
-          .catch(logErr('coupon.upsert'));
-      },
-      couponDelete: (code) =>
-        prisma.coupon
-          .delete({ where: { code: String(code).toUpperCase() } })
-          .catch(logErr('coupon.delete')),
-      communityUpsert: (c) => {
-        const row = communityToRow(c);
-        return prisma.community
-          .upsert({ where: { id: c.id }, create: row, update: row })
-          .catch(logErr('community.upsert'));
-      },
-      staffUpsert: (s) => {
-        const row = staffToRow(s);
-        return prisma.staff
-          .upsert({ where: { id: s.id }, create: row, update: row })
-          .catch(logErr('staff.upsert'));
-      },
-      staffDelete: (sid) =>
-        prisma.staff.delete({ where: { id: sid } }).catch(logErr('staff.delete')),
-      configUpdate: (data) =>
-        prisma.appConfig
-          .upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
-          .catch(logErr('config.update')),
-    }
-  : {
-      productUpsert() {},
-      productDelete() {},
-      couponUpsert() {},
-      couponDelete() {},
-      communityUpsert() {},
-      staffUpsert() {},
-      staffDelete() {},
-      configUpdate() {},
-    };
+// Wrap each write so it is a no-op when persistence is off (test / no DATABASE_URL); callers never
+// branch. Writes are fire-and-forget (the cache already reflects the change); failures are logged.
+const wt =
+  (op, fn) =>
+  (...args) =>
+    persistEnabled ? Promise.resolve(fn(...args)).catch(logErr(op)) : undefined;
+
+export const persist = {
+  // ── master data (stage 1) ──
+  productUpsert: wt('product.upsert', (p) => {
+    const row = productToRow(p);
+    return prisma.product.upsert({ where: { id: p.id }, create: row, update: row });
+  }),
+  productDelete: wt('product.delete', (pid) => prisma.product.delete({ where: { id: pid } })),
+  couponUpsert: wt('coupon.upsert', (c) => {
+    const row = couponToRow(c);
+    return prisma.coupon.upsert({ where: { code: row.code }, create: row, update: row });
+  }),
+  couponDelete: wt('coupon.delete', (code) =>
+    prisma.coupon.delete({ where: { code: String(code).toUpperCase() } }),
+  ),
+  communityUpsert: wt('community.upsert', (c) => {
+    const row = communityToRow(c);
+    return prisma.community.upsert({ where: { id: c.id }, create: row, update: row });
+  }),
+  staffUpsert: wt('staff.upsert', (s) => {
+    const row = staffToRow(s);
+    return prisma.staff.upsert({ where: { id: s.id }, create: row, update: row });
+  }),
+  staffDelete: wt('staff.delete', (sid) => prisma.staff.delete({ where: { id: sid } })),
+  configUpdate: wt('config.update', (data) =>
+    prisma.appConfig.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data }),
+  ),
+
+  // ── transactional (stage 2) ──
+  customerUpsert: wt('customer.upsert', (c, wallet) =>
+    prisma.customer.upsert({
+      where: { id: c.id },
+      create: customerCreate(c, wallet),
+      update: customerUpdate(c, wallet),
+    }),
+  ),
+  walletUpdate: wt('wallet.update', (cid, balancePaise, ledger) =>
+    prisma.customer.update({
+      where: { id: cid },
+      data: { walletBalancePaise: balancePaise, walletLedger: ledger },
+    }),
+  ),
+  addressUpsert: wt('address.upsert', (a, cid) => {
+    const row = addressToRow(a, cid);
+    return prisma.address.upsert({ where: { id: a.id }, create: row, update: row });
+  }),
+  orderUpsert: wt('order.upsert', (o) => {
+    const row = orderToRow(o);
+    return prisma.order.upsert({ where: { id: o.id }, create: row, update: row });
+  }),
+  paymentUpsert: wt('payment.upsert', (p) => {
+    const row = paymentToRow(p);
+    return prisma.payment.upsert({ where: { id: p.id }, create: row, update: row });
+  }),
+  sessionUpsert: wt('session.upsert', (refreshToken, customerId) =>
+    prisma.session.upsert({
+      where: { refreshToken },
+      create: { refreshToken, customerId, expiresAt: new Date(Date.now() + 90 * 864e5) },
+      update: {},
+    }),
+  ),
+  sessionDelete: wt('session.delete', (refreshToken) =>
+    prisma.session.deleteMany({ where: { refreshToken } }),
+  ),
+  sessionsDeleteForCustomer: wt('session.deleteForCustomer', (customerId) =>
+    prisma.session.deleteMany({ where: { customerId } }),
+  ),
+  deviceUpsert: wt('device.upsert', (cid, token) =>
+    prisma.device.upsert({
+      where: { expoPushToken: token },
+      create: { expoPushToken: token, customerId: cid },
+      update: { customerId: cid },
+    }),
+  ),
+  redemptionAdd: wt('redemption.add', (cid, code) =>
+    prisma.couponRedemption.upsert({
+      where: { couponCode_customerId: { couponCode: String(code).toUpperCase(), customerId: cid } },
+      create: { couponCode: String(code).toUpperCase(), customerId: cid },
+      update: {},
+    }),
+  ),
+  redemptionDelete: wt('redemption.delete', (cid, code) =>
+    prisma.couponRedemption.deleteMany({
+      where: { couponCode: String(code).toUpperCase(), customerId: cid },
+    }),
+  ),
+};

@@ -43,38 +43,11 @@ enum CouponType {
   FREE_ITEM
 }
 
-enum OrderStatus {
-  PENDING_PAYMENT
-  CONFIRMED
-  PACKING
-  OUT_FOR_DELIVERY
-  DELIVERED
-  CANCELLED
-}
-
-enum DeliveryWindow {
-  MORNING
-  EVENING
-}
-
 enum StaffRole {
   SUPER_ADMIN
   ADMIN
   PROCUREMENT
   FULFILMENT
-}
-
-enum LedgerType {
-  TOPUP
-  SPEND
-  REFUND
-  ADJUSTMENT
-}
-
-enum PaymentStatus {
-  CREATED
-  CAPTURED
-  FAILED
 }
 
 enum ProcurementStatus {
@@ -114,7 +87,6 @@ model Product {
   isActive       Boolean      @default(true)
   availability   Availability @default(AVAILABLE)
   createdAt      DateTime     @default(now())
-  orderItems     OrderItem[]
 
   @@index([categoryId])
   @@index([diet])
@@ -163,18 +135,18 @@ model CouponRedemption {
 
 // ─────────────────────────── customers & auth ───────────────────────────
 model Customer {
-  id                String             @id @default(cuid())
-  mobile            String             @unique
-  name              String?
-  walletBalancePaise Int               @default(0)
-  createdAt         DateTime           @default(now())
-  addresses         Address[]
-  orders            Order[]
-  ledger            WalletLedger[]
-  payments          Payment[]
-  devices           Device[]
-  sessions          Session[]
-  redemptions       CouponRedemption[]
+  id                 String             @id
+  mobile             String             @unique
+  name               String?
+  email              String?
+  walletBalancePaise Int                @default(0)
+  walletLedger       Json               @default("[]") // display history (mirrors in-memory ledger)
+  createdAt          DateTime           @default(now())
+  addresses          Address[]
+  payments           Payment[]
+  devices            Device[]
+  sessions           Session[]
+  redemptions        CouponRedemption[]
 }
 
 // Refresh tokens (rotated on use). Short-lived OTPs belong in Redis (REDIS_URL), not here.
@@ -198,101 +170,68 @@ model Device {
 }
 
 model Address {
-  id            String    @id @default(cuid())
+  id            String    @id
   customer      Customer  @relation(fields: [customerId], references: [id])
   customerId    String
   community     Community @relation(fields: [communityId], references: [id])
   communityId   String
   block         String
   flat          String
+  floor         String?
   landmark      String?
   recipientName String?
   contactNumber String?
   isDefault     Boolean   @default(false)
-  orders        Order[]
 
   @@index([customerId])
 }
 
 // ─────────────────────────── orders ───────────────────────────
+// Self-contained: line items, the delivery-address snapshot and the status timeline are stored as
+// JSON, exactly mirroring the in-memory order object (which the admin analytics + serializers read).
+// customerId is nullable so seeded/guest demo orders persist too. Money is Int paise; the JSON items
+// also carry integer-paise fields. costPaise/unitCostPaise are operator-only (never serialized out).
 model Order {
-  id                  String         @id @default(cuid())
-  orderNumber         String         @unique
-  customer            Customer       @relation(fields: [customerId], references: [id])
-  customerId          String
-  address             Address        @relation(fields: [addressId], references: [id])
-  addressId           String
-  status              OrderStatus    @default(PENDING_PAYMENT)
-  deliveryDate        String // ISO date (delivery run key)
-  window              DeliveryWindow
+  id                  String   @id
+  orderNumber         String   @unique
+  status              String   @default("CONFIRMED")
+  customerId          String?
+  customerName        String?
+  mobile              String?
+  items               Json     @default("[]")
+  address             Json?
+  timeline            Json     @default("[]")
   subtotalPaise       Int
+  costPaise           Int      @default(0)
   couponCode          String?
-  couponDiscountPaise Int            @default(0)
-  deliveryChargePaise Int            @default(0)
+  couponDiscountPaise Int      @default(0)
+  deliveryChargePaise Int      @default(0)
   totalPaise          Int
-  createdAt           DateTime       @default(now())
-  items               OrderItem[]
-  timeline            OrderEvent[]
-  payments            Payment[]
+  walletAppliedPaise  Int      @default(0)
+  gatewayAmountPaise  Int      @default(0)
+  deliveryDate        String?
+  window              String?
+  cancelRequested     Boolean  @default(false)
+  cancelReason        String?
+  cancelRequestedAt   String?
+  createdAt           String // ISO string, mirrors the in-memory order
 
   @@index([status])
-  @@index([deliveryDate, window])
   @@index([customerId])
-}
-
-model OrderItem {
-  id             String  @id @default(cuid())
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId        String
-  product        Product @relation(fields: [productId], references: [id])
-  productId      String
-  name           String // snapshot at order time
-  unit           Unit
-  quantity       Decimal @db.Decimal(10, 3)
-  unitPricePaise Int
-  unitCostPaise  Int // operator-only
-  lineTotalPaise Int
-  lineCostPaise  Int // operator-only
-  note           String?
-
-  @@index([orderId])
-}
-
-model OrderEvent {
-  id      String      @id @default(cuid())
-  order   Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId String
-  status  OrderStatus
-  at      DateTime    @default(now())
-
-  @@index([orderId])
 }
 
 // ─────────────────────────── money ───────────────────────────
-model WalletLedger {
-  id         String     @id @default(cuid())
-  customer   Customer   @relation(fields: [customerId], references: [id])
-  customerId String
-  amountPaise Int // signed: +topup/refund, -spend
-  type       LedgerType
-  ref        String? // order id / payment id
-  createdAt  DateTime   @default(now())
-
-  @@index([customerId])
-}
-
 model Payment {
-  id               String        @id @default(cuid())
-  customer         Customer      @relation(fields: [customerId], references: [id])
-  customerId       String
-  order            Order?        @relation(fields: [orderId], references: [id])
-  orderId          String?
-  purpose          String // ORDER | WALLET_TOPUP
-  amountPaise      Int
-  status           PaymentStatus @default(CREATED)
-  razorpayOrderId  String?
+  id                String   @id
+  customer          Customer @relation(fields: [customerId], references: [id])
+  customerId        String
+  orderId           String?
+  purpose           String // ORDER | WALLET_TOPUP
+  amountPaise       Int
+  status            String   @default("CREATED")
+  razorpayOrderId   String?
   razorpayPaymentId String?
-  createdAt        DateTime      @default(now())
+  createdAt         DateTime @default(now())
 
   @@index([customerId])
   @@index([orderId])

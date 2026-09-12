@@ -7,6 +7,7 @@
 import { constants, getProduct, listCommunities, listCoupons } from './store.js';
 import { id, shortId } from './lib/ids.js';
 import { msg91Enabled, sendOtpSms } from './lib/msg91.js';
+import { persist } from './persistence.js';
 
 const DEV_OTP = '123456';
 
@@ -42,6 +43,86 @@ const cart = (cid) =>
 const wallet = (cid) =>
   cs.wallets.get(cid) || cs.wallets.set(cid, { balancePaise: 0, ledger: [] }).get(cid);
 const redemptions = (cid) => cs.redemptions.get(cid) || cs.redemptions.set(cid, new Set()).get(cid);
+
+/**
+ * Load customers, addresses, wallets, sessions, devices, redemptions and payments from Supabase into
+ * the in-memory cache at boot. Carts and OTPs stay ephemeral (never persisted). Called once by boot().
+ */
+export function hydrateCustomerData({
+  customers,
+  addresses,
+  sessions,
+  devices,
+  redemptions,
+  payments,
+}) {
+  const communities = listCommunities();
+  const comm = (cid) => communities.find((c) => c.id === cid);
+  cs.customers = new Map();
+  cs.byMobile = new Map();
+  cs.wallets = new Map();
+  cs.addresses = new Map();
+  cs.refresh = new Map();
+  cs.devices = new Map();
+  cs.redemptions = new Map();
+  cs.payments = new Map();
+  for (const c of customers) {
+    cs.customers.set(c.id, {
+      id: c.id,
+      mobile: c.mobile,
+      name: c.name ?? null,
+      email: c.email ?? null,
+      createdAt: c.createdAt?.toISOString?.() || c.createdAt,
+    });
+    cs.byMobile.set(c.mobile, c.id);
+    cs.wallets.set(c.id, {
+      balancePaise: c.walletBalancePaise ?? 0,
+      ledger: Array.isArray(c.walletLedger) ? c.walletLedger : [],
+    });
+  }
+  for (const a of addresses) {
+    const co = comm(a.communityId);
+    const list =
+      cs.addresses.get(a.customerId) || cs.addresses.set(a.customerId, []).get(a.customerId);
+    list.push({
+      id: a.id,
+      communityId: a.communityId,
+      communityName: co?.name,
+      area: co?.area,
+      block: a.block,
+      flat: a.flat,
+      floor: a.floor ?? null,
+      landmark: a.landmark ?? null,
+      recipientName: a.recipientName ?? null,
+      contactNumber: a.contactNumber ?? null,
+      isDefault: !!a.isDefault,
+    });
+  }
+  for (const s of sessions) cs.refresh.set(s.refreshToken, s.customerId);
+  for (const d of devices) {
+    const set =
+      cs.devices.get(d.customerId) || cs.devices.set(d.customerId, new Set()).get(d.customerId);
+    set.add(d.expoPushToken);
+  }
+  for (const r of redemptions) {
+    const set =
+      cs.redemptions.get(r.customerId) ||
+      cs.redemptions.set(r.customerId, new Set()).get(r.customerId);
+    set.add(r.couponCode);
+  }
+  for (const p of payments) {
+    cs.payments.set(p.id, {
+      id: p.id,
+      customerId: p.customerId,
+      purpose: p.purpose,
+      orderId: p.orderId ?? null,
+      amountPaise: p.amountPaise,
+      status: p.status,
+      razorpayOrderId: p.razorpayOrderId ?? null,
+      razorpayPaymentId: p.razorpayPaymentId ?? null,
+    });
+  }
+}
 
 // ── auth / otp ──────────────────────────────────────────────────────────────
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -131,14 +212,16 @@ export function verifyOtp(mobile, otp) {
   const isNew = !customerId;
   if (!customerId) {
     customerId = id('cus', 8);
-    cs.customers.set(customerId, {
+    const customer = {
       id: customerId,
       mobile,
       name: null,
       email: null,
       createdAt: new Date().toISOString(),
-    });
+    };
+    cs.customers.set(customerId, customer);
     cs.byMobile.set(mobile, customerId);
+    persist.customerUpsert(customer, wallet(customerId));
   }
   return { ok: true, customer: cs.customers.get(customerId), isNew };
 }
@@ -148,6 +231,7 @@ export function issueTokens(customerId) {
   const refreshToken = `ref_${shortId(28)}`;
   cs.sessions.set(accessToken, { customerId, refreshToken });
   cs.refresh.set(refreshToken, customerId);
+  persist.sessionUpsert(refreshToken, customerId);
   return { accessToken, refreshToken };
 }
 
@@ -160,6 +244,7 @@ export function rotateRefresh(refreshToken) {
   const customerId = cs.refresh.get(refreshToken);
   if (!customerId) return null;
   cs.refresh.delete(refreshToken);
+  persist.sessionDelete(refreshToken);
   // drop old access tokens for this refresh
   for (const [tok, s] of cs.sessions) if (s.refreshToken === refreshToken) cs.sessions.delete(tok);
   return { customerId, ...issueTokens(customerId) };
@@ -168,6 +253,7 @@ export function rotateRefresh(refreshToken) {
 export function logout(customerId) {
   for (const [tok, s] of cs.sessions) if (s.customerId === customerId) cs.sessions.delete(tok);
   for (const [tok, cid] of cs.refresh) if (cid === customerId) cs.refresh.delete(tok);
+  persist.sessionsDeleteForCustomer(customerId);
 }
 
 // ── customer / addresses ──────────────────────────────────────────────────────
@@ -177,6 +263,7 @@ export function updateCustomer(cid, patch) {
   if (!c) return null;
   if (patch.name !== undefined) c.name = patch.name;
   if (patch.email !== undefined) c.email = patch.email;
+  persist.customerUpsert(c, wallet(cid));
   return c;
 }
 export const listAddresses = (cid) => cs.addresses.get(cid) || [];
@@ -225,13 +312,18 @@ export function addAddress(cid, body) {
   };
   if (address.isDefault) list.forEach((a) => (a.isDefault = false));
   list.push(address);
-  if (body.recipientName && customer && !customer.name) customer.name = body.recipientName;
+  if (body.recipientName && customer && !customer.name) {
+    customer.name = body.recipientName;
+    persist.customerUpsert(customer, wallet(cid));
+  }
+  list.forEach((a) => persist.addressUpsert(a, cid)); // new address + any changed default flags
   return { address };
 }
 
 export function setDefaultAddress(cid, addrId) {
   const list = cs.addresses.get(cid) || [];
   list.forEach((a) => (a.isDefault = a.id === addrId));
+  list.forEach((a) => persist.addressUpsert(a, cid));
   return list;
 }
 
@@ -293,11 +385,13 @@ export function validateCoupon(cid, code, subtotal) {
 
 export function redeemCoupon(cid, code) {
   redemptions(cid).add(code);
+  persist.redemptionAdd(cid, code);
   const c = listCoupons().find((x) => x.code === code);
   if (c) c.redeemedCount += 1;
 }
 export function releaseCoupon(cid, code) {
   redemptions(cid).delete(code);
+  persist.redemptionDelete(cid, code);
 }
 
 // ── cart ────────────────────────────────────────────────────────────────────
@@ -416,6 +510,7 @@ export function ledgerPush(cid, direction, amount, source, ref, note) {
     note,
     createdAt: new Date().toISOString(),
   });
+  persist.walletUpdate(cid, w.balancePaise, w.ledger);
 }
 
 // ── payments (intents; the mock's /payments/verify doubles as the webhook) ──────
@@ -431,14 +526,20 @@ export function createPayment(cid, { purpose, orderId, amountPaise }) {
     razorpayOrderId: `order_${shortId(14)}`,
   };
   cs.payments.set(paymentId, payment);
+  persist.paymentUpsert(payment);
   return payment;
 }
 export const getPayment = (paymentId) => cs.payments.get(paymentId) || null;
+/** Persist a payment after a route mutates it (e.g. status -> CAPTURED on verify). */
+export const savePayment = (payment) => persist.paymentUpsert(payment);
 
 // ── devices ──────────────────────────────────────────────────────────────────
 export function registerDevice(cid, token) {
   const set = cs.devices.get(cid) || cs.devices.set(cid, new Set()).get(cid);
-  if (token) set.add(token);
+  if (token) {
+    set.add(token);
+    persist.deviceUpsert(cid, token);
+  }
 }
 
 /** test helper */

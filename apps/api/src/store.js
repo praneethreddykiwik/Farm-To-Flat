@@ -53,6 +53,9 @@ const db = {
 };
 
 let seq = 4210;
+// Orders persist only after boot (the import-time seed loop below must NOT write). Declared here so
+// createOrder (called during seeding) can read it without a temporal-dead-zone error.
+let orderPersist = false;
 
 /** Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped. */
 function makeLine(productId, qty, note = null) {
@@ -130,6 +133,7 @@ export function createOrder(input) {
     timeline: [{ status, at: createdAt }],
   };
   db.orders.unshift(order);
+  if (orderPersist) persist.orderUpsert(order);
   return clone(order);
 }
 
@@ -169,6 +173,30 @@ export function hydrate(data) {
   }
 }
 
+// boot() calls this after hydration so real orders (not the import-time seed) write through.
+export const enableOrderPersistence = () => {
+  orderPersist = true;
+};
+
+/**
+ * Load orders from Supabase into the cache. On the very first boot (empty orders table) the seeded
+ * demo orders are pushed up once so the admin has example data; thereafter they load from the DB.
+ */
+export function hydrateOrders(rows) {
+  if (rows?.length) {
+    db.orders = rows
+      .map((r) => ({
+        ...r,
+        items: r.items || [],
+        timeline: r.timeline || [],
+        address: r.address || null,
+      }))
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  } else {
+    for (const o of db.orders) persist.orderUpsert(o); // one-time seed of demo orders
+  }
+}
+
 // ── reads ────────────────────────────────────────────────────────────────
 export const listCategories = () => clone(db.categories);
 export const listProducts = () => clone(db.products);
@@ -199,6 +227,7 @@ export function patchOrder(oid, fn) {
   const o = db.orders.find((x) => x.id === oid);
   if (!o) return null;
   fn(o);
+  if (orderPersist) persist.orderUpsert(o);
   return clone(o);
 }
 export const constants = () => clone(db.constants);
@@ -377,6 +406,7 @@ export function updateOrderStatus(oid, status) {
   if (!o) return null;
   o.status = status;
   o.timeline.push({ status, at: new Date().toISOString() });
+  if (orderPersist) persist.orderUpsert(o);
   return clone(o);
 }
 
