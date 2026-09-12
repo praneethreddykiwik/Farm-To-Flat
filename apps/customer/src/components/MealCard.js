@@ -21,13 +21,21 @@ function MealCardBase({ meal, productsById, index = 0, compact = false }) {
   const router = useRouter();
   const [open, setOpen] = useState(!compact);
   const s = SLOT[meal.slot] || SLOT.lunch;
+  // On a week/month plan there are dozens of these cards. Running an `entering` spring on each and a
+  // `layout` spring on ALL of them every time one card expands floods the UI thread on real Android
+  // phones — taps get dropped and the card/calendar buttons feel unresponsive. So for large (compact)
+  // plans we drop those animations; the expand still works, it just snaps instead of springing.
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * motion.stagger)
-        .duration(360)
-        .springify()
-        .damping(18)}
-      layout={LinearTransition.springify().damping(18)}
+      entering={
+        compact
+          ? undefined
+          : FadeInDown.delay(index * motion.stagger)
+              .duration(360)
+              .springify()
+              .damping(18)
+      }
+      layout={compact ? undefined : LinearTransition.springify().damping(18)}
     >
       <Glass radius={radius.lg} blur={false} innerStyle={styles.card}>
         <Pressy onPress={() => setOpen((o) => !o)} haptics="select" scale={0.995}>
@@ -64,7 +72,7 @@ function MealCardBase({ meal, productsById, index = 0, compact = false }) {
             return (
               <Animated.View
                 key={`${it.productId}-${i}`}
-                entering={FadeInDown.delay(80 + i * 40).duration(280)}
+                entering={compact ? undefined : FadeInDown.delay(80 + i * 40).duration(280)}
               >
                 <Pressy
                   onPress={() => router.push({ pathname: '/product/[id]', params: { id: p.id } })}
