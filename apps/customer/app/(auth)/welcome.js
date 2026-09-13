@@ -153,7 +153,16 @@ const styles = StyleSheet.create({
   },
   card: { padding: 20 },
   stats: { flexDirection: 'row', marginBottom: 18 },
-  stat: { fontFamily: fonts.display, fontSize: 26, color: colors.sprout, letterSpacing: -0.5 },
+  // lineHeight is REQUIRED for Fraunces (a tall display serif) — without it iOS clips the tops of the
+  // numerals. Matches the type-scale convention of fontSize + 4 (see packages/tokens type scale).
+  stat: {
+    fontFamily: fonts.display,
+    fontSize: 26,
+    lineHeight: 30,
+    color: colors.sprout,
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
   sun: {
     position: 'absolute',
     top: H * 0.16,
