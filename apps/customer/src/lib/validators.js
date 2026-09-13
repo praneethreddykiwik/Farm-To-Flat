@@ -61,24 +61,35 @@ export function checkEmail(raw) {
 }
 
 // ── Flat / house number ───────────────────────────────────────────────────────
-// Alphanumeric plus the separators flats use (1204, B-12, 3/4). No spaces run-on, max 12.
+// Alphanumeric plus the separators flats use (1204, B-12, 3/4). Separators are INTERNAL only —
+// a leading/trailing "-" or "/" is stripped so a negative like "-44" can never be entered. Max 12.
 export function cleanFlat(raw) {
   return String(raw || '')
     .toUpperCase()
     .replace(/[^A-Z0-9/-]/g, '')
+    .replace(/^[/-]+/, '') // no leading separator → blocks "-44"
+    .replace(/[/-]+$/, '') // no trailing separator
     .slice(0, 12);
 }
 export function checkFlat(raw) {
   const v = cleanFlat(raw);
   if (!v) return 'Enter your flat number';
+  // A purely numeric flat must be a positive number — reject "0" / "00".
+  if (/^\d+$/.test(v) && Number(v) <= 0) return 'Enter a valid flat number';
   return null;
 }
 
-// ── Floor (numeric, allows ground = 0, basements not modelled) ─────────────────
+// ── Floor (positive number; blank = not given. Negatives and 0 are rejected.) ──────────────────
 export const cleanFloor = (raw) =>
   String(raw || '')
-    .replace(/\D/g, '')
+    .replace(/\D/g, '') // strips any "-", so a negative can't be entered
     .slice(0, 3);
+export function checkFloor(raw) {
+  const v = cleanFloor(raw);
+  if (!v) return null; // floor is optional
+  if (Number(v) <= 0) return 'Enter a valid floor';
+  return null;
+}
 
 // ── Free text (landmark, notes) ───────────────────────────────────────────────
 export const cleanText = (raw, max = 80) =>

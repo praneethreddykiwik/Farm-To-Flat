@@ -12,6 +12,7 @@ import { showToast } from '../features/ui/uiSlice';
 import { haptic } from '../lib/haptics';
 import {
   checkFlat,
+  checkFloor,
   checkName,
   cleanFlat,
   cleanFloor,
@@ -111,6 +112,8 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
     if (!block) e.block = 'Choose your block';
     const flatErr = checkFlat(flat);
     if (flatErr) e.flat = flatErr;
+    const floorErr = checkFloor(floor);
+    if (floorErr) e.floor = floorErr;
     const nameErr = checkName(name);
     if (nameErr) e.name = nameErr;
     setErrors(e);
@@ -218,6 +221,7 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
               placeholder="12"
               keyboardType="number-pad"
               maxLength={3}
+              error={errors.floor}
               style={{ flex: 0.8 }}
             />
           </View>

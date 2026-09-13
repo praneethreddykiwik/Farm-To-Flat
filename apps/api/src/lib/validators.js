@@ -33,8 +33,17 @@ export const flat = z
   .trim()
   .min(1, 'Flat number required')
   .max(12, 'Flat number too long')
-  .regex(/^[A-Za-z0-9/-]+$/, 'Flat number has invalid characters');
+  // Separators ("-", "/") are INTERNAL only (B-12, 3/4) — a leading/trailing one is rejected, so a
+  // negative like "-44" can never be stored.
+  .regex(/^[A-Za-z0-9]+([/-][A-Za-z0-9]+)*$/, 'Enter a valid flat number')
+  // A purely numeric flat must be > 0 — rejects "0" / "00".
+  .refine((v) => !/^\d+$/.test(v) || Number(v) > 0, 'Flat number must be greater than 0');
 
-export const floor = z.string().trim().max(3).regex(/^\d*$/, 'Floor must be a number');
+// Optional; when given it must be a POSITIVE number — empty is fine, but "0" and negatives are rejected.
+export const floor = z
+  .string()
+  .trim()
+  .max(3)
+  .regex(/^([1-9]\d*)?$/, 'Floor must be a positive number');
 
 export const shortText = (max = 80) => z.string().trim().max(max);
