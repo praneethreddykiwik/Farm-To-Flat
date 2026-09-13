@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import Animated, {
   FadeOut,
   LinearTransition,
   useAnimatedStyle,
+  useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
 import { NotebookPen, ShoppingBasket, Ticket, Trash2, X } from 'lucide-react-native';
@@ -137,9 +138,16 @@ function MinimumBar({ subtotal, minimum, nextCoupon }) {
   // The current goal: the ₹500 minimum, else the next locked coupon's threshold.
   const target = belowMin ? min : nextCoupon ? Number(nextCoupon.minOrderPaise) : min;
   const pct = target > 0 ? Math.min(1, sub / target) : 1;
-  const style = useAnimatedStyle(() => ({
-    width: withSpring(`${Math.round(pct * 100)}%`, motion.springSoft),
-  }));
+  // Animate a numeric pixel width, not a percentage string: reanimated cannot animate a `%` width on
+  // Android (the fill renders at 0 and the coloured bar is invisible), so we measure the track once
+  // with onLayout and drive px instead. Mirrors NutritionBars.
+  const [trackW, setTrackW] = useState(0);
+  const w = useSharedValue(0);
+  useEffect(() => {
+    if (!trackW) return;
+    w.value = withSpring(pct * trackW, motion.springSoft);
+  }, [pct, trackW, w]);
+  const style = useAnimatedStyle(() => ({ width: w.value }));
 
   // Progressive, tier-by-tier nudge:
   //  • below ₹500  → how much more to reach the minimum, and the first offer it unlocks
@@ -163,7 +171,7 @@ function MinimumBar({ subtotal, minimum, nextCoupon }) {
 
   return (
     <View style={{ marginTop: 14 }}>
-      <View style={styles.track}>
+      <View style={styles.track} onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}>
         <Animated.View style={[styles.fill, { backgroundColor: fillColor }, style]} />
       </View>
       <Small muted style={{ marginTop: 6 }}>

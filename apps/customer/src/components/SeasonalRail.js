@@ -53,6 +53,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fonts.display,
     fontSize: 20,
+    lineHeight: 24,
     color: colors.ink,
     letterSpacing: -0.3,
     marginTop: 2,

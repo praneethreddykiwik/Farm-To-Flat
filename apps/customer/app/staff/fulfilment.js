@@ -197,7 +197,9 @@ export default function StaffFulfilment() {
           groups.map((c) => (
             <View key={c.id} style={{ marginBottom: 22 }}>
               <View style={styles.commHead}>
-                <Text style={styles.commName}>{c.name}</Text>
+                <Text style={styles.commName} numberOfLines={1} ellipsizeMode="tail">
+                  {c.name}
+                </Text>
                 <Text style={styles.commMeta}>
                   {c.area ? `${c.area} · ` : ''}
                   {c.total} order{c.total > 1 ? 's' : ''}
@@ -325,8 +327,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  commName: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, letterSpacing: -0.3 },
-  commMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.ink3 },
+  commName: {
+    flex: 1,
+    fontFamily: fonts.display,
+    fontSize: 19,
+    lineHeight: 23,
+    color: colors.ink,
+    letterSpacing: -0.3,
+  },
+  commMeta: {
+    flexShrink: 0,
+    marginLeft: 8,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.ink3,
+  },
 
   block: { marginBottom: 14 },
   blockLabel: {

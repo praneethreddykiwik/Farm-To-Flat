@@ -152,7 +152,7 @@ export default function StaffOrders() {
                 <Text style={styles.name}>{o.customerName}</Text>
                 {where ? <Text style={styles.where}>{where}</Text> : null}
                 <View style={styles.metaRow}>
-                  <Text style={styles.meta}>
+                  <Text style={[styles.meta, { flex: 1 }]} numberOfLines={1}>
                     {fmtDate(o.deliveryDate) || '—'}
                     {o.window ? ` · ${cap(o.window)}` : ''}
                   </Text>
@@ -261,7 +261,13 @@ const styles = StyleSheet.create({
     borderTopColor: colors.hairline,
   },
   meta: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
-  total: { fontFamily: fonts.bodySemi, fontSize: 14.5, color: colors.ink, marginLeft: 'auto' },
+  total: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 14.5,
+    color: colors.ink,
+    marginLeft: 'auto',
+    flexShrink: 0,
+  },
 
   emptyBox: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   retry: {

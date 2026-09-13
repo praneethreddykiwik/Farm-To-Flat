@@ -219,6 +219,7 @@ export default function Wallet() {
                     style={{
                       fontFamily: fonts.display,
                       fontSize: 24,
+                      lineHeight: 28,
                       color: active ? colors.sprout : colors.ink,
                     }}
                   >

@@ -173,7 +173,14 @@ export default function Profile() {
           style={styles.hero}
         >
           <View style={styles.avatar}>
-            <Text style={{ fontFamily: fonts.displayItalic, fontSize: 30, color: colors.sprout }}>
+            <Text
+              style={{
+                fontFamily: fonts.displayItalic,
+                fontSize: 30,
+                lineHeight: 38,
+                color: colors.sprout,
+              }}
+            >
               {(customer?.name || 'F').charAt(0).toUpperCase()}
             </Text>
           </View>

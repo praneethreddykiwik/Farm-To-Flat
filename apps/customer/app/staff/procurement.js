@@ -123,7 +123,9 @@ export default function StaffProcurement() {
             {data.byCategory.map((g) => (
               <View key={g.categoryId} style={styles.group}>
                 <View style={styles.groupHead}>
-                  <Text style={styles.groupName}>{g.name}</Text>
+                  <Text style={styles.groupName} numberOfLines={1}>
+                    {g.name}
+                  </Text>
                   <Text style={styles.groupSub}>
                     {g.items.length} · {inr(g.subtotalPaise)}
                   </Text>
@@ -253,7 +255,13 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
   },
   kpiBig: { flex: 1.3 },
-  kpiValue: { fontFamily: fonts.display, fontSize: 22, color: colors.ink, letterSpacing: -0.5 },
+  kpiValue: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    lineHeight: 26,
+    color: colors.ink,
+    letterSpacing: -0.5,
+  },
   kpiLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3, marginTop: 4 },
   bufferNote: {
     backgroundColor: 'rgba(14,27,20,0.04)',
@@ -297,8 +305,14 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 8,
   },
-  groupName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink },
-  groupSub: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.ink3 },
+  groupName: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink },
+  groupSub: {
+    flexShrink: 0,
+    marginLeft: 8,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.ink3,
+  },
   item: {
     paddingHorizontal: 16,
     paddingVertical: 12,

@@ -493,6 +493,7 @@ export default function Plan() {
                     style={{
                       fontFamily: fonts.display,
                       fontSize: 22,
+                      lineHeight: 26,
                       color: active ? colors.sprout : colors.ink,
                       marginTop: 2,
                     }}
@@ -577,7 +578,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  dayTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.ink },
+  dayTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.ink },
   day: {
     width: 64,
     paddingVertical: 10,

@@ -86,6 +86,7 @@ export function WindowPicker({ windows, loading, value, onChange }) {
                   style={{
                     fontFamily: fonts.display,
                     fontSize: 22,
+                    lineHeight: 26,
                     color: active ? colors.sprout : colors.ink,
                     marginTop: 2,
                   }}

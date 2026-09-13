@@ -140,7 +140,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.hairline,
   },
-  kpiValue: { fontFamily: fonts.display, fontSize: 22, color: colors.ink, letterSpacing: -0.5 },
+  kpiValue: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    lineHeight: 26,
+    color: colors.ink,
+    letterSpacing: -0.5,
+  },
   kpiLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3, marginTop: 4 },
   sectionLabel: {
     fontFamily: fonts.bodySemi,
@@ -166,7 +172,7 @@ const styles = StyleSheet.create({
   cardIcon: { fontSize: 26 },
   cardTitle: { fontFamily: fonts.bodySemi, fontSize: 15.5, color: colors.ink },
   cardSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink3, marginTop: 2 },
-  chev: { fontFamily: fonts.display, fontSize: 24, color: colors.ink3 },
+  chev: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28, color: colors.ink3 },
   noteBox: { backgroundColor: 'rgba(14,27,20,0.04)', borderRadius: 14, padding: 14, marginTop: 8 },
   note: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2, lineHeight: 18 },
 });

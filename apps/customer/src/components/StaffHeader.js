@@ -64,6 +64,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fonts.display,
     fontSize: 30,
+    lineHeight: 34,
     letterSpacing: -0.6,
     color: colors.ink,
   },

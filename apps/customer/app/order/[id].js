@@ -342,8 +342,10 @@ export default function OrderDetail() {
 function Row({ label, paise, color = undefined }) {
   return (
     <View style={styles.row}>
-      <Small muted>{label}</Small>
-      <Money paise={paise} variant="small" color={color} />
+      <Small muted style={{ flex: 1, marginRight: 8 }} numberOfLines={1}>
+        {label}
+      </Small>
+      <Money paise={paise} variant="small" color={color} style={{ flexShrink: 0 }} />
     </View>
   );
 }

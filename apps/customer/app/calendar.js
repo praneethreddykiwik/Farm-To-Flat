@@ -240,12 +240,14 @@ export default function Calendar() {
         </Animated.View>
 
         <View style={styles.dayHead}>
-          <View>
+          <View style={{ flex: 1, marginRight: 12 }}>
             <Label>{relativeDayLabel(selected)}</Label>
-            <Text style={styles.dayTitle}>{formatDateShort(selected)}</Text>
+            <Text style={styles.dayTitle} numberOfLines={1}>
+              {formatDateShort(selected)}
+            </Text>
           </View>
           {dayMeals.length ? (
-            <Mono color={colors.leafDeep} style={{ fontSize: 12 }}>
+            <Mono color={colors.leafDeep} style={{ fontSize: 12, flexShrink: 0 }} numberOfLines={1}>
               {dayTotals.kcal} kcal · {dayTotals.protein} g protein
             </Mono>
           ) : null}
@@ -385,6 +387,12 @@ const styles = StyleSheet.create({
     marginTop: 22,
     marginBottom: 10,
   },
-  dayTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.ink, marginTop: 2 },
+  dayTitle: {
+    fontFamily: fonts.display,
+    fontSize: 24,
+    lineHeight: 28,
+    color: colors.ink,
+    marginTop: 2,
+  },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
 });

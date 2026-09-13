@@ -102,11 +102,11 @@ export default function Orders() {
                       <ChevronRight size={20} color={colors.ink3} />
                     </View>
                     <View style={styles.bottom}>
-                      <Small muted>
+                      <Small muted numberOfLines={1} style={{ flex: 1, marginRight: 10 }}>
                         {o.items.length} {o.items.length === 1 ? 'item' : 'items'}
                         {o.couponCode ? ` · ${o.couponCode}` : ''}
                       </Small>
-                      <Money paise={o.totalPaise} variant="bodyMedium" />
+                      <Money paise={o.totalPaise} variant="bodyMedium" style={{ flexShrink: 0 }} />
                     </View>
                   </Glass>
                 </Pressy>

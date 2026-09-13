@@ -77,18 +77,40 @@ export default function OrderSuccess() {
           >
             <Glass tone="dark" radius={radius.xl} innerStyle={styles.card}>
               <View style={styles.row}>
-                <Small color="rgba(243,245,239,0.6)">Order</Small>
-                <Mono color={colors.sprout}>{order.orderNumber}</Mono>
+                <Small color="rgba(243,245,239,0.6)" style={{ flexShrink: 0 }}>
+                  Order
+                </Small>
+                <Mono
+                  color={colors.sprout}
+                  style={{ flex: 1, textAlign: 'right', marginLeft: 12 }}
+                  numberOfLines={1}
+                >
+                  {order.orderNumber}
+                </Mono>
               </View>
               <View style={styles.row}>
-                <Small color="rgba(243,245,239,0.6)">Arrives</Small>
-                <Text variant="bodyMedium" color={colors.inkOnDark}>
+                <Small color="rgba(243,245,239,0.6)" style={{ flexShrink: 0 }}>
+                  Arrives
+                </Small>
+                <Text
+                  variant="bodyMedium"
+                  color={colors.inkOnDark}
+                  style={{ flex: 1, textAlign: 'right', marginLeft: 12 }}
+                  numberOfLines={1}
+                >
                   {formatDateShort(order.deliveryDate)} · {WINDOWS[order.window]?.label}
                 </Text>
               </View>
               <View style={styles.row}>
-                <Small color="rgba(243,245,239,0.6)">To</Small>
-                <Text variant="bodyMedium" color={colors.inkOnDark}>
+                <Small color="rgba(243,245,239,0.6)" style={{ flexShrink: 0 }}>
+                  To
+                </Small>
+                <Text
+                  variant="bodyMedium"
+                  color={colors.inkOnDark}
+                  style={{ flex: 1, textAlign: 'right', marginLeft: 12 }}
+                  numberOfLines={1}
+                >
                   {order.address.block} · {order.address.flat}
                 </Text>
               </View>
