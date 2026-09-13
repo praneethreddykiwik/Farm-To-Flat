@@ -64,20 +64,31 @@ function AuthGate({ ready }) {
       .catch(() => {});
   }, [auth.status, registerDevice]);
 
-  // Resolve the staff role for the signed-in number (once). Fail-open to "customer" on any error /
-  // timeout so the app never gets stuck if the API is unreachable.
+  // Resolve the staff role for the signed-in number (once). Render's free tier cold-starts (~50s),
+  // so a single short timeout used to fail-open to "customer" and mis-route a staff number into the
+  // shop whenever the server was asleep. Now we retry with a generous per-attempt timeout and only
+  // fall back to customer after several genuine failures — a staff login survives a cold start.
   useEffect(() => {
     if (auth.status !== 'signedIn' || roleState.resolved || !auth.customer?.mobile) return;
     let alive = true;
-    const t = setTimeout(() => alive && dispatch(roleResolveFailed()), 3500);
-    adminApi
-      .resolveRole(auth.customer.mobile)
-      .then((r) => alive && dispatch(roleResolved(r)))
-      .catch(() => alive && dispatch(roleResolveFailed()))
-      .finally(() => clearTimeout(t));
+    const mobile = auth.customer.mobile;
+    const withTimeout = (p, ms) =>
+      Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+    (async () => {
+      for (let attempt = 0; attempt < 4 && alive; attempt++) {
+        try {
+          const r = await withTimeout(adminApi.resolveRole(mobile), 25000);
+          if (alive) dispatch(roleResolved(r));
+          return;
+        } catch {
+          if (!alive) return;
+          await new Promise((res) => setTimeout(res, 2500)); // brief pause, server is likely warming
+        }
+      }
+      if (alive) dispatch(roleResolveFailed()); // truly unreachable → treat as a normal customer
+    })();
     return () => {
       alive = false;
-      clearTimeout(t);
     };
   }, [auth.status, auth.customer, roleState.resolved, dispatch]);
 
