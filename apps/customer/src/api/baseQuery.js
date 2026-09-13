@@ -57,20 +57,31 @@ async function refreshSession(api) {
     refreshPromise = (async () => {
       const refreshToken = await readRefreshToken();
       if (!refreshToken) return null;
-      const res = await rawRequest({
-        url: '/auth/refresh',
-        method: 'POST',
-        body: { refreshToken },
-        headers: { 'X-Request-Id': requestId() },
-      });
-      if (res.status >= 200 && res.status < 300 && res.data?.accessToken) {
-        await saveRefreshToken(res.data.refreshToken);
-        api.dispatch(accessRefreshed(res.data.accessToken));
-        return res.data.accessToken;
+      // Render's free tier cold-starts (~50s). Retry the refresh through it, and ONLY sign the user
+      // out on a DEFINITIVE 401 (the refresh token is genuinely invalid/expired) — never on a transient
+      // network failure (status 0), timeout, or 5xx. Signing out on a cold-start blip is what dumped
+      // users back to the login screen when they opened the shopping app.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await rawRequest({
+          url: '/auth/refresh',
+          method: 'POST',
+          body: { refreshToken },
+          headers: { 'X-Request-Id': requestId() },
+        });
+        if (res.status >= 200 && res.status < 300 && res.data?.accessToken) {
+          await saveRefreshToken(res.data.refreshToken);
+          api.dispatch(accessRefreshed(res.data.accessToken));
+          return res.data.accessToken;
+        }
+        if (res.status === 401) {
+          await clearRefreshToken();
+          api.dispatch(signedOut());
+          return null;
+        }
+        // transient (0 / 5xx / cold start) — wait, then retry; keep the session either way
+        await new Promise((r) => setTimeout(r, 1800));
       }
-      await clearRefreshToken();
-      api.dispatch(signedOut());
-      return null;
+      return null; // gave up, but the session is preserved (no sign-out on a transient failure)
     })().finally(() => {
       refreshPromise = null;
     });

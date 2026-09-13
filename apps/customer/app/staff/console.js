@@ -46,7 +46,8 @@ export default function StaffConsole() {
   }, []);
   useEffect(load, [load]);
 
-  const canShop = role.role === 'SUPER_ADMIN';
+  // Super admin AND admin can open the shopping app + the full web admin panel.
+  const canShop = role.role === 'SUPER_ADMIN' || role.role === 'ADMIN';
   const cards = SECTIONS.filter((s) => role.sections?.includes(s.key));
 
   return (
@@ -79,7 +80,7 @@ export default function StaffConsole() {
 
         {canShop ? (
           <>
-            <Text style={styles.sectionLabel}>Super admin</Text>
+            <Text style={styles.sectionLabel}>Shortcuts</Text>
             <Pressable
               style={[styles.card, styles.cardAccent]}
               onPress={() => router.replace('/(tabs)')}
