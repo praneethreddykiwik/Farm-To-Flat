@@ -37,6 +37,7 @@ import { adminApi } from '../src/lib/adminApi';
 import { configureNotifications, registerForPush } from '../src/lib/notifications';
 import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
+import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SplashScreen.setOptions?.({ duration: 320, fade: true });
@@ -154,6 +155,7 @@ function AuthGate({ ready }) {
 function Root() {
   useSessionBootstrap();
   useReducedMotionSync();
+  useOrderLiveNotification(); // Android: keep the live order card in sync (iOS Live Activities later)
   const [fontsLoaded, fontError] = /** @type {any} */ (
     useFonts({
       Fraunces_500Medium_Italic,

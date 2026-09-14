@@ -15,6 +15,9 @@ export function configureNotifications() {
       shouldSetBadge: false,
     }),
   });
+  // Create the Android channels up front so the live-order card can be presented before the user has
+  // gone through push registration. Fire-and-forget; no-op off Android.
+  ensureAndroidChannels().catch(() => {});
 }
 
 /**
@@ -22,15 +25,36 @@ export function configureNotifications() {
  * (Expo Go on Android cannot receive remote push since SDK 53; a dev build can).
  * @returns {Promise<string|null>}
  */
+// The stable id for the single "live" order notification. Re-presenting with the SAME id replaces
+// the notification in place (Android coalesces by id), which is what makes it read like a Live
+// Activity — one card that advances Confirmed → Packing → On the road rather than a new buzz each time.
+const ORDER_LIVE_ID = 'order-live';
+const ORDER_LIVE_CHANNEL = 'order-live';
+
+/** Ensure the Android channels exist. Safe to call repeatedly; no-op off Android. */
+export async function ensureAndroidChannels() {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync('orders', {
+    name: 'Order updates',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 200, 120, 200],
+    lightColor: '#1E7A4C',
+  });
+  // Low importance + no vibration: the live card sits quietly in the shade and updates silently as
+  // the order advances, instead of buzzing on every step.
+  await Notifications.setNotificationChannelAsync(ORDER_LIVE_CHANNEL, {
+    name: 'Live order status',
+    importance: Notifications.AndroidImportance.LOW,
+    vibrationPattern: [0],
+    lightColor: '#1E7A4C',
+    showBadge: false,
+  });
+}
+
 export async function registerForPush() {
   try {
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('orders', {
-        name: 'Order updates',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 200, 120, 200],
-        lightColor: '#1E7A4C',
-      });
+      await ensureAndroidChannels();
     }
     const { status: existing } = await Notifications.getPermissionsAsync();
     let status = existing;
@@ -54,5 +78,57 @@ export async function notifyLocal(title, body, data = {}) {
       content: { title, body, data },
       trigger: null,
     });
+  } catch {}
+}
+
+// The four steps of a live order, in order, so the card can show "step 2 of 4" progress. PENDING and
+// terminal states are handled by the caller (the card only exists for an order that's actually moving).
+const LIVE_STEPS = ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+const LIVE_COPY = {
+  CONFIRMED: ['Order confirmed 🌱', 'We’ll harvest it fresh for your window.'],
+  PACKING: ['Packing your order 📦', 'Weighed and bagged this morning.'],
+  OUT_FOR_DELIVERY: ['On its way 🛵', 'Your order is heading to your block.'],
+};
+
+/** True when a status deserves the live card (moving, not finished). */
+export const isLiveStatus = (s) => s === 'CONFIRMED' || s === 'PACKING' || s === 'OUT_FOR_DELIVERY';
+
+/**
+ * Android's closest thing to an iOS Live Activity: one ongoing (sticky) notification that updates in
+ * place as the order advances. Re-presented with a fixed id, so Confirmed → Packing → On the road all
+ * land on the SAME card instead of stacking. Low-importance channel keeps updates silent. No-op off
+ * Android (iOS gets real Live Activities later, once there's an Apple Developer account).
+ *
+ * @param {{orderId:string, orderNumber:string, status:string, windowLabel?:string}} order
+ */
+export async function presentOrderLive(order) {
+  if (Platform.OS !== 'android' || !order || !isLiveStatus(order.status)) return;
+  try {
+    await ensureAndroidChannels();
+    const step = LIVE_STEPS.indexOf(order.status) + 1;
+    const [title, body] = LIVE_COPY[order.status] || ['Your order', ''];
+    await Notifications.scheduleNotificationAsync({
+      identifier: ORDER_LIVE_ID,
+      content: {
+        title: `${title}`,
+        body: order.windowLabel ? `${body} · ${order.windowLabel}` : body,
+        subtitle: `${order.orderNumber} · Step ${step} of 4`,
+        data: { orderId: order.orderId, status: order.status },
+        color: '#1E7A4C',
+        sticky: true, // ongoing — the customer can't swipe it away while the order is live
+        autoDismiss: false,
+        channelId: ORDER_LIVE_CHANNEL,
+        priority: 'low',
+      },
+      trigger: null,
+    });
+  } catch {}
+}
+
+/** Remove the live order card (order delivered, cancelled, or no active order). No-op off Android. */
+export async function dismissOrderLive() {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.dismissNotificationAsync(ORDER_LIVE_ID);
   } catch {}
 }

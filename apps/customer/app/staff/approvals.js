@@ -31,7 +31,8 @@ export default function StaffApprovals() {
   const [savingBuffer, setSavingBuffer] = useState(false);
 
   const load = useCallback(async () => {
-    setError(null);
+    // No synchronous setState here — the first statement awaits, so the initial fetch doesn't cascade
+    // a render inside the mount effect. Error is cleared on success / set on failure, after the await.
     try {
       const [a, s] = await Promise.all([
         adminApi.procurementApprovals(),
@@ -39,13 +40,14 @@ export default function StaffApprovals() {
       ]);
       setApprovals(a.approvals || []);
       setSettings(s.settings || null);
+      setError(null);
     } catch (e) {
       setError(e.message || 'Could not load approvals');
     }
   }, []);
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load]); // eslint-disable-line react-hooks/set-state-in-effect -- initial fetch, matches other staff screens
 
   async function decide(item, decision) {
     setBusy(item.productId);
