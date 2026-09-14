@@ -20,6 +20,7 @@ import {
   IBMPlexSans_600SemiBold,
 } from '@expo-google-fonts/ibm-plex-sans';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
+import * as Notifications from 'expo-notifications';
 import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
@@ -91,6 +92,17 @@ function AuthGate({ ready }) {
       alive = false;
     };
   }, [auth.status, auth.customer, roleState.resolved, dispatch]);
+
+  // Tapping a push takes you straight to the thing it's about: an admin's buffer alert opens the cost
+  // approvals; an order update opens that order. Guard runs after, so a signed-out tap still routes safely.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      const data = resp?.notification?.request?.content?.data || {};
+      if (data.kind === 'PROCUREMENT_BUFFER') router.push('/staff/approvals');
+      else if (data.orderId) router.push(`/order/${data.orderId}`);
+    });
+    return () => sub.remove();
+  }, [router]);
 
   useEffect(() => {
     if (!ready || auth.status === 'booting') return;

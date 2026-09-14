@@ -74,6 +74,23 @@ export const adminApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ productId, actualCostPaise, ...(date ? { date } : {}) }),
     }),
+  /** Cost-buffer lines waiting on an admin accept/reject (over/under the buffer). */
+  procurementApprovals: (qs = '') => j(`${ADMIN}/procurement/approvals${qs}`),
+  /** Admin accepts or rejects a flagged cost line. decision: 'APPROVE' | 'REJECT'. */
+  procurementApprove: (productId, decision, date) =>
+    j(`${ADMIN}/procurement/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, decision, ...(date ? { date } : {}) }),
+    }),
+  /** Read / change the cost-buffer settings (± tolerance and auto-approve). */
+  procurementSettings: () => j(`${ADMIN}/procurement/settings`),
+  updateProcurementSettings: (patch) =>
+    j(`${ADMIN}/procurement/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
   orders: (qs = '') => j(`${ADMIN}/orders${qs}`),
   order: (id) => j(`${ADMIN}/orders/${id}`),
   advance: (orderIds, status) =>

@@ -16,6 +16,7 @@ export default function StaffLayout() {
       <Stack.Screen name="orders" />
       <Stack.Screen name="procurement" />
       <Stack.Screen name="fulfilment" />
+      <Stack.Screen name="approvals" />
     </Stack>
   );
 }

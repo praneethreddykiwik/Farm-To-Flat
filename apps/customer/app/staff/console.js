@@ -37,13 +37,24 @@ export default function StaffConsole() {
   const role = useSelector(selectEffectiveRole);
   const router = useRouter();
   const [m, setM] = useState(null);
+  const [approvalCount, setApprovalCount] = useState(0);
+
+  // Super admin AND admin can open the shopping app + the full web admin panel, and are the ones who
+  // accept/reject procurement costs that broke the buffer.
+  const canApprove = role.role === 'SUPER_ADMIN' || role.role === 'ADMIN';
 
   const load = useCallback(() => {
     adminApi
       .metrics()
       .then(setM)
       .catch(() => {});
-  }, []);
+    if (canApprove) {
+      adminApi
+        .procurementApprovals()
+        .then((d) => setApprovalCount(d.count || 0))
+        .catch(() => {});
+    }
+  }, [canApprove]);
   useEffect(load, [load]);
 
   // Super admin AND admin can open the shopping app + the full web admin panel.
@@ -77,6 +88,30 @@ export default function StaffConsole() {
             <Text style={styles.chev}>›</Text>
           </Pressable>
         ))}
+
+        {canApprove ? (
+          <Pressable
+            style={[styles.card, approvalCount > 0 && styles.cardAlert]}
+            onPress={() => router.push('/staff/approvals')}
+          >
+            <Text style={styles.cardIcon}>⚖️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Cost approvals</Text>
+              <Text style={styles.cardSub}>
+                {approvalCount > 0
+                  ? `${approvalCount} buy${approvalCount > 1 ? 's' : ''} broke the buffer — decide`
+                  : 'Set the buffer · accept/reject over-budget buys'}
+              </Text>
+            </View>
+            {approvalCount > 0 ? (
+              <View style={styles.countPill}>
+                <Text style={styles.countPillText}>{approvalCount}</Text>
+              </View>
+            ) : (
+              <Text style={styles.chev}>›</Text>
+            )}
+          </Pressable>
+        ) : null}
 
         {canShop ? (
           <>
@@ -170,6 +205,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardAccent: { borderColor: colors.leafSoft, backgroundColor: '#f6fbf6' },
+  cardAlert: { borderColor: '#e3b7ae', backgroundColor: '#fdf4f1' },
+  countPill: {
+    minWidth: 26,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#c0392b',
+    alignItems: 'center',
+  },
+  countPillText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.white },
   cardIcon: { fontSize: 26 },
   cardTitle: { fontFamily: fonts.bodySemi, fontSize: 15.5, color: colors.ink },
   cardSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink3, marginTop: 2 },

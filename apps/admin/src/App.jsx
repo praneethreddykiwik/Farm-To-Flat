@@ -3,7 +3,7 @@
  * pricing, communities/windows, orders, and the fulfilment board — talking to the same /api/v1 the
  * mobile app uses, and sharing the design language of the customer app (see styles/theme.css).
  */
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Background, Toaster } from './components/ui.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { Dashboard } from './screens/Dashboard.jsx';
@@ -17,10 +17,12 @@ import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
 import { Coupons } from './screens/Coupons.jsx';
 import { Settings } from './screens/Settings.jsx';
+import { Privacy } from './screens/Privacy.jsx';
 
-export function App() {
+/** The operator app: sidebar + the admin screens. Everything except the public privacy page. */
+function AdminShell() {
   return (
-    <BrowserRouter>
+    <>
       <Background />
       <div className="shell">
         <Sidebar />
@@ -41,6 +43,21 @@ export function App() {
         </main>
       </div>
       <Toaster />
+    </>
+  );
+}
+
+function Root() {
+  // /privacy is public and chrome-free — customers open it from the app, so no sidebar and no login.
+  const { pathname } = useLocation();
+  if (pathname === '/privacy') return <Privacy />;
+  return <AdminShell />;
+}
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <Root />
     </BrowserRouter>
   );
 }

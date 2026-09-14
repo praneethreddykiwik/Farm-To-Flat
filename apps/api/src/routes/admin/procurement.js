@@ -27,6 +27,7 @@ import {
   updateProcurementSettings,
 } from '../../store.js';
 import { planProcurement } from '../../lib/procure.js';
+import { notifyBufferExceeded } from '../../lib/staff-notify.js';
 import { money, formatINR } from '../../lib/money.js';
 import { todayISO } from '../../lib/dates.js';
 import { CSV_HEADERS, LANGS, YES, categoryName, productName, unitLabel } from '../../lib/i18n.js';
@@ -230,6 +231,9 @@ adminProcurementRouter.post(
       estCostPaise,
       actualCostPaise: req.body.actualCostPaise,
     });
+    // If the paid price broke the buffer, ping every admin right away with the exact jump so they can
+    // accept or reject without watching the console. Fire-and-forget — never blocks the response.
+    notifyBufferExceeded(record, product.name);
     res.status(201).json({ record });
   }),
 );

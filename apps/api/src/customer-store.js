@@ -263,6 +263,8 @@ export function logout(customerId) {
 
 // ── customer / addresses ──────────────────────────────────────────────────────
 export const getCustomer = (cid) => cs.customers.get(cid) || null;
+/** Resolve a mobile number to its customer id (null if that number never signed in). */
+export const getCustomerIdByMobile = (mobile) => cs.byMobile.get(mobile) || null;
 export function updateCustomer(cid, patch) {
   const c = cs.customers.get(cid);
   if (!c) return null;
