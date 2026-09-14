@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
@@ -75,6 +84,8 @@ export default function StaffProcurement() {
 
   const buffer = data?.settings?.costBufferPct;
   const autoOn = data?.settings?.autoApprove;
+  // Admin / super admin can approve on the spot; procurement staff can only submit (the admin decides).
+  const canApprove = role.role === 'SUPER_ADMIN' || role.role === 'ADMIN';
 
   return (
     <View style={styles.root}>
@@ -137,7 +148,13 @@ export default function StaffProcurement() {
                   </Text>
                 </View>
                 {g.items.map((it) => (
-                  <ProcureItem key={it.productId} item={it} onSubmitted={patchLine} />
+                  <ProcureItem
+                    key={it.productId}
+                    item={it}
+                    onSubmitted={patchLine}
+                    canApprove={canApprove}
+                    buffer={buffer}
+                  />
                 ))}
               </View>
             ))}
@@ -149,13 +166,58 @@ export default function StaffProcurement() {
   );
 }
 
-function ProcureItem({ item, onSubmitted }) {
+function ProcureItem({ item, onSubmitted, canApprove, buffer }) {
   const dispatch = useDispatch();
   const [paid, setPaid] = useState(
     item.actualCostPaise != null ? String(Number(item.actualCostPaise) / 100) : '',
   );
   const [busy, setBusy] = useState(false);
   const st = STATUS[item.approvalStatus];
+
+  // Admin taps Accept/Reject in the popup → decide the buy right here and update the line.
+  async function decide(decision) {
+    setBusy(true);
+    try {
+      const { record } = await adminApi.procurementApprove(item.productId, decision);
+      onSubmitted(item.productId, record);
+      dispatch(showToast({ title: decision === 'APPROVE' ? 'Cost accepted' : 'Cost rejected' }));
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || 'Could not update', tone: 'error' }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // A saved price that broke the buffer (NEEDS_APPROVAL) doesn't just sit as "Awaiting admin" — it
+  // pops an Accept/Reject dialog immediately. The admin decides on the spot; procurement staff (who
+  // can't approve) just see it's been sent to the admin.
+  function promptDecision(record) {
+    const v = record.variancePct;
+    const exceeded = v != null && buffer != null && Math.abs(v) > Number(buffer);
+    const dir = v == null ? '' : v >= 0 ? 'over' : 'under';
+    const pct = v == null ? '' : `${Math.abs(v).toFixed(1)}% ${dir}`;
+    const line = `${item.name}: you paid ${inr(record.actualCostPaise)} (est ${inr(
+      record.estCostPaise ?? item.procureCostPaise,
+    )})${pct ? ` — ${pct} the estimate` : ''}.`;
+    if (canApprove) {
+      Alert.alert(
+        exceeded ? 'Cost over buffer' : 'Approve this cost?',
+        `${line}${
+          exceeded ? ` That's beyond the ±${buffer}% buffer.` : ''
+        }\n\nAccept it, or reject and re-enter?`,
+        [
+          { text: 'Reject', style: 'destructive', onPress: () => decide('REJECT') },
+          { text: 'Accept', onPress: () => decide('APPROVE') },
+        ],
+      );
+    } else {
+      Alert.alert(
+        'Sent to admin',
+        `${line} It's over the ±${buffer}% buffer, so the admin has been asked to accept or reject.`,
+        [{ text: 'OK' }],
+      );
+    }
+  }
 
   async function save() {
     const rupees = parseFloat(paid);
@@ -167,6 +229,7 @@ function ProcureItem({ item, onSubmitted }) {
         Math.round(rupees * 100),
       );
       onSubmitted(item.productId, record);
+      if (record.status === 'NEEDS_APPROVAL') promptDecision(record);
     } catch (e) {
       // keep the entered value so they can retry, and tell them it failed
       dispatch(showToast({ title: e?.message || 'Could not save price', tone: 'error' }));
