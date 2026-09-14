@@ -32,6 +32,7 @@ import {
 import { selectCustomer } from '../src/features/auth/authSlice';
 import { showToast } from '../src/features/ui/uiSlice';
 import { colors, radius } from '../src/theme';
+import { env } from '../src/lib/env';
 import { formatDateShort, WINDOWS } from '../src/lib/dates';
 import { idempotencyKey } from '../src/lib/ids';
 import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
@@ -87,6 +88,7 @@ export default function Checkout() {
   const [useWallet, setUseWallet] = useState(true);
   const [intent, setIntent] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const idem = useRef(idempotencyKey());
   const windowSheet = useRef(null);
   const addressSheet = useRef(null);
@@ -145,6 +147,7 @@ export default function Checkout() {
     } finally {
       simSheet.current?.dismiss();
       setIntent(null);
+      setSubmitting(false);
     }
   };
 
@@ -159,6 +162,8 @@ export default function Checkout() {
       );
       return;
     }
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const res = await placeOrder({
         idempotencyKey: idem.current,
@@ -172,6 +177,7 @@ export default function Checkout() {
       setPendingOrder(res.order);
       if (!res.paymentIntent) {
         finish(res.order);
+        setSubmitting(false);
         return;
       }
       setIntent(res.paymentIntent);
@@ -190,11 +196,24 @@ export default function Checkout() {
         } catch {
           await settle(res.paymentIntent, { success: false }, res.order);
         }
-      } else {
+      } else if (__DEV__ || env.useMocks || env.isExpoGo) {
         setTimeout(() => simSheet.current?.present(), 200);
+      } else {
+        // Real production build with no Razorpay module — never fake a success sheet.
+        haptic.error();
+        dispatch(
+          showToast({
+            title: 'Payment unavailable',
+            message: 'We couldn’t start the payment. Your basket is safe — try again shortly.',
+            tone: 'error',
+          }),
+        );
+        setIntent(null);
+        setSubmitting(false);
       }
     } catch (e) {
       haptic.error();
+      setSubmitting(false);
       if (e?.code === 'WINDOW_FULL') {
         const n = e.details?.nextAvailable;
         if (n) setSlot({ date: n.date, window: n.window });
@@ -222,7 +241,23 @@ export default function Checkout() {
     }
   };
 
-  if (!cart) return <View style={styles.root} />;
+  if (!cart)
+    return (
+      <View style={styles.root}>
+        <Ambient />
+        <View style={[styles.header, { paddingTop: insets.top + 8, paddingHorizontal: 20 }]}>
+          <Pressy onPress={() => router.back()} haptics="select" accessibilityLabel="Back">
+            <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
+              <ArrowLeft size={20} color={colors.ink} />
+            </Glass>
+          </Pressy>
+          <Display>Checkout</Display>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Small muted>Loading your basket…</Small>
+        </View>
+      </View>
+    );
 
   return (
     <View style={styles.root}>
@@ -404,7 +439,8 @@ export default function Checkout() {
             size="md"
             full={false}
             onPress={place}
-            loading={placing}
+            loading={placing || submitting}
+            disabled={submitting}
           />
         </Glass>
       </View>

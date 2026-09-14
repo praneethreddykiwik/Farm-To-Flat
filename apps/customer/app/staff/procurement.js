@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSelector } from 'react-redux';
+import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { showToast } from '../../src/features/ui/uiSlice';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
 const inr = (paise) => `₹${(Number(paise) / 100).toLocaleString('en-IN')}`;
@@ -26,6 +27,7 @@ const STATUS = {
 
 export default function StaffProcurement() {
   const role = useSelector(selectEffectiveRole);
+  const dispatch = useDispatch();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -38,9 +40,13 @@ export default function StaffProcurement() {
   }, []);
   useEffect(load, [load]);
 
-  function download(lang) {
-    const url = adminApi.procurementCsvUrl(lang === 'en' ? '' : `?lang=${lang}`);
-    Linking.openURL(url).catch(() => {});
+  async function download(lang) {
+    try {
+      const csv = await adminApi.procurementCsv(lang === 'en' ? '' : `?lang=${lang}`);
+      await Share.share({ message: csv });
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || 'Could not download the list', tone: 'error' }));
+    }
   }
 
   // Update one line in place after its price is submitted, so the list doesn't flash a full reload.
@@ -144,6 +150,7 @@ export default function StaffProcurement() {
 }
 
 function ProcureItem({ item, onSubmitted }) {
+  const dispatch = useDispatch();
   const [paid, setPaid] = useState(
     item.actualCostPaise != null ? String(Number(item.actualCostPaise) / 100) : '',
   );
@@ -160,8 +167,9 @@ function ProcureItem({ item, onSubmitted }) {
         Math.round(rupees * 100),
       );
       onSubmitted(item.productId, record);
-    } catch {
-      // leave the input as-is so they can retry
+    } catch (e) {
+      // keep the entered value so they can retry, and tell them it failed
+      dispatch(showToast({ title: e?.message || 'Could not save price', tone: 'error' }));
     } finally {
       setBusy(false);
     }

@@ -11,6 +11,7 @@ import { PlanShoppingList } from '../../src/components/PlanShoppingList';
 import { PaymentSimulator } from '../../src/components/PaymentSimulator';
 import {
   useGetAddressesQuery,
+  useGetCartQuery,
   useGetCatalogQuery,
   useGetWalletQuery,
   useGetWindowsQuery,
@@ -45,6 +46,7 @@ export default function ConfirmDay() {
   const catalog = useGetCatalogQuery();
   const addresses = useGetAddressesQuery();
   const wallet = useGetWalletQuery();
+  const cart = useGetCartQuery();
   const [setCartItem] = useSetCartItemMutation();
   const [placeOrder] = usePlaceOrderMutation();
   const [verifyPayment] = useVerifyPaymentMutation();
@@ -102,7 +104,7 @@ export default function ConfirmDay() {
 
   const finish = (order) => {
     haptic.success();
-    dispatch(dayOrdered({ id: plan.id, date: dateISO, orderId: order.id }));
+    if (plan) dispatch(dayOrdered({ id: plan.id, date: dateISO, orderId: order.id }));
     notifyLocal(
       'Order confirmed',
       `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${WINDOWS[order.window]?.label.toLowerCase()}.`,
@@ -139,6 +141,10 @@ export default function ConfirmDay() {
   };
 
   const confirm = async () => {
+    if (!plan || lines.length === 0) {
+      dispatch(showToast({ title: 'Nothing to order for that day', tone: 'neutral' }));
+      return;
+    }
     if (!address) {
       dispatch(showToast({ title: 'Add a delivery address first', tone: 'neutral' }));
       router.push('/address/new');
@@ -157,8 +163,16 @@ export default function ConfirmDay() {
     setBusy(true);
     haptic.soft();
     try {
+      const planIds = new Set(lines.map((l) => l.p.id));
       for (const l of lines)
         await setCartItem({ productId: l.p.id, quantity: String(l.qty) }).unwrap();
+      // Reconcile the server cart to exactly the plan lines so pre-existing basket
+      // items are not charged silently alongside this order.
+      const current = await cart.refetch().unwrap();
+      for (const it of current?.cart?.items || []) {
+        if (!planIds.has(it.productId))
+          await setCartItem({ productId: it.productId, quantity: '0' }).unwrap();
+      }
       const res = await placeOrder({
         idempotencyKey: idem.current,
         addressId: address.id,

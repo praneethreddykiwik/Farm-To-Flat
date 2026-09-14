@@ -446,7 +446,8 @@ export default function Plan() {
 
               <Small muted center style={{ marginTop: 16, fontSize: 11 }}>
                 General nutrition guidance from reference tables, not medical advice. Consult a
-                clinician for medical conditions. Engine: {draft.provider} · {draft.model}
+                clinician for medical conditions.
+                {__DEV__ ? ` Engine: ${draft.provider} · ${draft.model}` : ''}
               </Small>
             </Animated.View>
           ) : (

@@ -40,7 +40,16 @@ async function j(url, opts = {}, retried = false) {
   const token = store.getState()?.auth?.accessToken;
   const headers = { ...(opts.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { ...opts, headers });
+  // A cold host (free-tier waking from sleep) can leave a request hanging forever, stranding staff
+  // screens on 'Loading…'. Abort after ~22s so the request rejects and the screens' retry UI shows.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 22000);
+  let r;
+  try {
+    r = await fetch(url, { ...opts, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (r.status === 401 && !retried && (await refreshSession())) {
     return j(url, opts, true); // retry once with the refreshed session
   }
@@ -56,6 +65,8 @@ export const adminApi = {
   metrics: () => j(`${ADMIN}/metrics`),
   procurement: (qs = '') => j(`${ADMIN}/procurement${qs}`),
   procurementCsvUrl: (qs = '') => `${ADMIN}/procurement/export.csv${qs}`,
+  /** Fetch the procurement CSV as text WITH the Bearer auth header (j() sends it and returns text for non-JSON responses). */
+  procurementCsv: (qs = '') => j(`${ADMIN}/procurement/export.csv${qs}`),
   /** Procurement submits the price actually paid for a line; server auto-approves or flags it. */
   submitProcurementCost: (productId, actualCostPaise, date) =>
     j(`${ADMIN}/procurement/cost`, {

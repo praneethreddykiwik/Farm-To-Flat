@@ -58,6 +58,10 @@ const STAGE = {
   },
 };
 
+// Only these statuses belong on the delivery board. Everything else (CANCELLED, PENDING_PAYMENT,
+// PAYMENT_FAILED, …) is not actionable and must never fall back to a CONFIRMED-looking card.
+const DELIVERABLE = new Set(['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']);
+
 export default function StaffFulfilment() {
   const role = useSelector(selectEffectiveRole);
   const [orders, setOrders] = useState(null);
@@ -67,7 +71,7 @@ export default function StaffFulfilment() {
 
   const load = useCallback(() => {
     setError(null);
-    adminApi
+    return adminApi
       .orders()
       .then((d) => setOrders(d.orders))
       .catch((e) => setError(e.message || 'Could not load'));
@@ -78,8 +82,10 @@ export default function StaffFulfilment() {
     setBusy(o.id);
     try {
       await adminApi.setStatus(o.id, next);
-      load();
+      await load();
     } catch {
+      setError('Could not update');
+    } finally {
       setBusy(null);
     }
   }
@@ -114,7 +120,9 @@ export default function StaffFulfilment() {
   // Within a block, active deliveries sort ahead of delivered ones, then by flat.
   const groups = useMemo(() => {
     const vis = (orders || []).filter(
-      (o) => community === 'all' || (o.address?.communityId || 'unknown') === community,
+      (o) =>
+        DELIVERABLE.has(o.status) &&
+        (community === 'all' || (o.address?.communityId || 'unknown') === community),
     );
     const byComm = new Map();
     vis.forEach((o) => {

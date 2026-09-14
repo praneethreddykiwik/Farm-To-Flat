@@ -7,6 +7,13 @@ import request from 'supertest';
 process.env.NODE_ENV = 'test';
 const { app } = await import('../src/index.js');
 
+/** OTP-login a number and return its access token (dev OTP 123456 in test env). */
+async function login(mobile) {
+  await request(app).post('/api/v1/auth/otp/request').send({ mobile });
+  const v = await request(app).post('/api/v1/auth/otp/verify').send({ mobile, otp: '123456' });
+  return v.body.accessToken;
+}
+
 describe('access & roles', () => {
   it('lists the four roles with their sections', async () => {
     const r = await request(app).get('/api/v1/admin/access');
@@ -20,24 +27,33 @@ describe('access & roles', () => {
     expect(proc.sections).toEqual(['procurement']);
   });
 
-  it('assigns a number a role and resolves it for the app', async () => {
-    // A number NOT in the boot seed (the seed pre-fills 9999900001 / 9848033333 / 9848011111 /
-    // 9848022222 so every role works on first run).
+  it('resolves the signed-in staff member’s OWN role (authenticated, self-only)', async () => {
     const add = await request(app)
       .post('/api/v1/admin/access')
       .send({ mobile: '9700000022', role: 'FULFILMENT', name: 'Driver' });
     expect(add.status).toBe(201);
     expect(add.body.staff.sections).toEqual(['fulfilment']);
 
-    const resolve = await request(app).get('/api/v1/access/resolve?mobile=9700000022');
+    const token = await login('9700000022');
+    const resolve = await request(app)
+      .get('/api/v1/access/resolve')
+      .set('Authorization', `Bearer ${token}`);
     expect(resolve.body).toMatchObject({ isStaff: true, role: 'FULFILMENT', aiAccess: false });
     expect(resolve.body.sections).toEqual(['fulfilment']);
   });
 
   it('a normal customer number resolves to no role and no AI', async () => {
-    const r = await request(app).get('/api/v1/access/resolve?mobile=9012345678');
+    const token = await login('9012345678');
+    const r = await request(app)
+      .get('/api/v1/access/resolve')
+      .set('Authorization', `Bearer ${token}`);
     expect(r.body).toMatchObject({ isStaff: false, role: null, aiAccess: false });
     expect(r.body.sections).toEqual([]);
+  });
+
+  it('rejects /access/resolve without a token (no staff enumeration)', async () => {
+    const r = await request(app).get('/api/v1/access/resolve?mobile=9848033333');
+    expect(r.status).toBe(401);
   });
 
   it('super admin always gets AI; others can be toggled', async () => {

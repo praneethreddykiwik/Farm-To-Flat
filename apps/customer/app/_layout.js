@@ -1,6 +1,6 @@
 import '../global.css';
 import React, { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -154,6 +154,11 @@ function Root() {
     })
   );
   const ready = fontsLoaded || !!fontError;
+  const auth = useSelector(selectAuth);
+  const roleState = useSelector(selectRoleState);
+  // Signed in but role not yet resolved (common on a cold Render start): show an explicit progress
+  // state instead of leaving the OTP/current screen frozen, which read as a deadlock.
+  const signingIn = ready && auth.status === 'signedIn' && !roleState.resolved;
 
   useEffect(() => {
     configureNotifications();
@@ -211,6 +216,12 @@ function Root() {
           />
         </Stack>
       ) : null}
+      {signingIn ? (
+        <View style={styles.signingIn}>
+          <ActivityIndicator color={colors.leaf} size="large" />
+          <Text style={styles.signingInText}>Signing you in…</Text>
+        </View>
+      ) : null}
       <ToastHost />
       <KeyboardDoneBar />
     </View>
@@ -231,4 +242,14 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({ root: { flex: 1, backgroundColor: colors.canvas } });
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.canvas },
+  signingIn: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.canvas,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  signingInText: { color: colors.ink3, fontSize: 15 },
+});

@@ -176,7 +176,9 @@ export async function requestOtp(mobile) {
     }
     return { ok: true, expiresInSeconds: 300 }; // never leak the code in prod
   }
-  return { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
+  // Never put the code in the HTTP response in production — even a test deployment with ALLOW_DEV_OTP=1
+  // must not hand the OTP back to the caller (that turned the fixed 123456 into a public auth bypass).
+  return { ok: true, expiresInSeconds: 300, ...(IS_PROD ? {} : { devOtp: DEV_OTP }) };
 }
 
 /** @returns {{ ok:true, customer:any, isNew:boolean } | { error:{status,code,message} }} */

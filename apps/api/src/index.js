@@ -56,7 +56,20 @@ const corsOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
-app.use(cors(corsOrigins.length ? { origin: corsOrigins, credentials: true } : {}));
+// Fail CLOSED in production: if CORS_ORIGIN is missing we deny cross-origin rather than reflecting any
+// origin (which would let any site call the API with credentials). Reflect-any stays for local dev only.
+if (process.env.NODE_ENV === 'production' && !corsOrigins.length) {
+  console.error('[cors] CORS_ORIGIN is not set in production — denying all cross-origin requests.');
+}
+app.use(
+  cors(
+    corsOrigins.length
+      ? { origin: corsOrigins, credentials: true }
+      : process.env.NODE_ENV === 'production'
+        ? { origin: false } // production + no allowlist → deny cross-origin
+        : {}, // dev → reflect any origin
+  ),
+);
 app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
 if (process.env.NODE_ENV !== 'test') app.use(pinoHttp());
 
@@ -71,7 +84,7 @@ app.use(`${v1}/communities`, communitiesRouter);
 app.use(`${v1}/delivery-windows`, windowsRouter);
 app.use(`${v1}/coupons`, couponsRouter);
 app.use(`${v1}/support`, supportRouter);
-app.use(`${v1}/access`, accessRouter); // ready seam for the app (not wired into the app yet)
+app.use(`${v1}/access`, requireAuth, accessRouter); // authenticated: resolves the caller's OWN number only
 
 // ── authenticated customer contract ───────────────────────────────────────────
 app.use(`${v1}/me`, requireAuth, meRouter);

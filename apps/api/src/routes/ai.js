@@ -3,7 +3,8 @@
  * catalog, calls Groq (openai/gpt-oss-120b) or Gemini (gemini-3.6-flash) with the SERVER-side key,
  * and returns the raw model JSON untouched — the app validates it against the catalog and computes
  * every calorie itself. Owner: Vivek. In dev the app calls providers directly with EXPO_PUBLIC keys;
- * this server route is the production path and stays behind a rate limiter.
+ * this server route is the production path and stays behind the in-memory per-IP rate limiter below
+ * (planLimiter) — the upstream models cost real money, so /plan is capped per caller.
  *
  * With no server key configured it returns 501 (honest) rather than pretending — set GROQ_API_KEY
  * or GEMINI_API_KEY in apps/api env to enable it.
@@ -31,6 +32,38 @@ function requireAiAccess(req, _res, next) {
   const staff = cust && findStaffByMobile(cust.mobile);
   if (!staff || !hasAi(staff.role, staff.aiAccess))
     return next(fail(403, 'FORBIDDEN', 'The AI planner is not available on this account.'));
+  next();
+}
+
+/**
+ * Strict in-memory per-IP rate limiter for /plan. express-rate-limit is not a dependency here, so we
+ * keep a tiny sliding window of recent request timestamps per client IP — no new dependency, single
+ * process. Allows RATE_MAX requests per RATE_WINDOW_MS; the (RATE_MAX+1)th within the window gets 429.
+ */
+const RATE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const RATE_MAX = 10; // requests per window per IP
+const planHits = new Map(); // ip -> number[] (ms timestamps within the window)
+
+function planLimiter(req, _res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const recent = (planHits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (recent.length >= RATE_MAX) {
+    planHits.set(ip, recent);
+    return next(
+      fail(429, 'RATE_LIMITED', 'Too many planner requests. Please try again in a few minutes.'),
+    );
+  }
+  recent.push(now);
+  planHits.set(ip, recent);
+  // Opportunistic cleanup so the map does not grow unbounded across many IPs.
+  if (planHits.size > 5000) {
+    for (const [k, v] of planHits) {
+      const live = v.filter((t) => now - t < RATE_WINDOW_MS);
+      if (live.length === 0) planHits.delete(k);
+      else planHits.set(k, live);
+    }
+  }
   next();
 }
 
@@ -134,6 +167,7 @@ async function callGemini(key, prompt, user) {
 
 aiRouter.post(
   '/plan',
+  planLimiter,
   requireAiAccess,
   validateBody(PlanBody),
   asyncHandler(async (req, res) => {

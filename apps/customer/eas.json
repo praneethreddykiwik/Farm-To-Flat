@@ -26,7 +26,16 @@
         "EXPO_PUBLIC_API_URL": "https://farm-to-flat.onrender.com"
       }
     },
-    "production": { "channel": "production", "autoIncrement": true }
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
+      "ios": { "simulator": false },
+      "env": {
+        "EXPO_PUBLIC_USE_MOCKS": "0",
+        "EXPO_PUBLIC_API_URL": "https://farm-to-flat.onrender.com"
+      }
+    }
   },
   "submit": { "production": {} }
 }

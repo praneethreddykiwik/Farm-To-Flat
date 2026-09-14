@@ -18,6 +18,14 @@ function resolveApiUrl() {
   const isLocalhost = !explicit || /(localhost|127\.0\.0\.1)/.test(explicit);
   if (!isLocalhost) return explicit;
 
+  // A release build must NEVER silently fall back to localhost/LAN — that ships a dead app pointed at a
+  // machine that isn't there. Fail loud so a misconfigured production build is caught immediately.
+  if (!__DEV__) {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL must be set to the production API for a release build (got none/localhost).',
+    );
+  }
+
   const hostUri =
     Constants.expoConfig?.hostUri ||
     Constants.expoGoConfig?.debuggerHost ||

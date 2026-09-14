@@ -30,6 +30,7 @@ export default function OtpScreen() {
   const [verify, { isLoading }] = useVerifyOtpMutation();
   const [resend, { isLoading: resending }] = useRequestOtpMutation();
   const input = useRef(null);
+  const submitting = useRef(false);
   const shake = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
 
@@ -40,7 +41,7 @@ export default function OtpScreen() {
   }, [seconds]);
 
   useEffect(() => {
-    if (code.length === LEN) submit(code);
+    if (code.length === LEN && !isLoading) submit(code);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
@@ -49,6 +50,8 @@ export default function OtpScreen() {
       router.replace('/(auth)/phone');
       return;
     }
+    if (submitting.current) return;
+    submitting.current = true;
     try {
       const res = await verify({ mobile: pendingMobile, otp }).unwrap();
       await saveRefreshToken(res.refreshToken);
@@ -66,6 +69,8 @@ export default function OtpScreen() {
       );
       setCode('');
       setTimeout(() => input.current?.focus(), 50);
+    } finally {
+      submitting.current = false;
     }
   };
 

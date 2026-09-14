@@ -392,10 +392,24 @@ export default function Profile() {
         <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>
           <Small muted>Farm to Flat · v{env.appVersion}</Small>
-          <Small muted>
-            {env.useMocks ? 'Running against the in-app mock server' : `API: ${env.apiUrl}`}
-          </Small>
-          <Small muted>{env.isExpoGo ? 'Expo Go' : 'Development build'}</Small>
+          <Pressy
+            onPress={() =>
+              Linking.openURL('https://farm-to-flat.vercel.app/privacy').catch(() => {})
+            }
+            haptics="select"
+          >
+            <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
+              Privacy policy
+            </Small>
+          </Pressy>
+          {/* Internal diagnostics (API host, build channel) are shown ONLY in development — a release
+              build must never reveal the backend URL or mock/dev state to customers. */}
+          {__DEV__ ? (
+            <Small muted>
+              {env.useMocks ? 'Mock server' : `API: ${env.apiUrl}`} ·{' '}
+              {env.isExpoGo ? 'Expo Go' : 'Dev build'}
+            </Small>
+          ) : null}
         </Glass>
 
         <View style={{ marginTop: 26 }}>
