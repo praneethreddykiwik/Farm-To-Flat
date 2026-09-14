@@ -193,9 +193,27 @@ export function hydrateOrders(rows) {
         address: r.address || null,
       }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  } else if (process.env.NODE_ENV === 'production') {
+    // Production must start clean — never push the fake demo orders (Imran Khan, Anjali, …) into a
+    // real database. Only dev/local gets example data.
+    db.orders = [];
   } else {
-    for (const o of db.orders) persist.orderUpsert(o); // one-time seed of demo orders
+    for (const o of db.orders) persist.orderUpsert(o); // one-time seed of demo orders (dev only)
   }
+  // Continue numbering AFTER the highest order that already exists, so a newly placed order can never
+  // reuse a number a stored order already holds. Without this, `seq` reset to its base on every boot
+  // and real orders collided with earlier ones (the same F2F-#### showing two different orders).
+  syncOrderSeq();
+}
+
+/** Advance the order counter past the largest existing F2F-<n>. Safe to call repeatedly. */
+export function syncOrderSeq() {
+  let max = 0;
+  for (const o of db.orders) {
+    const m = /^F2F-(\d+)$/.exec(o.orderNumber || '');
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  if (max > seq) seq = max;
 }
 
 // ── reads ────────────────────────────────────────────────────────────────
