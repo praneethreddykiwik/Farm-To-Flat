@@ -8,7 +8,7 @@ import { formatDateTime } from '../lib/dates';
 
 const STEPS = [
   { key: 'CONFIRMED', label: 'Confirmed', hint: 'Locked in for your window' },
-  { key: 'PACKED', label: 'Packed', hint: 'Weighed and bagged this morning' },
+  { key: 'PACKING', label: 'Packed', hint: 'Weighed and bagged this morning' },
   { key: 'OUT_FOR_DELIVERY', label: 'On its way', hint: 'Heading to your block' },
   { key: 'DELIVERED', label: 'Delivered', hint: 'At your door' },
 ];

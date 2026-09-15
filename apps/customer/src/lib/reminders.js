@@ -16,7 +16,7 @@ const IST_OFFSET_HOURS = 5.5;
 /** @param {string} dateISO the delivery day @returns {Date} 18:00 IST the evening before */
 export function remindAtFor(dateISO) {
   const at = parseISODate(addDaysISO(dateISO, -1));
-  at.setUTCHours(REMIND_HOUR_IST - Math.floor(IST_OFFSET_HOURS), 30, 0, 0);
+  at.setUTCHours(REMIND_HOUR_IST - 6, 30, 0, 0); // 18:00 IST == 12:30 UTC (was 13:30 → 7 pm)
   return at;
 }
 

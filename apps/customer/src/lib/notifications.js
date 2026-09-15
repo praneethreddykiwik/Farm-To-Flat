@@ -117,10 +117,9 @@ export async function presentOrderLive(order) {
         color: '#1E7A4C',
         sticky: true, // ongoing — the customer can't swipe it away while the order is live
         autoDismiss: false,
-        channelId: ORDER_LIVE_CHANNEL,
         priority: 'low',
       },
-      trigger: null,
+      trigger: { channelId: ORDER_LIVE_CHANNEL }, // Android: channel lives on the trigger, not content
     });
   } catch {}
 }

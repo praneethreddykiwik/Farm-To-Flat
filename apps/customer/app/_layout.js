@@ -59,7 +59,11 @@ function AuthGate({ ready }) {
   // Register this phone for order push-notifications once after sign-in (asks permission, gets the
   // Expo token, hands it to the server). Fail-open — a denied permission just means no push.
   useEffect(() => {
-    if (auth.status !== 'signedIn' || pushDone.current) return;
+    if (auth.status !== 'signedIn') {
+      pushDone.current = false; // re-register for the next account on this phone
+      return;
+    }
+    if (pushDone.current) return;
     pushDone.current = true;
     registerForPush()
       .then((token) => token && registerDevice({ expoPushToken: token }))
