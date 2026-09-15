@@ -40,11 +40,14 @@ import {
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
+import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
 export const customerOrdersRouter = Router();
 
 const OrderBody = z.object({
+  // Client-generated per checkout attempt; a retry with the same key replays the first response.
+  idempotencyKey: z.string().min(8).max(80).optional(),
   addressId: z.string().min(1),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   window: z.enum(['MORNING', 'EVENING']),
@@ -58,7 +61,10 @@ customerOrdersRouter.post(
   validateBody(OrderBody),
   asyncHandler(async (req, res) => {
     const cid = req.customerId;
-    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote } = req.body;
+    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote, idempotencyKey } =
+      req.body;
+    const replay = idempotencyGet(cid, idempotencyKey);
+    if (replay) return res.status(replay.status).json(replay.body);
     const priced = priceCart(cid);
     if (priced.items.length === 0) throw fail(422, 'CART_EMPTY', 'Your basket is empty.');
     if (!priced.meetsMinimum)
@@ -179,7 +185,9 @@ customerOrdersRouter.post(
         description: `Order ${order.orderNumber}`,
       };
     }
-    res.status(201).json({ order: orderCustomer(order), paymentIntent });
+    const body = { order: orderCustomer(order), paymentIntent };
+    idempotencyPut(cid, idempotencyKey, 201, body);
+    res.status(201).json(body);
   }),
 );
 

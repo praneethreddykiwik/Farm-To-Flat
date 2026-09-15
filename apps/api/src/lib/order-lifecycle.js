@@ -9,8 +9,9 @@
  * read from the customer's persisted wallet ledger, so a second refund (double click, retried
  * request, or a restart between two attempts) returns nothing.
  */
-import { getOrder, patchOrder } from '../store.js';
+import { getOrder, listOrders, patchOrder } from '../store.js';
 import { getWallet, ledgerPush, releaseCoupon } from '../customer-store.js';
+import { IS_TEST } from './env.js';
 
 const TERMINAL = new Set(['CANCELLED', 'DELIVERED']);
 
@@ -69,3 +70,32 @@ export function cancelOrder(orderId, { timelineStatus = 'CANCELLED' } = {}) {
   if (order.customerId && order.couponCode) releaseCoupon(order.customerId, order.couponCode);
   return { order, changed, refundedPaise };
 }
+
+/**
+ * An order that has been PENDING_PAYMENT for longer than ORDER_RELEASE_MINUTES (default 30) is the
+ * customer abandoning checkout. Until now such orders lived forever — holding the window slot, the
+ * day's product cap, the coupon and the wallet debit. They now become PAYMENT_FAILED (wallet returned,
+ * coupon released, slot freed by derivation). A payment that still captures later is handled by the
+ * orphan path in /payments/verify (returned to the wallet).
+ * @returns {number} orders expired by this pass
+ */
+export function expirePendingOrders({
+  now = Date.now(),
+  minutes = Number(process.env.ORDER_RELEASE_MINUTES) || 30,
+} = {}) {
+  const cutoff = now - minutes * 60 * 1000;
+  let n = 0;
+  for (const o of listOrders()) {
+    if (o.status !== 'PENDING_PAYMENT') continue;
+    if (new Date(o.createdAt).getTime() > cutoff) continue;
+    const updated = patchOrder(o.id, (ord) => {
+      ord.status = 'PAYMENT_FAILED';
+      ord.timeline.push({ status: 'PAYMENT_FAILED', at: new Date(now).toISOString() });
+    });
+    refundOrderWallet(updated, `Checkout timed out for ${o.orderNumber}, wallet returned`);
+    if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
+    n += 1;
+  }
+  return n;
+}
+if (!IS_TEST) setInterval(() => expirePendingOrders(), 60 * 1000).unref();
