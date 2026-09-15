@@ -33,7 +33,6 @@ const db = {
   /** @type {any[]} */
   orders: [],
   /** window bookings, key `${communityId}|${date}|${window}` -> count */
-  windows: new Map(),
   /** actual-cost records from procurement, key `${dateKey}|${productId}` -> record. Resets on restart. */
   procurementRecords: new Map(),
   constants: {
@@ -442,11 +441,30 @@ export function updateOrderStatus(oid, status) {
 }
 
 // ── window bookings ─────────────────────────────────────────────────────────
-export const bookedFor = (communityId, date, window) =>
-  db.windows.get(`${communityId}|${date}|${window}`) || 0;
-export function book(communityId, date, window) {
-  const key = `${communityId}|${date}|${window}`;
-  db.windows.set(key, (db.windows.get(key) || 0) + 1);
-}
+// Consumed capacity is DERIVED from the orders themselves, never kept as a separate counter. An
+// order holds its slot while it's live and frees it the moment it's cancelled or its payment fails;
+// and because orders are persisted, capacity is correct after a restart. (The old in-memory counter
+// only ever went up — cancelled orders kept their slot — and reset to zero on every deploy, so the
+// same window could be sold twice.)
+const HOLDS_SLOT = new Set([
+  'PENDING_PAYMENT',
+  'CONFIRMED',
+  'PACKING',
+  'OUT_FOR_DELIVERY',
+  'DELIVERED',
+]);
+export const bookedFor = (communityId, date, window) => {
+  let n = 0;
+  for (const o of db.orders) {
+    if (
+      o.deliveryDate === date &&
+      o.window === window &&
+      o.address?.communityId === communityId &&
+      HOLDS_SLOT.has(o.status)
+    )
+      n += 1;
+  }
+  return n;
+};
 
 export { db };

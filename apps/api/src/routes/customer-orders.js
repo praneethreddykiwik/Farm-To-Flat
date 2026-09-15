@@ -15,7 +15,6 @@ import { orderCustomer } from '../serialize.js';
 import { createRazorpayOrder, razorpayEnabled, razorpayKeyId } from '../lib/razorpay.js';
 import {
   bookedFor,
-  book,
   constants,
   createOrder,
   getCommunity,
@@ -93,8 +92,8 @@ customerOrdersRouter.post(
       useWallet && wallet.balancePaise > 0 ? Math.min(wallet.balancePaise, payable) : 0;
     const gateway = payable - walletApplied;
 
-    // commit
-    book(address.communityId, deliveryDate, window);
+    // commit — the order itself is the booking (capacity is derived from live orders, see
+    // store.bookedFor), so there is no separate counter to bump.
     if (code) redeemCoupon(cid, code);
     const customer = getCustomer(cid);
     const order = createOrder({
