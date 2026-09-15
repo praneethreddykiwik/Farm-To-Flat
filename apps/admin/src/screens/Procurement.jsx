@@ -74,7 +74,9 @@ export function Procurement() {
       setSavingSettings(false);
     }
   }
-  function saveBuffer() {
+  // Named distinctly from the per-item `saveBuffer(productId, …)` below: two `function saveBuffer`
+  // declarations in one scope meant the later one won, and this Save button silently did nothing.
+  function saveCostBuffer() {
     const n = Number(bufPct);
     if (!Number.isInteger(n) || n < 0 || n > 100)
       return toast('Enter a whole number between 0 and 100.', 'err');
@@ -218,13 +220,17 @@ export function Procurement() {
                 inputMode="numeric"
                 value={bufPct}
                 onChange={(e) => setBufPct(num(e.target.value, { max: 100, integer: true }))}
-                onKeyDown={(e) => e.key === 'Enter' && saveBuffer()}
+                onKeyDown={(e) => e.key === 'Enter' && saveCostBuffer()}
                 style={{ width: 110 }}
               />
               <span className="muted" style={{ fontSize: 13 }}>
                 %
               </span>
-              <button className="btn btn--primary" onClick={saveBuffer} disabled={savingSettings}>
+              <button
+                className="btn btn--primary"
+                onClick={saveCostBuffer}
+                disabled={savingSettings}
+              >
                 Save
               </button>
             </div>
