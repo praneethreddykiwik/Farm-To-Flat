@@ -378,9 +378,12 @@ export function Fulfilment() {
           >
             Group by community
           </button>
-          <button className="btn btn--ghost" onClick={simulate} disabled={simulating}>
-            <IconPlus size={17} /> {simulating ? 'Adding…' : 'Simulate incoming order'}
-          </button>
+          {/* Demo helper only — the API refuses it in production, so don't show it there either. */}
+          {import.meta.env.DEV && (
+            <button className="btn btn--ghost" onClick={simulate} disabled={simulating}>
+              <IconPlus size={17} /> {simulating ? 'Adding…' : 'Simulate incoming order'}
+            </button>
+          )}
           <button className="btn btn--accent" onClick={downloadPacking}>
             <IconDownload size={17} /> Packing CSV
           </button>

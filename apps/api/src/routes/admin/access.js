@@ -42,10 +42,18 @@ const CreateBody = z.object({
   name: z.string().max(80).optional(),
   aiAccess: z.boolean().optional(),
 });
+// Only a SUPER_ADMIN may grant, change or revoke SUPER_ADMIN. An ADMIN manages the rest.
+const superOnly = (req, target) => {
+  if (req.staff?.role === 'SUPER_ADMIN') return;
+  if (req.body?.role === 'SUPER_ADMIN' || target?.role === 'SUPER_ADMIN')
+    throw fail(403, 'FORBIDDEN', 'Only a super admin can manage super admins.');
+};
+
 adminAccessRouter.post(
   '/access',
   validateBody(CreateBody),
   asyncHandler(async (req, res) => {
+    superOnly(req);
     const r = addStaff(req.body);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
     res.status(201).json({ staff: serialise(r.staff) });
@@ -61,7 +69,9 @@ adminAccessRouter.patch(
   '/access/:id',
   validateBody(UpdateBody),
   asyncHandler(async (req, res) => {
-    if (!getStaff(req.params.id)) throw fail(404, 'NOT_FOUND', 'Member not found');
+    const target = getStaff(req.params.id);
+    if (!target) throw fail(404, 'NOT_FOUND', 'Member not found');
+    superOnly(req, target);
     res.json({ staff: serialise(updateStaff(req.params.id, req.body)) });
   }),
 );
@@ -69,7 +79,10 @@ adminAccessRouter.patch(
 adminAccessRouter.delete(
   '/access/:id',
   asyncHandler(async (req, res) => {
-    if (!removeStaff(req.params.id)) throw fail(404, 'NOT_FOUND', 'Member not found');
+    const target = getStaff(req.params.id);
+    if (!target) throw fail(404, 'NOT_FOUND', 'Member not found');
+    superOnly(req, target);
+    removeStaff(req.params.id);
     res.json({ ok: true });
   }),
 );

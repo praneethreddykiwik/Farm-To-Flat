@@ -25,6 +25,7 @@ import { listCommunities } from '../../store.js';
 import { getDevices, getCustomer } from '../../customer-store.js';
 import { notifyOrderStatus } from '../../lib/push.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
+import { IS_PROD } from '../../lib/env.js';
 
 // Orders snapshot the customer name at order time; show the customer's CURRENT name in the operator
 // panel so a profile rename reflects everywhere (falls back to the snapshot for guest/seed orders).
@@ -122,6 +123,9 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 adminOrdersRouter.post(
   '/orders/simulate',
   asyncHandler(async (_req, res) => {
+    // Demo-only: fabricates an order with a random mobile. In production it would persist fake
+    // orders into the real table, so it does not exist there.
+    if (IS_PROD) throw fail(404, 'NOT_FOUND', 'Not available in production.');
     const community = pick(listCommunities().filter((c) => c.isActive !== false));
     const products = listProducts().filter((p) => p.isActive !== false);
     const n = 3 + Math.floor(Math.random() * 4);

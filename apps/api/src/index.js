@@ -35,7 +35,7 @@ import { walletRouter, paymentsRouter } from './routes/wallet.js';
 import { devicesRouter } from './routes/devices.js';
 import { aiRouter } from './routes/ai.js';
 // admin (operator)
-import { adminAuth } from './routes/admin/auth.js';
+import { adminAuth, adminAuthorize } from './routes/admin/auth.js';
 import { adminProductsRouter } from './routes/admin/products.js';
 import { adminCommunitiesRouter } from './routes/admin/communities.js';
 import { adminOrdersRouter } from './routes/admin/orders.js';
@@ -115,6 +115,7 @@ app.use(`${v1}/ai`, requireAuth, aiRouter);
 // ── admin (operator panel) ─────────────────────────────────────────────────
 const admin = express.Router();
 admin.use(adminAuth);
+admin.use(adminAuthorize); // per-route role check — any staff is NOT full admin
 admin.use(adminProductsRouter);
 admin.use(adminCommunitiesRouter);
 admin.use(adminOrdersRouter);
