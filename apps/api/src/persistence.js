@@ -230,24 +230,67 @@ const logErr = (op) => (e) =>
   // eslint-disable-next-line no-console
   console.error(`[persist] ${op} failed:`, e?.message || e);
 
+// Persistence can be switched off at runtime: if boot-time hydration fails, the process is serving
+// the in-memory SEED, and letting it write through would overwrite live rows with demo data.
+let enabled = persistEnabled;
+export function disablePersistence(reason) {
+  if (!enabled) return;
+  enabled = false;
+  // eslint-disable-next-line no-console
+  console.error(`[persist] DISABLED for this process — ${reason}`);
+}
+export const isPersistenceEnabled = () => enabled;
+
+/**
+ * Serialise async work per key: the next write for the same record starts only after the previous
+ * one settled. Writes for different keys still run concurrently. Without this, two rapid upserts of
+ * the same order (create → cancel within ms) travelled the pool independently and the EARLIER row
+ * could land last, leaving the DB with the pre-cancel status.
+ */
+const chains = new Map();
+export function serialize(key, run) {
+  const prev = chains.get(key) || Promise.resolve();
+  const next = prev.then(run, run);
+  chains.set(key, next);
+  next.finally(() => {
+    if (chains.get(key) === next) chains.delete(key);
+  });
+  return next;
+}
+
 // Wrap each write so it is a no-op when persistence is off (test / no DATABASE_URL); callers never
 // branch. Writes are fire-and-forget (the cache already reflects the change); failures are logged.
+// `keyOf(...args)` (optional) names the record so writes to it are applied in call order.
 const wt =
-  (op, fn) =>
-  (...args) =>
-    persistEnabled ? Promise.resolve(fn(...args)).catch(logErr(op)) : undefined;
+  (op, fn, keyOf) =>
+  (...args) => {
+    if (!enabled) return undefined;
+    const run = () =>
+      Promise.resolve()
+        .then(() => fn(...args))
+        .catch(logErr(op));
+    return keyOf ? serialize(`${op.split('.')[0]}:${keyOf(...args)}`, run) : run();
+  };
 
 export const persist = {
   // ── master data (stage 1) ──
-  productUpsert: wt('product.upsert', (p) => {
-    const row = productToRow(p);
-    return prisma.product.upsert({ where: { id: p.id }, create: row, update: row });
-  }),
+  productUpsert: wt(
+    'product.upsert',
+    (p) => {
+      const row = productToRow(p);
+      return prisma.product.upsert({ where: { id: p.id }, create: row, update: row });
+    },
+    (p) => p.id,
+  ),
   productDelete: wt('product.delete', (pid) => prisma.product.delete({ where: { id: pid } })),
-  couponUpsert: wt('coupon.upsert', (c) => {
-    const row = couponToRow(c);
-    return prisma.coupon.upsert({ where: { code: row.code }, create: row, update: row });
-  }),
+  couponUpsert: wt(
+    'coupon.upsert',
+    (c) => {
+      const row = couponToRow(c);
+      return prisma.coupon.upsert({ where: { code: row.code }, create: row, update: row });
+    },
+    (c) => String(c.code).toUpperCase(),
+  ),
   couponDelete: wt('coupon.delete', (code) =>
     prisma.coupon.delete({ where: { code: String(code).toUpperCase() } }),
   ),
@@ -265,31 +308,46 @@ export const persist = {
   ),
 
   // ── transactional (stage 2) ──
-  customerUpsert: wt('customer.upsert', (c, wallet) =>
-    prisma.customer.upsert({
-      where: { id: c.id },
-      create: customerCreate(c, wallet),
-      update: customerUpdate(c, wallet),
-    }),
+  customerUpsert: wt(
+    'customer.upsert',
+    (c, wallet) =>
+      prisma.customer.upsert({
+        where: { id: c.id },
+        create: customerCreate(c, wallet),
+        update: customerUpdate(c, wallet),
+      }),
+    (c) => c.id,
   ),
-  walletUpdate: wt('wallet.update', (cid, balancePaise, ledger) =>
-    prisma.customer.update({
-      where: { id: cid },
-      data: { walletBalancePaise: balancePaise, walletLedger: ledger },
-    }),
+  // Same key as customerUpsert on purpose: both write the customer row, so they must not race.
+  walletUpdate: wt(
+    'customer.wallet',
+    (cid, balancePaise, ledger) =>
+      prisma.customer.update({
+        where: { id: cid },
+        data: { walletBalancePaise: balancePaise, walletLedger: ledger },
+      }),
+    (cid) => cid,
   ),
   addressUpsert: wt('address.upsert', (a, cid) => {
     const row = addressToRow(a, cid);
     return prisma.address.upsert({ where: { id: a.id }, create: row, update: row });
   }),
-  orderUpsert: wt('order.upsert', (o) => {
-    const row = orderToRow(o);
-    return prisma.order.upsert({ where: { id: o.id }, create: row, update: row });
-  }),
-  paymentUpsert: wt('payment.upsert', (p) => {
-    const row = paymentToRow(p);
-    return prisma.payment.upsert({ where: { id: p.id }, create: row, update: row });
-  }),
+  orderUpsert: wt(
+    'order.upsert',
+    (o) => {
+      const row = orderToRow(o);
+      return prisma.order.upsert({ where: { id: o.id }, create: row, update: row });
+    },
+    (o) => o.id,
+  ),
+  paymentUpsert: wt(
+    'payment.upsert',
+    (p) => {
+      const row = paymentToRow(p);
+      return prisma.payment.upsert({ where: { id: p.id }, create: row, update: row });
+    },
+    (p) => p.id,
+  ),
   sessionUpsert: wt('session.upsert', (refreshToken, customerId) =>
     prisma.session.upsert({
       where: { refreshToken },

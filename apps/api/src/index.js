@@ -16,7 +16,7 @@ import pinoHttp from 'pino-http';
 
 import { ApiError } from './http.js';
 import { requireAuth } from './routes/require-auth.js';
-import { loadAll, loadTransactional, persistEnabled } from './persistence.js';
+import { disablePersistence, loadAll, loadTransactional, persistEnabled } from './persistence.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
@@ -190,9 +190,12 @@ async function boot() {
       enableOrderPersistence(); // real orders now write through (import-time seed did not)
       source = `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
     } catch (e) {
-      // Fall back to seed so the API still boots if the DB is unreachable.
+      // Fall back to seed so the API still boots if the DB is unreachable — but NEVER let this
+      // seed-backed process write through: the first admin edit would upsert demo rows over live
+      // data and new logins would create duplicate customers. Read-only until a healthy restart.
       // eslint-disable-next-line no-console
       console.error('[boot] Supabase load failed — using in-memory seed:', e?.message || e);
+      disablePersistence('hydration failed; refusing to write seed data over the live database');
     }
   }
   app.listen(PORT, HOST, () => {
