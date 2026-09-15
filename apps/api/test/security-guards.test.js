@@ -1,0 +1,78 @@
+/**
+ * CSV exports neutralise spreadsheet formulas; the dev OTP decision confines the fixed code in prod.
+ */
+import { describe, expect, it } from 'vitest';
+import request from 'supertest';
+
+process.env.NODE_ENV = 'test';
+const { app } = await import('../src/index.js');
+const { csvEscape } = await import('../src/lib/csv.js');
+const { devOtpAllowedFor } = await import('../src/customer-store.js');
+
+const auth = (t) => ({ Authorization: `Bearer ${t}` });
+
+describe('CSV formula injection', () => {
+  it('cells starting with = + - @ are neutralised', () => {
+    expect(csvEscape('=HYPERLINK(0)')).toBe("'=HYPERLINK(0)");
+    expect(csvEscape('+cmd')).toBe("'+cmd");
+    expect(csvEscape('-1')).toBe("'-1");
+    expect(csvEscape('@SUM')).toBe("'@SUM");
+    expect(csvEscape('=cmd|calc, x')).toBe('"\'=cmd|calc, x"');
+    expect(csvEscape('Spinach')).toBe('Spinach');
+    expect(csvEscape(12)).toBe('12');
+  });
+
+  it('a customer note lands in the packing CSV as text, not a formula', async () => {
+    const mobile = '9777000001';
+    await request(app).post('/api/v1/auth/otp/request').send({ mobile });
+    const v = await request(app).post('/api/v1/auth/otp/verify').send({ mobile, otp: '123456' });
+    const token = v.body.accessToken;
+    const { body: c } = await request(app).get('/api/v1/communities');
+    const community = c.communities[0];
+    const a = await request(app)
+      .post('/api/v1/addresses')
+      .set(auth(token))
+      .send({ communityId: community.id, block: community.blocks[0], flat: '101', floor: '1' });
+    const { body } = await request(app).get('/api/v1/admin/products');
+    const ps = body.products.filter((p) => (p.availability || 'AVAILABLE') === 'AVAILABLE');
+    for (const p of ps.slice(0, 6))
+      await request(app)
+        .put('/api/v1/cart/items')
+        .set(auth(token))
+        .send({ productId: p.id, quantity: 6, note: '=cmd|calc' });
+    const w = await request(app)
+      .get(`/api/v1/delivery-windows?addressId=${a.body.address.id}`)
+      .set(auth(token));
+    const win = w.body.windows.find((x) => x.isOpen);
+    const o = await request(app)
+      .post('/api/v1/orders')
+      .set(auth(token))
+      .send({ addressId: a.body.address.id, deliveryDate: win.date, window: win.window });
+    expect(o.status).toBe(201);
+    const csv = await request(app).get('/api/v1/admin/orders/export.csv?type=packing');
+    expect(csv.status).toBe(200);
+    expect(csv.text).toContain("'=cmd|calc");
+    expect(csv.text).not.toMatch(/,=cmd\|calc/);
+  });
+});
+
+describe('dev OTP confinement', () => {
+  const base = { allowDev: true, allowlist: new Set(), isStaff: false };
+  it('outside production the fixed code is always allowed', () => {
+    expect(devOtpAllowedFor('9000000000', { ...base, isProd: false, isStaff: true })).toBe(true);
+  });
+  it('in production without ALLOW_DEV_OTP nobody gets it', () => {
+    expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, allowDev: false })).toBe(false);
+  });
+  it('in production a STAFF number never gets it unless allowlisted', () => {
+    expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: true })).toBe(false);
+    expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: false })).toBe(true);
+    const allow = new Set(['9000000000']);
+    expect(
+      devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: true, allowlist: allow }),
+    ).toBe(true);
+    expect(
+      devOtpAllowedFor('9111111111', { ...base, isProd: true, isStaff: false, allowlist: allow }),
+    ).toBe(false);
+  });
+});

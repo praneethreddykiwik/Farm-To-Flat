@@ -14,6 +14,7 @@ import {
 import { id, shortId } from './lib/ids.js';
 import { msg91Enabled, sendOtpSms } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
+import { findStaffByMobile } from './access-store.js';
 import { persist } from './persistence.js';
 
 const DEV_OTP = '123456';
@@ -134,9 +135,35 @@ export function hydrateCustomerData({
 // ── auth / otp ──────────────────────────────────────────────────────────────
 // IS_PROD comes from lib/env.js so a hand-created Render service (no NODE_ENV) still counts as
 // production — otherwise the OTP leaked in the response on the live API.
-// Keep the fixed 123456 code (and skip SMS) even in production when ALLOW_DEV_OTP=1 — for a hosted
-// TEST deployment before DLT/MSG91 is live. REMOVE this env var for the real public launch.
-const USE_DEV_OTP = !IS_PROD || process.env.ALLOW_DEV_OTP === '1';
+//
+// The fixed 123456 code exists for a hosted TEST deployment before DLT/MSG91 is live
+// (ALLOW_DEV_OTP=1). In production it is now confined:
+//   - DEV_OTP_ALLOWLIST (comma-separated mobiles) — if set, ONLY those numbers get the fixed code;
+//   - a STAFF number never gets the fixed code in production unless it is explicitly allowlisted.
+// Before this, ALLOW_DEV_OTP=1 let anyone log in as any staff number with 123456 (full takeover).
+// REMOVE ALLOW_DEV_OTP entirely for the real public launch.
+const ALLOW_DEV = process.env.ALLOW_DEV_OTP === '1';
+const DEV_OTP_ALLOWLIST = new Set(
+  (process.env.DEV_OTP_ALLOWLIST || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+/**
+ * Pure decision: may `mobile` use the fixed dev OTP? Exported for tests.
+ * @param {{ isProd:boolean, allowDev:boolean, allowlist:Set<string>, isStaff:boolean }} ctx
+ */
+export function devOtpAllowedFor(mobile, ctx) {
+  if (!ctx.isProd) return true;
+  if (!ctx.allowDev) return false;
+  if (ctx.allowlist.size > 0) return ctx.allowlist.has(mobile);
+  return !ctx.isStaff; // no allowlist: everyone EXCEPT staff numbers (they must be allowlisted)
+}
+if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[otp] ALLOW_DEV_OTP=1 in production with no DEV_OTP_ALLOWLIST: every NON-staff number accepts 123456. Set DEV_OTP_ALLOWLIST or remove ALLOW_DEV_OTP.',
+  );
 
 /**
  * Request a login OTP. Security:
@@ -160,12 +187,18 @@ export async function requestOtp(mobile) {
     hits.push(now);
     cs.otpRate.set(mobile, hits);
   }
-  const otp = USE_DEV_OTP ? DEV_OTP : String(Math.floor(100000 + Math.random() * 900000));
+  const useDev = devOtpAllowedFor(mobile, {
+    isProd: IS_PROD,
+    allowDev: ALLOW_DEV,
+    allowlist: DEV_OTP_ALLOWLIST,
+    isStaff: !!findStaffByMobile(mobile),
+  });
+  const otp = useDev ? DEV_OTP : String(Math.floor(100000 + Math.random() * 900000));
   cs.otp.set(mobile, { otp, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-  // Real production (USE_DEV_OTP off): deliver a random code by SMS and never return it. Otherwise
-  // (dev / test / a test deployment with ALLOW_DEV_OTP=1) use the fixed 123456 and skip SMS.
-  if (!USE_DEV_OTP) {
+  // Real production (no dev OTP for this number): deliver a random code by SMS and never return it.
+  // Otherwise (dev / test / an allowlisted tester) use the fixed 123456 and skip SMS.
+  if (!useDev) {
     if (msg91Enabled) {
       try {
         await sendOtpSms({ mobile, otp });
