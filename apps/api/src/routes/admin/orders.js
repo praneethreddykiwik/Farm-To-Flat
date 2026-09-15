@@ -22,8 +22,9 @@ import {
   updateOrderStatus,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
-import { ledgerPush, releaseCoupon, getDevices, getCustomer } from '../../customer-store.js';
+import { getDevices, getCustomer } from '../../customer-store.js';
 import { notifyOrderStatus } from '../../lib/push.js';
+import { cancelOrder } from '../../lib/order-lifecycle.js';
 
 // Orders snapshot the customer name at order time; show the customer's CURRENT name in the operator
 // panel so a profile rename reflects everywhere (falls back to the snapshot for guest/seed orders).
@@ -46,7 +47,11 @@ const STATUSES = [
   'PAYMENT_FAILED',
 ];
 
-/** allowed next states — the fulfilment state machine */
+/**
+ * Allowed next states — the fulfilment state machine. PAYMENT_FAILED can only be cancelled: its
+ * wallet money has already been returned, so "confirming" it from the board would deliver an order
+ * nobody paid for and (before the shared cancel path) refunded that money a second time on cancel.
+ */
 const NEXT = {
   PENDING_PAYMENT: ['CONFIRMED', 'CANCELLED', 'PAYMENT_FAILED'],
   CONFIRMED: ['PACKING', 'CANCELLED'],
@@ -54,8 +59,14 @@ const NEXT = {
   OUT_FOR_DELIVERY: ['DELIVERED', 'PACKING'],
   DELIVERED: [],
   CANCELLED: [],
-  PAYMENT_FAILED: ['CONFIRMED', 'CANCELLED'],
+  PAYMENT_FAILED: ['CANCELLED'],
 };
+
+/** Every transition INTO CANCELLED goes through the shared cancel path (refund + coupon release). */
+function transition(orderId, status) {
+  if (status === 'CANCELLED') return cancelOrder(orderId).order;
+  return updateOrderStatus(orderId, status);
+}
 
 function applyFilters(orders, q) {
   return orders.filter((o) => {
@@ -178,7 +189,7 @@ adminOrdersRouter.patch(
         allowed,
       });
     }
-    const updated = updateOrderStatus(req.params.id, req.body.status);
+    const updated = transition(req.params.id, req.body.status);
     notifyOrderStatus(updated, getDevices); // push the customer their new status
     res.json({ order: orderAdmin(updated) });
   }),
@@ -211,7 +222,7 @@ adminOrdersRouter.post(
         skipped.push({ id, reason: 'INVALID_TRANSITION' });
         continue;
       }
-      const row = updateOrderStatus(id, status);
+      const row = transition(id, status);
       notifyOrderStatus(row, getDevices); // push each customer their new status
       updated.push(orderAdmin(row));
     }
@@ -234,22 +245,8 @@ adminOrdersRouter.post(
     if (!o.cancelRequested) throw fail(409, 'NO_REQUEST', 'No cancellation request on this order.');
 
     if (req.body.decision === 'APPROVE') {
-      const updated = patchOrder(req.params.id, (ord) => {
-        ord.status = 'CANCELLED';
-        ord.cancelRequested = false;
-        ord.timeline.push({ status: 'CANCELLED', at: new Date().toISOString() });
-      });
+      const { order: updated } = cancelOrder(req.params.id);
       notifyOrderStatus(updated, getDevices);
-      if (o.customerId && o.walletAppliedPaise > 0)
-        ledgerPush(
-          o.customerId,
-          'CREDIT',
-          o.walletAppliedPaise,
-          'REFUND',
-          o.orderNumber,
-          `Refund for ${o.orderNumber}`,
-        );
-      if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
       return res.json({ order: orderAdmin(updated) });
     }
 

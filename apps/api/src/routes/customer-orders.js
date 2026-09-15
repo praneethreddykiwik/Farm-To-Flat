@@ -37,6 +37,7 @@ import {
   validateCoupon,
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
+import { cancelOrder } from '../lib/order-lifecycle.js';
 import { todayISO } from '../lib/dates.js';
 
 export const customerOrdersRouter = Router();
@@ -195,22 +196,9 @@ customerOrdersRouter.post(
       // already asked — idempotent, just return it
       return res.json({ order: orderCustomer(existing), cancelRequested: true });
 
-    // Not yet paid/started → cancel outright and refund now.
-    if (existing.status === 'PENDING_PAYMENT') {
-      const updated = patchOrder(req.params.id, (o) => {
-        o.status = 'CANCELLED';
-        o.timeline.push({ status: 'CANCELLED', at: new Date().toISOString() });
-      });
-      if (existing.walletAppliedPaise > 0)
-        ledgerPush(
-          cid,
-          'CREDIT',
-          existing.walletAppliedPaise,
-          'REFUND',
-          existing.orderNumber,
-          `Refund for ${existing.orderNumber}`,
-        );
-      if (existing.couponCode) releaseCoupon(cid, existing.couponCode);
+    // Not yet paid/started → cancel outright and refund now (single, idempotent cancel path).
+    if (existing.status === 'PENDING_PAYMENT' || existing.status === 'PAYMENT_FAILED') {
+      const { order: updated } = cancelOrder(req.params.id);
       return res.json({ order: orderCustomer(updated), cancelled: true });
     }
 

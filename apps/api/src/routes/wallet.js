@@ -18,6 +18,7 @@ import {
   releaseCoupon,
   savePayment,
 } from '../customer-store.js';
+import { refundOrderWallet } from '../lib/order-lifecycle.js';
 import {
   createRazorpayOrder,
   razorpayEnabled,
@@ -99,15 +100,8 @@ paymentsRouter.post(
             ord.status = 'PAYMENT_FAILED';
             ord.timeline.push({ status: 'PAYMENT_FAILED', at: new Date().toISOString() });
           });
-          if (o.walletAppliedPaise > 0)
-            ledgerPush(
-              cid,
-              'CREDIT',
-              o.walletAppliedPaise,
-              'REFUND',
-              o.orderNumber,
-              'Payment abandoned, wallet returned',
-            );
+          // Idempotent: only the not-yet-returned wallet portion is credited.
+          refundOrderWallet(o, 'Payment abandoned, wallet returned');
           if (o.couponCode) releaseCoupon(cid, o.couponCode);
         }
       }
@@ -127,14 +121,38 @@ paymentsRouter.post(
 
     pay.status = 'CAPTURED';
     pay.razorpayPaymentId = razorpayPaymentId || `pay_rzp_${Date.now()}`;
-    savePayment(pay);
     if (pay.purpose === 'TOPUP') {
+      savePayment(pay);
       ledgerPush(cid, 'CREDIT', pay.amountPaise, 'TOPUP', pay.razorpayPaymentId, 'Wallet top-up');
       return res.json({
         status: 'CAPTURED',
         walletBalancePaise: money(getWallet(cid).balancePaise),
       });
     }
+    const current = getOrder(pay.orderId);
+    if (current && current.status !== 'PENDING_PAYMENT') {
+      // The gateway captured money for an order that is no longer awaiting payment (the customer
+      // cancelled it, or the payment was already marked failed, while the checkout was open). Never
+      // swallow that money silently: record the capture as orphaned and return the full gateway
+      // amount to the customer's wallet, visibly, so nothing is lost and ops can see it.
+      pay.orphan = true;
+      savePayment(pay);
+      ledgerPush(
+        cid,
+        'CREDIT',
+        pay.amountPaise,
+        'REFUND',
+        `${current.orderNumber}:gateway`,
+        `Payment received after ${current.orderNumber} was ${current.status.toLowerCase().replace('_', ' ')} — returned to wallet`,
+      );
+      return res.json({
+        status: 'CAPTURED',
+        orphaned: true,
+        order: orderCustomer(current),
+        walletBalancePaise: money(getWallet(cid).balancePaise),
+      });
+    }
+    savePayment(pay);
     const updated = patchOrder(pay.orderId, (ord) => {
       if (ord.status === 'PENDING_PAYMENT') {
         ord.status = 'CONFIRMED';

@@ -32,7 +32,6 @@ const db = {
   coupons: clone(COUPONS),
   /** @type {any[]} */
   orders: [],
-  /** window bookings, key `${communityId}|${date}|${window}` -> count */
   /** actual-cost records from procurement, key `${dateKey}|${productId}` -> record. Resets on restart. */
   procurementRecords: new Map(),
   constants: {
