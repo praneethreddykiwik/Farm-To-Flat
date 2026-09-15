@@ -396,6 +396,18 @@ export function updateCoupon(code, patch) {
   persist.couponUpsert(c);
   return clone(c);
 }
+/**
+ * Move a coupon's redemption counter by ±1 on the LIVE record (never below 0) and persist it. The
+ * old code did `listCoupons().find(...).redeemedCount += 1` — listCoupons() returns a deep clone,
+ * so the counter never moved and `globalCap` was never enforced (a cap-1 coupon was unlimited).
+ */
+export function adjustCouponRedemption(code, delta) {
+  const c = db.coupons.find((x) => x.code.toLowerCase() === String(code).toLowerCase());
+  if (!c) return null;
+  c.redeemedCount = Math.max(0, (c.redeemedCount || 0) + delta);
+  persist.couponUpsert(c);
+  return clone(c);
+}
 export function deleteCoupon(code) {
   const i = db.coupons.findIndex((x) => x.code.toLowerCase() === String(code).toLowerCase());
   if (i === -1) return false;

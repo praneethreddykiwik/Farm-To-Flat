@@ -4,7 +4,13 @@
  * the Prisma tables replace; the shapes and rules mirror apps/customer/src/api/mock/server.js so the
  * app runs against this API unchanged (EXPO_PUBLIC_USE_MOCKS=0). Money is integer paise.
  */
-import { constants, getProduct, listCommunities, listCoupons } from './store.js';
+import {
+  adjustCouponRedemption,
+  constants,
+  getProduct,
+  listCommunities,
+  listCoupons,
+} from './store.js';
 import { id, shortId } from './lib/ids.js';
 import { msg91Enabled, sendOtpSms } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
@@ -395,12 +401,14 @@ export function validateCoupon(cid, code, subtotal) {
 export function redeemCoupon(cid, code) {
   redemptions(cid).add(code);
   persist.redemptionAdd(cid, code);
-  const c = listCoupons().find((x) => x.code === code);
-  if (c) c.redeemedCount += 1;
+  adjustCouponRedemption(code, +1); // on the live record, so globalCap actually counts down
 }
 export function releaseCoupon(cid, code) {
+  // Idempotent: only give the slot back if this customer actually held it.
+  if (!redemptions(cid).has(code)) return;
   redemptions(cid).delete(code);
   persist.redemptionDelete(cid, code);
+  adjustCouponRedemption(code, -1);
 }
 
 // ── cart ────────────────────────────────────────────────────────────────────
