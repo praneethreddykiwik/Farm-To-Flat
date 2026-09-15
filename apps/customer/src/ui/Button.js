@@ -45,6 +45,7 @@ export function Button({
             variant={size === 'sm' ? 'smallMedium' : 'bodyMedium'}
             color={textColor}
             style={styles.label}
+            numberOfLines={1}
           >
             {title}
           </Text>
@@ -100,5 +101,9 @@ export function Button({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   icon: { alignItems: 'center', justifyContent: 'center' },
-  label: { letterSpacing: 0.1 },
+  // Single line, allowed to shrink, no letter-spacing: Android measured "Track this order" a hair
+  // narrower than it rendered, wrapped the last word onto a second line and clipped it inside the
+  // fixed-height button — so the customer saw just "Track this". includeFontPadding keeps the
+  // baseline centred on Android.
+  label: { flexShrink: 1, textAlign: 'center', includeFontPadding: false },
 });

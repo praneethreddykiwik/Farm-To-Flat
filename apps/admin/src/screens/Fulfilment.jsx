@@ -167,11 +167,14 @@ export function Fulfilment() {
     }
   }
 
-  function downloadPacking() {
-    const a = document.createElement('a');
-    a.href = api.url('/admin/orders/export.csv?type=packing');
-    a.click();
-    toast('Packing CSV exported');
+  async function downloadPacking() {
+    const day = new Date().toISOString().slice(0, 10);
+    try {
+      await api.download('/admin/orders/export.csv?type=packing', `f2f-packing-${day}.csv`);
+      toast('Packing CSV exported');
+    } catch (e) {
+      toast(e.message || 'Could not export', 'err');
+    }
   }
 
   const renderCard = (o, col) => (

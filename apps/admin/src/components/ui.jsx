@@ -123,14 +123,26 @@ export function Drawer({ title, subtitle, onClose, children, footer }) {
   );
 }
 
-/** Global toast host — subscribes to the toast bus. */
+/**
+ * Global toast host — subscribes to the toast bus. The same message is shown ONCE while it's on
+ * screen (repeated clicks on a failing "Add community" used to stack eight identical validation
+ * toasts), and at most four toasts are visible at a time.
+ */
 export function Toaster() {
   const [items, setItems] = useState([]);
   useEffect(
     () =>
       onToast((t) => {
-        setItems((xs) => [...xs, t]);
-        setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== t.id)), 3200);
+        let added = false;
+        setItems((xs) => {
+          if (xs.some((x) => x.message === t.message && x.kind === t.kind)) return xs;
+          added = true;
+          return [...xs, t].slice(-4);
+        });
+        // Only schedule removal for a toast that actually got shown.
+        setTimeout(() => {
+          if (added) setItems((xs) => xs.filter((x) => x.id !== t.id));
+        }, 3200);
       }),
     [],
   );
@@ -142,6 +154,62 @@ export function Toaster() {
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Pagination footer for a table. Pairs with `usePager` from lib/useApi.js. Shows the visible range
+ * and Prev / numbered pages / Next; hidden entirely when everything fits on one page.
+ */
+export function Pager({ page, pageCount, from, to, total, onPage }) {
+  if (pageCount <= 1) return null;
+  // Show up to 7 page numbers around the current one; ellipsis where pages are skipped.
+  const pages = [];
+  const lo = Math.max(1, page - 3);
+  const hi = Math.min(pageCount, page + 3);
+  if (lo > 1) pages.push(1, lo > 2 ? '…' : null);
+  for (let i = lo; i <= hi; i += 1) pages.push(i);
+  if (hi < pageCount) pages.push(hi < pageCount - 1 ? '…' : null, pageCount);
+  return (
+    <nav className="pager" aria-label="Pagination">
+      <span className="pager__range muted">
+        Showing {from}–{to} of {total}
+      </span>
+      <div className="pager__pages">
+        <button
+          className="btn btn--ghost btn--sm"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          ‹ Prev
+        </button>
+        {pages
+          .filter((p) => p !== null)
+          .map((p, i) =>
+            p === '…' ? (
+              <span key={`e${i}`} className="pager__gap muted">
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                className={`pager__num${p === page ? ' is-active' : ''}`}
+                onClick={() => onPage(p)}
+                aria-current={p === page ? 'page' : undefined}
+              >
+                {p}
+              </button>
+            ),
+          )}
+        <button
+          className="btn btn--ghost btn--sm"
+          disabled={page >= pageCount}
+          onClick={() => onPage(page + 1)}
+        >
+          Next ›
+        </button>
+      </div>
+    </nav>
   );
 }
 

@@ -144,14 +144,22 @@ export function Procurement() {
     }
   }
 
-  function downloadCsv(lang = 'en') {
+  async function downloadCsv(lang = 'en') {
     const p = new URLSearchParams(params);
     if (lang !== 'en') p.set('lang', lang);
-    const a = document.createElement('a');
-    a.href = api.url(`/admin/procurement/export.csv${p.toString() ? `?${p.toString()}` : ''}`);
-    a.click();
     setLangMenu(false);
-    toast(`Purchase list exported · ${LANG_OPTS.find((l) => l.code === lang).label.split(' ')[0]}`);
+    const day = new Date().toISOString().slice(0, 10);
+    try {
+      await api.download(
+        `/admin/procurement/export.csv${p.toString() ? `?${p.toString()}` : ''}`,
+        `f2f-procurement-${lang}-${day}.csv`,
+      );
+      toast(
+        `Purchase list exported · ${LANG_OPTS.find((l) => l.code === lang).label.split(' ')[0]}`,
+      );
+    } catch (e) {
+      toast(e.message || 'Could not export', 'err');
+    }
   }
 
   const overrideActive = data?.filters?.bufferOverride != null;

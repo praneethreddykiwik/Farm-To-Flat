@@ -98,9 +98,16 @@ export const api = createApi({
     }),
 
     // ---- windows & orders ----
+    // Ask for the schedule of the customer's OWN community. communityId is the direct hint; addressId
+    // is resolved server-side from the signed-in customer's addresses. (Without either the server
+    // used to fall back to the first community, so everyone saw the wrong delivery days.)
     getWindows: b.query({
-      query: (/** @type {any} */ { addressId, date } = {}) =>
-        `/delivery-windows?${new URLSearchParams({ ...(addressId ? { addressId } : {}), ...(date ? { date } : {}) }).toString()}`,
+      query: (/** @type {any} */ { addressId, communityId, date } = {}) =>
+        `/delivery-windows?${new URLSearchParams({
+          ...(communityId ? { communityId } : {}),
+          ...(addressId ? { addressId } : {}),
+          ...(date ? { date } : {}),
+        }).toString()}`,
       providesTags: ['Windows'],
     }),
     placeOrder: b.mutation({

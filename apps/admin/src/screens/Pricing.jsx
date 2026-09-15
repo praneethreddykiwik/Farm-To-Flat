@@ -4,9 +4,9 @@
  * shows the blended margin per category so Tharun can see where the money is.
  */
 import { useMemo, useState } from 'react';
-import { useResource, toast } from '../lib/useApi.js';
+import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
+import { ErrorNote, Pager, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconCheck } from '../components/icons.jsx';
 import { inr, num, toPaise, toRupees } from '../lib/format.js';
 
@@ -33,7 +33,11 @@ export function Pricing() {
     }));
   }, [products]);
 
-  const shown = cat === 'all' ? products : products.filter((p) => p.categoryId === cat);
+  const shown = useMemo(
+    () => (cat === 'all' ? products : products.filter((p) => p.categoryId === cat)),
+    [products, cat],
+  );
+  const pager = usePager(shown, 25, cat);
 
   function edit(id, key, val, base) {
     setEdits((s) => {
@@ -132,7 +136,7 @@ export function Pricing() {
                 </tr>
               </thead>
               <tbody>
-                {shown.map((p) => {
+                {pager.slice.map((p) => {
                   const e = edits[p.id];
                   const priceR = e ? e.priceR : toRupees(p.pricePaise);
                   const costR = e ? e.costR : toRupees(p.costPaise);
@@ -208,6 +212,7 @@ export function Pricing() {
                 })}
               </tbody>
             </table>
+            <Pager {...pager} onPage={pager.setPage} />
           </div>
         )}
       </div>

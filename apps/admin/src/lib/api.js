@@ -38,11 +38,41 @@ async function request(method, path, body) {
   return data;
 }
 
+/**
+ * Download a file (CSV export) WITH the admin auth header. A bare `<a href>` straight to the API
+ * can't carry x-admin-token, so on the hosted panel every export button opened the API's JSON
+ * `{"error":{"code":"UNAUTHENTICATED"}}` page instead of a file. Fetch it authenticated, then hand
+ * the bytes to the browser as a download.
+ * @param {string} path      API path (with query string)
+ * @param {string} filename  name for the saved file
+ */
+async function download(path, filename) {
+  const headers = {};
+  if (ADMIN_TOKEN) headers['x-admin-token'] = ADMIN_TOKEN;
+  const res = await fetch(BASE + path, { headers });
+  if (!res.ok) {
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    const data = isJson ? await res.json().catch(() => null) : null;
+    const e = data?.error || { code: 'HTTP', message: `HTTP ${res.status}` };
+    throw new ApiError(res.status, e.code, e.message, e.details);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'export.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 export const api = {
   get: (p) => request('GET', p),
   post: (p, b) => request('POST', p, b),
   patch: (p, b) => request('PATCH', p, b),
   del: (p) => request('DELETE', p),
-  /** Build a full URL for a browser download (CSV export). */
+  /** Build a full URL to the API (for links that don't need auth). Exports use `download`. */
   url: (p) => BASE + p,
+  download,
 };

@@ -37,6 +37,29 @@ export function useResource(path) {
   return { data, loading, error, reload: load };
 }
 
+/**
+ * Client-side pagination over an already-loaded list. Long tables (products, pricing, orders) were a
+ * single scroll; this slices them into pages and jumps back to page 1 whenever the filter/search
+ * (`resetKey`) changes so a new filter never lands on an empty page.
+ * @template T
+ * @param {T[]} items
+ * @param {number} pageSize
+ * @param {string} resetKey  anything that, when it changes, should reset to page 1
+ */
+export function usePager(items, pageSize = 25, resetKey = '') {
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey]);
+  const total = items.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(page, pageCount);
+  const from = total === 0 ? 0 : (current - 1) * pageSize + 1;
+  const to = Math.min(total, current * pageSize);
+  const slice = items.slice((current - 1) * pageSize, current * pageSize);
+  return { page: current, setPage, pageCount, slice, from, to, total };
+}
+
 /** Toast bus — dead simple pub/sub so any screen can `toast(msg)`. */
 const listeners = new Set();
 export function toast(message, kind = 'ok') {

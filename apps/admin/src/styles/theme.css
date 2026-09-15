@@ -1275,15 +1275,195 @@ table.data tbody tr:last-child td {
   }
 }
 
+/* ---------- pagination ------------------------------------------------------- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--hairline);
+  background: var(--glass-strong);
+}
+.pager__range {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pager__pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.pager__num {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+}
+.pager__num:hover {
+  background: #fff;
+  border-color: var(--hairline);
+}
+.pager__num.is-active {
+  background: var(--ink);
+  color: var(--canvas);
+}
+.pager__gap {
+  padding: 0 4px;
+}
+
+/* caret on the clickable availability badge — it's a picker, not just a label */
+.avail__caret {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 1px;
+}
+.dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ---------- mobile top bar + off-canvas rail ---------------------------------- */
+.mobilebar {
+  display: none; /* phones only, see media query */
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, var(--night-2) 0%, var(--night) 100%);
+  color: var(--ink-on-dark);
+  box-shadow: var(--shadow-soft);
+}
+.mobilebar__btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(243, 245, 239, 0.1);
+  color: var(--ink-on-dark);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.mobilebar__btn:active {
+  background: rgba(243, 245, 239, 0.18);
+}
+.mobilebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+.rail__close {
+  display: none;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(243, 245, 239, 0.1);
+  color: var(--ink-on-dark);
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.rail-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  animation: fadein 0.2s var(--ease-out) forwards;
+}
+
 @media (max-width: 900px) {
   .shell {
     grid-template-columns: 1fr;
   }
+  .mobilebar {
+    display: flex;
+  }
+  /* rail becomes a drawer sliding in from the left */
   .rail {
-    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 45;
+    width: min(300px, 86vw);
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    border-radius: 0 var(--r-lg) var(--r-lg) 0;
+    transform: translateX(-104%);
+    transition: transform 0.3s var(--ease-out);
+    overflow-y: auto;
+  }
+  .rail--open {
+    transform: translateX(0);
+  }
+  .rail__close {
+    display: grid;
+  }
+  .main {
+    padding: 14px 14px 48px;
+    gap: 16px;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .topbar__actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .page-title {
+    font-size: 25px;
+  }
+  .search {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
   }
   .grid-2,
   .grid-2--even {
+    grid-template-columns: 1fr !important;
+  }
+  .stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .stat__value {
+    font-size: 26px;
+  }
+  .board {
+    grid-auto-columns: minmax(240px, 82vw);
+  }
+  table.data th,
+  table.data td {
+    padding: 10px 12px;
+  }
+  .drawer {
+    width: 100vw;
+  }
+  .field__row {
     grid-template-columns: 1fr;
   }
 }

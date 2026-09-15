@@ -1,6 +1,10 @@
 /**
  * Forest nav rail. Sections mirror the operator's day: overview first, then the catalog surfaces
  * (products, pricing, communities), then the live work (orders, fulfilment).
+ *
+ * On desktop it's a fixed rail. On phones (≤ 900px) it's an off-canvas drawer opened from the
+ * hamburger in the mobile top bar — before this the rail was simply `display:none` on small screens,
+ * leaving no way to navigate the panel from a phone.
  */
 import { NavLink } from 'react-router-dom';
 import {
@@ -16,6 +20,7 @@ import {
   IconTag,
   IconTicket,
   IconTruck,
+  IconX,
 } from './icons.jsx';
 
 const NAV = [
@@ -36,17 +41,25 @@ const NAV = [
   { to: '/settings', label: 'Support contact', icon: IconLifeBuoy },
 ];
 
-export function Sidebar() {
+/**
+ * @param {{ open?: boolean, onClose?: () => void }} props  `open` only matters on phones.
+ */
+export function Sidebar({ open = false, onClose }) {
   return (
-    <nav className="rail">
+    <nav className={`rail${open ? ' rail--open' : ''}`} aria-label="Main">
       <div className="brand">
         <div className="brand__mark">
           <IconLeaf size={22} style={{ color: '#eaffc2' }} />
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div className="brand__name">Farm to Flat</div>
           <div className="brand__sub">Operations</div>
         </div>
+        {onClose && (
+          <button className="rail__close" onClick={onClose} aria-label="Close menu">
+            <IconX size={18} />
+          </button>
+        )}
       </div>
 
       <div className="nav">
@@ -60,6 +73,7 @@ export function Sidebar() {
               key={item.to}
               to={item.to}
               end={item.end}
+              onClick={onClose}
               className={({ isActive }) => `nav__item${isActive ? ' is-active' : ''}`}
             >
               <item.icon size={19} />

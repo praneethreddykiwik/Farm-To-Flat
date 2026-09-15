@@ -1,5 +1,6 @@
 import { resolveAccess, getCustomer } from '../../customer-store.js';
 import { findStaffByMobile } from '../../access-store.js';
+import { IS_PROD } from '../../lib/env.js';
 
 /**
  * Admin auth. Two ways in:
@@ -26,7 +27,7 @@ export function adminAuth(req, res, next) {
   // 2) the shared operator token (website)
   const required = process.env.ADMIN_TOKEN;
   if (!required) {
-    if (process.env.NODE_ENV === 'production') {
+    if (IS_PROD) {
       return res.status(503).json({
         error: { code: 'ADMIN_NOT_CONFIGURED', message: 'Admin auth is not configured.' },
       });

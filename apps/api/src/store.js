@@ -19,6 +19,7 @@ import {
   TOPUP_DENOMINATIONS_PAISE,
 } from './data/seed.js';
 import { addDaysISO, todayISO } from './lib/dates.js';
+import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
 import { persist } from './persistence.js';
 
@@ -193,9 +194,10 @@ export function hydrateOrders(rows) {
         address: r.address || null,
       }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  } else if (process.env.NODE_ENV === 'production') {
+  } else if (IS_PROD) {
     // Production must start clean — never push the fake demo orders (Imran Khan, Anjali, …) into a
-    // real database. Only dev/local gets example data.
+    // real database. Only dev/local gets example data. (IS_PROD also covers a Render service that was
+    // created by hand without NODE_ENV — that gap is how the demo orders got re-seeded once.)
     db.orders = [];
   } else {
     for (const o of db.orders) persist.orderUpsert(o); // one-time seed of demo orders (dev only)

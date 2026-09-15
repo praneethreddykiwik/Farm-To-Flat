@@ -4,19 +4,19 @@
  * always cross the wire as integer paise.
  */
 import { useMemo, useState } from 'react';
-import { useResource, toast } from '../lib/useApi.js';
+import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { Drawer, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
+import { Drawer, ErrorNote, Pager, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconEdit, IconPlus, IconSearch, IconTrash } from '../components/icons.jsx';
 import { UNIT_LABEL, inr, noLead, num, toPaise, toRupees } from '../lib/format.js';
 
 const UNITS = ['KG', 'BUNCH', 'PIECE', 'DOZEN', 'PACK'];
 
-/** Availability states (order = the cycle when you click the badge in the table). */
+/** Availability states, with what each means for the customer (shown in the picker). */
 const AVAIL = {
-  AVAILABLE: { label: 'Available', cls: 'av-available', next: 'SOLD_OUT' },
-  SOLD_OUT: { label: 'Sold out', cls: 'av-sold', next: 'HIDDEN' },
-  HIDDEN: { label: 'Hidden', cls: 'av-hidden', next: 'AVAILABLE' },
+  AVAILABLE: { label: 'Available', cls: 'av-available', hint: 'Customers can order it' },
+  SOLD_OUT: { label: 'Sold out', cls: 'av-sold', hint: 'Shown, but can’t be added to a basket' },
+  HIDDEN: { label: 'Hidden', cls: 'av-hidden', hint: 'Removed from the app catalog' },
 };
 const availOf = (p) => p.availability || (p.isActive === false ? 'HIDDEN' : 'AVAILABLE');
 
@@ -25,8 +25,9 @@ export function Catalog() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [editing, setEditing] = useState(null); // product | 'new' | null
+  const [availFor, setAvailFor] = useState(null); // product id whose availability menu is open
 
-  const products = data?.products || [];
+  const products = useMemo(() => data?.products || [], [data]);
   const categories = data?.categories || [];
 
   const filtered = useMemo(() => {
@@ -37,9 +38,14 @@ export function Catalog() {
       return `${p.name} ${(p.aliases || []).join(' ')}`.toLowerCase().includes(nq);
     });
   }, [products, q, cat]);
+  const pager = usePager(filtered, 25, `${q}|${cat}`);
 
-  async function cycleAvailability(p) {
-    const next = AVAIL[availOf(p)].next;
+  // The status badge is a deliberate control, but it used to CYCLE on every click (Available → Sold
+  // out → Hidden), so a stray click silently hid a product. Now it opens a small picker and the
+  // operator chooses the state explicitly.
+  async function setAvailability(p, next) {
+    setAvailFor(null);
+    if (next === availOf(p)) return;
     try {
       await api.patch(`/admin/products/${p.id}`, { availability: next });
       toast(`${p.name} · ${AVAIL[next].label}`);
@@ -113,7 +119,7 @@ export function Catalog() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => (
+                {pager.slice.map((p) => (
                   <tr key={p.id} onClick={() => setEditing(p)} style={{ cursor: 'pointer' }}>
                     <td>
                       <div className="prodcell">
@@ -142,18 +148,47 @@ export function Catalog() {
                     <td className="num" style={{ textAlign: 'right' }}>
                       {p.dailyCap}
                     </td>
-                    <td>
-                      <button
-                        className={`badge avail ${AVAIL[availOf(p)].cls}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          cycleAvailability(p);
-                        }}
-                        title="Click to change availability"
-                      >
-                        <span className="badge__dot" />
-                        {AVAIL[availOf(p)].label}
-                      </button>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="dropdown">
+                        <button
+                          className={`badge avail ${AVAIL[availOf(p)].cls}`}
+                          onClick={() => setAvailFor(availFor === p.id ? null : p.id)}
+                          title="Change availability"
+                          aria-haspopup="menu"
+                          aria-expanded={availFor === p.id}
+                        >
+                          <span className="badge__dot" />
+                          {AVAIL[availOf(p)].label}
+                          <span className="avail__caret" aria-hidden>
+                            ▾
+                          </span>
+                        </button>
+                        {availFor === p.id && (
+                          <>
+                            <div className="dropdown__scrim" onClick={() => setAvailFor(null)} />
+                            <div className="dropdown__menu" role="menu" style={{ minWidth: 230 }}>
+                              <div className="dropdown__label">Set availability</div>
+                              {Object.entries(AVAIL).map(([code, a]) => (
+                                <button
+                                  key={code}
+                                  role="menuitemradio"
+                                  aria-checked={availOf(p) === code}
+                                  className="dropdown__item"
+                                  onClick={() => setAvailability(p, code)}
+                                >
+                                  <span className={`badge ${a.cls}`} style={{ marginRight: 8 }}>
+                                    <span className="badge__dot" />
+                                    {a.label}
+                                  </span>
+                                  <span className="muted" style={{ fontSize: 12 }}>
+                                    {a.hint}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <button
@@ -171,6 +206,7 @@ export function Catalog() {
                 ))}
               </tbody>
             </table>
+            <Pager {...pager} onPage={pager.setPage} />
           </div>
         )}
       </div>

@@ -99,13 +99,28 @@ export default function Checkout() {
     () => list.find((a) => a.id === addressId) || list.find((a) => a.isDefault) || list[0],
     [list, addressId],
   );
-  const windows = useGetWindowsQuery({ addressId: address?.id }, { skip: !address });
+  const windows = useGetWindowsQuery(
+    { addressId: address?.id, communityId: address?.communityId },
+    { skip: !address },
+  );
+  // After the chosen window fills up we must NOT quietly pick another day for the customer — they
+  // choose again themselves. While this is set, there is no default slot.
+  const [mustPick, setMustPick] = useState(false);
   // Default to the earliest open window until the customer picks one (derived, not synced state).
   const chosenSlot = useMemo(() => {
     if (slot) return slot;
+    if (mustPick) return null;
     const first = windows.data?.windows?.find((w) => w.isOpen);
     return first ? { date: first.date, window: first.window } : null;
-  }, [slot, windows.data]);
+  }, [slot, mustPick, windows.data]);
+  // How many days a week this community actually delivers (distinct weekdays in the 14-day schedule)
+  // — the sheet used to hard-code "three days a week", which was wrong for 4-day communities.
+  const deliveryDayCount = useMemo(() => {
+    const set = new Set(
+      (windows.data?.windows || []).map((w) => new Date(`${w.date}T00:00:00Z`).getUTCDay()),
+    );
+    return set.size;
+  }, [windows.data]);
 
   const balance = Number(wallet.data?.balancePaise || 0);
   const total = Number(cart?.totalPaise || 0);
@@ -160,6 +175,7 @@ export default function Checkout() {
           tone: 'neutral',
         }),
       );
+      if (address) windowSheet.current?.present(); // take them straight to the picker
       return;
     }
     if (submitting) return;
@@ -215,18 +231,19 @@ export default function Checkout() {
       haptic.error();
       setSubmitting(false);
       if (e?.code === 'WINDOW_FULL') {
-        const n = e.details?.nextAvailable;
-        if (n) setSlot({ date: n.date, window: n.window });
+        // The window filled while they were checking out. Do NOT move them to another day on their
+        // behalf — clear the selection, refresh the schedule and open the picker so they choose.
+        setSlot(null);
+        setMustPick(true);
         windows.refetch();
         dispatch(
           showToast({
-            title: 'That window just filled',
-            message: n
-              ? `Moved you to ${formatDateShort(n.date)} ${WINDOWS[n.window]?.label.toLowerCase()}`
-              : 'Pick another window',
+            title: 'That window just filled up',
+            message: 'Please pick another delivery window.',
             tone: 'neutral',
           }),
         );
+        setTimeout(() => windowSheet.current?.present(), 250);
       } else if (
         e?.code === 'COUPON_ALREADY_USED' ||
         e?.code === 'COUPON_EXPIRED' ||
@@ -448,16 +465,23 @@ export default function Checkout() {
       <Sheet
         ref={windowSheet}
         title="Delivery window"
-        subtitle={address ? `${address.communityName} delivers three days a week` : undefined}
+        subtitle={
+          address
+            ? deliveryDayCount > 0
+              ? `${address.communityName} delivers ${deliveryDayCount} day${deliveryDayCount > 1 ? 's' : ''} a week`
+              : address.communityName
+            : undefined
+        }
         scroll
         snapPoints={['72%']}
       >
         <WindowPicker
           windows={windows.data?.windows}
-          loading={windows.isLoading}
+          loading={windows.isLoading || windows.isFetching}
           value={chosenSlot}
           onChange={(v) => {
             setSlot(v);
+            setMustPick(false);
           }}
         />
         <Button

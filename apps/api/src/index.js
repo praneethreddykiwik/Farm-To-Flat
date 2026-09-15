@@ -18,6 +18,7 @@ import { ApiError } from './http.js';
 import { requireAuth } from './routes/require-auth.js';
 import { loadAll, loadTransactional, persistEnabled } from './persistence.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
+import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
 import { hydrateCustomerData } from './customer-store.js';
 
@@ -58,14 +59,14 @@ const corsOrigins = (process.env.CORS_ORIGIN || '')
   .filter(Boolean);
 // Fail CLOSED in production: if CORS_ORIGIN is missing we deny cross-origin rather than reflecting any
 // origin (which would let any site call the API with credentials). Reflect-any stays for local dev only.
-if (process.env.NODE_ENV === 'production' && !corsOrigins.length) {
+if (IS_PROD && !corsOrigins.length) {
   console.error('[cors] CORS_ORIGIN is not set in production — denying all cross-origin requests.');
 }
 app.use(
   cors(
     corsOrigins.length
       ? { origin: corsOrigins, credentials: true }
-      : process.env.NODE_ENV === 'production'
+      : IS_PROD
         ? { origin: false } // production + no allowlist → deny cross-origin
         : {}, // dev → reflect any origin
   ),

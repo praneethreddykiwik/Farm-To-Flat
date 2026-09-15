@@ -4,9 +4,9 @@
  * current filter as a packing list or driver manifest CSV.
  */
 import { useMemo, useState } from 'react';
-import { useResource, toast } from '../lib/useApi.js';
+import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { Drawer, ErrorNote, StatusBadge, TableSkeleton } from '../components/ui.jsx';
+import { Drawer, ErrorNote, Pager, StatusBadge, TableSkeleton } from '../components/ui.jsx';
 import { IconDownload, IconSearch } from '../components/icons.jsx';
 import { inr, shortDate, titleCase } from '../lib/format.js';
 
@@ -29,26 +29,39 @@ const FILTERS = [
   'CANCELLED',
 ];
 
+// A live cancellation request is an order the customer asked to cancel that the team hasn't decided
+// on yet (it keeps its real status until then). Delivered/cancelled orders can't be "requested".
+const isCancelRequest = (o) => o.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(o.status);
+
 export function Orders() {
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
   const query = new URLSearchParams();
-  if (status !== 'all') query.set('status', status);
+  // "Cancel requests" is a client-side view over ALL orders (the server filters by status only).
+  const cancelView = status === 'CANCEL_REQUESTED';
+  if (status !== 'all' && !cancelView) query.set('status', status);
   if (q.trim()) query.set('q', q.trim());
   const qs = query.toString();
   const { data, loading, error, reload } = useResource(`/admin/orders${qs ? `?${qs}` : ''}`);
   const [openId, setOpenId] = useState(null);
 
   const counts = data?.counts || {};
-  const orders = data?.orders || [];
+  const all = useMemo(() => data?.orders || [], [data]);
+  const orders = useMemo(() => (cancelView ? all.filter(isCancelRequest) : all), [all, cancelView]);
+  // Count of open cancellation requests — known whenever we're looking at the unfiltered list.
+  const cancelCount = status === 'all' || cancelView ? all.filter(isCancelRequest).length : null;
+  const pager = usePager(orders, 25, `${status}|${q}`);
 
-  function download(type) {
+  async function download(type) {
     const p = new URLSearchParams(query);
     p.set('type', type);
-    const a = document.createElement('a');
-    a.href = api.url(`/admin/orders/export.csv?${p.toString()}`);
-    a.click();
-    toast(`${titleCase(type)} CSV exported`);
+    const day = new Date().toISOString().slice(0, 10);
+    try {
+      await api.download(`/admin/orders/export.csv?${p.toString()}`, `f2f-${type}-${day}.csv`);
+      toast(`${titleCase(type)} CSV exported`);
+    } catch (e) {
+      toast(e.message || 'Could not export', 'err');
+    }
   }
 
   return (
@@ -97,6 +110,14 @@ export function Orders() {
             <span className="chip__count">{counts[s] || 0}</span>
           </button>
         ))}
+        <button
+          className={`chip${cancelView ? ' is-active' : ''}`}
+          onClick={() => setStatus('CANCEL_REQUESTED')}
+          style={cancelCount ? { borderColor: 'var(--tomato)', color: 'var(--tomato)' } : undefined}
+        >
+          Cancel requests
+          {cancelCount != null && <span className="chip__count">{cancelCount}</span>}
+        </button>
       </div>
 
       <div className="glass" style={{ overflow: 'hidden' }}>
@@ -120,7 +141,7 @@ export function Orders() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
+                {pager.slice.map((o) => (
                   <tr key={o.id} onClick={() => setOpenId(o.id)} style={{ cursor: 'pointer' }}>
                     <td className="mono" style={{ fontWeight: 600 }}>
                       {o.orderNumber}
@@ -144,12 +165,21 @@ export function Orders() {
                       <span className="rupee">{inr(o.totalPaise)}</span>
                     </td>
                     <td>
-                      <StatusBadge status={o.status} />
+                      <div className="hstack" style={{ gap: 6, flexWrap: 'wrap' }}>
+                        <StatusBadge status={o.status} />
+                        {isCancelRequest(o) && (
+                          <span className="badge st-CANCELLED" title="Customer asked to cancel">
+                            <span className="badge__dot" />
+                            Cancellation requested
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <Pager {...pager} onPage={pager.setPage} />
           </div>
         )}
       </div>
@@ -225,6 +255,24 @@ export function OrderDrawer({ id, onClose, onChanged }) {
               {shortDate(o.deliveryDate)} · {titleCase(o.window)}
             </span>
           </div>
+          {isCancelRequest(o) && (
+            <div
+              className="glass--flat glass"
+              style={{
+                padding: 14,
+                marginBottom: 18,
+                borderLeft: '3px solid var(--tomato)',
+              }}
+            >
+              <div style={{ fontWeight: 600, color: 'var(--tomato)' }}>
+                Customer requested cancellation
+              </div>
+              <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                {o.cancelReason ? `“${o.cancelReason}” · ` : ''}
+                Approve or decline it on the Fulfilment board (Cancellation requests column).
+              </div>
+            </div>
+          )}
 
           <div className="glass--flat glass" style={{ padding: 14, marginBottom: 18 }}>
             <div style={{ fontWeight: 600 }}>{o.address?.communityName}</div>

@@ -7,6 +7,7 @@
 import { constants, getProduct, listCommunities, listCoupons } from './store.js';
 import { id, shortId } from './lib/ids.js';
 import { msg91Enabled, sendOtpSms } from './lib/msg91.js';
+import { IS_PROD, IS_TEST } from './lib/env.js';
 import { persist } from './persistence.js';
 
 const DEV_OTP = '123456';
@@ -125,7 +126,8 @@ export function hydrateCustomerData({
 }
 
 // ── auth / otp ──────────────────────────────────────────────────────────────
-const IS_PROD = process.env.NODE_ENV === 'production';
+// IS_PROD comes from lib/env.js so a hand-created Render service (no NODE_ENV) still counts as
+// production — otherwise the OTP leaked in the response on the live API.
 // Keep the fixed 123456 code (and skip SMS) even in production when ALLOW_DEV_OTP=1 — for a hosted
 // TEST deployment before DLT/MSG91 is live. REMOVE this env var for the real public launch.
 const USE_DEV_OTP = !IS_PROD || process.env.ALLOW_DEV_OTP === '1';
@@ -138,7 +140,7 @@ const USE_DEV_OTP = !IS_PROD || process.env.ALLOW_DEV_OTP === '1';
  * @returns {Promise<{ ok:true, expiresInSeconds:number, devOtp?:string } | { error:{status,code,message} }>}
  */
 export async function requestOtp(mobile) {
-  if (process.env.NODE_ENV !== 'test') {
+  if (!IS_TEST) {
     const now = Date.now();
     const hits = (cs.otpRate.get(mobile) || []).filter((t) => now - t < 10 * 60 * 1000);
     if (hits.length >= 5)

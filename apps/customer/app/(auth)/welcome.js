@@ -15,6 +15,7 @@ import Animated, {
 import Svg, { Circle, Path } from 'react-native-svg';
 import { ArrowRight, Leaf } from 'lucide-react-native';
 import { Button, Glass, GlassPill, Small, Text } from '../../src/ui';
+import { useGetCommunitiesQuery } from '../../src/api/api';
 import { colors, fonts, radius } from '../../src/theme';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -74,6 +75,10 @@ function Field() {
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Live serviceable-community count (public endpoint) — this was a hard-coded "3" while the admin
+  // panel already listed five. Shows the real number once loaded.
+  const communities = useGetCommunitiesQuery();
+  const communityCount = communities.data?.communities?.length;
   return (
     <View style={styles.root}>
       <Field />
@@ -114,7 +119,7 @@ export default function Welcome() {
           <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.card}>
             <View style={styles.stats}>
               {[
-                ['3', 'communities'],
+                [communityCount != null ? String(communityCount) : '–', 'communities'],
                 ['40+', 'farm items'],
                 ['2', 'daily windows'],
               ].map(([n, l]) => (

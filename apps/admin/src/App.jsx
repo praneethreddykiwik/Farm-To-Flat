@@ -3,9 +3,11 @@
  * pricing, communities/windows, orders, and the fulfilment board — talking to the same /api/v1 the
  * mobile app uses, and sharing the design language of the customer app (see styles/theme.css).
  */
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Background, Toaster } from './components/ui.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
+import { IconLeaf, IconMenu } from './components/icons.jsx';
 import { Dashboard } from './screens/Dashboard.jsx';
 import { Catalog } from './screens/Catalog.jsx';
 import { Pricing } from './screens/Pricing.jsx';
@@ -21,11 +23,43 @@ import { Privacy } from './screens/Privacy.jsx';
 
 /** The operator app: sidebar + the admin screens. Everything except the public privacy page. */
 function AdminShell() {
+  // Phone-only nav drawer state. Closes itself on navigation and on Escape.
+  const [navOpen, setNavOpen] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!navOpen) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setNavOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   return (
     <>
       <Background />
+      {/* The mobile bar, the scrim and the rail all live INSIDE .shell on purpose: .shell is a
+          stacking context (z-index:1), so a scrim outside it would always paint over the rail's
+          z-index no matter how high it is — the open drawer showed up dimmed under the scrim. */}
       <div className="shell">
-        <Sidebar />
+        {/* Mobile top bar — only shown by CSS under 900px */}
+        <header className="mobilebar">
+          <button
+            className="mobilebar__btn"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={navOpen}
+          >
+            <IconMenu size={22} />
+          </button>
+          <div className="mobilebar__brand">
+            <IconLeaf size={18} style={{ color: 'var(--sprout)' }} />
+            <span>Farm to Flat</span>
+          </div>
+        </header>
+        {navOpen && <div className="rail-scrim" onClick={() => setNavOpen(false)} />}
+        <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
         <main className="main">
           <Routes>
             <Route path="/" element={<Dashboard />} />
