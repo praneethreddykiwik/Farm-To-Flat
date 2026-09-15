@@ -414,6 +414,9 @@ export function releaseCoupon(cid, code) {
 // ── cart ────────────────────────────────────────────────────────────────────
 export function priceCart(cid) {
   const cur = cart(cid);
+  // A product the admin removed from the catalog can still sit in a basket; drop such lines here
+  // instead of dereferencing null (which turned the whole cart screen into a 500).
+  cur.items = cur.items.filter((it) => getProduct(it.productId));
   const items = cur.items.map((it) => {
     const p = getProduct(it.productId);
     const qty = Number(it.quantity);
