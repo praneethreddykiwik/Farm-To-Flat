@@ -29,6 +29,7 @@ import {
 import { planProcurement } from '../../lib/procure.js';
 import { notifyBufferExceeded } from '../../lib/staff-notify.js';
 import { money, formatINR } from '../../lib/money.js';
+import { csvEscape } from '../../lib/csv.js';
 import { todayISO } from '../../lib/dates.js';
 import { CSV_HEADERS, LANGS, YES, categoryName, productName, unitLabel } from '../../lib/i18n.js';
 
@@ -294,10 +295,7 @@ adminProcurementRouter.get(
     const lines = [...agg.values()]
       .map((a) => toLine(a, { override, dateKey }))
       .sort((a, b) => a.categoryId.localeCompare(b.categoryId) || a.name.localeCompare(b.name));
-    const esc = (v) => {
-      const s = String(v ?? '');
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    const esc = csvEscape; // shared, formula-injection safe
     const rows = lines.map((l) => {
       const product = getProduct(l.productId);
       return [

@@ -34,6 +34,7 @@ const liveName = (o) => {
 };
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
+import { csvEscape } from '../../lib/csv.js';
 
 export const adminOrdersRouter = Router();
 
@@ -260,10 +261,7 @@ adminOrdersRouter.post(
 );
 
 // ── CSV builders ────────────────────────────────────────────────────────────
-function csvEscape(v) {
-  const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+// csvEscape lives in lib/csv.js (formula-injection safe) and is shared with the procurement export.
 function toCsv(rows, header) {
   return [header, ...rows].map((r) => r.map(csvEscape).join(',')).join('\r\n');
 }
