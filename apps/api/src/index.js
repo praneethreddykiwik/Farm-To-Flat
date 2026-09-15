@@ -72,7 +72,22 @@ app.use(
   ),
 );
 app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
-if (process.env.NODE_ENV !== 'test') app.use(pinoHttp());
+// Request logging. Credentials are REDACTED: pino-http logs every request header by default, so
+// customer Bearer tokens and the admin token were being written into the host's log retention.
+if (process.env.NODE_ENV !== 'test')
+  app.use(
+    pinoHttp({
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers["x-admin-token"]',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+        ],
+        censor: '[redacted]',
+      },
+    }),
+  );
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api', ts: Date.now() }));
 
@@ -111,9 +126,10 @@ admin.use(adminCouponsRouter);
 admin.use(adminSupportRouter);
 app.use(`${v1}/admin`, admin);
 
+// Unknown route → 404 (was 501 NOT_IMPLEMENTED, which reads as a server fault to clients/monitors).
 app.use(v1, (req, res) =>
-  res.status(501).json({
-    error: { code: 'NOT_IMPLEMENTED', message: `No route for ${req.method} ${req.path}` },
+  res.status(404).json({
+    error: { code: 'NOT_FOUND', message: `No route for ${req.method} ${req.path}` },
   }),
 );
 
@@ -129,8 +145,32 @@ app.use((err, req, res, _next) => {
       },
     });
   }
+  // Body-parser failures are the caller's fault, not ours: say so with the right status instead of
+  // a 500 (a 9 MB upload and `{bad json` both used to come back as INTERNAL).
+  if (err?.type === 'entity.too.large')
+    return res
+      .status(413)
+      .json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large.' } });
+  if (err?.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400))
+    return res
+      .status(400)
+      .json({ error: { code: 'BAD_JSON', message: 'Request body is not valid JSON.' } });
   req.log?.error?.(err);
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Something went wrong' } });
+});
+
+// Process-level safety net. Node 22 terminates on an unhandled rejection; without these, a failed
+// fire-and-forget push (Expo unreachable) or a lost DB connection outside a request took the whole
+// API down and dropped every in-memory session. Log loudly, keep serving; exit only on a genuinely
+// unknown state (uncaught exception), where the host restarts us.
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.error('[fatal-avoided] unhandled rejection:', reason?.stack || reason);
+});
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[fatal] uncaught exception, exiting for a clean restart:', err?.stack || err);
+  setTimeout(() => process.exit(1), 100).unref();
 });
 
 const PORT = Number(process.env.PORT || 4000);
