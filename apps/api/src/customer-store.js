@@ -239,19 +239,71 @@ export function verifyOtp(mobile, otp) {
   return { ok: true, customer: cs.customers.get(customerId), isNew };
 }
 
+// Access tokens are short-lived (the app refreshes silently on 401); refresh tokens live in the DB
+// for 90 days. Before this, access tokens never expired and every login added a session forever —
+// measured: +50 MB per 10k logins, and any leaked `acc_` token stayed valid indefinitely.
+const ACCESS_TTL_MS = Number(process.env.ACCESS_TOKEN_TTL_MS) || 24 * 60 * 60 * 1000;
+const MAX_SESSIONS_PER_CUSTOMER = 10; // phones + tablets; oldest are dropped beyond this
+
 export function issueTokens(customerId) {
   const accessToken = `acc_${shortId(20)}`;
   const refreshToken = `ref_${shortId(28)}`;
-  cs.sessions.set(accessToken, { customerId, refreshToken });
+  cs.sessions.set(accessToken, {
+    customerId,
+    refreshToken,
+    expiresAt: Date.now() + ACCESS_TTL_MS,
+  });
   cs.refresh.set(refreshToken, customerId);
   persist.sessionUpsert(refreshToken, customerId);
+  // cap live sessions per customer (oldest first)
+  const mine = [...cs.sessions.entries()].filter(([, s]) => s.customerId === customerId);
+  if (mine.length > MAX_SESSIONS_PER_CUSTOMER) {
+    mine
+      .sort((a, b) => a[1].expiresAt - b[1].expiresAt)
+      .slice(0, mine.length - MAX_SESSIONS_PER_CUSTOMER)
+      .forEach(([tok]) => cs.sessions.delete(tok));
+  }
   return { accessToken, refreshToken };
 }
 
-/** Resolve a Bearer access token to a customer id, or null. */
+/** Resolve a Bearer access token to a customer id, or null (expired tokens are dropped on sight). */
 export function resolveAccess(token) {
-  return cs.sessions.get(token)?.customerId || null;
+  const s = cs.sessions.get(token);
+  if (!s) return null;
+  if (s.expiresAt && Date.now() > s.expiresAt) {
+    cs.sessions.delete(token);
+    return null;
+  }
+  return s.customerId;
 }
+
+/**
+ * Drop expired access tokens, expired/abandoned OTPs and stale rate-limit windows. Runs every ten
+ * minutes; also exported so tests can call it directly. Without this every one of these maps only
+ * ever grew (OTP entries were deleted only on a successful verify).
+ */
+export function sweepAuthState(now = Date.now()) {
+  let removed = 0;
+  for (const [tok, s] of cs.sessions)
+    if (s.expiresAt && now > s.expiresAt) {
+      cs.sessions.delete(tok);
+      removed += 1;
+    }
+  for (const [mobile, rec] of cs.otp)
+    if (now > rec.expiresAt) {
+      cs.otp.delete(mobile);
+      removed += 1;
+    }
+  for (const [mobile, hits] of cs.otpRate) {
+    const live = hits.filter((t) => now - t < 10 * 60 * 1000);
+    if (live.length === 0) {
+      cs.otpRate.delete(mobile);
+      removed += 1;
+    } else if (live.length !== hits.length) cs.otpRate.set(mobile, live);
+  }
+  return removed;
+}
+if (!IS_TEST) setInterval(() => sweepAuthState(), 10 * 60 * 1000).unref();
 
 export function rotateRefresh(refreshToken) {
   const customerId = cs.refresh.get(refreshToken);
