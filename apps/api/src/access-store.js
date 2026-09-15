@@ -4,6 +4,7 @@
  * One number maps to at most one role (unique mobile). Not the same as customer accounts.
  */
 import { id } from './lib/ids.js';
+import { IS_PROD } from './lib/env.js';
 import { ROLE_META } from './lib/roles.js';
 import { persist } from './persistence.js';
 
@@ -19,9 +20,11 @@ export function hydrateStaff(rows) {
   for (const r of rows) staff.set(r.id, { ...r });
 }
 
-// Seed staff so every role works the moment the API boots (survives restarts of the in-memory
-// store). Replace these with the real team numbers on the admin "Access & roles" page.
+// Seed example staff so every role works the moment the API boots in dev. NEVER in production: these
+// are well-known numbers (they are in the repo) that map straight to SUPER_ADMIN, and they used to be
+// live whenever the staff table was empty. Production staff come only from the database.
 (function seed() {
+  if (IS_PROD) return;
   const seeded = [
     { mobile: '9999900001', name: 'Owner (example)', role: 'SUPER_ADMIN', aiAccess: true },
     { mobile: '9848033333', name: 'Admin (example)', role: 'ADMIN', aiAccess: false },
