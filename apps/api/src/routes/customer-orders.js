@@ -19,7 +19,9 @@ import {
   createOrder,
   getCommunity,
   getOrderForCustomer,
+  getProduct,
   listOrdersForCustomer,
+  orderedQtyFor,
   patchOrder,
 } from '../store.js';
 import {
@@ -75,6 +77,31 @@ customerOrdersRouter.post(
       throw fail(409, 'WINDOW_FULL', 'That window just filled up.', {
         nextAvailable: windows.find((w) => w.isOpen) || null,
       });
+    }
+
+    // Re-validate every line against the CURRENT catalog at the moment of commitment: a product that
+    // went sold-out/hidden after it was added to the basket must not be ordered, and the farm's daily
+    // cap applies to the whole day's orders, not to this one basket.
+    for (const line of priced.items) {
+      const p = getProduct(line.productId);
+      if (!p || p.isActive === false || (p.availability && p.availability !== 'AVAILABLE'))
+        throw fail(
+          409,
+          'UNAVAILABLE',
+          `${line.name} is no longer available. Please remove it from your basket.`,
+          { productId: line.productId },
+        );
+      const already = orderedQtyFor(p.id, deliveryDate);
+      const left = Math.max(0, Number(p.dailyCap) - already);
+      if (Number(line.quantity) > left)
+        throw fail(
+          422,
+          'CAP_EXCEEDED',
+          left > 0
+            ? `Only ${left} ${p.unit.toLowerCase()} of ${p.name} left for that day.`
+            : `${p.name} is fully booked for that day.`,
+          { productId: p.id, remaining: String(left) },
+        );
     }
 
     const subtotal = Number(priced.subtotalPaise);

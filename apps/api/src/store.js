@@ -464,6 +464,19 @@ const HOLDS_SLOT = new Set([
   'OUT_FOR_DELIVERY',
   'DELIVERED',
 ]);
+/**
+ * Quantity of one product already committed by live orders for a delivery date. dailyCap used to be
+ * checked only per cart line ("no single line above the cap"), so five customers could each order the
+ * whole cap for the same day and procurement saw 6× the farm's limit.
+ */
+export function orderedQtyFor(productId, deliveryDate) {
+  let q = 0;
+  for (const o of db.orders) {
+    if (o.deliveryDate !== deliveryDate || !HOLDS_SLOT.has(o.status)) continue;
+    for (const it of o.items) if (it.productId === productId) q += Number(it.quantity);
+  }
+  return q;
+}
 export const bookedFor = (communityId, date, window) => {
   let n = 0;
   for (const o of db.orders) {
