@@ -141,6 +141,12 @@ export default function Checkout() {
       const res = await verifyPayment({
         paymentId: pi.paymentId,
         razorpayPaymentId: result.paymentId,
+        // The signature is what PROVES this capture came from Razorpay, and the server refuses to
+        // confirm the order without it once real gateway keys are configured. Forward everything
+        // the SDK handed back — sending only the payment id makes every successful payment fail
+        // verification and strands the order in PENDING_PAYMENT until the sweeper cancels it.
+        razorpayOrderId: result.razorpayOrderId,
+        razorpaySignature: result.signature,
         success: result.success,
       }).unwrap();
       if (result.success) finish(res.order || order);
@@ -158,7 +164,10 @@ export default function Checkout() {
         else router.replace('/(tabs)/orders');
       }
     } catch (e) {
+      // The gateway may already have taken the money. Never leave the customer staring at an empty
+      // checkout with nothing but a toast — put them on the order so they can see its real state.
       dispatch(showToast({ title: e?.message || 'Could not confirm payment', tone: 'error' }));
+      if (order?.id) router.replace({ pathname: '/order/[id]', params: { id: order.id } });
     } finally {
       simSheet.current?.dismiss();
       setIntent(null);
@@ -212,7 +221,12 @@ export default function Checkout() {
           });
           await settle(
             res.paymentIntent,
-            { success: true, paymentId: r.razorpay_payment_id },
+            {
+              success: true,
+              paymentId: r.razorpay_payment_id,
+              razorpayOrderId: r.razorpay_order_id,
+              signature: r.razorpay_signature,
+            },
             res.order,
           );
         } catch {
