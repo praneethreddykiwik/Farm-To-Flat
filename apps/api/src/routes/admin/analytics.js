@@ -71,7 +71,6 @@ adminAnalyticsRouter.get(
         name: c.name,
         area: c.area,
         blocks: c.blocks.length,
-        capacity: c.windowCapacity,
         isActive: c.isActive !== false,
         orders: a.orders,
         cancelled: a.cancelled,

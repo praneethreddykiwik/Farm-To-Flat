@@ -57,12 +57,14 @@ describe('public catalog (frozen contract)', () => {
 });
 
 describe('delivery windows', () => {
-  it('returns a 14-day schedule with capacity', async () => {
+  it('returns a schedule gated by cut-off time, not capacity', async () => {
     const r = await request(app).get('/api/v1/delivery-windows');
     expect(r.status).toBe(200);
     expect(Array.isArray(r.body.windows)).toBe(true);
     const w = r.body.windows[0];
-    expect(w).toMatchObject({ window: expect.any(String), capacity: expect.any(Number) });
+    expect(w).toMatchObject({ window: expect.any(String), isOpen: expect.any(Boolean) });
+    expect(w).not.toHaveProperty('capacity');
+    expect(w).not.toHaveProperty('remaining');
   });
 });
 

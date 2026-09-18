@@ -746,8 +746,8 @@ export const COMMUNITIES = [
     lat: 17.4645,
     lng: 78.3062,
     deliveryDays: [2, 4, 6],
-    cutoffHours: 10,
-    windowCapacity: 40,
+    morningCutoff: '03:45',
+    eveningCutoff: '15:00',
     blocks: [
       'Tower A',
       'Tower B',
@@ -766,8 +766,8 @@ export const COMMUNITIES = [
     lat: 17.3982,
     lng: 78.3634,
     deliveryDays: [1, 3, 5],
-    cutoffHours: 10,
-    windowCapacity: 40,
+    morningCutoff: '03:45',
+    eveningCutoff: '15:00',
     blocks: [
       'Block 1',
       'Block 2',
@@ -788,8 +788,8 @@ export const COMMUNITIES = [
     lat: 17.4286,
     lng: 78.3496,
     deliveryDays: [2, 4, 6],
-    cutoffHours: 10,
-    windowCapacity: 30,
+    morningCutoff: '03:45',
+    eveningCutoff: '15:00',
     blocks: ['Wing A', 'Wing B', 'Wing C', 'Wing D', 'Wing E', 'Wing F'],
   },
 ];

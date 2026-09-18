@@ -197,7 +197,13 @@ export default function Checkout() {
         return;
       }
       setIntent(res.paymentIntent);
-      if (razorpayAvailable) {
+      // Having the native SDK linked is not enough — the gateway also has to have actually issued an
+      // order. A dev/staging API with no Razorpay credentials returns a paymentIntent with no
+      // razorpayOrderId, and opening the SDK with that fails with Razorpay's own "Something went
+      // wrong" sheet, which made it impossible to complete a checkout locally. Require both; the
+      // simulated sheet below then covers dev, and production without a gateway still refuses
+      // outright rather than faking a success.
+      if (razorpayAvailable && res.paymentIntent.razorpayOrderId) {
         try {
           const r = await openRazorpay({
             ...res.paymentIntent,
@@ -230,15 +236,16 @@ export default function Checkout() {
     } catch (e) {
       haptic.error();
       setSubmitting(false);
-      if (e?.code === 'WINDOW_FULL') {
-        // The window filled while they were checking out. Do NOT move them to another day on their
+      if (e?.code === 'ORDER_CUTOFF_PASSED') {
+        // The window's cut-off time passed while they were checking out (it can be minutes away —
+        // that's the whole point of the countdown). Do NOT move them to another day on their
         // behalf — clear the selection, refresh the schedule and open the picker so they choose.
         setSlot(null);
         setMustPick(true);
         windows.refetch();
         dispatch(
           showToast({
-            title: 'That window just filled up',
+            title: 'That window just closed',
             message: 'Please pick another delivery window.',
             tone: 'neutral',
           }),

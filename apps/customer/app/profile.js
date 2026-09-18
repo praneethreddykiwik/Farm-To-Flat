@@ -402,6 +402,14 @@ export default function Profile() {
               Privacy policy
             </Small>
           </Pressy>
+          <Pressy
+            onPress={() => Linking.openURL('https://farm-to-flat.vercel.app/terms').catch(() => {})}
+            haptics="select"
+          >
+            <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
+              Terms & conditions
+            </Small>
+          </Pressy>
           {/* Internal diagnostics (API host, build channel) are shown ONLY in development — a release
               build must never reveal the backend URL or mock/dev state to customers. */}
           {__DEV__ ? (

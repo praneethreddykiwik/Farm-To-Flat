@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateQuery } from '../validate.js';
 import { communityPublic } from '../serialize.js';
-import { bookedFor, getCommunity, listCommunities } from '../store.js';
+import { bookedIndex, getCommunity, listCommunities } from '../store.js';
 import { listAddresses, resolveAccess } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
 import { todayISO } from '../lib/dates.js';
@@ -64,6 +64,8 @@ windowsRouter.get(
     const { communityId, addressId, date } = req.validatedQuery;
     const community = resolveCommunity(req, { communityId, addressId });
     if (!community) throw fail(404, 'NOT_FOUND', 'No serviceable community.');
-    res.json({ windows: generateWindows(community, date || todayISO(), bookedFor) });
+    res.json({
+      windows: generateWindows(community, date || todayISO(), bookedIndex(community.id)),
+    });
   }),
 );

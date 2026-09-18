@@ -6,6 +6,7 @@ import Animated, {
   FadeInDown,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -33,6 +34,15 @@ export default function OtpScreen() {
   const submitting = useRef(false);
   const shake = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
+  const blink = useSharedValue(1);
+  useEffect(() => {
+    blink.value = withRepeat(
+      withSequence(withTiming(0, { duration: 500 }), withTiming(1, { duration: 500 })),
+      -1,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const blinkStyle = useAnimatedStyle(() => ({ opacity: blink.value }));
 
   useEffect(() => {
     if (seconds <= 0) return undefined;
@@ -139,8 +149,8 @@ export default function OtpScreen() {
                     style={styles.boxWrap}
                     innerStyle={[styles.box, active && styles.boxActive, error && styles.boxError]}
                   >
-                    <Text style={styles.digit}>{d}</Text>
-                    {active && !d ? <View style={styles.caret} /> : null}
+                    {d ? <Text style={styles.digit}>{d}</Text> : null}
+                    {active && !d ? <Animated.View style={[styles.caret, blinkStyle]} /> : null}
                   </Glass>
                 );
               })}
@@ -209,7 +219,19 @@ const styles = StyleSheet.create({
   boxActive: { borderWidth: 1.5, borderColor: colors.leaf },
   boxError: { borderWidth: 1.5, borderColor: colors.tomato },
   digit: { fontFamily: fonts.mono, fontSize: 24, color: colors.ink },
-  caret: { width: 2, height: 24, backgroundColor: colors.leaf, borderRadius: 1 },
+  // Absolutely centered so it lines up exactly regardless of sibling text — the box's own
+  // alignItems/justifyContent only centers a single child reliably, not a conditional pair.
+  caret: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginTop: -12,
+    marginLeft: -1,
+    width: 2,
+    height: 24,
+    backgroundColor: colors.leaf,
+    borderRadius: 1,
+  },
   // Fills the boxes exactly; text is transparent (digits render in the boxes behind) and the caret
   // is hidden, so there is no stray blinking line on Android.
   overlayInput: {

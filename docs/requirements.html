@@ -607,6 +607,78 @@
     </section>
 
     <footer>Farm-to-Flat · Software Requirements Specification v1.1 · Draft for requirement freeze · Confidential</footer>
+
+    <section id="s-extra">
+      <div class="sechead"><em>16</em><div><h2>Extra — new features implemented</h2><div class="sub">Built after the freeze · not in the original scope</div></div></div>
+
+      <div class="callout"><p><b>What this section is.</b> Everything below was built <em>after</em> the requirements above were frozen. Some of it closes gaps found while testing, some replaces a design decision the build proved wrong, and some is straightforwardly new. It is recorded here so the requirement set and the shipped product do not silently disagree. Items marked <span class="new">new</span> add capability; the rest correct or replace something already specified.</p></div>
+
+      <h3>1 · Delivery windows now close on the clock, not on a seat count</h3>
+      <p>The frozen requirements gated a delivery window on <strong>capacity</strong> — each community had a <code>windowCapacity</code> and a rolling <code>cutoffHours</code>, and a window closed once enough orders filled it. That was replaced with a <strong>time-based cut-off</strong>: every community carries an explicit <code>morningCutoff</code> and <code>eveningCutoff</code> in IST, and a window is open until its clock time passes. Nothing is capped by seats.</p>
+      <p>The reason is operational, not technical. The farm harvests against the night's total, so what matters is <em>when the list closes</em>, not how many orders are in it — and an operator can explain "orders close at 3:45" to a customer in a way they cannot explain a capacity number they cannot see.</p>
+      <table>
+        <thead><tr><th>Field</th><th>Replaces</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>morningCutoff</code> / <code>eveningCutoff</code></td><td><code>cutoffHours</code></td><td>Fixed IST time each window closes, per community.</td></tr>
+          <tr><td><code>cutoffWarningMinutes</code></td><td>—</td><td><span class="new">new</span> How long before the cut-off the app warns the customer that ordering is about to close.</td></tr>
+          <tr><td>—</td><td><code>windowCapacity</code></td><td>Removed. A window is never full; it is only open or closed.</td></tr>
+        </tbody>
+      </table>
+      <p>The cut-off is re-checked <strong>at the moment of commitment</strong>, never trusted from the client's earlier read. A window that was open when the customer opened checkout but has crossed its cut-off by the time they tap Pay is refused with <code>ORDER_CUTOFF_PASSED</code>, and the response carries the next available window so the app can offer it immediately.</p>
+      <p>Cut-off times are editable per community from the operator website, so the farm can move a closing time without a deploy.</p>
+
+      <h3>2 · Terms, Privacy and a contactable operator <span class="new">new</span></h3>
+      <p>The original set assumed a privacy notice and said nothing about terms of sale. Both now exist as public pages, written against Indian law:</p>
+      <table>
+        <thead><tr><th>Page</th><th>Covers</th></tr></thead>
+        <tbody>
+          <tr><td>Terms &amp; Conditions</td><td>Eligibility, pricing and GST, the order cut-off, delivery, cancellation and refunds, limitation of liability, and governing law (courts at Hyderabad).</td></tr>
+          <tr><td>Privacy</td><td>What is collected, why, how long it is kept, and how a customer asks for it to be removed.</td></tr>
+          <tr><td>Both</td><td>A named <strong>Grievance Officer</strong> block, as required by the IT Act 2000 and the Consumer Protection (E-Commerce) Rules 2020.</td></tr>
+        </tbody>
+      </table>
+      <p>Both pages are reachable from inside the app as well as the website, and every customer-facing contact address is <strong>set by the operator from the admin site</strong> rather than compiled in — the pages read the configured address at load and fall back to a default only if none is set. No build-time email address remains anywhere in the product, and no reference to the contracting agency appears in anything a customer can see.</p>
+
+      <h3>3 · Operator tools that work on a phone</h3>
+      <p>The fulfilment board was specified as a drag-and-drop board. Drag is unusable on a phone, which is where the fulfilment staff actually are. It now also supports <strong>long-press a card, then tap the destination column</strong> — the picked-up card is banner-flagged and only the columns it may legally move to are highlighted. Drag still works on a desktop; neither path can skip a lifecycle state.</p>
+      <p>Two readability defects found in testing were also corrected: the cost and price fields on the pricing screen were being computed to roughly a third of the width their contents needed, so the numbers were invisible, and the cut-off time fields were clipped in the same way.</p>
+
+      <h3>4 · Staff screens stay in step with the operator website <span class="new">new</span></h3>
+      <p>Not in the original set, and a real gap. Staff screens on the phone read state that the <em>website</em> can change while the screen sits open — a cost approval decided by the admin, an order shipped from the fulfilment board. Nothing pushed that down to the phone, so a buyer standing in a market who had submitted an over-budget price would see <em>"Awaiting admin"</em> indefinitely, long after the admin had approved it.</p>
+      <p>Every staff screen now refetches when it comes back into focus and offers pull-to-refresh. This was reproduced end to end before and after the fix: a price submitted from the phone appeared in the website's approval queue, was approved there, and the phone then showed <em>Approved</em>.</p>
+
+      <h3>5 · The cost-buffer approval loop, proven end to end</h3>
+      <p>Procurement enters what was actually paid. Inside a configurable tolerance of the estimate the buy approves itself; outside it, it waits for the admin. Verified across both clients: ₹60 entered against a ₹48.75 estimate (+23.1%) was held, surfaced on the website with Approve/Reject, approved, and reflected back on the phone. "Approved" and "bought" are deliberately separate — approving sanctions the price, ticking the item records that it was physically bought.</p>
+
+      <h3>6 · Checkout against a gateway that has not issued an order</h3>
+      <p>A defect serious enough to record: the server stamped a placeholder gateway order id on every payment and handed it to the app whether or not the gateway had issued one. The app then opened the payment sheet against an order that did not exist and the gateway showed its own failure screen — checkout was impossible on any environment without live gateway credentials. The server now advertises a gateway order <strong>only when the gateway actually issued one</strong>, on both order payment and wallet top-up.</p>
+
+      <h3>7 · Capacity under load</h3>
+      <p>The quality requirements set response-time targets but no concurrency figure. The order book is now indexed in a single pass per checkout rather than rescanned once per basket line, and the background order sweeper no longer copies every order each minute. Measured against an isolated instance:</p>
+      <table>
+        <thead><tr><th>Scenario</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>1,000 concurrent users</td><td>11,100 req/s · 0 failures · 5 ms worst event-loop stall</td></tr>
+          <tr><td>2,000 concurrent, 5,000 users</td><td>12,733 req/s · 0 failures · p99 258 ms</td></tr>
+          <tr><td>300 simultaneous orders</td><td>No duplicate order numbers, no 5xx, no lost writes</td></tr>
+        </tbody>
+      </table>
+      <p>One correction worth keeping on the record: the first version of the window-booking index was measured at <strong>1.0× — no improvement at all</strong>, because the code it replaced already exited cheaply. It was rewritten before it was accepted, and the reworked version measures 7.3×. The number in the table is the measured one, not the intended one.</p>
+
+      <h3>8 · Still deferred</h3>
+      <p>Stated plainly so this section is not read as a completion claim. These are deployment-phase items and are <strong>not</strong> done:</p>
+      <table>
+        <thead><tr><th>Item</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Live payment-signature verification</td><td>Wired but unproven — needs real gateway credentials.</td></tr>
+          <tr><td>OTP delivery over SMS / WhatsApp</td><td>Deferred; the development OTP path is what is currently exercised.</td></tr>
+          <tr><td>Running more than one API process</td><td>Not yet safe. Sessions, carts, OTPs and the order-number sequence live in one process's memory.</td></tr>
+          <tr><td>Sustained write bursts</td><td>Database writes are fire-and-forget over a small connection pool; under a long burst a write can be dropped without the response knowing.</td></tr>
+          <tr><td>Operator order list</td><td>Unpaginated — fine at pilot volume, not beyond it.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
   </main>
 </div>
 
@@ -1310,7 +1382,8 @@ const NAV=[
   ["Phase 1",[["s-scope","08","What ships in Phase 1"],["s-requirements","09","What it must do"],["s-quality","10","How well it must work"]]],
   ["The build",[["s-build","11","How it gets built"],["s-accept","12","Accepting the work"]]],
   ["Decisions",[["s-open","13","Still open"],["s-risks","14","What could go wrong"]]],
-  ["For the investor",[["s-new","15","Everything new, in one place"]]]
+  ["For the investor",[["s-new","15","Everything new, in one place"]]],
+  ["Delivered beyond scope",[["s-extra","16","Extra — new features implemented"]]]
 ];
 document.getElementById('railnav').innerHTML=NAV.map(([g,items])=>
   '<div class="navgrp">'+g+'</div>'+items.map(([id,n,t])=>

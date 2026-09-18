@@ -339,6 +339,77 @@
       <table id="errs"></table>
     </section>
 
+    <section id="s-extra">
+      <div class="sechead"><em>16</em><div><h2>Extra — new features implemented</h2><div class="sub">Built after v1.0 · design changes, fixes and measurements</div></div></div>
+
+      <div class="callout"><p><b>Why this section exists.</b> The design above is v1.0. What follows is what the build actually produced afterwards — one design decision reversed, several defects fixed at the source, and the first real load measurements. Where this contradicts a section above, <em>this</em> section is current.</p></div>
+
+      <h3>1 · Window gating: capacity replaced by an IST cut-off clock</h3>
+      <p>v1.0 gated a delivery window on a per-community <code>windowCapacity</code> with a rolling <code>cutoffHours</code>. That is gone. A community now stores <code>morningCutoff</code> and <code>eveningCutoff</code> as fixed IST times plus <code>cutoffWarningMinutes</code>, and <code>generateWindows()</code> marks a window open purely on whether its cut-off instant has passed. Times are computed through <code>istInstantMs</code> so the boundary is correct regardless of server timezone.</p>
+      <p>The cut-off is enforced twice: once when windows are listed, and again inside <code>POST /orders</code> at commit time. The client's earlier <code>isOpen</code> is never trusted — a basket that was legal when checkout opened is rejected with <code>409 ORDER_CUTOFF_PASSED</code> if the window closed meanwhile, and the error payload carries <code>nextAvailable</code> so the app can re-offer immediately.</p>
+
+      <h3>2 · Payment intents no longer advertise a gateway order that does not exist</h3>
+      <p>The most serious defect found. <code>createPayment()</code> unconditionally stamped a synthetic <code>razorpayOrderId</code> (the mock verify flow keys off it), and both <code>POST /orders</code> and <code>POST /wallet/topup</code> handed that id to the client. With no gateway credentials configured the app opened the payment SDK against an order the gateway had never issued, and the gateway rendered its own failure sheet — checkout was impossible on any environment without live keys.</p>
+      <p>Both routes now gate the field on whether a gateway order was actually created:</p>
+      <pre>razorpayOrderId: razorpayEnabled ? pay.razorpayOrderId : null,</pre>
+      <p>Note the fix had to be server-side. An earlier client-side guard was a no-op precisely because the server always sent a non-null id.</p>
+
+      <h3>3 · Single-pass indexes replace per-line rescans of the order book</h3>
+      <p>Two hot paths rescanned every order for each item they checked. Both now build one index per request:</p>
+      <table>
+        <thead><tr><th>Added</th><th>Replaces</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>orderedQtyIndex(deliveryDate)</code></td><td><code>orderedQtyFor()</code> called once per basket line</td><td>An 8-line basket did 8 full scans of the order book at the pre-cut-off peak; now one, then O(1) per line.</td></tr>
+          <tr><td><code>bookedIndex(communityId)</code></td><td><code>bookedFor()</code> called per window</td><td>Measured <b>7.3×</b> on window generation.</td></tr>
+          <tr><td><code>rawOrders()</code></td><td><code>listOrders()</code> inside the lifecycle sweeper</td><td>The 60-second sweeper no longer deep-clones every order; it selects, then patches.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><p><b>A measurement worth recording.</b> The first <code>bookedIndex</code> benchmarked at <b>1.0× — no gain whatsoever</b>. The code it replaced exited on a cheap string comparison, while the index paid for a template-literal key on every order. It was only after scoping the index to a single community (restoring the cheap early-out) that it reached 7.3×. The audit predicted a win; the benchmark disagreed, and the benchmark was right.</p></div>
+
+      <h3>4 · Measured capacity</h3>
+      <p>Run against an isolated instance with an unreachable database, so production data could not be touched.</p>
+      <table>
+        <thead><tr><th>Load</th><th>Throughput</th><th>Failures</th><th>Latency / stall</th></tr></thead>
+        <tbody>
+          <tr><td>1,000 concurrent</td><td>11,100 req/s</td><td>0</td><td>5 ms worst event-loop stall</td></tr>
+          <tr><td>2,000 concurrent · 5,000 users</td><td>12,733 req/s</td><td>0</td><td>p99 258 ms</td></tr>
+          <tr><td>300 simultaneous orders</td><td>—</td><td>0 · no duplicate order numbers, no lost writes</td><td>181 <code>CAP_EXCEEDED</code>, all correct daily-cap enforcement</td></tr>
+        </tbody>
+      </table>
+      <p>These numbers describe <b>one process</b>. See §7 for what they do not prove.</p>
+
+      <h3>5 · Staff clients now reconcile with the operator website</h3>
+      <p>The staff screens in the mobile app fetch through <code>adminApi</code> into local state, with no subscription and no revalidation. Any state the website changed while a screen was open never reached the phone — a procurement buyer who had submitted an over-budget price saw <i>Awaiting admin</i> permanently, including after the admin approved it.</p>
+      <p>A shared <code>useStaffRefresh(load)</code> hook now backs every staff screen. It refetches via <code>useFocusEffect</code> whenever the screen regains focus and exposes a <code>RefreshControl</code> for pull-to-refresh; <code>load</code> returns its promise so the spinner ends when data lands. Applied to procurement, orders, fulfilment, console and approvals. It also removed two latent bugs: <code>approvals</code> had <code>refreshing={false}</code> hardcoded so its spinner never appeared, and <code>fulfilment</code> passed a promise-returning <code>load</code> straight to <code>useEffect</code>, where React reads the return value as a cleanup function.</p>
+
+      <h3>6 · Smaller corrections</h3>
+      <table>
+        <thead><tr><th>Area</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td><code>persistence.serialize()</code></td><td>The promise derived from the cleanup <code>.finally()</code> was unhandled. Harmless today only because every caller catches inside <code>wt()</code> before <code>serialize</code> sees a rejection; now explicitly terminated.</td></tr>
+          <tr><td>Admin pricing screen</td><td>Cost and price inputs computed to ~31px, making values invisible. Fixed at 84px.</td></tr>
+          <tr><td>Admin communities screen</td><td>Cut-off time inputs clipped; widened and restyled, including the dark-mode picker indicator.</td></tr>
+          <tr><td>Admin fulfilment board</td><td>Long-press-then-tap-column added as a touch alternative to drag, with pickup banner and legal-target highlighting.</td></tr>
+          <tr><td>Support contact</td><td>New public <code>GET /support</code> plus a <code>useSupportEmail()</code> hook; Terms, Privacy and the app all read the operator-configured address instead of a compiled-in one.</td></tr>
+          <tr><td>App sign-out</td><td>Diet preference now resets on <code>auth/signedOut</code>; it previously leaked across accounts.</td></tr>
+          <tr><td>Test suite</td><td>The <code>dailyCap</code> guard test created its own product instead of borrowing a seeded one, so it no longer breaks when the seed or the resolved delivery date changes.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>7 · What these results do not prove</h3>
+      <p>Stated explicitly, because the throughput figures above invite the wrong conclusion:</p>
+      <table>
+        <thead><tr><th>Limit</th><th>Consequence</th></tr></thead>
+        <tbody>
+          <tr><td>Sessions, carts, OTPs and the order-number sequence live in process memory</td><td>Horizontal scaling is <b>not</b> safe. More than one replica will issue duplicate order numbers and lose sessions.</td></tr>
+          <tr><td>Writes are fire-and-forget over a default Prisma pool (~5)</td><td>Under a sustained burst a write can be dropped after the response has already succeeded.</td></tr>
+          <tr><td><code>GET /admin/orders</code> is unpaginated</td><td>Acceptable at pilot volume, not past it.</td></tr>
+          <tr><td>In-memory state grows unbounded</td><td>Needs an eviction or restart strategy before a long-running production deployment.</td></tr>
+          <tr><td>Gateway signature verification and SMS/WhatsApp OTP delivery</td><td>Wired but never exercised against a live provider.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
     <footer>Farm-to-Flat · Technical Design Document · Phase 1 · v1.0 · Confidential</footer>
   </main>
 </div>
@@ -754,7 +825,8 @@ const pre = (id, txt) => {
 const NAV=[["Basis",[["s-top","00","Fifteen days"],["s-scope","01","Scope"]]],
 ["Design",[["s-arch","02","Architecture"],["s-data","03","Data model"],["s-api","04","API"],["s-auth","05","Authentication"],["s-flow","06","The order transaction"]]],
 ["Detail",[["s-wallet","07","Wallet"],["s-coupon","08","Coupons"],["s-pay","09","Payments"],["s-admin","10","Windows and admin"]]],
-["Delivery",[["s-quality","11","Quality"],["s-sec","12","Security"],["s-plan","13","The fifteen-day plan"],["s-risk","14","Risks"],["s-appx","15","Appendix"]]]];
+["Delivery",[["s-quality","11","Quality"],["s-sec","12","Security"],["s-plan","13","The fifteen-day plan"],["s-risk","14","Risks"],["s-appx","15","Appendix"]]],
+["Beyond v1.0",[["s-extra","16","Extra — new features implemented"]]]];
 document.getElementById('railnav').innerHTML=NAV.map(([g,it])=>
  '<div class="navgrp">'+g+'</div>'+it.map(([id,n,t])=>'<a href="#'+id+'" data-t="'+id+'"><i>'+n+'</i>'+t+'</a>').join('')).join('');
 

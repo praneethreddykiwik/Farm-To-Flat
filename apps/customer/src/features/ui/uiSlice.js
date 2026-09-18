@@ -27,6 +27,14 @@ const uiSlice = createSlice({
       state.dietPref = action.payload; // 'ALL' | 'VEG' | 'NONVEG'
     },
   },
+  // dietPref is a per-account preference, not a device setting — reset it on sign-out so the
+  // next account starts at the default filter instead of inheriting the last user's choice.
+  // String action type avoids a circular import with authSlice.
+  extraReducers: (builder) => {
+    builder.addCase('auth/signedOut', (state) => {
+      state.dietPref = initialState.dietPref;
+    });
+  },
 });
 
 export const { showToast, hideToast, setReducedMotion, pulseBag, setDietPref } = uiSlice.actions;

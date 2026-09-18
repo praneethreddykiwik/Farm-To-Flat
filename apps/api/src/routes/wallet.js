@@ -61,7 +61,9 @@ walletRouter.post(
     res.status(201).json({
       paymentIntent: {
         paymentId: pay.id,
-        razorpayOrderId: pay.razorpayOrderId,
+        // Same as orders: never hand out createPayment's placeholder id as if it were a real
+        // gateway order — the app would open Razorpay against an order that does not exist.
+        razorpayOrderId: razorpayEnabled ? pay.razorpayOrderId : null,
         keyId: razorpayKeyId,
         amountPaise: money(amount),
         description: 'Wallet top-up',

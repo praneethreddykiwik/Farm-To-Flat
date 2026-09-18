@@ -1,10 +1,19 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
 const inr = (paise) => `₹${(Number(paise) / 100).toLocaleString('en-IN')}`;
@@ -44,18 +53,21 @@ export default function StaffConsole() {
   const canApprove = role.role === 'SUPER_ADMIN' || role.role === 'ADMIN';
 
   const load = useCallback(() => {
-    adminApi
-      .metrics()
-      .then(setM)
-      .catch(() => {});
-    if (canApprove) {
+    // Both together, so pull-to-refresh only stops once the slower of the two has landed.
+    return Promise.all([
       adminApi
-        .procurementApprovals()
-        .then((d) => setApprovalCount(d.count || 0))
-        .catch(() => {});
-    }
+        .metrics()
+        .then(setM)
+        .catch(() => {}),
+      canApprove
+        ? adminApi
+            .procurementApprovals()
+            .then((d) => setApprovalCount(d.count || 0))
+            .catch(() => {})
+        : null,
+    ]);
   }, [canApprove]);
-  useEffect(load, [load]);
+  const { refreshing, onRefresh } = useStaffRefresh(load);
 
   // Super admin AND admin can open the shopping app + the full web admin panel.
   const canShop = role.role === 'SUPER_ADMIN' || role.role === 'ADMIN';
@@ -68,7 +80,13 @@ export default function StaffConsole() {
         subtitle="Everything from the web panel, in your pocket"
         roleLabel={role.label || 'Admin'}
       />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.leaf} />
+        }
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {m ? (
           <View style={styles.kpis}>
             <Kpi value={String(m.today.orders)} label="Orders today" />

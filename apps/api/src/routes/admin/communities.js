@@ -11,7 +11,7 @@ import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
 import { communityAdmin } from '../../serialize.js';
 import {
-  bookedFor,
+  bookedIndex,
   createCommunity,
   getCommunity,
   listCommunities,
@@ -23,16 +23,20 @@ import { todayISO } from '../../lib/dates.js';
 export const adminCommunitiesRouter = Router();
 
 const weekday = z.number().int().min(0).max(6);
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use 24h HH:MM, e.g. 03:45');
 const CreateCommunity = z.object({
   name: z.string().min(1).max(80),
   area: z.string().min(1).max(80),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  // Optional on create: when omitted, the store defaults to all 7 delivery days + capacity 40, so a
-  // new community immediately has windows (the admin can then narrow the days).
+  // Optional on create: when omitted, the store defaults to all 7 delivery days + the standard
+  // cut-off times, so a new community immediately has orderable windows (admin narrows from there).
   deliveryDays: z.array(weekday).min(1).max(7).optional(),
-  cutoffHours: z.number().int().min(0).max(48).optional(),
-  windowCapacity: z.number().int().positive().max(1000).optional(),
+  // Same-day IST cut-off clock times — orders for a window close at this time on its own delivery
+  // date. Replaces the old capacity-based limit: a window never "fills up", it only closes on time.
+  morningCutoff: clockTime.optional(),
+  eveningCutoff: clockTime.optional(),
+  cutoffWarningMinutes: z.number().int().min(1).max(120).optional(),
   blocks: z.array(z.string().max(40)).max(100),
 });
 const UpdateCommunity = CreateCommunity.partial().extend({ isActive: z.boolean().optional() });
@@ -69,6 +73,6 @@ adminCommunitiesRouter.get(
     const community = getCommunity(req.params.id);
     if (!community) throw fail(404, 'NOT_FOUND', 'Community not found');
     const date = typeof req.query.date === 'string' ? req.query.date : todayISO();
-    res.json({ windows: generateWindows(community, date, bookedFor) });
+    res.json({ windows: generateWindows(community, date, bookedIndex(community.id)) });
   }),
 );

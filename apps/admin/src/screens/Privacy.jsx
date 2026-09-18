@@ -4,10 +4,11 @@
  * expect a reachable policy URL. Self-contained (its own styles) so it renders correctly whether or
  * not the admin theme has loaded. Plain-language, and specific to what this app actually collects.
  */
-const UPDATED = '14 September 2026';
-const CONTACT = 'hr@criskasecurity.com';
+import { useSupportEmail } from '../lib/publicSupport.js';
 
-const SECTIONS = [
+const UPDATED = '14 September 2026';
+
+const SECTIONS = (CONTACT) => [
   {
     h: 'Who we are',
     p: [
@@ -120,6 +121,8 @@ const SECTIONS = [
 ];
 
 export function Privacy() {
+  const contact = useSupportEmail();
+  const sections = SECTIONS(contact);
   return (
     <div style={s.page}>
       <style>{CSS}</style>
@@ -140,7 +143,7 @@ export function Privacy() {
           Farm to Flat app collects and why — no jargon, no surprises.
         </p>
 
-        {SECTIONS.map((sec) => (
+        {sections.map((sec) => (
           <section className="pp-sec" key={sec.h}>
             <h2 className="pp-h2">{sec.h}</h2>
             {sec.p?.map((t, i) => (
@@ -166,8 +169,8 @@ export function Privacy() {
         ))}
 
         <footer className="pp-foot">
-          <a className="pp-link" href={`mailto:${CONTACT}`}>
-            {CONTACT}
+          <a className="pp-link" href={`mailto:${contact}`}>
+            {contact}
           </a>
           <span className="pp-dot" aria-hidden>
             ·

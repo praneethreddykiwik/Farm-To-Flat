@@ -9,7 +9,7 @@
  * read from the customer's persisted wallet ledger, so a second refund (double click, retried
  * request, or a restart between two attempts) returns nothing.
  */
-import { getOrder, listOrders, patchOrder } from '../store.js';
+import { getOrder, patchOrder, rawOrders } from '../store.js';
 import { getWallet, ledgerPush, releaseCoupon } from '../customer-store.js';
 import { IS_TEST } from './env.js';
 
@@ -85,9 +85,21 @@ export function expirePendingOrders({
 } = {}) {
   const cutoff = now - minutes * 60 * 1000;
   let n = 0;
-  for (const o of listOrders()) {
+  // Two passes on purpose. This runs every 60s forever, and listOrders() deep-clones the entire
+  // order book (JSON round-trip) just to read three fields off each one. Select first from the live
+  // array without cloning, then patch — so nothing structurally mutates while we're iterating it.
+  const expired = [];
+  for (const o of rawOrders()) {
     if (o.status !== 'PENDING_PAYMENT') continue;
     if (new Date(o.createdAt).getTime() > cutoff) continue;
+    expired.push({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      customerId: o.customerId,
+      couponCode: o.couponCode,
+    });
+  }
+  for (const o of expired) {
     const updated = patchOrder(o.id, (ord) => {
       ord.status = 'PAYMENT_FAILED';
       ord.timeline.push({ status: 'PAYMENT_FAILED', at: new Date(now).toISOString() });

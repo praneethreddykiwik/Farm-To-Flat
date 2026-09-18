@@ -122,8 +122,9 @@ export function communityAdmin(c) {
     ...communityPublic(c),
     lat: c.lat,
     lng: c.lng,
-    cutoffHours: c.cutoffHours,
-    windowCapacity: c.windowCapacity,
+    morningCutoff: c.morningCutoff,
+    eveningCutoff: c.eveningCutoff,
+    cutoffWarningMinutes: c.cutoffWarningMinutes,
     isActive: c.isActive !== false,
   };
 }

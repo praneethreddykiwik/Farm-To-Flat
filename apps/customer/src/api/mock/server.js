@@ -250,27 +250,40 @@ function validateCoupon(code, subtotal) {
   return { coupon: c };
 }
 
+const IST_OFFSET_MIN = 5 * 60 + 30;
+/** Mirrors apps/api/src/lib/dates.js istInstantMs — the real UTC instant for `hhmm` IST on `iso`. */
+function istInstantMs(iso, hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const midnightIstUtcMs = Date.parse(`${iso}T00:00:00Z`) - IST_OFFSET_MIN * 60 * 1000;
+  return midnightIstUtcMs + (h * 60 + m) * 60 * 1000;
+}
+
+/**
+ * Mirrors apps/api/src/lib/windows.js: a window closes at its community's same-day cut-off clock
+ * time, not at a booking count. `booked` is informational only. See that file for the full rationale.
+ */
 function windowsFor(communityId, date) {
   const com = COMMUNITIES.find((c) => c.id === communityId) || COMMUNITIES[0];
   const out = [];
+  const warningMs = 15 * 60 * 1000;
   for (let i = 0; i < 14; i += 1) {
     const d = addDaysISO(date, i);
     if (!com.deliveryDays.includes(weekdayOf(d))) continue;
     for (const w of ['MORNING', 'EVENING']) {
       const booked = state.windows.get(`${com.id}|${d}|${w}`) || 0;
-      // simulate a busy morning window on the first delivery day
-      const seeded =
-        out.length === 0 ? Math.max(0, com.windowCapacity - 3) : Math.floor(Math.random() * 12);
-      const remaining = Math.max(0, com.windowCapacity - booked - seeded);
-      const isToday = d === todayISO();
+      const cutoffTime = w === 'MORNING' ? com.morningCutoff : com.eveningCutoff;
+      const cutoffAtMs = istInstantMs(d, cutoffTime);
+      const msLeft = cutoffAtMs - Date.now();
+      const isOpen = msLeft > 0;
       out.push({
         id: `win_${com.id}_${d}_${w}`,
         date: d,
         window: w,
-        capacity: com.windowCapacity,
-        remaining,
-        isOpen: !isToday && remaining > 0,
-        cutoffAt: `${addDaysISO(d, -1)}T20:00:00+05:30`,
+        booked,
+        isOpen,
+        cutoffAt: new Date(cutoffAtMs).toISOString(),
+        secondsUntilCutoff: isOpen ? Math.round(msLeft / 1000) : 0,
+        showCountdown: isOpen && msLeft <= warningMs,
       });
     }
   }
@@ -558,9 +571,9 @@ async function route(method, path, body, headers = {}) {
       (w) => w.date === deliveryDate && w.window === window,
     );
     if (!win) return err(422, 'VALIDATION', 'Choose a delivery window.');
-    if (!win.isOpen || win.remaining <= 0) {
+    if (!win.isOpen) {
       const next = windowsFor(address.communityId, todayISO()).find((w) => w.isOpen);
-      return err(409, 'WINDOW_FULL', 'That window just filled up.', {
+      return err(409, 'ORDER_CUTOFF_PASSED', 'Orders for that window have closed.', {
         nextAvailable: next || null,
       });
     }

@@ -20,6 +20,7 @@ import { Access } from './screens/Access.jsx';
 import { Coupons } from './screens/Coupons.jsx';
 import { Settings } from './screens/Settings.jsx';
 import { Privacy } from './screens/Privacy.jsx';
+import { Terms } from './screens/Terms.jsx';
 
 /** The operator app: sidebar + the admin screens. Everything except the public privacy page. */
 function AdminShell() {
@@ -82,9 +83,11 @@ function AdminShell() {
 }
 
 function Root() {
-  // /privacy is public and chrome-free — customers open it from the app, so no sidebar and no login.
+  // /privacy and /terms are public and chrome-free — customers open them from the app, so no
+  // sidebar and no login.
   const { pathname } = useLocation();
   if (pathname === '/privacy') return <Privacy />;
+  if (pathname === '/terms') return <Terms />;
   return <AdminShell />;
 }
 

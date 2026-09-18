@@ -1,10 +1,42 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { Moon, Sun } from 'lucide-react-native';
 import { Glass, Mono, Pressy, Skeleton, Small, Text } from '../ui';
 import { colors, fonts, radius, shadow } from '../theme';
 import { WINDOWS, dayNumber, dayShort, monthShort, relativeDayLabel } from '../lib/dates';
+
+/** "12:45" / "1:02:45" from a whole number of seconds. */
+function hms(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const two = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`;
+}
+
+/**
+ * Live ticking "closes in 12:45" — the exact scenario a customer sees at 3:30 AM ordering into a
+ * 3:45 cut-off. Ticks client-side from the server's `secondsUntilCutoff` snapshot (no per-second
+ * network polling); resets whenever a fresh snapshot arrives from a refetch.
+ */
+function CutoffCountdown({ windowId, secondsUntilCutoff }) {
+  const [left, setLeft] = useState(secondsUntilCutoff);
+  useEffect(() => {
+    // Re-sync to the server's latest snapshot whenever it changes (a refetch, or a new window),
+    // then tick locally every second in between — intentional, not the "derive state" antipattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLeft(secondsUntilCutoff);
+    const t = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [windowId, secondsUntilCutoff]);
+  return (
+    <Mono color={colors.tomato} style={{ fontSize: 12, fontWeight: '700' }}>
+      Closes in {hms(left)}
+    </Mono>
+  );
+}
 
 /**
  * Date strip + morning/evening cards with remaining capacity.
@@ -113,7 +145,6 @@ export function WindowPicker({ windows, loading, value, onChange }) {
           const meta = WINDOWS[w.window];
           const active = value?.date === w.date && value?.window === w.window;
           const Icon = w.window === 'MORNING' ? Sun : Moon;
-          const tight = w.remaining > 0 && w.remaining <= 5;
           return (
             <Animated.View key={w.id} entering={FadeIn.duration(200)}>
               <Pressy
@@ -144,12 +175,16 @@ export function WindowPicker({ windows, loading, value, onChange }) {
                     <Small muted>{meta.hours}</Small>
                   </View>
                   {w.isOpen ? (
-                    <Mono color={tight ? colors.tomato : colors.leafDeep} style={{ fontSize: 12 }}>
-                      {tight ? `${w.remaining} left` : 'open'}
-                    </Mono>
+                    w.showCountdown ? (
+                      <CutoffCountdown windowId={w.id} secondsUntilCutoff={w.secondsUntilCutoff} />
+                    ) : (
+                      <Mono color={colors.leafDeep} style={{ fontSize: 12 }}>
+                        open
+                      </Mono>
+                    )
                   ) : (
                     <Mono color={colors.ink3} style={{ fontSize: 12 }}>
-                      {w.remaining === 0 ? 'full' : 'closed'}
+                      closed
                     </Mono>
                   )}
                   <View style={[styles.radio, active && styles.radioActive]}>

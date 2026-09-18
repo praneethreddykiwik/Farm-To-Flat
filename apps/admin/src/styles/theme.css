@@ -776,6 +776,40 @@ table.data tbody tr:last-child td {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+/* Order-cutoff time pickers (Communities screen) — the native <input type="time"> was clamped to
+   84px, which clips the "HH:MM AM/PM" WebKit renders down to "03:4". Give it room and a themed
+   look instead of the browser's default flat field. */
+.cutoff-time-input {
+  border: 1.5px solid var(--hairline);
+  background: #fff;
+  color: var(--leaf-deep);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(19, 90, 55, 0.06);
+  cursor: pointer;
+  transition:
+    border 0.18s,
+    box-shadow 0.18s,
+    transform 0.12s;
+}
+.cutoff-time-input:hover {
+  border-color: var(--sprout-deep);
+}
+.cutoff-time-input:focus {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px var(--leaf-soft);
+}
+.cutoff-time-input::-webkit-calendar-picker-indicator {
+  filter: invert(28%) sepia(54%) saturate(500%) hue-rotate(100deg);
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.cutoff-time-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+.cutoff-time-input::-webkit-datetime-edit {
+  padding: 0 2px;
+}
 .field__hint {
   font-size: 11.5px;
   color: var(--ink-3);
@@ -974,6 +1008,49 @@ table.data tbody tr:last-child td {
   outline: 2px dashed var(--leaf);
   outline-offset: -4px;
   background: rgba(30, 122, 76, 0.06);
+}
+/* Touch fallback for HTML5 drag-and-drop, which never fires on a touchscreen: long-press a card to
+   "pick it up" (below), then tap a highlighted column to drop it there instead of dragging. */
+.ocard--picked {
+  opacity: 1;
+  box-shadow:
+    0 0 0 2px var(--sprout-deep),
+    var(--shadow-lift);
+  transform: scale(1.02);
+}
+.board__col--target {
+  cursor: pointer;
+  outline: 2px dashed var(--sprout-deep);
+  outline-offset: -4px;
+  background: rgba(159, 209, 44, 0.08);
+}
+.pickup-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: var(--r-md);
+  background: var(--leaf-deep);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: var(--shadow-soft);
+  animation: popfresh 0.25s var(--ease-spring) both;
+}
+.pickup-banner button {
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
 }
 /* cancellation-requests column — tomato accent to signal cancellation */
 .board__col--cancel {

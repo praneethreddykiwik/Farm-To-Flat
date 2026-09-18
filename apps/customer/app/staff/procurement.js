@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  RefreshControl,
   Pressable,
   ScrollView,
   Share,
@@ -13,6 +14,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
@@ -42,12 +44,12 @@ export default function StaffProcurement() {
 
   const load = useCallback(() => {
     setError(null);
-    adminApi
+    return adminApi
       .procurement()
       .then(setData)
       .catch((e) => setError(e.message || 'Could not load'));
   }, []);
-  useEffect(load, [load]);
+  const { refreshing, onRefresh } = useStaffRefresh(load);
 
   async function download(lang) {
     try {
@@ -95,6 +97,9 @@ export default function StaffProcurement() {
         roleLabel={role.label || 'Procurement'}
       />
       <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.leaf} />
+        }
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -296,7 +301,16 @@ function ProcureItem({ item, onSubmitted, canApprove, buffer }) {
 function Kpi({ value, label, big }) {
   return (
     <View style={[styles.kpi, big && styles.kpiBig]}>
-      <Text style={[styles.kpiValue, big && { color: colors.leafDeep }]}>{value}</Text>
+      {/* A big rupee total (₹2,554.43) overflows this card's width and wraps mid-number; shrink to
+          fit on one line instead, so the figure stays readable at a glance. */}
+      <Text
+        style={[styles.kpiValue, big && { color: colors.leafDeep }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
+        {value}
+      </Text>
       <Text style={styles.kpiLabel}>{label}</Text>
     </View>
   );

@@ -46,8 +46,9 @@ const rowToCommunity = (r) => ({
   area: r.area,
   blocks: r.blocks || [],
   deliveryDays: r.deliveryDays || [],
-  cutoffHours: r.cutoffHours,
-  windowCapacity: r.windowCapacity,
+  morningCutoff: r.morningCutoff || '03:45',
+  eveningCutoff: r.eveningCutoff || '15:00',
+  cutoffWarningMinutes: r.cutoffWarningMinutes ?? 15,
   isActive: r.isActive,
 });
 const rowToCoupon = (r) => ({
@@ -114,8 +115,9 @@ const communityToRow = (c) => ({
   area: c.area ?? null,
   blocks: c.blocks || [],
   deliveryDays: c.deliveryDays || [],
-  cutoffHours: c.cutoffHours ?? 10,
-  windowCapacity: c.windowCapacity ?? 30,
+  morningCutoff: c.morningCutoff ?? '03:45',
+  eveningCutoff: c.eveningCutoff ?? '15:00',
+  cutoffWarningMinutes: c.cutoffWarningMinutes ?? 15,
   isActive: c.isActive !== false,
 });
 const staffToRow = (s) => ({
@@ -252,9 +254,14 @@ export function serialize(key, run) {
   const prev = chains.get(key) || Promise.resolve();
   const next = prev.then(run, run);
   chains.set(key, next);
-  next.finally(() => {
-    if (chains.get(key) === next) chains.delete(key);
-  });
+  // The cleanup chain must never be the thing that reports a failure: `next` belongs to the caller
+  // (and every caller via `wt` already catches), but the promise `.finally()` derives from it is
+  // ours and nobody awaits it — left bare, a rejected write surfaces as an unhandled rejection.
+  next
+    .finally(() => {
+      if (chains.get(key) === next) chains.delete(key);
+    })
+    .catch(() => {});
   return next;
 }
 

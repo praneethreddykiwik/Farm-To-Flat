@@ -17,7 +17,6 @@ describe('add community', () => {
         area: 'Kokapet',
         blocks: ['Block 1', 'Block 2'],
         deliveryDays: [1, 3, 5],
-        windowCapacity: 30,
       });
     expect(create.status).toBe(201);
     const pub = await request(app).get('/api/v1/communities');

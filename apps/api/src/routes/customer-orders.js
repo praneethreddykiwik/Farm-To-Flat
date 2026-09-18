@@ -14,14 +14,14 @@ import { validateBody } from '../validate.js';
 import { orderCustomer } from '../serialize.js';
 import { createRazorpayOrder, razorpayEnabled, razorpayKeyId } from '../lib/razorpay.js';
 import {
-  bookedFor,
+  bookedIndex,
   constants,
   createOrder,
   getCommunity,
   getOrderForCustomer,
   getProduct,
   listOrdersForCustomer,
-  orderedQtyFor,
+  orderedQtyIndex,
   patchOrder,
 } from '../store.js';
 import {
@@ -76,11 +76,14 @@ customerOrdersRouter.post(
     if (!address) throw fail(422, 'VALIDATION', 'Choose a delivery address.');
 
     const community = getCommunity(address.communityId);
-    const windows = generateWindows(community, todayISO(), bookedFor);
+    const windows = generateWindows(community, todayISO(), bookedIndex(community.id));
     const win = windows.find((w) => w.date === deliveryDate && w.window === window);
     if (!win) throw fail(422, 'VALIDATION', 'Choose a delivery window.');
-    if (!win.isOpen || win.remaining <= 0) {
-      throw fail(409, 'WINDOW_FULL', 'That window just filled up.', {
+    // No capacity limit — a window only closes when its cut-off time passes. Re-checked here at
+    // commit time (never trust the client's earlier read of `isOpen`): a window open when the
+    // customer started checkout can have crossed its cut-off by the time they tap "Pay".
+    if (!win.isOpen) {
+      throw fail(409, 'ORDER_CUTOFF_PASSED', 'Orders for that window have closed.', {
         nextAvailable: windows.find((w) => w.isOpen) || null,
       });
     }
@@ -88,6 +91,8 @@ customerOrdersRouter.post(
     // Re-validate every line against the CURRENT catalog at the moment of commitment: a product that
     // went sold-out/hidden after it was added to the basket must not be ordered, and the farm's daily
     // cap applies to the whole day's orders, not to this one basket.
+    // One pass for the whole basket, not one per line — the cap check is O(1) per line from here.
+    const orderedQty = orderedQtyIndex(deliveryDate);
     for (const line of priced.items) {
       const p = getProduct(line.productId);
       if (!p || p.isActive === false || (p.availability && p.availability !== 'AVAILABLE'))
@@ -97,7 +102,7 @@ customerOrdersRouter.post(
           `${line.name} is no longer available. Please remove it from your basket.`,
           { productId: line.productId },
         );
-      const already = orderedQtyFor(p.id, deliveryDate);
+      const already = orderedQty.get(p.id) || 0;
       const left = Math.max(0, Number(p.dailyCap) - already);
       if (Number(line.quantity) > left)
         throw fail(
@@ -179,7 +184,11 @@ customerOrdersRouter.post(
       }
       paymentIntent = {
         paymentId: pay.id,
-        razorpayOrderId: pay.razorpayOrderId,
+        // Only advertise a gateway order the gateway actually issued. createPayment always stamps a
+        // placeholder id (the mock verify flow keys off it), and handing that to the client made the
+        // app open the Razorpay SDK with an order that does not exist — Razorpay then shows its own
+        // "Something went wrong" sheet, which is what made checkout impossible on a local API.
+        razorpayOrderId: razorpayEnabled ? pay.razorpayOrderId : null,
         keyId: razorpayKeyId,
         amountPaise: String(gateway),
         description: `Order ${order.orderNumber}`,

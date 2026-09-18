@@ -1,9 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  Linking,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
 const inr = (paise) => `₹${(Number(paise) / 100).toLocaleString('en-IN')}`;
@@ -76,7 +86,7 @@ export default function StaffFulfilment() {
       .then((d) => setOrders(d.orders))
       .catch((e) => setError(e.message || 'Could not load'));
   }, []);
-  useEffect(load, [load]);
+  const { refreshing, onRefresh } = useStaffRefresh(load);
 
   async function advance(o, next) {
     setBusy(o.id);
@@ -189,7 +199,13 @@ export default function StaffFulfilment() {
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.leaf} />
+        }
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {error ? (
           <View style={styles.emptyBox}>
             <Text style={styles.muted}>{error}</Text>

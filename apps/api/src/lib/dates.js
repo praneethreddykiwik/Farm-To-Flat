@@ -24,3 +24,15 @@ export function addDaysISO(iso, n) {
 export function weekdayOf(iso) {
   return new Date(`${iso}T00:00:00Z`).getUTCDay();
 }
+
+/**
+ * The real UTC instant (ms since epoch) for a given IST wall-clock moment — date `iso`
+ * (YYYY-MM-DD) at time `hhmm` ("HH:MM", 24h). Used for order cut-offs: "orders for the Sep 19
+ * MORNING window close at 03:45 IST" needs an actual instant to compare "now" against, not just a
+ * date. Safe to compare directly with `Date.now()`.
+ */
+export function istInstantMs(iso, hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const midnightIstUtcMs = Date.parse(`${iso}T00:00:00Z`) - IST_OFFSET_MIN * 60 * 1000;
+  return midnightIstUtcMs + (h * 60 + m) * 60 * 1000;
+}

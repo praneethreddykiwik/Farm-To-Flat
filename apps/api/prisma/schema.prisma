@@ -99,6 +99,12 @@ model Community {
   area           String?
   blocks         String[]  @default([])
   deliveryDays   Int[]     @default([]) // 0=Sun … 6=Sat
+  // Same-day IST cut-off clock times ("HH:MM") — a window closes at this time on its own delivery
+  // date; there is no capacity/count limit. cutoffHours/windowCapacity below are unused legacy
+  // columns, kept (not dropped) so this migration stays additive and reversible.
+  morningCutoff        String  @default("03:45")
+  eveningCutoff        String  @default("15:00")
+  cutoffWarningMinutes Int     @default(15)
   cutoffHours    Int       @default(10)
   windowCapacity Int       @default(30)
   isActive       Boolean   @default(true)

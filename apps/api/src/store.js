@@ -433,8 +433,12 @@ export function createCommunity(data) {
     // New communities deliver every day by default (so windows appear immediately); the admin can
     // then narrow the days per community. Capacity + cutoff get sensible defaults too.
     deliveryDays: data.deliveryDays?.length ? data.deliveryDays : [0, 1, 2, 3, 4, 5, 6],
-    cutoffHours: data.cutoffHours ?? 10,
-    windowCapacity: data.windowCapacity ?? 40,
+    // Same-day IST clock cut-offs, not a capacity count — see lib/windows.js. Defaults give the
+    // farm real lead time: orders for the morning run close pre-dawn, evening orders close mid-
+    // afternoon. Admin-editable per community.
+    morningCutoff: data.morningCutoff ?? '03:45',
+    eveningCutoff: data.eveningCutoff ?? '15:00',
+    cutoffWarningMinutes: data.cutoffWarningMinutes ?? 15,
   };
   db.communities.push(community);
   persist.communityUpsert(community);
@@ -477,6 +481,21 @@ export function orderedQtyFor(productId, deliveryDate) {
   }
   return q;
 }
+/**
+ * Committed quantity per product for ONE delivery date, in a single pass.
+ * Checkout validates every basket line against the farm's daily cap; calling orderedQtyFor per line
+ * re-scanned the whole order book once per line (an 8-line basket = 8 full scans, during the
+ * pre-cut-off rush). Build this once per checkout and look lines up in O(1).
+ * @returns {Map<string, number>} productId -> quantity already committed
+ */
+export function orderedQtyIndex(deliveryDate) {
+  const m = new Map();
+  for (const o of db.orders) {
+    if (o.deliveryDate !== deliveryDate || !HOLDS_SLOT.has(o.status)) continue;
+    for (const it of o.items) m.set(it.productId, (m.get(it.productId) || 0) + Number(it.quantity));
+  }
+  return m;
+}
 export const bookedFor = (communityId, date, window) => {
   let n = 0;
   for (const o of db.orders) {
@@ -490,5 +509,31 @@ export const bookedFor = (communityId, date, window) => {
   }
   return n;
 };
+/**
+ * One pass over the order book for ONE community, returning a bookedFor-shaped lookup.
+ * generateWindows needs a count for each of its 28 windows; passing it `bookedFor` meant 28 full
+ * scans of the whole order book on every app open. Scoping to the community lets the common case
+ * (an order belonging to one of the other communities) bail out on a single property compare,
+ * before any key is built.
+ * @param {string} communityId
+ * @returns {(communityId: string, date: string, window: string) => number}
+ */
+export function bookedIndex(communityId) {
+  const m = new Map();
+  for (const o of db.orders) {
+    if (o.address?.communityId !== communityId) continue;
+    if (!HOLDS_SLOT.has(o.status)) continue;
+    const key = `${o.deliveryDate}|${o.window}`;
+    m.set(key, (m.get(key) || 0) + 1);
+  }
+  return (_cid, date, window) => m.get(`${date}|${window}`) || 0;
+}
+
+/**
+ * The live order array, NOT cloned — read-only, for internal scans that would otherwise pay to deep
+ * clone the entire order book (listOrders does JSON round-trip). Never mutate the result; go through
+ * patchOrder so the write reaches Postgres.
+ */
+export const rawOrders = () => db.orders;
 
 export { db };

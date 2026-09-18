@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
@@ -45,9 +46,7 @@ export default function StaffApprovals() {
       setError(e.message || 'Could not load approvals');
     }
   }, []);
-  useEffect(() => {
-    load();
-  }, [load]); // eslint-disable-line react-hooks/set-state-in-effect -- initial fetch, matches other staff screens
+  const { refreshing, onRefresh } = useStaffRefresh(load);
 
   async function decide(item, decision) {
     setBusy(item.productId);
@@ -105,7 +104,7 @@ export default function StaffApprovals() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={load} tintColor={colors.leaf} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.leaf} />
         }
       >
         {/* Buffer tolerance control */}

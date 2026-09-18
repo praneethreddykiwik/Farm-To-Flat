@@ -164,7 +164,7 @@ export function Pricing() {
                       <td>
                         <input
                           className="field__input"
-                          style={{ padding: '7px 10px' }}
+                          style={{ padding: '7px 10px', width: 84, minWidth: 84 }}
                           type="number"
                           min="0"
                           inputMode="decimal"
@@ -177,7 +177,7 @@ export function Pricing() {
                       <td>
                         <input
                           className="field__input"
-                          style={{ padding: '7px 10px' }}
+                          style={{ padding: '7px 10px', width: 84, minWidth: 84 }}
                           type="number"
                           min="0"
                           inputMode="decimal"

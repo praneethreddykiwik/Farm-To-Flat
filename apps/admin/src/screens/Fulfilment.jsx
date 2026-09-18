@@ -47,6 +47,43 @@ export function Fulfilment() {
   const [grouped, setGrouped] = useState(true);
   const knownIds = useRef(null);
   const dragging = useRef(false);
+  const longPressTimer = useRef(null);
+  const touchStart = useRef(null);
+  const suppressClick = useRef(false);
+  const [touchPicked, setTouchPicked] = useState(false);
+
+  // Long-press touch fallback: HTML5 drag-and-drop (draggable + onDragStart) never fires on a
+  // touchscreen, so mobile only had the one-tap "advance" button (forward-only). Long-press a card
+  // to pick it up into the same `drag` state the mouse path uses, then tap a column to drop it.
+  const startLongPress = useCallback((e, payload) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      dragging.current = true;
+      suppressClick.current = true;
+      setDrag(payload);
+      setTouchPicked(true);
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 420);
+  }, []);
+  const cancelPickup = useCallback(() => {
+    dragging.current = false;
+    setDrag(null);
+    setTouchPicked(false);
+    setOverCol(null);
+  }, []);
+  const moveTouch = useCallback((e) => {
+    if (!touchStart.current || !longPressTimer.current) return;
+    const t = e.touches[0];
+    const dx = Math.abs(t.clientX - touchStart.current.x);
+    const dy = Math.abs(t.clientY - touchStart.current.y);
+    if (dx > 12 || dy > 12) clearTimeout(longPressTimer.current);
+  }, []);
+  const endTouch = useCallback(() => {
+    clearTimeout(longPressTimer.current);
+    touchStart.current = null;
+  }, []);
 
   const cols = useMemo(() => {
     const orders = data?.orders || [];
@@ -103,6 +140,7 @@ export function Fulfilment() {
   function onDrop(targetStatus) {
     dragging.current = false;
     setOverCol(null);
+    setTouchPicked(false);
     const payload = drag;
     setDrag(null);
     if (!payload) return;
@@ -180,7 +218,7 @@ export function Fulfilment() {
   const renderCard = (o, col) => (
     <div
       key={o.id}
-      className={`ocard${drag?.order?.id === o.id ? ' ocard--drag' : ''}${freshIds.has(o.id) ? ' ocard--fresh' : ''}`}
+      className={`ocard${drag?.order?.id === o.id ? (touchPicked ? ' ocard--picked' : ' ocard--drag') : ''}${freshIds.has(o.id) ? ' ocard--fresh' : ''}`}
       draggable
       onDragStart={() => {
         dragging.current = true;
@@ -191,7 +229,17 @@ export function Fulfilment() {
         setDrag(null);
         setOverCol(null);
       }}
-      onClick={() => setOpenId(o.id)}
+      onTouchStart={(e) => startLongPress(e, { kind: 'order', order: o })}
+      onTouchMove={moveTouch}
+      onTouchEnd={endTouch}
+      onClick={() => {
+        if (suppressClick.current) {
+          suppressClick.current = false;
+          return;
+        }
+        if (drag) return; // a different card is picked up — this tap targets the column, not this card
+        setOpenId(o.id);
+      }}
     >
       <div className="hstack" style={{ justifyContent: 'space-between' }}>
         <span className="ocard__no">{o.orderNumber}</span>
@@ -215,6 +263,7 @@ export function Fulfilment() {
           disabled={busy === o.id}
           onClick={(e) => {
             e.stopPropagation();
+            if (drag) return; // a card is picked up — this tap targets the column, not this button
             move(o, col.next);
           }}
         >
@@ -233,20 +282,24 @@ export function Fulfilment() {
       drag?.kind === 'group' &&
       drag.community === community &&
       drag.orders[0]?.status === col.status;
+    const groupPayload = { kind: 'group', community, orders };
     return (
       <div
         key={community}
-        className={`ocard commcard${isDragging ? ' ocard--drag' : ''}`}
+        className={`ocard commcard${isDragging ? (touchPicked ? ' ocard--picked' : ' ocard--drag') : ''}`}
         draggable
         onDragStart={() => {
           dragging.current = true;
-          setDrag({ kind: 'group', community, orders });
+          setDrag(groupPayload);
         }}
         onDragEnd={() => {
           dragging.current = false;
           setDrag(null);
           setOverCol(null);
         }}
+        onTouchStart={(e) => startLongPress(e, groupPayload)}
+        onTouchMove={moveTouch}
+        onTouchEnd={endTouch}
       >
         <div
           className="hstack"
@@ -263,7 +316,14 @@ export function Fulfilment() {
         </div>
         <div className="commcard__list">
           {orders.slice(0, 4).map((o) => (
-            <button key={o.id} className="commcard__row" onClick={() => setOpenId(o.id)}>
+            <button
+              key={o.id}
+              className="commcard__row"
+              onClick={() => {
+                if (drag) return; // a card is picked up — this tap targets the column, not this row
+                setOpenId(o.id);
+              }}
+            >
               <span>
                 {o.address?.block} {o.address?.flat}
               </span>
@@ -279,7 +339,10 @@ export function Fulfilment() {
             className="btn btn--accent btn--sm"
             style={{ width: '100%', marginTop: 10 }}
             disabled={isBusy}
-            onClick={() => shipGroup(orders, col.next)}
+            onClick={() => {
+              if (drag) return; // a card is picked up — this tap targets the column, not this button
+              shipGroup(orders, col.next);
+            }}
           >
             {isBusy ? '…' : `Ship all → ${titleCase(col.next)}`}
           </button>
@@ -365,8 +428,8 @@ export function Fulfilment() {
           <h1 className="page-title">Fulfilment</h1>
           <p className="page-sub">
             {grouped
-              ? 'Each community is one card — drag it between stages to ship the whole community together'
-              : 'Live board · drag a card between columns, or tap advance'}
+              ? 'Each community is one card — drag (or long-press, then tap a column) to ship it'
+              : 'Live board · drag a card between columns, long-press on mobile, or tap advance'}
             <span className="live-dot" title="Auto-refreshing" />
           </p>
         </div>
@@ -390,6 +453,16 @@ export function Fulfilment() {
         </div>
       </header>
 
+      {touchPicked && drag && (
+        <div className="pickup-banner">
+          <span>
+            {drag.kind === 'group' ? drag.community : drag.order.orderNumber} picked up — tap a
+            highlighted column to move it
+          </span>
+          <button onClick={cancelPickup}>Cancel</button>
+        </div>
+      )}
+
       {error ? (
         <ErrorNote error={error} onRetry={reload} />
       ) : loading && !data ? (
@@ -398,39 +471,50 @@ export function Fulfilment() {
         </div>
       ) : (
         <div className="board">
-          {COLUMNS.map((col) => (
-            <div
-              key={col.status}
-              className={`glass board__col${overCol === col.status ? ' board__col--over' : ''}`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (overCol !== col.status) setOverCol(col.status);
-              }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget))
-                  setOverCol((s) => (s === col.status ? null : s));
-              }}
-              onDrop={() => onDrop(col.status)}
-            >
-              <div className="board__colhead">
-                <span className={`badge st-${col.status}`}>
-                  <span className="badge__dot" />
-                  {col.title}
-                </span>
-                <span className="board__count">{cols[col.status].length}</span>
-              </div>
+          {(() => {
+            const pickedFrom = drag
+              ? drag.kind === 'group'
+                ? drag.orders[0]?.status
+                : drag.order.status
+              : null;
+            const validTargets = pickedFrom ? ALLOWED[pickedFrom] || [] : [];
+            return COLUMNS.map((col) => (
+              <div
+                key={col.status}
+                className={`glass board__col${overCol === col.status ? ' board__col--over' : ''}${touchPicked && validTargets.includes(col.status) ? ' board__col--target' : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (overCol !== col.status) setOverCol(col.status);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget))
+                    setOverCol((s) => (s === col.status ? null : s));
+                }}
+                onDrop={() => onDrop(col.status)}
+                onClick={() => {
+                  if (touchPicked && drag) onDrop(col.status);
+                }}
+              >
+                <div className="board__colhead">
+                  <span className={`badge st-${col.status}`}>
+                    <span className="badge__dot" />
+                    {col.title}
+                  </span>
+                  <span className="board__count">{cols[col.status].length}</span>
+                </div>
 
-              {cols[col.status].length === 0 ? (
-                <div className="board__empty">Drop here</div>
-              ) : grouped ? (
-                byCommunity(cols[col.status]).map(([community, orders]) =>
-                  renderGroupCard(community, orders, col),
-                )
-              ) : (
-                cols[col.status].map((o) => renderCard(o, col))
-              )}
-            </div>
-          ))}
+                {cols[col.status].length === 0 ? (
+                  <div className="board__empty">Drop here</div>
+                ) : grouped ? (
+                  byCommunity(cols[col.status]).map(([community, orders]) =>
+                    renderGroupCard(community, orders, col),
+                  )
+                ) : (
+                  cols[col.status].map((o) => renderCard(o, col))
+                )}
+              </div>
+            ));
+          })()}
 
           {/* Cancellation requests — always the final stack, flat list, not a drag target */}
           <div className="glass board__col board__col--cancel">

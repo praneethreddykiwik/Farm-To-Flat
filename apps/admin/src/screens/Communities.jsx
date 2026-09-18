@@ -1,14 +1,18 @@
 /**
- * Communities & delivery windows. Left: the serviceable communities with capacity, delivery days,
- * and blocks. Right: the selected community's live 14-day window schedule with capacity fill.
- * Editing capacity PATCHes /admin/communities/:id and the schedule refetches.
+ * Communities & delivery windows. Left: the serviceable communities with delivery days and their
+ * order cut-off times. Right: the selected community's live 14-day window schedule, each window
+ * showing whether it's open and (inside the warning period) a live countdown to its cut-off.
+ *
+ * There is no capacity/booking-count limit any more — a window only closes when its cut-off clock
+ * time passes for that delivery date. Editing a cut-off PATCHes /admin/communities/:id and the
+ * schedule refetches.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useResource, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote } from '../components/ui.jsx';
 import { IconMap, IconPlus } from '../components/icons.jsx';
-import { noLead, num, shortDate } from '../lib/format.js';
+import { noLead, shortDate } from '../lib/format.js';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAYNAME = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -23,11 +27,15 @@ export function Communities() {
     if (!selId && communities.length) setSelId(communities[0].id);
   }, [communities, selId]);
 
-  async function setCapacity(c, delta) {
-    const windowCapacity = Math.max(5, c.windowCapacity + delta);
+  // Debounced-by-blur cut-off time edit: the input holds its own draft value and only PATCHes when
+  // it's a complete, valid HH:MM and differs from what's saved — typing "0" then "3" then "3:" etc.
+  // never fires a request for a half-typed time.
+  const CLOCK_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  async function setCutoff(c, field, value) {
+    if (!CLOCK_RE.test(value) || value === c[field]) return;
     try {
-      await api.patch(`/admin/communities/${c.id}`, { windowCapacity });
-      toast(`${c.name} capacity → ${windowCapacity}`);
+      await api.patch(`/admin/communities/${c.id}`, { [field]: value });
+      toast(`${c.name} · ${field === 'morningCutoff' ? 'Morning' : 'Evening'} cut-off → ${value}`);
       reload();
     } catch (e) {
       toast(e.message || 'Could not update', 'err');
@@ -54,7 +62,9 @@ export function Communities() {
       <header className="topbar">
         <div>
           <h1 className="page-title">Communities & windows</h1>
-          <p className="page-sub">{communities.length} serviceable · capacity and delivery days</p>
+          <p className="page-sub">
+            {communities.length} serviceable · cut-off times and delivery days
+          </p>
         </div>
         <button className="btn btn--primary" onClick={() => setAdding(true)}>
           <IconPlus size={18} /> New community
@@ -133,25 +143,25 @@ export function Communities() {
                       {d}
                     </button>
                   ))}
-                  <span className="spacer" />
-                  <div className="hstack" style={{ gap: 8 }} onClick={(e) => e.stopPropagation()}>
-                    <button className="btn btn--ghost btn--icon" onClick={() => setCapacity(c, -5)}>
-                      –
-                    </button>
-                    <div style={{ textAlign: 'center', minWidth: 54 }}>
-                      <div
-                        style={{ fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 18 }}
-                      >
-                        {c.windowCapacity}
-                      </div>
-                      <div className="muted" style={{ fontSize: 10 }}>
-                        per window
-                      </div>
-                    </div>
-                    <button className="btn btn--ghost btn--icon" onClick={() => setCapacity(c, 5)}>
-                      +
-                    </button>
-                  </div>
+                </div>
+
+                <div
+                  className="hstack"
+                  style={{ gap: 14, marginTop: 12 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <CutoffField
+                    label="Morning closes"
+                    icon="🌅"
+                    value={c.morningCutoff}
+                    onCommit={(v) => setCutoff(c, 'morningCutoff', v)}
+                  />
+                  <CutoffField
+                    label="Evening closes"
+                    icon="🌇"
+                    value={c.eveningCutoff}
+                    onCommit={(v) => setCutoff(c, 'eveningCutoff', v)}
+                  />
                 </div>
               </div>
             ))}
@@ -161,6 +171,49 @@ export function Communities() {
         </div>
       )}
     </>
+  );
+}
+
+/** "12:45:03" from a whole number of seconds. */
+function hms(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const two = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${two(m)}:${two(sec)}` : `${two(m)}:${two(sec)}`;
+}
+
+/** One window's live status: open / counting down to its cut-off / closed. Ticks every second
+ * client-side from the server's `secondsUntilCutoff` snapshot — no per-second polling. */
+function WindowStatus({ w }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!w.showCountdown) return undefined;
+    setElapsed(0);
+    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [w.id, w.showCountdown, w.secondsUntilCutoff]);
+
+  if (!w.isOpen) {
+    return (
+      <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+        Closed
+      </span>
+    );
+  }
+  if (w.showCountdown) {
+    const left = w.secondsUntilCutoff - elapsed;
+    return (
+      <span className="mono" style={{ fontSize: 11, color: 'var(--tomato)', fontWeight: 700 }}>
+        {left > 0 ? `Closes in ${hms(left)}` : 'Closing…'}
+      </span>
+    );
+  }
+  return (
+    <span className="mono" style={{ fontSize: 11, color: 'var(--leaf-deep)' }}>
+      Open
+    </span>
   );
 }
 
@@ -177,7 +230,7 @@ function WindowSchedule({ communityId, community }) {
       <div className="card__head">
         <h2 className="card__title">{community?.name || 'Schedule'} · next 14 days</h2>
         <span className="muted" style={{ fontSize: 12.5 }}>
-          capacity fill
+          cut-off status
         </span>
       </div>
       {error ? (
@@ -194,61 +247,68 @@ function WindowSchedule({ communityId, community }) {
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{shortDate(date)}</span>
               </div>
               <div className="hstack" style={{ gap: 10 }}>
-                {ws.map((w) => {
-                  const fill = Math.round((w.booked / w.capacity) * 100);
-                  const tone =
-                    fill >= 90 ? 'var(--tomato)' : fill >= 65 ? 'var(--amber)' : 'var(--leaf)';
-                  return (
+                {ws.map((w) => (
+                  <div
+                    key={w.id}
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      background: 'rgba(255,255,255,0.6)',
+                      border: '1px solid var(--hairline)',
+                      opacity: w.isOpen ? 1 : 0.6,
+                    }}
+                  >
                     <div
-                      key={w.id}
-                      style={{
-                        flex: 1,
-                        padding: '10px 12px',
-                        borderRadius: 12,
-                        background: 'rgba(255,255,255,0.6)',
-                        border: '1px solid var(--hairline)',
-                      }}
+                      className="hstack"
+                      style={{ justifyContent: 'space-between', marginBottom: 6 }}
                     >
-                      <div
-                        className="hstack"
-                        style={{ justifyContent: 'space-between', marginBottom: 8 }}
-                      >
-                        <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em' }}>
-                          {w.window === 'MORNING' ? '🌅 Morning' : '🌇 Evening'}
-                        </span>
-                        <span className="mono" style={{ fontSize: 11, color: tone }}>
-                          {w.remaining} left
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          height: 7,
-                          borderRadius: 7,
-                          background: 'rgba(14,27,20,0.06)',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: '100%',
-                            width: `${fill}%`,
-                            background: tone,
-                            borderRadius: 7,
-                            transition: 'width 0.6s var(--ease-out)',
-                          }}
-                        />
-                      </div>
-                      <div className="muted" style={{ fontSize: 10.5, marginTop: 5 }}>
-                        {w.booked}/{w.capacity} booked{!w.isOpen ? ' · closed' : ''}
-                      </div>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em' }}>
+                        {w.window === 'MORNING' ? '🌅 Morning' : '🌇 Evening'}
+                      </span>
+                      <WindowStatus w={w} />
                     </div>
-                  );
-                })}
+                    <div className="muted" style={{ fontSize: 10.5 }}>
+                      {w.booked} order{w.booked === 1 ? '' : 's'} so far
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Inline HH:MM cut-off editor. Local draft state so a half-typed time never PATCHes; commits on
+ * blur or Enter, only when the value is a valid, changed time. */
+function CutoffField({ label, icon, value, onCommit }) {
+  const [draft, setDraft] = useState(value || '');
+  useEffect(() => setDraft(value || ''), [value]);
+  return (
+    <div>
+      <div className="muted" style={{ fontSize: 10.5, marginBottom: 3 }}>
+        {icon} {label}
+      </div>
+      <input
+        className="field__input cutoff-time-input"
+        style={{
+          padding: '7px 10px',
+          width: '100%',
+          minWidth: 118,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 13.5,
+          letterSpacing: 0.2,
+          borderRadius: 10,
+        }}
+        type="time"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => onCommit(draft)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      />
     </div>
   );
 }
@@ -259,7 +319,8 @@ function CommunityForm({ onClose, onSaved }) {
     name: '',
     area: '',
     blocks: '',
-    windowCapacity: 40,
+    morningCutoff: '03:45',
+    eveningCutoff: '15:00',
     // Start a new community delivering every day (admin deselects the days it doesn't serve),
     // so it has full windows immediately instead of only Tue/Thu/Sat.
     deliveryDays: [0, 1, 2, 3, 4, 5, 6],
@@ -287,7 +348,8 @@ function CommunityForm({ onClose, onSaved }) {
         name: f.name.trim(),
         area: f.area.trim(),
         blocks,
-        windowCapacity: Number(f.windowCapacity),
+        morningCutoff: f.morningCutoff,
+        eveningCutoff: f.eveningCutoff,
         deliveryDays: f.deliveryDays,
       });
       toast(`${community.name} added — live in the app`);
@@ -366,22 +428,30 @@ function CommunityForm({ onClose, onSaved }) {
           ))}
         </div>
       </div>
-      <div className="field">
-        <label className="field__label">Capacity per window</label>
-        <input
-          className="field__input"
-          type="number"
-          min="5"
-          inputMode="numeric"
-          value={f.windowCapacity}
-          onChange={(e) =>
-            setF((s) => ({
-              ...s,
-              windowCapacity: num(e.target.value, { max: 100000, integer: true }),
-            }))
-          }
-        />
+      <div className="field__row">
+        <div className="field">
+          <label className="field__label">Morning window closes</label>
+          <input
+            className="field__input"
+            type="time"
+            value={f.morningCutoff}
+            onChange={(e) => setF((s) => ({ ...s, morningCutoff: e.target.value }))}
+          />
+        </div>
+        <div className="field">
+          <label className="field__label">Evening window closes</label>
+          <input
+            className="field__input"
+            type="time"
+            value={f.eveningCutoff}
+            onChange={(e) => setF((s) => ({ ...s, eveningCutoff: e.target.value }))}
+          />
+        </div>
       </div>
+      <p className="field__hint">
+        Orders for each window stop being accepted at this time on the delivery day itself — no
+        booking limit, only the clock. Customers see a live countdown in the last 15 minutes.
+      </p>
     </Drawer>
   );
 }

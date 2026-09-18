@@ -45,8 +45,20 @@ async function filler(ctx, excludeId) {
 
 describe('checkout guards', () => {
   it('dailyCap applies across all orders for that day', async () => {
-    const [p] = (await products()).filter((x) => x.unit === 'KG');
-    await request(app).patch(`/api/v1/admin/products/${p.id}`).send({ dailyCap: 10 });
+    // A product nobody has ordered yet. Reusing a seeded product coupled this test to whatever the
+    // seed happened to have booked on the delivery date checkout resolves to, so the expected
+    // remainder moved whenever the seed or the cut-off rules changed. Own the product, own the sums.
+    const { body: cat } = await request(app).get('/api/v1/admin/products');
+    const { body: made } = await request(app).post('/api/v1/admin/products').send({
+      name: 'Cap test gourd',
+      category: cat.categories[0].id,
+      unit: 'KG',
+      increment: '0.25',
+      pricePaise: 10000,
+      dailyCap: 10,
+      availability: 'AVAILABLE',
+    });
+    const p = made.product;
 
     const a = await customer('9444000001');
     await filler(a, p.id);
@@ -63,7 +75,7 @@ describe('checkout guards', () => {
 
     expect((await add(b, p.id, 4)).status).toBe(200);
     expect((await order(b)).status).toBe(201);
-    await request(app).patch(`/api/v1/admin/products/${p.id}`).send({ dailyCap: p.dailyCap });
+    await request(app).delete(`/api/v1/admin/products/${p.id}`);
   });
 
   it('a product that goes sold-out after being added cannot be ordered', async () => {

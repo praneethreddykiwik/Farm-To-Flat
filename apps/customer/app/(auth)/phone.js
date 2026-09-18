@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -113,7 +113,27 @@ export default function PhoneScreen() {
         <Animated.View entering={FadeInDown.delay(160).duration(420).springify().damping(18)}>
           <Button title="Send code" onPress={submit} loading={isLoading} disabled={!valid} />
           <Small muted center style={{ marginTop: 12 }}>
-            By continuing you agree to our terms and privacy policy.
+            By continuing you agree to our{' '}
+            <Text
+              variant="smallMedium"
+              color={colors.leafDeep}
+              onPress={() =>
+                Linking.openURL('https://farm-to-flat.vercel.app/terms').catch(() => {})
+              }
+            >
+              terms
+            </Text>{' '}
+            and{' '}
+            <Text
+              variant="smallMedium"
+              color={colors.leafDeep}
+              onPress={() =>
+                Linking.openURL('https://farm-to-flat.vercel.app/privacy').catch(() => {})
+              }
+            >
+              privacy policy
+            </Text>
+            .
           </Small>
         </Animated.View>
       </KeyboardAvoidingView>
