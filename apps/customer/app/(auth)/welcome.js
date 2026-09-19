@@ -39,6 +39,8 @@ const RIDGE_Y = H * 0.7;
 /** Slow, ambient "field" illustration: layered hills and a drifting sun. Pure vector, no image asset. */
 function Field() {
   const reduced = useReducedMotion();
+  // One clock for the ground, shared by the hill that draws it and the villagers that stand on it.
+  const ground = useSharedValue(0);
   const t = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
@@ -74,8 +76,8 @@ function Field() {
           />
         </Svg>
       </Animated.View>
-      <HillFlow reduced={reduced} />
-      <VillageRidge ridgeY={RIDGE_Y} />
+      <HillFlow reduced={reduced} ground={ground} />
+      <VillageRidge ridgeY={RIDGE_Y} ground={ground} />
       <FrontBank />
     </View>
   );
@@ -138,20 +140,18 @@ function FrontBank() {
   );
 }
 
-function HillFlow({ reduced }) {
+function HillFlow({ reduced, ground }) {
   const hillTop = RIDGE_Y;
-  const x = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
-    // Slowed from 16s to a minute per screen width. The ridge still flows, but now the villagers
-    // walking on it are the fastest thing in the scene — at the old speed the ground slid past
-    // 2.5x quicker than they walked, so they read as being dragged backwards rather than walking.
-    // Deliberately still. The villagers' feet are pinned to this exact curve, so if the ground
-    // drifted they would slide along a surface that no longer matched. The motion in the scene is
-    // the people walking over it, which is the point.
-    x.value = 0;
-  }, [x, reduced]);
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+    // A minute per screen width — slow enough that the villagers, who cross in 38s, are still the
+    // fastest thing in the scene. `ground` is shared with the village: the same value that slides
+    // this hill is what the walkers subtract to find where the surface is beneath them, so the
+    // ground can drift without anyone sliding off it.
+    ground.value = 0;
+    ground.value = withRepeat(withTiming(W, { duration: 60000, easing: Easing.linear }), -1, false);
+  }, [ground, reduced]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: ground.value }] }));
   const tileH = H - hillTop + GROUND_AMP + 4;
   const d = groundPathD(tileH);
   const tile = (key) => (
@@ -169,7 +169,7 @@ function HillFlow({ reduced }) {
   );
   return (
     <View style={[styles.hillWrap, { top: hillTop - GROUND_AMP }]} pointerEvents="none">
-      <Animated.View style={[{ flexDirection: 'row', width: W * 2 }, style]}>
+      <Animated.View style={[{ flexDirection: 'row', width: W * 2, marginLeft: -W }, style]}>
         {tile('a')}
         {tile('b')}
       </Animated.View>

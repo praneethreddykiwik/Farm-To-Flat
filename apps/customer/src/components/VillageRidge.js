@@ -134,13 +134,15 @@ function useGait(period, delay, reduced) {
  * Travels RIGHT. The ridge behind it was flipped to match: when the two disagree, the figures are
  * walking against their own ground, which is what made the procession look wrong at the start.
  */
-function Lane({ duration, reduced, render, opacity = 1 }) {
-  const x = useSharedValue(0);
+function Lane({ duration, reduced, render, opacity = 1, x: driven }) {
+  const own = useSharedValue(0);
+  const x = driven || own;
   useEffect(() => {
-    if (reduced) return;
+    // A driven lane follows someone else's clock; starting a second animation would fight it.
+    if (driven || reduced) return;
     x.value = 0;
     x.value = withRepeat(withTiming(W, { duration, easing: Easing.linear }), -1, false);
-  }, [x, duration, reduced]);
+  }, [x, duration, reduced, driven]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   return (
     <Animated.View
@@ -159,11 +161,13 @@ function Lane({ duration, reduced, render, opacity = 1 }) {
  * constant forward flow. (An earlier version let animals drift backwards to "graze"; on screen
  * that just read as some of them walking backwards.)
  */
-function Placed({ left, baseY, w, h, opacity = 0.9, laneX, children }) {
+function Placed({ left, baseY, w, h, opacity = 0.9, laneX, ground, children }) {
   // Feet track the ground beneath them, so a villager rises over a crest and dips into a hollow
   // instead of skimming a flat line across a curved hill.
   const style = useAnimatedStyle(() => {
-    const x = left + (laneX ? laneX.value : 0);
+    // The ground drifts, so the curve under a given screen position keeps changing. Subtract the
+    // drift to ask the surface where IT is now, not where it started.
+    const x = left + (laneX ? laneX.value : 0) - (ground ? ground.value : 0);
     return { transform: [{ translateY: surfaceY(x, baseY) - baseY }] };
   });
   return (
@@ -620,13 +624,14 @@ function Villager({
   reduced,
   opacity,
   laneX,
+  ground,
 }) {
   const reach = w * 0.3;
   const phase = useGait(gaitPeriod(speed, reach) / pace, delay, reduced);
   // The cow and the dog have their own silhouettes — one generic quadruped with swappable horns
   // made both of them read as the same blob.
   return (
-    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity} laneX={laneX}>
+    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity} laneX={laneX} ground={ground}>
       {kind === 'farmer' ? <Farmer w={w} h={h} phase={phase} reach={reach} /> : null}
       {kind === 'carrier' ? <Person w={w} h={h} phase={phase} reach={reach} load /> : null}
       {kind === 'sari' ? <Person w={w} h={h} phase={phase} reach={reach} skirt /> : null}
@@ -639,7 +644,7 @@ function Villager({
   );
 }
 
-export function VillageRidge({ ridgeY }) {
+export function VillageRidge({ ridgeY, ground }) {
   const reduced = useReducedMotion();
   const base = ridgeY + FOOT;
 
@@ -658,6 +663,7 @@ export function VillageRidge({ ridgeY }) {
         pace={1.04}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
       />
       <Villager
         kind="cow"
@@ -670,6 +676,7 @@ export function VillageRidge({ ridgeY }) {
         delay={220}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
         opacity={0.92}
       />
       <Villager
@@ -683,6 +690,7 @@ export function VillageRidge({ ridgeY }) {
         delay={120}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
       />
       <Villager
         kind="sari"
@@ -695,6 +703,7 @@ export function VillageRidge({ ridgeY }) {
         delay={420}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
       />
       <Villager
         kind="dog"
@@ -707,6 +716,7 @@ export function VillageRidge({ ridgeY }) {
         delay={80}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
         opacity={0.88}
       />
       <Villager
@@ -720,6 +730,7 @@ export function VillageRidge({ ridgeY }) {
         delay={300}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
       />
     </React.Fragment>
   );
@@ -737,15 +748,15 @@ export function VillageRidge({ ridgeY }) {
         delay={200}
         reduced={reduced}
         laneX={laneX}
+        ground={ground}
       />
     </React.Fragment>
   );
 
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Fog base={base} reduced={reduced} />
-      <Bird reduced={reduced} />
-
+  // Trees, grass and the houses are rooted IN the ground, so they ride its drift. Given their
+  // own clock they would slowly slide across the very terrain they are planted in.
+  const scenery = (k) => (
+    <React.Fragment key={k}>
       {/* Standing scenery: rooted, so it sways rather than travels. */}
       <Sway
         left={W * 0.02}
@@ -796,7 +807,7 @@ export function VillageRidge({ ridgeY }) {
         {palm(19, 32)}
       </Sway>
       {/* The village itself — a lit house and a smaller outbuilding, sized to the reference. One
-          tiny dark hut was getting lost against the ridge. */}
+            tiny dark hut was getting lost against the ridge. */}
       <View
         style={{
           position: 'absolute',
@@ -861,6 +872,15 @@ export function VillageRidge({ ridgeY }) {
       >
         {tuft(17, 13)}
       </Sway>
+    </React.Fragment>
+  );
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Fog base={base} reduced={reduced} />
+      <Bird reduced={reduced} />
+
+      <Lane x={ground} reduced={reduced} render={scenery} />
 
       {/* The procession. */}
       <Lane duration={38000} reduced={reduced} render={main} />
