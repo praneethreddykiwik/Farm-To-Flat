@@ -231,3 +231,94 @@ An `api-mem` run configuration boots the API on an in-memory seed with persisten
 | `GET /admin/orders`                 | Unpaginated — fine at pilot volume, not beyond it                                              |
 
 The first two are ordinary deployment work. The third and fourth are the ones that decide whether this can scale past a single pilot community, and neither is a small change.
+
+---
+
+## 12. Extra — new features implemented (19 September)
+
+§11 stops at 18 September. This section continues the record. Two entries are defects that would have stopped the pilot outright, one is a security exposure that was live in production, and the rest is new capability and polish. Everything here was verified against the live deployment, not a local build.
+
+A designed version of this section, with screenshots of the app and the operator site, is at `docs/delivery-record-19-sep.pdf`.
+
+### 12.1 Payment now completes end to end
+
+Two independent faults meant **no customer could pay**. Either alone was enough to stop the pilot.
+
+**The cloud build shipped without the gateway key.** Public configuration lives in a git-ignored `.env`, which never reaches an EAS cloud build. The build fell back to a placeholder key, the client rejected it as malformed, and the app dead-ended on "Payment unavailable" — the order then sat unpaid until the sweeper cancelled it thirty minutes later. Fixed by declaring the public values in the build profile, plus `scripts/preflight-env.mjs`, which fails the build when one is missing. The check was confirmed to catch the original fault.
+
+**The payment signature was never forwarded.** On return from the gateway the app sent only `razorpayPaymentId`, never the signature or gateway order id. With real credentials configured the server verified a signature it had not been given, so **every successful payment was rejected** and the customer's money sat against an order that then auto-cancelled. It was invisible for months because no environment had gateway credentials: without them the signature branch is skipped entirely. It activates the moment real keys are set.
+
+Verified on an Android device against live production: order `F2F-4231`, ₹520, paid through the real gateway sheet, returned **Confirmed** with "Paid via Razorpay ₹520" recorded server-side.
+
+### 12.2 The operator panel required no login
+
+The admin site was open to anyone with the URL. Today's revenue, every order, and every customer's name, phone number and delivery address rendered without a sign-in.
+
+The cause was `VITE_ADMIN_TOKEN`. Vite inlines a `VITE_*` variable as a literal, so the admin token was readable in the public JavaScript and could be lifted out and used directly against the API. It had been that way for as long as the site had been up.
+
+The token now lives only in the signed-in operator's browser (`localStorage`, see `apps/admin/src/lib/auth.js`); the bundle carries no secret, an anonymous visitor gets a sign-in screen, and a 401 or 403 clears the stored token so a rotation signs the panel out rather than failing every call in a loop. `/privacy` and `/terms` stay public. Verified on the live site after deployment: the published bundle no longer contains the token.
+
+The published token has since been rotated, which is what actually revokes it — the code change alone does not.
+
+### 12.3 Abuse controls on the public API
+
+Per-mobile throttling on OTP requests already existed, so brute-forcing one number was impractical. What was missing was everything else: nothing stopped one host farming thousands of different numbers — real money the day SMS is live — and nothing capped total traffic. See `apps/api/src/lib/rate-limit.js`.
+
+| Control                 | Limit       | Why that number                                                              |
+| ----------------------- | ----------- | ---------------------------------------------------------------------------- |
+| OTP request, per mobile | 5 / 15 min  | Existing; blocks code guessing                                               |
+| OTP request, per IP     | 60 / 15 min | Deliberately loose — Indian carriers put many subscribers behind one address |
+| OTP verify, per IP      | 90 / 15 min | Allows honest retries, stops sweeps                                          |
+| All endpoints, per IP   | 600 / min   | Global ceiling, tunable via `RATE_LIMIT_PER_MIN` without a deploy            |
+
+`app.set('trust proxy', 1)` was added at the same time. Without it every request appears to come from the hosting proxy's own address and any per-address rule throttles all customers as a single bucket — the control would have been worse than none.
+
+**These counters are in memory.** They hold only while there is one process; a second replica silently doubles every limit here.
+
+### 12.4 The staff roles could not be signed into at all
+
+A number registered as staff was excluded from the fixed test code in production. With no SMS provider wired there is nothing to deliver the random code it received instead, so **Procurement, Fulfilment, Admin and Super admin were unreachable** — the entire operator side of the app was untestable. Verified before the fix: `9000000000` (super admin) and `9848011111` (procurement) both rejected `123456` while an ordinary customer number accepted it.
+
+All six staff accounts now sign in during the closed test and resolve to the correct role and section list. `DEV_OTP_ALLOWLIST` also changed meaning usefully: it is now a confinement that a named number escapes, rather than a list that excluded everyone not on it. Adding staff numbers to it before would have locked out every customer tester.
+
+While `ALLOW_DEV_OTP` is enabled, anyone who guesses a staff number can sign in as that role. That is the cost of a test deployment with no SMS, and it must be removed before any public release.
+
+### 12.5 The basket stopped promising a discount it did not apply
+
+The basket celebrated "You've unlocked every offer 🎉" over a total still charging full price. Coupons are opt-in, so qualifying for one changes nothing until it is applied — the copy described a discount the customer had not received.
+
+The wording now names the applied coupon, or says an offer is available and where to take it. The discount machinery itself was never broken: applying a coupon was confirmed live to deduct **−₹60.20** from a ₹602 basket, giving ₹541.80. Offers the basket already qualifies for now read "Ready to apply" rather than "Spend ₹500 to unlock".
+
+A live **100% off** coupon was also found published to every customer, redeemable by anyone who opened the offer list. It had zero redemptions and has been deactivated.
+
+### 12.6 The welcome screen
+
+An animated village on the hill line: a procession of figures that walk — a real gait, feet on the ground, following the curve of the terrain rather than sliding across it — with livestock, houses, trees and a drifting landscape behind. Built to match a supplied reference, with the palette sampled from it rather than judged by eye. It runs on the UI thread, loops seamlessly, and respects the system reduced-motion setting. See `apps/customer/src/components/VillageRidge.js`.
+
+### 12.7 Smaller corrections found in testing
+
+| Symptom                                                               | Now                                                   |
+| --------------------------------------------------------------------- | ----------------------------------------------------- |
+| A field's red error stayed under text the shopper had already fixed   | Clears as they type; other invalid fields keep theirs |
+| Notification permission re-asked on every launch after being declined | Asked once, and only while the system still offers it |
+| First action of the day appeared frozen for up to a minute            | Explains that it is waking the server (see 12.8)      |
+
+### 12.8 Measured behaviour
+
+Warm, the API answers in about **130–150 ms**. The application is not slow. What testers experience as lag is the hosting tier: the service sleeps after roughly fifteen minutes idle and takes about **50 seconds** to wake. The retry and session handling already tolerated that correctly, but silently — so the app now says what it is waiting for after five seconds. Moving off the free tier is what removes the wait itself.
+
+Test suites: **103** API tests and **19** client tests passing. The full admin surface — all eleven screens including Procurement, Fulfilment, Orders, Pricing and Access — was walked on the live site with no failed request and no console error.
+
+### 12.9 Still outstanding — do not read §12 as "done"
+
+| Item                                | Consequence if shipped as-is                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Remove the fixed test OTP; wire SMS | One code signs in as any customer, **and as any staff role**                                                          |
+| Live payment credentials            | No real money can move; test mode only                                                                                |
+| More than one API process           | **Not safe.** Sessions, carts, OTPs, order numbering and the new rate-limit counters all live in one process's memory |
+| Deploys clear live baskets          | In-memory carts are lost on restart; acceptable for testers, not for paying customers                                 |
+| iOS tester build                    | Android is the only distributable surface until the Apple Developer account exists                                    |
+| `GET /admin/orders` unpaginated     | Carried over from §11.8 — fine at pilot volume, not beyond it                                                         |
+| Per-operator admin logins           | The panel takes one shared token; there is no way to revoke one person without locking out everyone                   |
+
+The first three are what decide whether this is a pilot or a product.
