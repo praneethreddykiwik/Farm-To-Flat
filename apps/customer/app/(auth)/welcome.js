@@ -12,24 +12,30 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { ArrowRight, Leaf } from 'lucide-react-native';
 import { Button, Glass, GlassPill, Small, Text } from '../../src/ui';
+import { VillageRidge, useReducedMotion } from '../../src/components/VillageRidge';
 import { useGetCommunitiesQuery } from '../../src/api/api';
 import { colors, fonts, radius } from '../../src/theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 
+/** The crest everything in the scene stands on — the hill, the villagers, the trees, the hut. */
+const RIDGE_Y = H * 0.72;
+
 /** Slow, ambient "field" illustration: layered hills and a drifting sun. Pure vector, no image asset. */
 function Field() {
+  const reduced = useReducedMotion();
   const t = useSharedValue(0);
   useEffect(() => {
+    if (reduced) return;
     t.value = withRepeat(
       withTiming(1, { duration: 18000, easing: Easing.inOut(Easing.sin) }),
       -1,
       true,
     );
-  }, [t]);
+  }, [t, reduced]);
   const sun = useAnimatedStyle(() => ({
     transform: /** @type {any} */ ([{ translateY: t.value * 18 }, { translateX: t.value * 10 }]),
   }));
@@ -41,6 +47,7 @@ function Field() {
         locations={[0, 0.55, 1]}
         style={StyleSheet.absoluteFill}
       />
+      <MoonGlow reduced={reduced} />
       <Animated.View style={[styles.sun, sun]}>
         <LinearGradient colors={[colors.sprout, '#F4E9B7']} style={styles.sunFill} />
       </Animated.View>
@@ -52,13 +59,50 @@ function Field() {
           />
         </Svg>
       </Animated.View>
-      <HillFlow />
+      <HillFlow reduced={reduced} />
       <LinearGradient
         colors={['rgba(11,21,16,0)', 'rgba(11,21,16,0.85)']}
         style={[StyleSheet.absoluteFill, { top: H * 0.5 }]}
       />
-      <FieldDetails />
+      <VillageRidge ridgeY={RIDGE_Y} />
     </View>
+  );
+}
+
+/**
+ * The moon's halo breathes; the moon itself never scales. Scaling the disc would read as the moon
+ * moving toward you — only the light around it should swell and settle.
+ */
+function MoonGlow({ reduced }) {
+  const g = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    g.value = withRepeat(
+      withTiming(1, { duration: 10000, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+  }, [g, reduced]);
+  const style = useAnimatedStyle(() => ({
+    // Deliberately faint: the moon already carries a shadow glow of its own, and stacking a bright
+    // halo on top washed out the whole upper third. This only has to breathe, not light the scene.
+    opacity: 0.16 + g.value * 0.12,
+    transform: [{ scale: 1 + g.value * 0.06 }],
+  }));
+  const s = 300;
+  return (
+    <Animated.View pointerEvents="none" style={[styles.moonGlow, style]}>
+      <Svg width={s} height={s}>
+        <Defs>
+          <RadialGradient id="moonHalo" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor={colors.sprout} stopOpacity={0.3} />
+            <Stop offset="45%" stopColor={colors.sprout} stopOpacity={0.07} />
+            <Stop offset="100%" stopColor={colors.sprout} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={s / 2} cy={s / 2} r={s / 2} fill="url(#moonHalo)" />
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -66,12 +110,16 @@ function Field() {
  * end of the swing, showing a bare seam at the left edge. Rebuilt as two identical tiles (start/end
  * y match exactly) sliding left in one direction forever, so the silhouette has no edge to run out
  * of and reads as a continuously flowing ridge instead of a wave that snaps back. */
-function HillFlow() {
-  const hillTop = H * 0.72;
+function HillFlow({ reduced }) {
+  const hillTop = RIDGE_Y;
   const x = useSharedValue(0);
   useEffect(() => {
-    x.value = withRepeat(withTiming(-W, { duration: 16000, easing: Easing.linear }), -1, false);
-  }, [x]);
+    if (reduced) return;
+    // Slowed from 16s to a minute per screen width. The ridge still flows, but now the villagers
+    // walking on it are the fastest thing in the scene — at the old speed the ground slid past
+    // 2.5x quicker than they walked, so they read as being dragged backwards rather than walking.
+    x.value = withRepeat(withTiming(-W, { duration: 60000, easing: Easing.linear }), -1, false);
+  }, [x, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const amp = H * 0.028;
   const d = `M0 ${hillTop} C ${W * 0.22} ${hillTop - amp}, ${W * 0.28} ${hillTop + amp}, ${W * 0.5} ${hillTop} C ${W * 0.72} ${hillTop - amp}, ${W * 0.78} ${hillTop + amp}, ${W} ${hillTop} L ${W} ${H} L 0 ${H} Z`;
@@ -94,47 +142,27 @@ function HillFlow() {
   );
 }
 
-/** Minimalist, static foreground details on the ridge — a few grass/weed tufts, one small farmer
- * silhouette with a soft ground shadow. Fixed in place (not tied to HillFlow's scroll) so they read
- * as being "in front of" the field rather than drifting with it. Flat shapes only, no texture. */
-function FieldDetails() {
-  // The CTA card starts right below the hero copy, so the only place the hill (and anything
-  // standing on it) is actually visible is the thin strip between the paragraph and the card —
-  // match HillFlow's ridge exactly, clear of both.
-  const ridgeY = H * 0.72;
-  const tuft = (cx, s = 1) => (
-    <Path
-      key={cx}
-      d={`M${cx} ${ridgeY} C ${cx - 3 * s} ${ridgeY - 9 * s}, ${cx - 1 * s} ${ridgeY - 15 * s}, ${cx} ${ridgeY - 17 * s} C ${cx + 1 * s} ${ridgeY - 15 * s}, ${cx + 3 * s} ${ridgeY - 9 * s}, ${cx + 4 * s} ${ridgeY}`}
-      stroke={colors.sprout}
-      strokeWidth={1.4 * s}
-      strokeLinecap="round"
-      fill="none"
-      opacity={0.55}
-    />
-  );
-  const farmerX = W * 0.87;
-  const headY = ridgeY - 13;
+/**
+ * A slow halo behind the call to action. The button must not scale — a control that changes size
+ * under the thumb is a control you can miss — so only the light around it moves, at a few percent.
+ */
+function CtaGlow({ children }) {
+  const reduced = useReducedMotion();
+  const g = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    g.value = withRepeat(
+      withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+  }, [g, reduced]);
+  const style = useAnimatedStyle(() => ({ opacity: 0.05 + g.value * 0.03 }));
   return (
-    <Svg
-      width={W}
-      height={H}
-      style={StyleSheet.absoluteFill}
-      pointerEvents="none"
-      viewBox={`0 0 ${W} ${H}`}
-    >
-      {tuft(W * 0.06, 0.65)}
-      {tuft(W * 0.11, 0.85)}
-      {/* ground shadow, body, head, then a wide hat brim — a small, rounded, friendly silhouette */}
-      <Ellipse cx={farmerX} cy={ridgeY + 1} rx={6} ry={1.8} fill="#0B1510" opacity={0.3} />
-      <Path
-        d={`M${farmerX - 3.5} ${ridgeY} L${farmerX - 2.5} ${headY + 2} Q${farmerX} ${headY - 1.5} ${farmerX + 2.5} ${headY + 2} L${farmerX + 3.5} ${ridgeY} Z`}
-        fill="#12241B"
-        opacity={0.7}
-      />
-      <Circle cx={farmerX} cy={headY - 2.5} r={2.3} fill="#12241B" opacity={0.7} />
-      <Ellipse cx={farmerX} cy={headY - 4.5} rx={4.5} ry={1.3} fill="#12241B" opacity={0.7} />
-    </Svg>
+    <View>
+      <Animated.View pointerEvents="none" style={[styles.ctaGlow, style]} />
+      {children}
+    </View>
   );
 }
 
@@ -195,12 +223,14 @@ export default function Welcome() {
                 </View>
               ))}
             </View>
-            <Button
-              title="Ready? Let's go"
-              variant="accent"
-              onPress={() => router.push('/(auth)/phone')}
-              trailing={<ArrowRight size={18} color={colors.ink} />}
-            />
+            <CtaGlow>
+              <Button
+                title="Ready? Let's go"
+                variant="accent"
+                onPress={() => router.push('/(auth)/phone')}
+                trailing={<ArrowRight size={18} color={colors.ink} />}
+              />
+            </CtaGlow>
             <Small center color="rgba(243,245,239,0.5)" style={{ marginTop: 12 }}>
               Sign in with your mobile number. No password, ever.
             </Small>
@@ -247,5 +277,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   sunFill: { flex: 1, borderRadius: 60 },
+  moonGlow: {
+    position: 'absolute',
+    top: H * 0.16 + 60 - 150,
+    right: W * 0.14 + 60 - 150,
+    width: 300,
+    height: 300,
+  },
   hillWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, overflow: 'hidden' },
+  ctaGlow: {
+    position: 'absolute',
+    left: -12,
+    right: -12,
+    top: -10,
+    bottom: -10,
+    borderRadius: 999,
+    backgroundColor: colors.sprout,
+    shadowColor: colors.sprout,
+    shadowOpacity: 0.9,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 0 },
+  },
 });
