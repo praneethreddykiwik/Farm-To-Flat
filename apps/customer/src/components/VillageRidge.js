@@ -281,62 +281,65 @@ function Cow({ w, h, phase, reach }) {
     const o = -s;
     return {
       d:
-        `M${w * 0.16} ${h * 0.57} L${w * 0.16 + s} ${h} ` +
-        `M${w * 0.27} ${h * 0.57} L${w * 0.27 + o} ${h} ` +
-        `M${w * 0.6} ${h * 0.57} L${w * 0.6 + o} ${h} ` +
-        `M${w * 0.7} ${h * 0.57} L${w * 0.7 + s} ${h}`,
+        `M${w * 0.17} ${h * 0.54} L${w * 0.17 + s} ${h} ` +
+        `M${w * 0.27} ${h * 0.54} L${w * 0.27 + o} ${h} ` +
+        `M${w * 0.63} ${h * 0.54} L${w * 0.63 + o} ${h} ` +
+        `M${w * 0.73} ${h * 0.54} L${w * 0.73 + s} ${h}`,
     };
   });
   const p = (x, y) => `${w * x} ${h * y}`;
   return (
     <>
-      {/* tail, hanging behind the rump with a tuft on the end */}
+      {/* tail, hanging straight off the rump with a tuft on the end */}
       <Path
-        d={`M${p(0.09, 0.36)} C ${p(0.02, 0.46)} ${p(0.01, 0.64)} ${p(0.04, 0.78)}`}
+        d={`M${p(0.07, 0.29)} C ${p(0.03, 0.42)} ${p(0.02, 0.6)} ${p(0.04, 0.74)}`}
+        stroke={INK}
+        strokeWidth={h * 0.04}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Ellipse cx={w * 0.04} cy={h * 0.82} rx={w * 0.03} ry={h * 0.075} fill={INK} />
+      <AnimatedPath
+        animatedProps={props}
+        stroke={INK}
+        strokeWidth={h * 0.085}
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* Barrel body with a long, near-level back and a deep chest — the earlier version tapered
+          to a wedge and carried a pointed hump, which read as a goat. Only a slight rise over the
+          shoulder remains. */}
+      <Path
+        d={
+          `M${p(0.05, 0.36)} ` +
+          `C ${p(0.04, 0.26)} ${p(0.12, 0.22)} ${p(0.24, 0.22)} ` +
+          `L ${p(0.5, 0.21)} ` +
+          `C ${p(0.58, 0.18)} ${p(0.65, 0.16)} ${p(0.7, 0.21)} ` +
+          `L ${p(0.79, 0.27)} ` +
+          `C ${p(0.87, 0.28)} ${p(0.96, 0.31)} ${p(0.99, 0.37)} ` +
+          `C ${p(1.0, 0.43)} ${p(0.96, 0.47)} ${p(0.9, 0.46)} ` +
+          `L ${p(0.82, 0.41)} ` +
+          `C ${p(0.77, 0.45)} ${p(0.74, 0.5)} ${p(0.71, 0.54)} ` +
+          `L ${p(0.66, 0.57)} ` +
+          `L ${p(0.2, 0.57)} ` +
+          `C ${p(0.1, 0.56)} ${p(0.05, 0.48)} ${p(0.05, 0.36)} Z`
+        }
+        fill={INK}
+      />
+      {/* drooping ear, set behind the horns */}
+      <Path d={`M${p(0.84, 0.32)} L${p(0.77, 0.31)} L${p(0.82, 0.39)} Z`} fill={INK} />
+      {/* horns, sweeping up and back */}
+      <Path
+        d={`M${p(0.89, 0.29)} C ${p(0.91, 0.22)} ${p(0.95, 0.19)} ${p(0.98, 0.21)}`}
         stroke={INK}
         strokeWidth={h * 0.045}
         strokeLinecap="round"
         fill="none"
       />
-      <Ellipse cx={w * 0.04} cy={h * 0.85} rx={w * 0.028} ry={h * 0.08} fill={INK} />
-      <AnimatedPath
-        animatedProps={props}
-        stroke={INK}
-        strokeWidth={h * 0.075}
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* body: rump → back → hump → withers → neck → head → muzzle → dewlap → belly */}
       <Path
-        d={
-          `M${p(0.06, 0.44)} ` +
-          `C ${p(0.05, 0.31)} ${p(0.16, 0.27)} ${p(0.32, 0.28)} ` +
-          `C ${p(0.42, 0.28)} ${p(0.46, 0.14)} ${p(0.58, 0.15)} ` +
-          `C ${p(0.67, 0.16)} ${p(0.68, 0.27)} ${p(0.73, 0.31)} ` +
-          `L ${p(0.84, 0.38)} ` +
-          `C ${p(0.92, 0.4)} ${p(1.0, 0.41)} ${p(1.0, 0.47)} ` +
-          `C ${p(1.0, 0.54)} ${p(0.93, 0.55)} ${p(0.87, 0.52)} ` +
-          `L ${p(0.8, 0.46)} ` +
-          `C ${p(0.76, 0.53)} ${p(0.72, 0.57)} ${p(0.64, 0.59)} ` +
-          `L ${p(0.22, 0.6)} ` +
-          `C ${p(0.11, 0.6)} ${p(0.06, 0.54)} ${p(0.06, 0.44)} Z`
-        }
-        fill={INK}
-      />
-      {/* drooping ear, set behind the horns */}
-      <Path d={`M${p(0.81, 0.4)} L${p(0.72, 0.42)} L${p(0.79, 0.48)} Z`} fill={INK} />
-      {/* horns, sweeping up and back */}
-      <Path
-        d={`M${p(0.86, 0.38)} C ${p(0.88, 0.3)} ${p(0.93, 0.27)} ${p(0.97, 0.29)}`}
+        d={`M${p(0.86, 0.31)} C ${p(0.87, 0.25)} ${p(0.91, 0.22)} ${p(0.94, 0.23)}`}
         stroke={INK}
-        strokeWidth={h * 0.05}
-        strokeLinecap="round"
-        fill="none"
-      />
-      <Path
-        d={`M${p(0.83, 0.4)} C ${p(0.84, 0.33)} ${p(0.88, 0.3)} ${p(0.91, 0.31)}`}
-        stroke={INK}
-        strokeWidth={h * 0.04}
+        strokeWidth={h * 0.038}
         strokeLinecap="round"
         fill="none"
         opacity={0.75}
