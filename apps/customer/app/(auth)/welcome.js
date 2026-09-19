@@ -119,8 +119,8 @@ function MoonGlow({ reduced }) {
  * of and reads as a continuously flowing ridge instead of a wave that snaps back. */
 /** The lit bank across the very bottom, in front of everything and behind the card. */
 function FrontBank() {
-  const h = H * 0.17;
-  const d = `M0 ${h * 0.44} C ${W * 0.3} ${h * 0.1}, ${W * 0.64} ${h * 0.62} ${W} ${h * 0.28} L ${W} ${h} L 0 ${h} Z`;
+  const h = H * 0.26;
+  const d = `M0 ${h * 0.42} C ${W * 0.3} ${h * 0.12}, ${W * 0.66} ${h * 0.6} ${W} ${h * 0.26} L ${W} ${h} L 0 ${h} Z`;
   return (
     <Svg
       width={W}
