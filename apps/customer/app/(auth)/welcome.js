@@ -29,7 +29,7 @@ import { colors, fonts, radius } from '../../src/theme';
 const { width: W, height: H } = Dimensions.get('window');
 
 /** The crest everything in the scene stands on — the hill, the villagers, the trees, the hut. */
-const RIDGE_Y = H * 0.72;
+const RIDGE_Y = H * 0.7;
 
 /** Slow, ambient "field" illustration: layered hills and a drifting sun. Pure vector, no image asset. */
 function Field() {
@@ -54,7 +54,7 @@ function Field() {
           brightened toward the BOTTOM of the screen, washing the whole foreground mid-green. */}
       <LinearGradient
         colors={['#0B1510', '#17331F', '#2C5832', '#4F7736', '#658C3B']}
-        locations={[0, 0.35, 0.55, 0.66, 0.72]}
+        locations={[0, 0.34, 0.53, 0.64, 0.7]}
         style={StyleSheet.absoluteFill}
       />
       <MoonGlow reduced={reduced} />
@@ -119,7 +119,7 @@ function MoonGlow({ reduced }) {
  * of and reads as a continuously flowing ridge instead of a wave that snaps back. */
 /** The lit bank across the very bottom, in front of everything and behind the card. */
 function FrontBank() {
-  const h = H * 0.13;
+  const h = H * 0.17;
   const d = `M0 ${h * 0.44} C ${W * 0.3} ${h * 0.1}, ${W * 0.64} ${h * 0.62} ${W} ${h * 0.28} L ${W} ${h} L 0 ${h} Z`;
   return (
     <Svg
@@ -239,7 +239,9 @@ export default function Welcome() {
 
         <Animated.View
           entering={FadeInUp.delay(260).duration(560).springify().damping(18)}
-          style={{ marginTop: 28 }}
+          // The village walks in the gap between this card and the paragraph above it. At the old
+          // 28 there was no gap — the figures were pinned to the card's top edge.
+          style={{ marginTop: 76 }}
         >
           <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.card}>
             <View style={styles.stats}>
