@@ -7,6 +7,7 @@ import { ArrowLeft, Phone } from 'lucide-react-native';
 import { Body, Button, Display, Glass, Input, Pressy, Screen, Small, Text } from '../../src/ui';
 import { colors, fonts, radius } from '../../src/theme';
 import { useRequestOtpMutation } from '../../src/api/api';
+import { useSlowHint, WAKING_MESSAGE } from '../../src/hooks/useSlowHint';
 import { setPendingMobile } from '../../src/features/auth/authSlice';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { haptic } from '../../src/lib/haptics';
@@ -18,6 +19,8 @@ export default function PhoneScreen() {
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState(null);
   const [requestOtp, { isLoading }] = useRequestOtpMutation();
+  // A tester's very first tap is the one most likely to land on a sleeping server.
+  const slow = useSlowHint(isLoading);
   const input = useRef(null);
   const valid = isMobileValid(mobile);
 
@@ -112,6 +115,11 @@ export default function PhoneScreen() {
         <View style={{ flex: 1 }} />
         <Animated.View entering={FadeInDown.delay(160).duration(420).springify().damping(18)}>
           <Button title="Send code" onPress={submit} loading={isLoading} disabled={!valid} />
+          {slow ? (
+            <Small muted center style={{ marginTop: 12 }}>
+              {WAKING_MESSAGE}
+            </Small>
+          ) : null}
           <Small muted center style={{ marginTop: 12 }}>
             By continuing you agree to our{' '}
             <Text

@@ -24,6 +24,7 @@ import { SectionHeader } from '../../src/components/SectionHeader';
 import { CartBar } from '../../src/components/CartBar';
 import { DietToggle } from '../../src/components/DietToggle';
 import { SeasonalRail } from '../../src/components/SeasonalRail';
+import { useSlowHint, WAKING_MESSAGE } from '../../src/hooks/useSlowHint';
 import { useGetCatalogQuery, useGetMeQuery, useGetWindowsQuery } from '../../src/api/api';
 import { selectCustomer } from '../../src/features/auth/authSlice';
 import { filterByDiet, selectDietPref } from '../../src/features/ui/uiSlice';
@@ -42,6 +43,8 @@ export default function Home() {
   const customer = useSelector(selectCustomer);
   const me = useGetMeQuery();
   const catalog = useGetCatalogQuery();
+  // First open after the service has slept can take ~50s on Render's free tier; say so.
+  const catalogSlow = useSlowHint(catalog.isLoading);
   const windows = useGetWindowsQuery({});
   const [category, setCategory] = useState(null);
   const dietPref = useSelector(selectDietPref);
@@ -142,6 +145,11 @@ export default function Home() {
       <Ambient />
       {catalog.isLoading && !data ? (
         <View style={[styles.skeleton, { paddingTop: insets.top + 12 }]}>
+          {catalogSlow ? (
+            <Small muted center style={{ marginBottom: 16 }}>
+              {WAKING_MESSAGE}
+            </Small>
+          ) : null}
           <Skeleton height={28} width={180} />
           <Skeleton height={50} radius={radius.pill} style={{ marginTop: 20 }} />
           <Skeleton height={176} radius={radius.xl} style={{ marginTop: 20 }} />
