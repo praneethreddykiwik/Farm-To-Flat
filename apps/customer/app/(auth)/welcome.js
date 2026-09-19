@@ -71,6 +71,7 @@ function Field() {
       </Animated.View>
       <HillFlow reduced={reduced} />
       <VillageRidge ridgeY={RIDGE_Y} />
+      <FrontBank />
     </View>
   );
 }
@@ -116,6 +117,22 @@ function MoonGlow({ reduced }) {
  * end of the swing, showing a bare seam at the left edge. Rebuilt as two identical tiles (start/end
  * y match exactly) sliding left in one direction forever, so the silhouette has no edge to run out
  * of and reads as a continuously flowing ridge instead of a wave that snaps back. */
+/** The lit bank across the very bottom, in front of everything and behind the card. */
+function FrontBank() {
+  const h = H * 0.13;
+  const d = `M0 ${h * 0.44} C ${W * 0.3} ${h * 0.1}, ${W * 0.64} ${h * 0.62} ${W} ${h * 0.28} L ${W} ${h} L 0 ${h} Z`;
+  return (
+    <Svg
+      width={W}
+      height={h}
+      style={{ position: 'absolute', left: 0, bottom: 0 }}
+      pointerEvents="none"
+    >
+      <Path d={d} fill="#255328" />
+    </Svg>
+  );
+}
+
 function HillFlow({ reduced }) {
   const hillTop = RIDGE_Y;
   const x = useSharedValue(0);
@@ -134,10 +151,10 @@ function HillFlow({ reduced }) {
     <Svg key={key} width={W} height={tileH}>
       <Defs>
         <SvgGradient id="ridgeLight" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor="#3A6636" />
-          <Stop offset="18%" stopColor="#1A3F29" />
-          <Stop offset="45%" stopColor="#0F2315" />
-          <Stop offset="100%" stopColor="#0E2316" />
+          <Stop offset="0%" stopColor="#2E6A2B" />
+          <Stop offset="12%" stopColor="#04492B" />
+          <Stop offset="42%" stopColor="#032C1E" />
+          <Stop offset="100%" stopColor="#032A1B" />
         </SvgGradient>
       </Defs>
       <Path d={d} fill="url(#ridgeLight)" transform={`translate(0, -${hillTop})`} />
@@ -263,7 +280,10 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     color: colors.inkOnDark,
   },
-  card: { padding: 20 },
+  // The glass tone blurs whatever is behind it, and over a green hill that just returns more
+  // green — the panel vanished entirely. The reference card is an explicit dark slab (#042115)
+  // read against lighter ground, so give it a real fill instead of relying on the blur.
+  card: { padding: 20, backgroundColor: 'rgba(4, 33, 21, 0.9)' },
   stats: { flexDirection: 'row', marginBottom: 18 },
   // lineHeight is REQUIRED for Fraunces (a tall display serif) — without it iOS clips the tops of the
   // numerals. Matches the type-scale convention of fontSize + 4 (see packages/tokens type scale).

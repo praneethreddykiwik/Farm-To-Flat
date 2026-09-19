@@ -33,10 +33,11 @@ const { width: W, height: H } = Dimensions.get('window');
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-const INK = '#0B2317'; // silhouette fill, sampled from the reference figures
-const SARI = '#BD6C39'; // the rust sari — the one saturated warm note in the line
-const LOAD = '#9BBD3E'; // the bundle is GREENS, not gold — bright yellow-green in the reference
-const LAMP = '#D89D3C'; // the hut's window
+const INK = '#022416'; // silhouette fill, sampled from the reference figures
+const SARI = '#BB7404'; // the rust sari — the one saturated warm note in the line
+const LOAD = '#A4C506'; // the bundle is GREENS, not gold — bright yellow-green in the reference
+const LIME = '#A4C506'; // the farmer's shirt is the same lit yellow-green
+const LAMP = '#D2911C'; // the hut's window
 const LEAF = '#153825'; // trees sit a shade lighter than the figures, as in the reference
 
 /** Feet sit a touch below the ridge crest so a walker is always planted on filled ground. */
@@ -99,19 +100,22 @@ function useGait(period, delay, reduced) {
  * One horizontal lane of scenery that loops without a visible seam: the lane is two identical
  * copies side by side, and sliding it exactly one screen width puts the second copy precisely
  * where the first began. Nothing ever teleports, so the loop cannot be spotted.
+ *
+ * Travels LEFT, the same way the ridge behind it flows. They used to disagree — figures walking
+ * right over ground sliding left is what made the procession look like it was fighting the scene.
  */
 function Lane({ duration, reduced, render, opacity = 1 }) {
   const x = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
     x.value = 0;
-    x.value = withRepeat(withTiming(W, { duration, easing: Easing.linear }), -1, false);
+    x.value = withRepeat(withTiming(-W, { duration, easing: Easing.linear }), -1, false);
   }, [x, duration, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   return (
     <Animated.View
       pointerEvents="none"
-      style={[{ position: 'absolute', left: -W, top: 0, width: W * 2, height: H, opacity }, style]}
+      style={[{ position: 'absolute', left: 0, top: 0, width: W * 2, height: H, opacity }, style]}
     >
       <View style={[styles.copy, { left: 0 }]}>{render('a')}</View>
       <View style={[styles.copy, { left: W }]}>{render('b')}</View>
@@ -129,7 +133,16 @@ function Placed({ left, baseY, w, h, opacity = 0.9, children }) {
   return (
     <View
       pointerEvents="none"
-      style={{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }}
+      // drawn facing right, mirrored to face the direction of travel
+      style={{
+        position: 'absolute',
+        left,
+        top: baseY - h,
+        width: w,
+        height: h,
+        opacity,
+        transform: [{ scaleX: -1 }],
+      }}
     >
       <Svg width={w} height={h}>
         {children}
@@ -195,13 +208,13 @@ function Limbs({ w, h, phase, reach, lineWidth }) {
   );
 }
 
-function Person({ w, h, phase, reach, hat, load, skirt }) {
+function Person({ w, h, phase, reach, hat, load, skirt, shirt }) {
   return (
     <>
       <Circle cx={w * 0.5} cy={h * 0.13} r={h * 0.105} fill={INK} />
       <Path
         d={`M${w * 0.5} ${h * 0.25} L${w * 0.5} ${skirt ? h * 0.5 : h * 0.62}`}
-        stroke={INK}
+        stroke={shirt || INK}
         strokeWidth={h * 0.2}
         strokeLinecap="round"
       />
@@ -237,7 +250,7 @@ function Farmer({ w, h, phase, reach }) {
   });
   return (
     <>
-      <Person w={w} h={h} phase={phase} reach={reach} hat />
+      <Person w={w} h={h} phase={phase} reach={reach} hat shirt={LIME} />
       <AnimatedPath
         animatedProps={props}
         stroke={INK}
@@ -441,7 +454,7 @@ const tuft = (w, h) => (
       <Path
         key={i}
         d={`M${w * fx} ${h} C ${w * (fx - 0.12)} ${h * 0.6}, ${w * (fx - 0.04)} ${h * 0.3}, ${w * (fx + 0.06)} 0`}
-        stroke="#5B8137"
+        stroke="#5B8923"
         strokeWidth={w * 0.07}
         strokeLinecap="round"
         fill="none"
