@@ -22,7 +22,12 @@ import Svg, {
 } from 'react-native-svg';
 import { ArrowRight, Leaf } from 'lucide-react-native';
 import { Button, Glass, GlassPill, Small, Text } from '../../src/ui';
-import { VillageRidge, useReducedMotion } from '../../src/components/VillageRidge';
+import {
+  GROUND_AMP,
+  VillageRidge,
+  groundPathD,
+  useReducedMotion,
+} from '../../src/components/VillageRidge';
 import { useGetCommunitiesQuery } from '../../src/api/api';
 import { colors, fonts, radius } from '../../src/theme';
 
@@ -141,15 +146,14 @@ function HillFlow({ reduced }) {
     // Slowed from 16s to a minute per screen width. The ridge still flows, but now the villagers
     // walking on it are the fastest thing in the scene — at the old speed the ground slid past
     // 2.5x quicker than they walked, so they read as being dragged backwards rather than walking.
-    // Flows RIGHT, with the villagers. A ridge sliding the other way makes them look like they
-    // are walking against the ground, which is exactly how the first version read.
-    x.value = -W;
-    x.value = withRepeat(withTiming(0, { duration: 60000, easing: Easing.linear }), -1, false);
+    // Deliberately still. The villagers' feet are pinned to this exact curve, so if the ground
+    // drifted they would slide along a surface that no longer matched. The motion in the scene is
+    // the people walking over it, which is the point.
+    x.value = 0;
   }, [x, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  const amp = H * 0.028;
-  const d = `M0 ${hillTop} C ${W * 0.22} ${hillTop - amp}, ${W * 0.28} ${hillTop + amp}, ${W * 0.5} ${hillTop} C ${W * 0.72} ${hillTop - amp}, ${W * 0.78} ${hillTop + amp}, ${W} ${hillTop} L ${W} ${H} L 0 ${H} Z`;
-  const tileH = H - hillTop + 4;
+  const tileH = H - hillTop + GROUND_AMP + 4;
+  const d = groundPathD(tileH);
   const tile = (key) => (
     <Svg key={key} width={W} height={tileH}>
       <Defs>
@@ -160,11 +164,11 @@ function HillFlow({ reduced }) {
           <Stop offset="100%" stopColor="#032A1B" />
         </SvgGradient>
       </Defs>
-      <Path d={d} fill="url(#ridgeLight)" transform={`translate(0, -${hillTop})`} />
+      <Path d={d} fill="url(#ridgeLight)" />
     </Svg>
   );
   return (
-    <View style={[styles.hillWrap, { top: hillTop }]} pointerEvents="none">
+    <View style={[styles.hillWrap, { top: hillTop - GROUND_AMP }]} pointerEvents="none">
       <Animated.View style={[{ flexDirection: 'row', width: W * 2 }, style]}>
         {tile('a')}
         {tile('b')}

@@ -43,6 +43,36 @@ const LEAF = '#153825'; // trees sit a shade lighter than the figures, as in the
 /** Feet sit a touch below the ridge crest so a walker is always planted on filled ground. */
 const FOOT = 2;
 
+/**
+ * The walking surface. A sine rather than a Bézier so its height is directly computable at any x —
+ * that is what lets the ground and the villagers agree. The previous ridge swung ±24pt while the
+ * figures stood at a fixed y, so they sank into the crests and floated over the troughs.
+ *
+ * Two whole cycles across the width, so f(0) === f(W) and the tiled ground has no seam. It also
+ * means a shift of one screen width is a whole number of periods, so both copies of a lane can use
+ * the same x without caring which copy they are.
+ */
+export const GROUND_AMP = 9;
+const GROUND_CYCLES = 2;
+
+/** Surface height at absolute screen x. Worklet — the figures call it every frame. */
+export function surfaceY(x, ridgeY) {
+  'worklet';
+  return ridgeY + GROUND_AMP * Math.sin((x / W) * Math.PI * 2 * GROUND_CYCLES);
+}
+
+/** The same curve as an SVG path, in local coords where y=0 is ridgeY - GROUND_AMP. */
+export function groundPathD(height) {
+  const N = 64;
+  let d = '';
+  for (let i = 0; i <= N; i++) {
+    const x = (W * i) / N;
+    const y = GROUND_AMP + GROUND_AMP * Math.sin((x / W) * Math.PI * 2 * GROUND_CYCLES);
+    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(2)} `;
+  }
+  return `${d}L${W} ${height} L0 ${height} Z`;
+}
+
 /** Lane travel in pixels per second — the gait periods below are derived from these, not guessed. */
 // Kept close together on purpose. A wide spread made figures in different lanes visibly
 // overtake one another, which reads as some of them drifting backwards rather than one
@@ -117,8 +147,8 @@ function Lane({ duration, reduced, render, opacity = 1 }) {
       pointerEvents="none"
       style={[{ position: 'absolute', left: -W, top: 0, width: W * 2, height: H, opacity }, style]}
     >
-      <View style={[styles.copy, { left: 0 }]}>{render('a')}</View>
-      <View style={[styles.copy, { left: W }]}>{render('b')}</View>
+      <View style={[styles.copy, { left: 0 }]}>{render('a', x)}</View>
+      <View style={[styles.copy, { left: W }]}>{render('b', x)}</View>
     </Animated.View>
   );
 }
@@ -129,21 +159,28 @@ function Lane({ duration, reduced, render, opacity = 1 }) {
  * constant forward flow. (An earlier version let animals drift backwards to "graze"; on screen
  * that just read as some of them walking backwards.)
  */
-function Placed({ left, baseY, w, h, opacity = 0.9, children }) {
+function Placed({ left, baseY, w, h, opacity = 0.9, laneX, children }) {
+  // Feet track the ground beneath them, so a villager rises over a crest and dips into a hollow
+  // instead of skimming a flat line across a curved hill.
+  const style = useAnimatedStyle(() => {
+    const x = left + (laneX ? laneX.value : 0);
+    return { transform: [{ translateY: surfaceY(x, baseY) - baseY }] };
+  });
   return (
-    <View
+    <Animated.View
       pointerEvents="none"
-      style={{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }}
+      style={[{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }, style]}
     >
       <Svg width={w} height={h}>
         {children}
       </Svg>
-    </View>
+    </Animated.View>
   );
 }
 
 /** Trees and grass do not travel — they lean, each on its own clock, as a light breeze passes. */
 function Sway({ left, baseY, w, h, period, delay, reduced, amount = 1.2, opacity = 1, children }) {
+  const groundY = surfaceY(left + w / 2, baseY);
   const t = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
@@ -158,7 +195,10 @@ function Sway({ left, baseY, w, h, period, delay, reduced, amount = 1.2, opacity
   return (
     <Animated.View
       pointerEvents="none"
-      style={[{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }, style]}
+      style={[
+        { position: 'absolute', left, top: groundY - h, width: w, height: h, opacity },
+        style,
+      ]}
     >
       <Svg width={w} height={h}>
         {children}
@@ -568,13 +608,25 @@ function Bird({ reduced }) {
  * cadence either side of the lane's true speed — enough that some walk briskly and others amble,
  * not enough for anyone to look like they are skating.
  */
-function Villager({ kind, left, baseY, w, h, speed, pace = 1, delay = 0, reduced, opacity }) {
+function Villager({
+  kind,
+  left,
+  baseY,
+  w,
+  h,
+  speed,
+  pace = 1,
+  delay = 0,
+  reduced,
+  opacity,
+  laneX,
+}) {
   const reach = w * 0.3;
   const phase = useGait(gaitPeriod(speed, reach) / pace, delay, reduced);
   // The cow and the dog have their own silhouettes — one generic quadruped with swappable horns
   // made both of them read as the same blob.
   return (
-    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity}>
+    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity} laneX={laneX}>
       {kind === 'farmer' ? <Farmer w={w} h={h} phase={phase} reach={reach} /> : null}
       {kind === 'carrier' ? <Person w={w} h={h} phase={phase} reach={reach} load /> : null}
       {kind === 'sari' ? <Person w={w} h={h} phase={phase} reach={reach} skirt /> : null}
@@ -594,7 +646,7 @@ export function VillageRidge({ ridgeY }) {
   // Sized and spaced from the reference: ~7 figures across the width at roughly 3% of screen
   // height. The old far lane added three more dim bodies on a third timeline, which just read as
   // clutter overtaking the real procession.
-  const main = (k) => (
+  const main = (k, laneX) => (
     <React.Fragment key={k}>
       <Villager
         kind="farmer"
@@ -605,6 +657,7 @@ export function VillageRidge({ ridgeY }) {
         speed={LANE.main}
         pace={1.04}
         reduced={reduced}
+        laneX={laneX}
       />
       <Villager
         kind="cow"
@@ -616,6 +669,7 @@ export function VillageRidge({ ridgeY }) {
         pace={0.82}
         delay={220}
         reduced={reduced}
+        laneX={laneX}
         opacity={0.92}
       />
       <Villager
@@ -628,6 +682,7 @@ export function VillageRidge({ ridgeY }) {
         pace={0.94}
         delay={120}
         reduced={reduced}
+        laneX={laneX}
       />
       <Villager
         kind="sari"
@@ -639,6 +694,7 @@ export function VillageRidge({ ridgeY }) {
         pace={1.08}
         delay={420}
         reduced={reduced}
+        laneX={laneX}
       />
       <Villager
         kind="dog"
@@ -650,6 +706,7 @@ export function VillageRidge({ ridgeY }) {
         pace={1.45}
         delay={80}
         reduced={reduced}
+        laneX={laneX}
         opacity={0.88}
       />
       <Villager
@@ -662,11 +719,12 @@ export function VillageRidge({ ridgeY }) {
         pace={0.97}
         delay={300}
         reduced={reduced}
+        laneX={laneX}
       />
     </React.Fragment>
   );
 
-  const near = (k) => (
+  const near = (k, laneX) => (
     <React.Fragment key={k}>
       <Villager
         kind="carrier"
@@ -678,6 +736,7 @@ export function VillageRidge({ ridgeY }) {
         pace={0.95}
         delay={200}
         reduced={reduced}
+        laneX={laneX}
       />
     </React.Fragment>
   );
@@ -738,12 +797,28 @@ export function VillageRidge({ ridgeY }) {
       </Sway>
       {/* The village itself — a lit house and a smaller outbuilding, sized to the reference. One
           tiny dark hut was getting lost against the ridge. */}
-      <View style={{ position: 'absolute', left: W * 0.76, top: base - 24, width: 30, height: 24 }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: W * 0.76,
+          top: surfaceY(W * 0.76 + 15, base) - 24,
+          width: 30,
+          height: 24,
+        }}
+      >
         <Svg width={30} height={24}>
           {hut(30, 24)}
         </Svg>
       </View>
-      <View style={{ position: 'absolute', left: W * 0.68, top: base - 17, width: 21, height: 17 }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: W * 0.68,
+          top: surfaceY(W * 0.68 + 10, base) - 17,
+          width: 21,
+          height: 17,
+        }}
+      >
         <Svg width={21} height={17}>
           {hut(21, 17)}
         </Svg>
