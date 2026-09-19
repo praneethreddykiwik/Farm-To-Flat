@@ -141,7 +141,10 @@ function HillFlow({ reduced }) {
     // Slowed from 16s to a minute per screen width. The ridge still flows, but now the villagers
     // walking on it are the fastest thing in the scene — at the old speed the ground slid past
     // 2.5x quicker than they walked, so they read as being dragged backwards rather than walking.
-    x.value = withRepeat(withTiming(-W, { duration: 60000, easing: Easing.linear }), -1, false);
+    // Flows RIGHT, with the villagers. A ridge sliding the other way makes them look like they
+    // are walking against the ground, which is exactly how the first version read.
+    x.value = -W;
+    x.value = withRepeat(withTiming(0, { duration: 60000, easing: Easing.linear }), -1, false);
   }, [x, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const amp = H * 0.028;

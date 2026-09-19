@@ -101,21 +101,21 @@ function useGait(period, delay, reduced) {
  * copies side by side, and sliding it exactly one screen width puts the second copy precisely
  * where the first began. Nothing ever teleports, so the loop cannot be spotted.
  *
- * Travels LEFT, the same way the ridge behind it flows. They used to disagree — figures walking
- * right over ground sliding left is what made the procession look like it was fighting the scene.
+ * Travels RIGHT. The ridge behind it was flipped to match: when the two disagree, the figures are
+ * walking against their own ground, which is what made the procession look wrong at the start.
  */
 function Lane({ duration, reduced, render, opacity = 1 }) {
   const x = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
     x.value = 0;
-    x.value = withRepeat(withTiming(-W, { duration, easing: Easing.linear }), -1, false);
+    x.value = withRepeat(withTiming(W, { duration, easing: Easing.linear }), -1, false);
   }, [x, duration, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   return (
     <Animated.View
       pointerEvents="none"
-      style={[{ position: 'absolute', left: 0, top: 0, width: W * 2, height: H, opacity }, style]}
+      style={[{ position: 'absolute', left: -W, top: 0, width: W * 2, height: H, opacity }, style]}
     >
       <View style={[styles.copy, { left: 0 }]}>{render('a')}</View>
       <View style={[styles.copy, { left: W }]}>{render('b')}</View>
@@ -133,16 +133,7 @@ function Placed({ left, baseY, w, h, opacity = 0.9, children }) {
   return (
     <View
       pointerEvents="none"
-      // drawn facing right, mirrored to face the direction of travel
-      style={{
-        position: 'absolute',
-        left,
-        top: baseY - h,
-        width: w,
-        height: h,
-        opacity,
-        transform: [{ scaleX: -1 }],
-      }}
+      style={{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }}
     >
       <Svg width={w} height={h}>
         {children}
@@ -600,78 +591,41 @@ export function VillageRidge({ ridgeY }) {
   const reduced = useReducedMotion();
   const base = ridgeY + FOOT;
 
-  const far = (k) => (
-    <React.Fragment key={k}>
-      <Villager
-        kind="person"
-        left={W * 0.12}
-        baseY={base - 4}
-        w={9}
-        h={13}
-        speed={LANE.far}
-        pace={0.9}
-        reduced={reduced}
-        opacity={0.5}
-      />
-      <Villager
-        kind="person"
-        left={W * 0.21}
-        baseY={base - 4}
-        w={8}
-        h={12}
-        speed={LANE.far}
-        pace={1.1}
-        delay={300}
-        reduced={reduced}
-        opacity={0.45}
-      />
-      <Villager
-        kind="cow"
-        left={W * 0.66}
-        baseY={base - 4}
-        w={18}
-        h={12}
-        speed={LANE.far}
-        pace={0.85}
-        delay={600}
-        reduced={reduced}
-        opacity={0.45}
-      />
-    </React.Fragment>
-  );
-
+  // Sized and spaced from the reference: ~7 figures across the width at roughly 3% of screen
+  // height. The old far lane added three more dim bodies on a third timeline, which just read as
+  // clutter overtaking the real procession.
   const main = (k) => (
     <React.Fragment key={k}>
       <Villager
         kind="farmer"
-        left={W * 0.04}
+        left={W * 0.05}
         baseY={base}
-        w={16}
-        h={23}
+        w={19}
+        h={27}
         speed={LANE.main}
-        pace={1.05}
+        pace={1.04}
         reduced={reduced}
       />
       <Villager
         kind="cow"
-        left={W * 0.17}
+        left={W * 0.18}
         baseY={base}
-        w={31}
-        h={20}
+        w={33}
+        h={21}
         speed={LANE.main}
-        pace={0.8}
+        pace={0.82}
         delay={220}
         reduced={reduced}
-        opacity={0.88}
+        opacity={0.92}
       />
       <Villager
         kind="carrier"
         left={W * 0.35}
         baseY={base}
-        w={16}
-        h={23}
+        w={19}
+        h={27}
         speed={LANE.main}
-        pace={0.92}
+        pace={0.94}
         delay={120}
         reduced={reduced}
       />
@@ -679,58 +633,35 @@ export function VillageRidge({ ridgeY }) {
         kind="sari"
         left={W * 0.47}
         baseY={base}
-        w={14}
-        h={19}
+        w={18}
+        h={26}
         speed={LANE.main}
         pace={1.08}
         delay={420}
         reduced={reduced}
       />
       <Villager
-        kind="sari"
-        left={W * 0.56}
-        baseY={base}
-        w={15}
-        h={21}
-        speed={LANE.main}
-        pace={1.14}
-        delay={540}
-        reduced={reduced}
-      />
-      <Villager
         kind="dog"
-        left={W * 0.67}
+        left={W * 0.59}
         baseY={base}
-        w={15}
-        h={9}
+        w={18}
+        h={11}
         speed={LANE.main}
-        pace={1.5}
+        pace={1.45}
         delay={80}
         reduced={reduced}
-        opacity={0.85}
+        opacity={0.88}
       />
       <Villager
-        kind="farmer"
-        left={W * 0.78}
+        kind="person"
+        left={W * 0.72}
         baseY={base}
-        w={16}
-        h={23}
+        w={19}
+        h={27}
         speed={LANE.main}
-        pace={0.96}
+        pace={0.97}
         delay={300}
         reduced={reduced}
-      />
-      <Villager
-        kind="child"
-        left={W * 0.88}
-        baseY={base}
-        w={11}
-        h={16}
-        speed={LANE.main}
-        pace={1.35}
-        delay={660}
-        reduced={reduced}
-        opacity={0.9}
       />
     </React.Fragment>
   );
@@ -739,26 +670,14 @@ export function VillageRidge({ ridgeY }) {
     <React.Fragment key={k}>
       <Villager
         kind="carrier"
-        left={W * 0.3}
+        left={W * 0.88}
         baseY={base + 3}
-        w={17}
-        h={26}
+        w={21}
+        h={30}
         speed={LANE.near}
         pace={0.95}
         delay={200}
         reduced={reduced}
-      />
-      <Villager
-        kind="dog"
-        left={W * 0.44}
-        baseY={base + 3}
-        w={17}
-        h={10}
-        speed={LANE.near}
-        pace={1.45}
-        delay={520}
-        reduced={reduced}
-        opacity={0.85}
       />
     </React.Fragment>
   );
@@ -817,9 +736,16 @@ export function VillageRidge({ ridgeY }) {
       >
         {palm(19, 32)}
       </Sway>
-      <View style={{ position: 'absolute', left: W * 0.71, top: base - 19, width: 23, height: 19 }}>
-        <Svg width={23} height={19}>
-          {hut(23, 19)}
+      {/* The village itself — a lit house and a smaller outbuilding, sized to the reference. One
+          tiny dark hut was getting lost against the ridge. */}
+      <View style={{ position: 'absolute', left: W * 0.76, top: base - 24, width: 30, height: 24 }}>
+        <Svg width={30} height={24}>
+          {hut(30, 24)}
+        </Svg>
+      </View>
+      <View style={{ position: 'absolute', left: W * 0.68, top: base - 17, width: 21, height: 17 }}>
+        <Svg width={21} height={17}>
+          {hut(21, 17)}
         </Svg>
       </View>
 
@@ -862,7 +788,6 @@ export function VillageRidge({ ridgeY }) {
       </Sway>
 
       {/* The procession. */}
-      <Lane duration={46000} reduced={reduced} render={far} opacity={0.55} />
       <Lane duration={38000} reduced={reduced} render={main} />
       <Lane duration={33000} reduced={reduced} render={near} />
 
