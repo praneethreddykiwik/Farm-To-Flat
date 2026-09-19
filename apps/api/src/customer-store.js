@@ -137,10 +137,16 @@ export function hydrateCustomerData({
 // production — otherwise the OTP leaked in the response on the live API.
 //
 // The fixed 123456 code exists for a hosted TEST deployment before DLT/MSG91 is live
-// (ALLOW_DEV_OTP=1). In production it is now confined:
-//   - DEV_OTP_ALLOWLIST (comma-separated mobiles) — if set, ONLY those numbers get the fixed code;
-//   - a STAFF number never gets the fixed code in production unless it is explicitly allowlisted.
-// Before this, ALLOW_DEV_OTP=1 let anyone log in as any staff number with 123456 (full takeover).
+// (ALLOW_DEV_OTP=1). While that flag is on, EVERY number accepts it — staff included, because
+// otherwise the staff roles cannot be signed into at all: they would be issued a random code and
+// there is no SMS provider to deliver it, so the procurement, fulfilment and super-admin screens
+// were untestable. That is a deliberate closed-test trade, and it means anyone who guesses a staff
+// number can sign in as that role.
+//
+// DEV_OTP_ALLOWLIST (comma-separated mobiles) narrows it back down: set it and ONLY those numbers
+// accept the fixed code — everyone else, staff or not, needs a real one. Use it as soon as the
+// tester group is known.
+//
 // REMOVE ALLOW_DEV_OTP entirely for the real public launch.
 const ALLOW_DEV = process.env.ALLOW_DEV_OTP === '1';
 const DEV_OTP_ALLOWLIST = new Set(
@@ -156,13 +162,17 @@ const DEV_OTP_ALLOWLIST = new Set(
 export function devOtpAllowedFor(mobile, ctx) {
   if (!ctx.isProd) return true;
   if (!ctx.allowDev) return false;
-  if (ctx.allowlist.size > 0) return ctx.allowlist.has(mobile);
-  return !ctx.isStaff; // no allowlist: everyone EXCEPT staff numbers (they must be allowlisted)
+  // Named explicitly — always allowed, which is how a staff number gets in once an allowlist exists.
+  if (ctx.allowlist.has(mobile)) return true;
+  // An allowlist is a confinement: anyone not on it needs a real code.
+  if (ctx.allowlist.size > 0) return false;
+  // No allowlist — the open closed-test posture: every number, staff included.
+  return true;
 }
 if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
   // eslint-disable-next-line no-console
   console.warn(
-    '[otp] ALLOW_DEV_OTP=1 in production with no DEV_OTP_ALLOWLIST: every NON-staff number accepts 123456. Set DEV_OTP_ALLOWLIST or remove ALLOW_DEV_OTP.',
+    '[otp] ALLOW_DEV_OTP=1 in production with no DEV_OTP_ALLOWLIST: EVERY number accepts 123456, including staff — anyone who guesses a staff number signs in as that role. Set DEV_OTP_ALLOWLIST to confine it, and remove ALLOW_DEV_OTP before launch.',
   );
 
 /**

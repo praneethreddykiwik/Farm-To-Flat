@@ -64,15 +64,23 @@ describe('dev OTP confinement', () => {
   it('in production without ALLOW_DEV_OTP nobody gets it', () => {
     expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, allowDev: false })).toBe(false);
   });
-  it('in production a STAFF number never gets it unless allowlisted', () => {
-    expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: true })).toBe(false);
+  it('with no allowlist the closed test accepts it for every number, staff included', () => {
+    // Staff roles have no other way in: there is no SMS provider to deliver a random code, so
+    // excluding them made the procurement, fulfilment and super-admin screens untestable.
+    expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: true })).toBe(true);
     expect(devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: false })).toBe(true);
+  });
+  it('an allowlist confines it to those numbers — staff on the list, everyone else off', () => {
     const allow = new Set(['9000000000']);
     expect(
       devOtpAllowedFor('9000000000', { ...base, isProd: true, isStaff: true, allowlist: allow }),
     ).toBe(true);
+    // Confinement applies to ordinary customers too, not just staff.
     expect(
       devOtpAllowedFor('9111111111', { ...base, isProd: true, isStaff: false, allowlist: allow }),
+    ).toBe(false);
+    expect(
+      devOtpAllowedFor('9222222222', { ...base, isProd: true, isStaff: true, allowlist: allow }),
     ).toBe(false);
   });
 });
