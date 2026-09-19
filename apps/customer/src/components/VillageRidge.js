@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AccessibilityInfo, Dimensions, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -17,15 +18,20 @@ const { width: W, height: H } = Dimensions.get('window');
  * The village living on the ridge: a procession of tiny walkers and animals crossing the hill,
  * trees breathing in the breeze, a lit hut, and a few fireflies.
  *
- * Everything here is deliberately under ~2% of screen height and low contrast. It must read as
- * "the farm is quietly awake" out of the corner of the eye and never compete with the headline or
- * the call to action, so nothing scales, flashes or moves quickly — the fastest thing on screen
- * crosses the whole width in half a minute.
+ * Everything is under ~2% of screen height and low contrast. It must read as "the farm is quietly
+ * awake" out of the corner of the eye and never compete with the headline or the call to action.
  *
- * Built on transforms only (translate/rotate on Reanimated's UI thread), so no layout or repaint
- * work happens per frame. Honours the OS "reduce motion" setting by rendering the same scene
- * completely still.
+ * The walk is real, not implied. An earlier version slid the figures sideways and bobbed them up
+ * and down, which reads as dragging: nothing articulates and the feet leave the ground. Now each
+ * figure's legs scissor about the hip with the foot pinned to the ground line, and the cadence is
+ * derived from how fast its lane actually travels, so a stride covers the distance crossed and
+ * nobody moonwalks.
+ *
+ * Built on transforms and animated path data on Reanimated's UI thread — no layout or repaint work
+ * per frame. Honours the OS "reduce motion" setting by rendering the same scene completely still.
  */
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const INK = '#0D1F16'; // silhouette fill — reads as shadow against the lit hill
 const SARI = '#9C5B38'; // one warm accent in the line, as in a real morning procession
@@ -34,6 +40,17 @@ const LAMP = '#F2C14E'; // the hut's window
 
 /** Feet sit a touch below the ridge crest so a walker is always planted on filled ground. */
 const FOOT = 2;
+
+/** Lane travel in pixels per second — the gait periods below are derived from these, not guessed. */
+const LANE = { far: W / 58, main: W / 38, near: W / 29 };
+
+/**
+ * Period of one full two-step cycle for a figure travelling at `speed` with the given stride reach.
+ * Over a cycle the body advances four reaches (each leg swings from behind the hip to in front of
+ * it), so period = 4 * reach / speed. Getting this wrong is exactly what makes a tiny figure look
+ * like it is being dragged along the ground instead of walking.
+ */
+const gaitPeriod = (speed, reach) => (4 * reach * 1000) / speed;
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -51,6 +68,27 @@ export function useReducedMotion() {
     };
   }, []);
   return reduced;
+}
+
+/**
+ * A sawtooth 0→1 driving one gait. sin(2πp) is continuous across the wrap, so the legs never snap
+ * when the cycle restarts. Under reduced motion the figure holds a natural mid-stride pose rather
+ * than standing to attention.
+ */
+function useGait(period, delay, reduced) {
+  const p = useSharedValue(0.12);
+  useEffect(() => {
+    if (reduced) {
+      p.value = 0.12;
+      return;
+    }
+    p.value = 0;
+    p.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration: period, easing: Easing.linear }), -1, false),
+    );
+  }, [p, period, delay, reduced]);
+  return p;
 }
 
 /**
@@ -78,15 +116,13 @@ function Lane({ duration, reduced, render, opacity = 1 }) {
 }
 
 /**
- * A single walker. The gait is a gentle rise-and-fall plus a whisper of sway — at this size real
- * leg articulation would be invisible noise, but the bob is what the eye reads as "walking".
- * Each one gets its own period and delay so the line never marches in lockstep.
+ * Places a figure on the ground line. No bob and no sway — the body stays exactly on the floor and
+ * every bit of the movement lives in the legs, which is the difference between walking and
+ * hovering. `graze` lets an animal fall back against its lane for a few seconds then amble to catch
+ * up; the lane must hold its exact constant speed or the seamless loop breaks, so the pause lives
+ * here as a local offset.
  */
-function Walker({ left, baseY, w, h, period, delay, reduced, opacity = 0.9, graze, children }) {
-  const t = useSharedValue(0);
-  // A grazing animal drops back against the lane for a few seconds, then ambles to catch up. The
-  // lane itself must keep its exact constant speed or the seamless loop breaks, so the pause lives
-  // here as a local offset instead.
+function Placed({ left, baseY, w, h, opacity = 0.9, graze, reduced, children }) {
   const g = useSharedValue(0);
   useEffect(() => {
     if (reduced || !graze) return;
@@ -103,20 +139,7 @@ function Walker({ left, baseY, w, h, period, delay, reduced, opacity = 0.9, graz
       ),
     );
   }, [g, graze, reduced]);
-  useEffect(() => {
-    if (reduced) return;
-    t.value = withDelay(
-      delay,
-      withRepeat(withTiming(1, { duration: period, easing: Easing.inOut(Easing.sin) }), -1, true),
-    );
-  }, [t, period, delay, reduced]);
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: g.value },
-      { translateY: -t.value * (h * 0.09) },
-      { rotateZ: `${(t.value - 0.5) * 2.2}deg` },
-    ],
-  }));
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: g.value }] }));
   return (
     <Animated.View
       pointerEvents="none"
@@ -145,11 +168,7 @@ function Sway({ left, baseY, w, h, period, delay, reduced, amount = 1.2, opacity
   return (
     <Animated.View
       pointerEvents="none"
-      style={[
-        // rotate about the base, so a tree pivots at its roots rather than its middle
-        { position: 'absolute', left, top: baseY - h, width: w, height: h, opacity },
-        style,
-      ]}
+      style={[{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }, style]}
     >
       <Svg width={w} height={h}>
         {children}
@@ -158,163 +177,145 @@ function Sway({ left, baseY, w, h, period, delay, reduced, amount = 1.2, opacity
   );
 }
 
-// ── silhouettes ───────────────────────────────────────────────────────────────
-// All drawn facing right, feet on the bottom edge of their own box.
+// ── walkers ───────────────────────────────────────────────────────────────────
+// All face right. Feet rest on the bottom edge of their own box, and stay there.
 
-const person = (w, h, fill = INK) => (
-  <>
-    <Circle cx={w * 0.5} cy={h * 0.13} r={h * 0.105} fill={fill} />
-    <Path
-      d={`M${w * 0.5} ${h * 0.25} L${w * 0.5} ${h * 0.62}`}
-      stroke={fill}
-      strokeWidth={h * 0.2}
+/**
+ * Both legs and the counter-swinging arm in a single animated path — one path per figure keeps the
+ * per-frame work small. The feet hold y = h throughout, so a stride shortens and lengthens the leg
+ * rather than lifting it: invisible at this size, and it guarantees nobody ever floats.
+ */
+function Limbs({ w, h, phase, reach, lineWidth }) {
+  const props = useAnimatedProps(() => {
+    const s = Math.sin(phase.value * Math.PI * 2) * reach;
+    const hx = w * 0.5;
+    const hipY = h * 0.6;
+    const shoulderY = h * 0.34;
+    return {
+      d:
+        `M${hx} ${hipY} L${hx + s} ${h} ` +
+        `M${hx} ${hipY} L${hx - s} ${h} ` +
+        `M${hx} ${shoulderY} L${hx - s * 0.75} ${h * 0.55}`,
+    };
+  });
+  return (
+    <AnimatedPath
+      animatedProps={props}
+      stroke={INK}
+      strokeWidth={lineWidth}
       strokeLinecap="round"
+      fill="none"
     />
-    <Path
-      d={`M${w * 0.5} ${h * 0.6} L${w * 0.26} ${h * 0.99}`}
-      stroke={fill}
-      strokeWidth={h * 0.1}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.5} ${h * 0.6} L${w * 0.76} ${h * 0.99}`}
-      stroke={fill}
-      strokeWidth={h * 0.1}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.5} ${h * 0.34} L${w * 0.78} ${h * 0.52}`}
-      stroke={fill}
-      strokeWidth={h * 0.085}
-      strokeLinecap="round"
-    />
-  </>
-);
+  );
+}
 
-/** Farmer with a walking staff and a wide field hat. */
-const farmer = (w, h) => (
-  <>
-    {person(w, h)}
-    <Ellipse cx={w * 0.5} cy={h * 0.06} rx={w * 0.34} ry={h * 0.045} fill={INK} />
-    <Path
-      d={`M${w * 0.82} ${h * 0.3} L${w * 0.86} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.038}
-      strokeLinecap="round"
-      opacity={0.85}
-    />
-  </>
-);
+function Person({ w, h, phase, reach, hat, load, skirt }) {
+  return (
+    <>
+      <Circle cx={w * 0.5} cy={h * 0.13} r={h * 0.105} fill={INK} />
+      <Path
+        d={`M${w * 0.5} ${h * 0.25} L${w * 0.5} ${skirt ? h * 0.5 : h * 0.62}`}
+        stroke={INK}
+        strokeWidth={h * 0.2}
+        strokeLinecap="round"
+      />
+      {/* the sari stops above the ankles so the stride still reads underneath it */}
+      {skirt ? (
+        <Path
+          d={`M${w * 0.5} ${h * 0.46} L${w * 0.24} ${h * 0.82} L${w * 0.76} ${h * 0.82} Z`}
+          fill={SARI}
+          opacity={0.7}
+        />
+      ) : null}
+      <Limbs w={w} h={h} phase={phase} reach={reach} lineWidth={h * 0.1} />
+      {hat ? <Ellipse cx={w * 0.5} cy={h * 0.06} rx={w * 0.34} ry={h * 0.045} fill={INK} /> : null}
+      {load ? (
+        <Ellipse
+          cx={w * 0.5}
+          cy={h * 0.035}
+          rx={w * 0.3}
+          ry={h * 0.055}
+          fill={LOAD}
+          opacity={0.9}
+        />
+      ) : null}
+    </>
+  );
+}
 
-/** A woman carrying the morning's greens on her head. */
-const carrier = (w, h) => (
-  <>
-    {person(w, h)}
-    <Path d={`M${w * 0.5} ${h * 0.66} L${w * 0.22} ${h} L${w * 0.78} ${h} Z`} fill={INK} />
-    <Ellipse cx={w * 0.5} cy={h * 0.035} rx={w * 0.3} ry={h * 0.055} fill={LOAD} opacity={0.9} />
-  </>
-);
+/** The staff plants on the ground and swings with the opposite hand. */
+function Farmer({ w, h, phase, reach }) {
+  const props = useAnimatedProps(() => {
+    const s = Math.sin(phase.value * Math.PI * 2 + Math.PI) * reach * 0.5;
+    return { d: `M${w * 0.8} ${h * 0.3} L${w * 0.84 + s} ${h}` };
+  });
+  return (
+    <>
+      <Person w={w} h={h} phase={phase} reach={reach} hat />
+      <AnimatedPath
+        animatedProps={props}
+        stroke={INK}
+        strokeWidth={h * 0.045}
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.85}
+      />
+    </>
+  );
+}
 
-/** Two girls walking together — the second is drawn a half step behind. */
-const sariWoman = (w, h) => (
-  <>
-    <Circle cx={w * 0.5} cy={h * 0.13} r={h * 0.105} fill={INK} />
-    <Path
-      d={`M${w * 0.5} ${h * 0.25} L${w * 0.5} ${h * 0.55}`}
-      stroke={INK}
-      strokeWidth={h * 0.19}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.5} ${h * 0.5} L${w * 0.2} ${h} L${w * 0.8} ${h} Z`}
-      fill={SARI}
-      opacity={0.7}
-    />
-    <Path
-      d={`M${w * 0.5} ${h * 0.34} L${w * 0.76} ${h * 0.5}`}
-      stroke={INK}
-      strokeWidth={h * 0.07}
-      strokeLinecap="round"
-    />
-  </>
-);
+/**
+ * Four legs on a diagonal gait — front-left swings with back-right. Same rule as the people:
+ * hooves stay on the ground line.
+ */
+function Quadruped({ w, h, phase, reach, horns, ears }) {
+  const props = useAnimatedProps(() => {
+    const s = Math.sin(phase.value * Math.PI * 2) * reach;
+    const o = -s;
+    return {
+      d:
+        `M${w * 0.26} ${h * 0.62} L${w * 0.26 + s} ${h} ` +
+        `M${w * 0.4} ${h * 0.64} L${w * 0.4 + o} ${h} ` +
+        `M${w * 0.58} ${h * 0.64} L${w * 0.58 + s} ${h} ` +
+        `M${w * 0.7} ${h * 0.62} L${w * 0.7 + o} ${h}`,
+    };
+  });
+  return (
+    <>
+      <Ellipse cx={w * 0.46} cy={h * 0.42} rx={w * 0.3} ry={h * 0.22} fill={INK} />
+      <AnimatedPath
+        animatedProps={props}
+        stroke={INK}
+        strokeWidth={h * 0.085}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Path
+        d={`M${w * 0.72} ${h * 0.32} L${w * 0.88} ${h * 0.22}`}
+        stroke={INK}
+        strokeWidth={h * 0.17}
+        strokeLinecap="round"
+      />
+      {horns ? (
+        <Path
+          d={`M${w * 0.86} ${h * 0.18} L${w * 0.95} ${h * 0.07}`}
+          stroke={INK}
+          strokeWidth={h * 0.05}
+          strokeLinecap="round"
+        />
+      ) : null}
+      {ears ? <Circle cx={w * 0.84} cy={h * 0.16} r={h * 0.1} fill={INK} /> : null}
+      <Path
+        d={`M${w * 0.17} ${h * 0.3} L${w * 0.05} ${h * 0.56}`}
+        stroke={INK}
+        strokeWidth={h * 0.045}
+        strokeLinecap="round"
+      />
+    </>
+  );
+}
 
-const child = (w, h) => person(w, h);
-
-/** Cow: barrel body on four legs, low head, one horn catching the light. */
-const cow = (w, h) => (
-  <>
-    <Ellipse cx={w * 0.46} cy={h * 0.46} rx={w * 0.3} ry={h * 0.24} fill={INK} />
-    <Path
-      d={`M${w * 0.24} ${h * 0.64} L${w * 0.22} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.075}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.4} ${h * 0.66} L${w * 0.42} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.075}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.56} ${h * 0.66} L${w * 0.56} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.075}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.68} ${h * 0.64} L${w * 0.72} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.075}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.72} ${h * 0.34} L${w * 0.88} ${h * 0.24}`}
-      stroke={INK}
-      strokeWidth={h * 0.17}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.86} ${h * 0.2} L${w * 0.95} ${h * 0.1}`}
-      stroke={INK}
-      strokeWidth={h * 0.05}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.17} ${h * 0.34} L${w * 0.06} ${h * 0.62}`}
-      stroke={INK}
-      strokeWidth={h * 0.045}
-      strokeLinecap="round"
-    />
-  </>
-);
-
-/** Dog trotting behind the line. */
-const dog = (w, h) => (
-  <>
-    <Ellipse cx={w * 0.46} cy={h * 0.48} rx={w * 0.28} ry={h * 0.2} fill={INK} />
-    <Path
-      d={`M${w * 0.3} ${h * 0.62} L${w * 0.26} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.09}
-      strokeLinecap="round"
-    />
-    <Path
-      d={`M${w * 0.62} ${h * 0.62} L${w * 0.66} ${h}`}
-      stroke={INK}
-      strokeWidth={h * 0.09}
-      strokeLinecap="round"
-    />
-    <Circle cx={w * 0.78} cy={h * 0.34} r={h * 0.16} fill={INK} />
-    <Path
-      d={`M${w * 0.2} ${h * 0.38} L${w * 0.06} ${h * 0.18}`}
-      stroke={INK}
-      strokeWidth={h * 0.07}
-      strokeLinecap="round"
-    />
-  </>
-);
+// ── rooted scenery ────────────────────────────────────────────────────────────
 
 const tree = (w, h) => (
   <>
@@ -381,6 +382,8 @@ const tuft = (w, h) => (
     ))}
   </>
 );
+
+// ── atmosphere ────────────────────────────────────────────────────────────────
 
 /** A firefly: drifts up and sideways, fading in and out, never sparkling. */
 function Firefly({ left, top, drift, period, delay, reduced }) {
@@ -461,7 +464,6 @@ function Bird({ reduced }) {
     );
   }, [b, reduced]);
   const style = useAnimatedStyle(() => ({
-    // fade in and out at the edges so it never pops into or out of existence
     opacity: Math.sin(Math.PI * b.value) * 0.3,
     transform: [
       { translateX: -24 + b.value * (W + 48) },
@@ -487,177 +489,226 @@ function Bird({ reduced }) {
   );
 }
 
+// ── the scene ─────────────────────────────────────────────────────────────────
+
+/**
+ * One villager, owning its own gait clock so the line never marches in lockstep. `pace` nudges the
+ * cadence either side of the lane's true speed — enough that some walk briskly and others amble,
+ * not enough for anyone to look like they are skating.
+ */
+function Villager({
+  kind,
+  left,
+  baseY,
+  w,
+  h,
+  speed,
+  pace = 1,
+  delay = 0,
+  reduced,
+  opacity,
+  graze,
+}) {
+  const reach = w * 0.3;
+  const phase = useGait(gaitPeriod(speed, reach) / pace, delay, reduced);
+  const quad = kind === 'cow' || kind === 'dog';
+  return (
+    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity} graze={graze} reduced={reduced}>
+      {kind === 'farmer' ? <Farmer w={w} h={h} phase={phase} reach={reach} /> : null}
+      {kind === 'carrier' ? <Person w={w} h={h} phase={phase} reach={reach} load /> : null}
+      {kind === 'sari' ? <Person w={w} h={h} phase={phase} reach={reach} skirt /> : null}
+      {kind === 'person' || kind === 'child' ? (
+        <Person w={w} h={h} phase={phase} reach={reach} />
+      ) : null}
+      {quad ? (
+        <Quadruped
+          w={w}
+          h={h}
+          phase={phase}
+          reach={reach * 0.55}
+          horns={kind === 'cow'}
+          ears={kind === 'dog'}
+        />
+      ) : null}
+    </Placed>
+  );
+}
+
 export function VillageRidge({ ridgeY }) {
   const reduced = useReducedMotion();
   const base = ridgeY + FOOT;
 
-  // Three lanes at different speeds. The far lane is smaller, dimmer and slower, which reads as
-  // distance without needing a separate hill; the near lane leads the eye along the crest.
   const far = (k) => (
     <React.Fragment key={k}>
-      <Walker
+      <Villager
+        kind="person"
         left={W * 0.12}
         baseY={base - 4}
         w={9}
         h={13}
-        period={1500}
-        delay={0}
+        speed={LANE.far}
+        pace={0.9}
         reduced={reduced}
         opacity={0.5}
-      >
-        {person(9, 13)}
-      </Walker>
-      <Walker
-        left={W * 0.2}
+      />
+      <Villager
+        kind="person"
+        left={W * 0.21}
         baseY={base - 4}
         w={8}
         h={12}
-        period={1700}
+        speed={LANE.far}
+        pace={1.1}
         delay={300}
         reduced={reduced}
         opacity={0.45}
-      >
-        {person(8, 12)}
-      </Walker>
-      <Walker
+      />
+      <Villager
+        kind="cow"
         left={W * 0.66}
         baseY={base - 4}
         w={15}
         h={10}
-        period={2100}
+        speed={LANE.far}
+        pace={0.85}
         delay={600}
         reduced={reduced}
-        graze={7000}
         opacity={0.45}
-      >
-        {cow(15, 10)}
-      </Walker>
+        graze={7000}
+      />
     </React.Fragment>
   );
 
   const main = (k) => (
     <React.Fragment key={k}>
-      <Walker left={W * 0.04} baseY={base} w={14} h={20} period={1180} delay={0} reduced={reduced}>
-        {farmer(14, 20)}
-      </Walker>
-      <Walker
+      <Villager
+        kind="farmer"
+        left={W * 0.04}
+        baseY={base}
+        w={14}
+        h={20}
+        speed={LANE.main}
+        pace={1.05}
+        reduced={reduced}
+      />
+      <Villager
+        kind="cow"
         left={W * 0.17}
         baseY={base}
         w={27}
         h={17}
-        period={1900}
+        speed={LANE.main}
+        pace={0.8}
         delay={220}
         reduced={reduced}
-        graze={400}
         opacity={0.88}
-      >
-        {cow(27, 17)}
-      </Walker>
-      <Walker
+        graze={400}
+      />
+      <Villager
+        kind="carrier"
         left={W * 0.35}
         baseY={base}
         w={14}
         h={20}
-        period={1260}
+        speed={LANE.main}
+        pace={0.92}
         delay={120}
         reduced={reduced}
-      >
-        {carrier(14, 20)}
-      </Walker>
-      <Walker
+      />
+      <Villager
+        kind="sari"
         left={W * 0.47}
         baseY={base}
         w={14}
         h={19}
-        period={1320}
+        speed={LANE.main}
+        pace={1.08}
         delay={420}
         reduced={reduced}
-      >
-        {sariWoman(14, 19)}
-      </Walker>
-      <Walker
+      />
+      <Villager
+        kind="sari"
         left={W * 0.56}
         baseY={base}
         w={13}
         h={18}
-        period={1240}
+        speed={LANE.main}
+        pace={1.14}
         delay={540}
         reduced={reduced}
-      >
-        {sariWoman(13, 18)}
-      </Walker>
-      <Walker
+      />
+      <Villager
+        kind="dog"
         left={W * 0.67}
         baseY={base}
         w={15}
         h={9}
-        period={900}
+        speed={LANE.main}
+        pace={1.5}
         delay={80}
         reduced={reduced}
-        graze={2600}
         opacity={0.85}
-      >
-        {dog(15, 9)}
-      </Walker>
-      <Walker
+        graze={2600}
+      />
+      <Villager
+        kind="farmer"
         left={W * 0.78}
         baseY={base}
         w={14}
         h={20}
-        period={1210}
+        speed={LANE.main}
+        pace={0.96}
         delay={300}
         reduced={reduced}
-      >
-        {farmer(14, 20)}
-      </Walker>
-      <Walker
+      />
+      <Villager
+        kind="child"
         left={W * 0.88}
         baseY={base}
         w={10}
         h={14}
-        period={1020}
+        speed={LANE.main}
+        pace={1.35}
         delay={660}
         reduced={reduced}
         opacity={0.9}
-      >
-        {child(10, 14)}
-      </Walker>
+      />
     </React.Fragment>
   );
 
   const near = (k) => (
     <React.Fragment key={k}>
-      <Walker
+      <Villager
+        kind="carrier"
         left={W * 0.3}
         baseY={base + 3}
         w={15}
         h={23}
-        period={1140}
+        speed={LANE.near}
+        pace={0.95}
         delay={200}
         reduced={reduced}
-      >
-        {carrier(15, 23)}
-      </Walker>
-      <Walker
+      />
+      <Villager
+        kind="dog"
         left={W * 0.44}
         baseY={base + 3}
         w={17}
         h={10}
-        period={980}
+        speed={LANE.near}
+        pace={1.45}
         delay={520}
         reduced={reduced}
-        graze={5200}
         opacity={0.85}
-      >
-        {dog(17, 10)}
-      </Walker>
+        graze={5200}
+      />
     </React.Fragment>
   );
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Fog base={base} reduced={reduced} />
-      <Bird reduced={reduced} />
+      {/* Backlight: without a lit horizon the dark silhouettes sit exactly on the dark/green
+          boundary and disappear. This is the dawn band they are read against. */}
       <View style={{ position: 'absolute', left: 0, top: base - 104, width: W, height: 108 }}>
         <Svg width={W} height={108}>
           <Defs>
@@ -670,6 +721,9 @@ export function VillageRidge({ ridgeY }) {
           <Rect x={0} y={0} width={W} height={108} fill="url(#dawn)" />
         </Svg>
       </View>
+      <Fog base={base} reduced={reduced} />
+      <Bird reduced={reduced} />
+
       {/* Standing scenery: rooted, so it sways rather than travels. */}
       <Sway
         left={W * 0.02}
