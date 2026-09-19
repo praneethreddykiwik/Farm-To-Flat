@@ -12,7 +12,14 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient as SvgGradient,
+  Path,
+  RadialGradient,
+  Stop,
+} from 'react-native-svg';
 import { ArrowRight, Leaf } from 'lucide-react-native';
 import { Button, Glass, GlassPill, Small, Text } from '../../src/ui';
 import { VillageRidge, useReducedMotion } from '../../src/components/VillageRidge';
@@ -42,9 +49,12 @@ function Field() {
   const hillA = useAnimatedStyle(() => ({ transform: [{ translateX: -t.value * 14 }] }));
   return (
     <View style={StyleSheet.absoluteFill}>
+      {/* Sampled from the reference: the sky is darkest overhead and warms to #658C3B right at
+          the crest, which is what gives the scene its dawn. The old ramp did the opposite — it
+          brightened toward the BOTTOM of the screen, washing the whole foreground mid-green. */}
       <LinearGradient
-        colors={['#0B1510', '#12352A', '#1E7A4C']}
-        locations={[0, 0.55, 1]}
+        colors={['#0B1510', '#17331F', '#2C5832', '#4F7736', '#658C3B']}
+        locations={[0, 0.35, 0.55, 0.66, 0.72]}
         style={StyleSheet.absoluteFill}
       />
       <MoonGlow reduced={reduced} />
@@ -55,15 +65,11 @@ function Field() {
         <Svg width={W + 80} height={H} viewBox={`0 0 ${W + 80} ${H}`}>
           <Path
             d={`M-40 ${H * 0.62} C ${W * 0.2} ${H * 0.52}, ${W * 0.5} ${H * 0.7}, ${W + 80} ${H * 0.56} L ${W + 80} ${H} L -40 ${H} Z`}
-            fill="#163D2C"
+            fill="#2F5A31"
           />
         </Svg>
       </Animated.View>
       <HillFlow reduced={reduced} />
-      <LinearGradient
-        colors={['rgba(11,21,16,0)', 'rgba(11,21,16,0.85)']}
-        style={[StyleSheet.absoluteFill, { top: H * 0.5 }]}
-      />
       <VillageRidge ridgeY={RIDGE_Y} />
     </View>
   );
@@ -126,10 +132,15 @@ function HillFlow({ reduced }) {
   const tileH = H - hillTop + 4;
   const tile = (key) => (
     <Svg key={key} width={W} height={tileH}>
-      <Path d={d} fill="#1E7A4C" transform={`translate(0, -${hillTop})`} />
-      <Circle cx={W * 0.78} cy={amp * 1.6} r={5} fill={colors.sprout} opacity={0.8} />
-      <Circle cx={W * 0.2} cy={amp * 2.6} r={3} fill={colors.sprout} opacity={0.6} />
-      <Circle cx={W * 0.5} cy={amp * 3.2} r={4} fill={colors.sprout} opacity={0.7} />
+      <Defs>
+        <SvgGradient id="ridgeLight" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0%" stopColor="#3A6636" />
+          <Stop offset="18%" stopColor="#1A3F29" />
+          <Stop offset="45%" stopColor="#0F2315" />
+          <Stop offset="100%" stopColor="#0E2316" />
+        </SvgGradient>
+      </Defs>
+      <Path d={d} fill="url(#ridgeLight)" transform={`translate(0, -${hillTop})`} />
     </Svg>
   );
   return (

@@ -33,16 +33,20 @@ const { width: W, height: H } = Dimensions.get('window');
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-const INK = '#0D1F16'; // silhouette fill — reads as shadow against the lit hill
-const SARI = '#9C5B38'; // one warm accent in the line, as in a real morning procession
-const LOAD = '#C8A02E'; // the bundle of greens carried on the head
-const LAMP = '#F2C14E'; // the hut's window
+const INK = '#0B2317'; // silhouette fill, sampled from the reference figures
+const SARI = '#BD6C39'; // the rust sari — the one saturated warm note in the line
+const LOAD = '#9BBD3E'; // the bundle is GREENS, not gold — bright yellow-green in the reference
+const LAMP = '#D89D3C'; // the hut's window
+const LEAF = '#153825'; // trees sit a shade lighter than the figures, as in the reference
 
 /** Feet sit a touch below the ridge crest so a walker is always planted on filled ground. */
 const FOOT = 2;
 
 /** Lane travel in pixels per second — the gait periods below are derived from these, not guessed. */
-const LANE = { far: W / 58, main: W / 38, near: W / 29 };
+// Kept close together on purpose. A wide spread made figures in different lanes visibly
+// overtake one another, which reads as some of them drifting backwards rather than one
+// procession moving together. These still give depth, but nobody races past anybody.
+const LANE = { far: W / 46, main: W / 38, near: W / 33 };
 
 /**
  * Period of one full two-step cycle for a figure travelling at `speed` with the given stride reach.
@@ -116,39 +120,21 @@ function Lane({ duration, reduced, render, opacity = 1 }) {
 }
 
 /**
- * Places a figure on the ground line. No bob and no sway — the body stays exactly on the floor and
- * every bit of the movement lives in the legs, which is the difference between walking and
- * hovering. `graze` lets an animal fall back against its lane for a few seconds then amble to catch
- * up; the lane must hold its exact constant speed or the seamless loop breaks, so the pause lives
- * here as a local offset.
+ * Places a figure on the ground line. No bob, no sway and no local offset of any kind — the body
+ * sits exactly on the floor and travels only with its lane, so the whole procession moves as one
+ * constant forward flow. (An earlier version let animals drift backwards to "graze"; on screen
+ * that just read as some of them walking backwards.)
  */
-function Placed({ left, baseY, w, h, opacity = 0.9, graze, reduced, children }) {
-  const g = useSharedValue(0);
-  useEffect(() => {
-    if (reduced || !graze) return;
-    g.value = withDelay(
-      graze,
-      withRepeat(
-        withSequence(
-          withTiming(-7, { duration: 2800, easing: Easing.inOut(Easing.quad) }),
-          withTiming(-7, { duration: 2200, easing: Easing.linear }),
-          withTiming(0, { duration: 3600, easing: Easing.inOut(Easing.quad) }),
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [g, graze, reduced]);
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: g.value }] }));
+function Placed({ left, baseY, w, h, opacity = 0.9, children }) {
   return (
-    <Animated.View
+    <View
       pointerEvents="none"
-      style={[{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }, style]}
+      style={{ position: 'absolute', left, top: baseY - h, width: w, height: h, opacity }}
     >
       <Svg width={w} height={h}>
         {children}
       </Svg>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -403,13 +389,13 @@ const tree = (w, h) => (
   <>
     <Path
       d={`M${w * 0.5} ${h} L${w * 0.5} ${h * 0.55}`}
-      stroke={INK}
+      stroke={LEAF}
       strokeWidth={w * 0.09}
       strokeLinecap="round"
     />
-    <Ellipse cx={w * 0.5} cy={h * 0.38} rx={w * 0.42} ry={h * 0.3} fill={INK} />
-    <Ellipse cx={w * 0.3} cy={h * 0.5} rx={w * 0.26} ry={h * 0.2} fill={INK} />
-    <Ellipse cx={w * 0.72} cy={h * 0.5} rx={w * 0.26} ry={h * 0.2} fill={INK} />
+    <Ellipse cx={w * 0.5} cy={h * 0.38} rx={w * 0.42} ry={h * 0.3} fill={LEAF} />
+    <Ellipse cx={w * 0.3} cy={h * 0.5} rx={w * 0.26} ry={h * 0.2} fill={LEAF} />
+    <Ellipse cx={w * 0.72} cy={h * 0.5} rx={w * 0.26} ry={h * 0.2} fill={LEAF} />
   </>
 );
 
@@ -417,7 +403,7 @@ const palm = (w, h) => (
   <>
     <Path
       d={`M${w * 0.5} ${h} Q ${w * 0.42} ${h * 0.5} ${w * 0.5} ${h * 0.24}`}
-      stroke={INK}
+      stroke={LEAF}
       strokeWidth={w * 0.07}
       strokeLinecap="round"
       fill="none"
@@ -432,7 +418,7 @@ const palm = (w, h) => (
       <Path
         key={i}
         d={`M${w * 0.5} ${h * 0.24} Q ${w * (0.5 + (fx - 0.5) * 0.6)} ${h * (fy - 0.04)} ${w * fx} ${h * fy}`}
-        stroke={INK}
+        stroke={LEAF}
         strokeWidth={w * 0.055}
         strokeLinecap="round"
         fill="none"
@@ -455,7 +441,7 @@ const tuft = (w, h) => (
       <Path
         key={i}
         d={`M${w * fx} ${h} C ${w * (fx - 0.12)} ${h * 0.6}, ${w * (fx - 0.04)} ${h * 0.3}, ${w * (fx + 0.06)} 0`}
-        stroke="#5BBF7A"
+        stroke="#5B8137"
         strokeWidth={w * 0.07}
         strokeLinecap="round"
         fill="none"
@@ -578,25 +564,13 @@ function Bird({ reduced }) {
  * cadence either side of the lane's true speed — enough that some walk briskly and others amble,
  * not enough for anyone to look like they are skating.
  */
-function Villager({
-  kind,
-  left,
-  baseY,
-  w,
-  h,
-  speed,
-  pace = 1,
-  delay = 0,
-  reduced,
-  opacity,
-  graze,
-}) {
+function Villager({ kind, left, baseY, w, h, speed, pace = 1, delay = 0, reduced, opacity }) {
   const reach = w * 0.3;
   const phase = useGait(gaitPeriod(speed, reach) / pace, delay, reduced);
   // The cow and the dog have their own silhouettes — one generic quadruped with swappable horns
   // made both of them read as the same blob.
   return (
-    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity} graze={graze} reduced={reduced}>
+    <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity}>
       {kind === 'farmer' ? <Farmer w={w} h={h} phase={phase} reach={reach} /> : null}
       {kind === 'carrier' ? <Person w={w} h={h} phase={phase} reach={reach} load /> : null}
       {kind === 'sari' ? <Person w={w} h={h} phase={phase} reach={reach} skirt /> : null}
@@ -649,7 +623,6 @@ export function VillageRidge({ ridgeY }) {
         delay={600}
         reduced={reduced}
         opacity={0.45}
-        graze={7000}
       />
     </React.Fragment>
   );
@@ -660,8 +633,8 @@ export function VillageRidge({ ridgeY }) {
         kind="farmer"
         left={W * 0.04}
         baseY={base}
-        w={14}
-        h={20}
+        w={16}
+        h={23}
         speed={LANE.main}
         pace={1.05}
         reduced={reduced}
@@ -677,14 +650,13 @@ export function VillageRidge({ ridgeY }) {
         delay={220}
         reduced={reduced}
         opacity={0.88}
-        graze={400}
       />
       <Villager
         kind="carrier"
         left={W * 0.35}
         baseY={base}
-        w={14}
-        h={20}
+        w={16}
+        h={23}
         speed={LANE.main}
         pace={0.92}
         delay={120}
@@ -705,8 +677,8 @@ export function VillageRidge({ ridgeY }) {
         kind="sari"
         left={W * 0.56}
         baseY={base}
-        w={13}
-        h={18}
+        w={15}
+        h={21}
         speed={LANE.main}
         pace={1.14}
         delay={540}
@@ -723,14 +695,13 @@ export function VillageRidge({ ridgeY }) {
         delay={80}
         reduced={reduced}
         opacity={0.85}
-        graze={2600}
       />
       <Villager
         kind="farmer"
         left={W * 0.78}
         baseY={base}
-        w={14}
-        h={20}
+        w={16}
+        h={23}
         speed={LANE.main}
         pace={0.96}
         delay={300}
@@ -740,8 +711,8 @@ export function VillageRidge({ ridgeY }) {
         kind="child"
         left={W * 0.88}
         baseY={base}
-        w={10}
-        h={14}
+        w={11}
+        h={16}
         speed={LANE.main}
         pace={1.35}
         delay={660}
@@ -757,8 +728,8 @@ export function VillageRidge({ ridgeY }) {
         kind="carrier"
         left={W * 0.3}
         baseY={base + 3}
-        w={15}
-        h={23}
+        w={17}
+        h={26}
         speed={LANE.near}
         pace={0.95}
         delay={200}
@@ -775,27 +746,12 @@ export function VillageRidge({ ridgeY }) {
         delay={520}
         reduced={reduced}
         opacity={0.85}
-        graze={5200}
       />
     </React.Fragment>
   );
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* Backlight: without a lit horizon the dark silhouettes sit exactly on the dark/green
-          boundary and disappear. This is the dawn band they are read against. */}
-      <View style={{ position: 'absolute', left: 0, top: base - 104, width: W, height: 108 }}>
-        <Svg width={W} height={108}>
-          <Defs>
-            <LinearGradient id="dawn" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor="#7FD98F" stopOpacity={0} />
-              <Stop offset="68%" stopColor="#7FD98F" stopOpacity={0.13} />
-              <Stop offset="100%" stopColor="#B6EE72" stopOpacity={0.32} />
-            </LinearGradient>
-          </Defs>
-          <Rect x={0} y={0} width={W} height={108} fill="url(#dawn)" />
-        </Svg>
-      </View>
       <Fog base={base} reduced={reduced} />
       <Bird reduced={reduced} />
 
@@ -893,9 +849,9 @@ export function VillageRidge({ ridgeY }) {
       </Sway>
 
       {/* The procession. */}
-      <Lane duration={58000} reduced={reduced} render={far} opacity={0.55} />
+      <Lane duration={46000} reduced={reduced} render={far} opacity={0.55} />
       <Lane duration={38000} reduced={reduced} render={main} />
-      <Lane duration={29000} reduced={reduced} render={near} />
+      <Lane duration={33000} reduced={reduced} render={near} />
 
       {/* Fireflies over the field. */}
       {[
