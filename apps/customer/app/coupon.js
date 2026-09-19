@@ -162,7 +162,9 @@ function CouponCard({ coupon, onApply }) {
         <View style={styles.termRow}>
           {locked ? <Lock size={12} color={colors.amber} /> : null}
           <Small style={{ color: locked ? colors.amber : colors.leaf }}>
-            {locked ? coupon.unlockText : coupon.minOrderText}
+            {/* An offer the basket already clears said "Spend ₹500 to unlock" next to a live Apply
+                button — the terms of a lock that is already open. Say it's ready instead. */}
+            {locked ? coupon.unlockText : 'Ready to apply'}
           </Small>
         </View>
       </View>
