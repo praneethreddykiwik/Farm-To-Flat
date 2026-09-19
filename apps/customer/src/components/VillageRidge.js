@@ -268,47 +268,126 @@ function Farmer({ w, h, phase, reach }) {
  * Four legs on a diagonal gait — front-left swings with back-right. Same rule as the people:
  * hooves stay on the ground line.
  */
-function Quadruped({ w, h, phase, reach, horns, ears }) {
+/**
+ * A zebu — the humped desi cow you actually see on a Hyderabad road, not a generic barnyard
+ * quadruped. An ellipse with a stub pointing up reads as a sheep; what says "cow" at 30px across
+ * is the profile: a long flat back, the shoulder hump, the head carried LOW on a forward-sloping
+ * neck, a dewlap swinging under the throat, curved horns, drooping ears and a tufted tail.
+ */
+function Cow({ w, h, phase, reach }) {
+  // diagonal gait: near-hind swings with far-fore, so each visible pair scissors
   const props = useAnimatedProps(() => {
     const s = Math.sin(phase.value * Math.PI * 2) * reach;
     const o = -s;
     return {
       d:
-        `M${w * 0.26} ${h * 0.62} L${w * 0.26 + s} ${h} ` +
-        `M${w * 0.4} ${h * 0.64} L${w * 0.4 + o} ${h} ` +
-        `M${w * 0.58} ${h * 0.64} L${w * 0.58 + s} ${h} ` +
-        `M${w * 0.7} ${h * 0.62} L${w * 0.7 + o} ${h}`,
+        `M${w * 0.16} ${h * 0.57} L${w * 0.16 + s} ${h} ` +
+        `M${w * 0.27} ${h * 0.57} L${w * 0.27 + o} ${h} ` +
+        `M${w * 0.6} ${h * 0.57} L${w * 0.6 + o} ${h} ` +
+        `M${w * 0.7} ${h * 0.57} L${w * 0.7 + s} ${h}`,
     };
   });
+  const p = (x, y) => `${w * x} ${h * y}`;
   return (
     <>
-      <Ellipse cx={w * 0.46} cy={h * 0.42} rx={w * 0.3} ry={h * 0.22} fill={INK} />
+      {/* tail, hanging behind the rump with a tuft on the end */}
+      <Path
+        d={`M${p(0.09, 0.36)} C ${p(0.02, 0.46)} ${p(0.01, 0.64)} ${p(0.04, 0.78)}`}
+        stroke={INK}
+        strokeWidth={h * 0.045}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Ellipse cx={w * 0.04} cy={h * 0.85} rx={w * 0.028} ry={h * 0.08} fill={INK} />
       <AnimatedPath
         animatedProps={props}
         stroke={INK}
-        strokeWidth={h * 0.085}
+        strokeWidth={h * 0.075}
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* body: rump → back → hump → withers → neck → head → muzzle → dewlap → belly */}
+      <Path
+        d={
+          `M${p(0.06, 0.44)} ` +
+          `C ${p(0.05, 0.31)} ${p(0.16, 0.27)} ${p(0.32, 0.28)} ` +
+          `C ${p(0.42, 0.28)} ${p(0.46, 0.14)} ${p(0.58, 0.15)} ` +
+          `C ${p(0.67, 0.16)} ${p(0.68, 0.27)} ${p(0.73, 0.31)} ` +
+          `L ${p(0.84, 0.38)} ` +
+          `C ${p(0.92, 0.4)} ${p(1.0, 0.41)} ${p(1.0, 0.47)} ` +
+          `C ${p(1.0, 0.54)} ${p(0.93, 0.55)} ${p(0.87, 0.52)} ` +
+          `L ${p(0.8, 0.46)} ` +
+          `C ${p(0.76, 0.53)} ${p(0.72, 0.57)} ${p(0.64, 0.59)} ` +
+          `L ${p(0.22, 0.6)} ` +
+          `C ${p(0.11, 0.6)} ${p(0.06, 0.54)} ${p(0.06, 0.44)} Z`
+        }
+        fill={INK}
+      />
+      {/* drooping ear, set behind the horns */}
+      <Path d={`M${p(0.81, 0.4)} L${p(0.72, 0.42)} L${p(0.79, 0.48)} Z`} fill={INK} />
+      {/* horns, sweeping up and back */}
+      <Path
+        d={`M${p(0.86, 0.38)} C ${p(0.88, 0.3)} ${p(0.93, 0.27)} ${p(0.97, 0.29)}`}
+        stroke={INK}
+        strokeWidth={h * 0.05}
         strokeLinecap="round"
         fill="none"
       />
       <Path
-        d={`M${w * 0.72} ${h * 0.32} L${w * 0.88} ${h * 0.22}`}
+        d={`M${p(0.83, 0.4)} C ${p(0.84, 0.33)} ${p(0.88, 0.3)} ${p(0.91, 0.31)}`}
         stroke={INK}
-        strokeWidth={h * 0.17}
+        strokeWidth={h * 0.04}
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.75}
+      />
+    </>
+  );
+}
+
+/** Leaner, head up, pricked ear and a tail carried high — everything the cow is not. */
+function Dog({ w, h, phase, reach }) {
+  const props = useAnimatedProps(() => {
+    const s = Math.sin(phase.value * Math.PI * 2) * reach;
+    const o = -s;
+    return {
+      d:
+        `M${w * 0.24} ${h * 0.6} L${w * 0.24 + s} ${h} ` +
+        `M${w * 0.34} ${h * 0.6} L${w * 0.34 + o} ${h} ` +
+        `M${w * 0.62} ${h * 0.6} L${w * 0.62 + o} ${h} ` +
+        `M${w * 0.72} ${h * 0.6} L${w * 0.72 + s} ${h}`,
+    };
+  });
+  const p = (x, y) => `${w * x} ${h * y}`;
+  return (
+    <>
+      <Path
+        d={`M${p(0.2, 0.46)} C ${p(0.1, 0.36)} ${p(0.06, 0.2)} ${p(0.12, 0.12)}`}
+        stroke={INK}
+        strokeWidth={h * 0.07}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <AnimatedPath
+        animatedProps={props}
+        stroke={INK}
+        strokeWidth={h * 0.08}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Ellipse cx={w * 0.46} cy={h * 0.45} rx={w * 0.28} ry={h * 0.17} fill={INK} />
+      <Path
+        d={`M${p(0.66, 0.4)} L${p(0.8, 0.24)}`}
+        stroke={INK}
+        strokeWidth={h * 0.13}
         strokeLinecap="round"
       />
-      {horns ? (
-        <Path
-          d={`M${w * 0.86} ${h * 0.18} L${w * 0.95} ${h * 0.07}`}
-          stroke={INK}
-          strokeWidth={h * 0.05}
-          strokeLinecap="round"
-        />
-      ) : null}
-      {ears ? <Circle cx={w * 0.84} cy={h * 0.16} r={h * 0.1} fill={INK} /> : null}
+      <Circle cx={w * 0.83} cy={h * 0.22} r={h * 0.12} fill={INK} />
+      <Path d={`M${p(0.79, 0.16)} L${p(0.78, 0.03)} L${p(0.87, 0.12)} Z`} fill={INK} />
       <Path
-        d={`M${w * 0.17} ${h * 0.3} L${w * 0.05} ${h * 0.56}`}
+        d={`M${p(0.88, 0.24)} L${p(0.99, 0.26)}`}
         stroke={INK}
-        strokeWidth={h * 0.045}
+        strokeWidth={h * 0.08}
         strokeLinecap="round"
       />
     </>
@@ -511,7 +590,8 @@ function Villager({
 }) {
   const reach = w * 0.3;
   const phase = useGait(gaitPeriod(speed, reach) / pace, delay, reduced);
-  const quad = kind === 'cow' || kind === 'dog';
+  // The cow and the dog have their own silhouettes — one generic quadruped with swappable horns
+  // made both of them read as the same blob.
   return (
     <Placed left={left} baseY={baseY} w={w} h={h} opacity={opacity} graze={graze} reduced={reduced}>
       {kind === 'farmer' ? <Farmer w={w} h={h} phase={phase} reach={reach} /> : null}
@@ -520,16 +600,8 @@ function Villager({
       {kind === 'person' || kind === 'child' ? (
         <Person w={w} h={h} phase={phase} reach={reach} />
       ) : null}
-      {quad ? (
-        <Quadruped
-          w={w}
-          h={h}
-          phase={phase}
-          reach={reach * 0.55}
-          horns={kind === 'cow'}
-          ears={kind === 'dog'}
-        />
-      ) : null}
+      {kind === 'cow' ? <Cow w={w} h={h} phase={phase} reach={reach * 0.5} /> : null}
+      {kind === 'dog' ? <Dog w={w} h={h} phase={phase} reach={reach * 0.55} /> : null}
     </Placed>
   );
 }
@@ -567,8 +639,8 @@ export function VillageRidge({ ridgeY }) {
         kind="cow"
         left={W * 0.66}
         baseY={base - 4}
-        w={15}
-        h={10}
+        w={18}
+        h={12}
         speed={LANE.far}
         pace={0.85}
         delay={600}
@@ -595,8 +667,8 @@ export function VillageRidge({ ridgeY }) {
         kind="cow"
         left={W * 0.17}
         baseY={base}
-        w={27}
-        h={17}
+        w={31}
+        h={20}
         speed={LANE.main}
         pace={0.8}
         delay={220}
