@@ -46,9 +46,13 @@ import { adminAccessRouter } from './routes/admin/access.js';
 import { adminCouponsRouter } from './routes/admin/coupons.js';
 import { supportRouter, adminSupportRouter } from './routes/support.js';
 import { accessRouter } from './routes/access.js';
+import { ipOf, rateLimit } from './lib/rate-limit.js';
 
 const app = express();
 app.disable('x-powered-by');
+// Render terminates TLS at a proxy, so without this every request reports the proxy's address and
+// any per-IP limit would apply to all users at once. One hop.
+app.set('trust proxy', 1);
 app.use(helmet());
 // CORS: in production, lock to an allowlist — set CORS_ORIGIN to a comma-separated list of the
 // admin/site origins (e.g. "https://admin.farmtoflat.in"). When unset (local dev) it reflects any
@@ -94,6 +98,20 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api', ts: D
 const v1 = '/api/v1';
 
 // ── public ──────────────────────────────────────────────────────────────────
+// A ceiling on everything, so one host cannot simply flood the service. Set well above real use:
+// behind carrier-grade NAT a single IP can be very many genuine customers, and throttling them to
+// protect against a flood would be the worse failure. A blunt instrument, not a usage quota.
+app.use(
+  v1,
+  rateLimit({
+    windowMs: 60 * 1000,
+    // Tunable without a deploy: ops may need to raise it for a known burst (a campaign, a load
+    // test) or lower it under attack.
+    max: Number(process.env.RATE_LIMIT_PER_MIN) || 600,
+    key: (req) => `all:${ipOf(req)}`,
+  }),
+);
+
 app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);

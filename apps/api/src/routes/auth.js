@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { mobile } from '../lib/validators.js';
+import { ipOf, rateLimit } from '../lib/rate-limit.js';
 import { customerPublic } from '../serialize.js';
 import {
   hasAddress,
@@ -21,8 +22,41 @@ import {
 
 export const authRouter = Router();
 
+// Two keys, because they stop different attacks. Per-mobile stops someone grinding one account
+// (and stops us texting one number repeatedly); per-IP stops one host farming many numbers, which
+// is what SMS toll fraud looks like.
+const otpPerMobile = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  key: (req) => `otp:m:${req.body?.mobile}`,
+  code: 'OTP_RATE_LIMITED',
+  message: 'Too many codes requested for this number. Please wait a few minutes.',
+});
+// Deliberately loose. Indian mobile carriers put huge numbers of subscribers behind CGNAT, so an
+// IP here can legitimately be thousands of real customers — a tight per-IP cap locks out paying
+// users to stop an attacker. The per-MOBILE limit above is the real control; this one only has to
+// be low enough to make farming hundreds of different numbers from one host impractical.
+const otpPerIp = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  key: (req) => `otp:ip:${ipOf(req)}`,
+  code: 'OTP_RATE_LIMITED',
+  message: 'Too many codes requested. Please wait a few minutes.',
+});
+// verifyOtp already caps guesses at 3 — but setOtp resets that counter on every new code, so
+// without this an attacker just alternates request/verify for unlimited guesses.
+const verifyPerIp = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 90,
+  key: (req) => `otpv:ip:${ipOf(req)}`,
+  code: 'OTP_RATE_LIMITED',
+  message: 'Too many attempts. Please wait a few minutes.',
+});
+
 authRouter.post(
   '/otp/request',
+  otpPerMobile,
+  otpPerIp,
   validateBody(z.object({ mobile })),
   asyncHandler(async (req, res) => {
     const r = await requestOtp(req.body.mobile);
@@ -33,6 +67,7 @@ authRouter.post(
 
 authRouter.post(
   '/otp/verify',
+  verifyPerIp,
   validateBody(z.object({ mobile, otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.') })),
   asyncHandler(async (req, res) => {
     const r = verifyOtp(req.body.mobile, req.body.otp);
