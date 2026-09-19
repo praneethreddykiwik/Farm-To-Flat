@@ -21,6 +21,8 @@ import { Coupons } from './screens/Coupons.jsx';
 import { Settings } from './screens/Settings.jsx';
 import { Privacy } from './screens/Privacy.jsx';
 import { Terms } from './screens/Terms.jsx';
+import { SignIn } from './screens/SignIn.jsx';
+import { getToken, onAuthChange } from './lib/auth.js';
 
 /** The operator app: sidebar + the admin screens. Everything except the public privacy page. */
 function AdminShell() {
@@ -86,8 +88,14 @@ function Root() {
   // /privacy and /terms are public and chrome-free — customers open them from the app, so no
   // sidebar and no login.
   const { pathname } = useLocation();
+  // Re-render whenever the token is stored or dropped, so signing in swaps the gate for the shell
+  // and a rejected token (rotated on the API host) drops straight back to the gate mid-session.
+  const [token, setTokenState] = useState(getToken);
+  useEffect(() => onAuthChange(() => setTokenState(getToken())), []);
+
   if (pathname === '/privacy') return <Privacy />;
   if (pathname === '/terms') return <Terms />;
+  if (!token) return <SignIn />;
   return <AdminShell />;
 }
 
