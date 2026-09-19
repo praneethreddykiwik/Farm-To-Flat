@@ -27,6 +27,15 @@ export function CartBar({ bottom }) {
       .sort((a, b) => Number(a.minOrderPaise) - Number(b.minOrderPaise));
     return locked[0] || null;
   }, [couponData, subtotal]);
+  // Qualifying for an offer is NOT the same as having it. Coupons are opt-in — the shopper still has
+  // to apply one in the basket — so the bar has to say "available", never imply a discount that is
+  // not in the total. The richest tier the basket already clears (tiers rise with their threshold).
+  const availableCoupon = useMemo(() => {
+    const eligible = (couponData?.coupons || [])
+      .filter((c) => c.meetsMinimum)
+      .sort((a, b) => Number(b.minOrderPaise) - Number(a.minOrderPaise));
+    return eligible[0] || null;
+  }, [couponData]);
 
   if (!cart || count === 0) return null;
   // Sit clearly ABOVE the floating tab bar (its pill is ~68 tall on top of the safe-area padding),
@@ -36,16 +45,23 @@ export function CartBar({ bottom }) {
   const min = Number(cart.minOrderValuePaise);
   const short = min - subtotal;
   const rupeesTo = (t) => Math.ceil((t - subtotal) / 100);
-  // Live nudge: reach ₹500 (and the first offer it unlocks), then each higher coupon tier.
+  // Live nudge: reach ₹500 (and the first offer it qualifies for), then each higher coupon tier.
+  const applied = cart.coupon;
   let nudge;
   let chasing = true;
   if (short > 0) {
     const firstReward = nextCoupon && Number(nextCoupon.minOrderPaise) <= min ? nextCoupon : null;
     nudge = firstReward
-      ? `Add ₹${rupeesTo(min)} more to unlock ${firstReward.discountText}`
+      ? `Add ₹${rupeesTo(min)} more to qualify for ${firstReward.discountText}`
       : `Add ₹${rupeesTo(min)} more to reach ₹500`;
   } else if (nextCoupon) {
-    nudge = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to unlock ${nextCoupon.discountText}`;
+    nudge = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to qualify for ${nextCoupon.discountText}`;
+  } else if (applied) {
+    nudge = `${applied.label || 'Coupon'} applied`;
+    chasing = false;
+  } else if (availableCoupon) {
+    // Eligible but not applied: tell them it is theirs to take, and where to take it.
+    nudge = `${availableCoupon.discountText} available — add it in your basket`;
   } else {
     nudge = 'Ready to check out';
     chasing = false;

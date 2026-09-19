@@ -22,6 +22,7 @@ import {
   IconTruck,
   IconX,
 } from './icons.jsx';
+import { clearToken } from '../lib/auth.js';
 
 const NAV = [
   { section: 'Overview' },
@@ -86,10 +87,27 @@ export function Sidebar({ open = false, onClose }) {
       <div className="rail__spacer" />
       <div className="rail__foot">
         <div className="rail__avatar">TH</div>
-        <div style={{ lineHeight: 1.2 }}>
+        <div style={{ lineHeight: 1.2, flex: 1 }}>
           <div style={{ fontSize: 13.5, fontWeight: 600 }}>Operations</div>
           <div style={{ fontSize: 11, color: 'rgba(243,245,239,0.5)' }}>Hyderabad · live</div>
         </div>
+        {/* Signing out clears the stored token — the only way to hand this browser back. */}
+        <button
+          type="button"
+          onClick={clearToken}
+          title="Sign out"
+          aria-label="Sign out"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 6,
+            cursor: 'pointer',
+            color: 'rgba(243,245,239,0.5)',
+            display: 'flex',
+          }}
+        >
+          <IconX size={17} />
+        </button>
       </div>
     </nav>
   );

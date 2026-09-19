@@ -63,6 +63,11 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
   const [locating, setLocating] = useState(false);
   const [gps, setGps] = useState(/** @type {any} */ (null)); // { state: 'ok'|'out'|'denied', communityName? }
   const [errors, setErrors] = useState(/** @type {any} */ ({}));
+  // Drop a field's error the moment the shopper starts fixing it. Without this the red message and
+  // red border stayed under a field they had already corrected — the form looked broken while it was
+  // actually valid. The community/block pickers already did this; the text inputs did not.
+  const clearError = (key) =>
+    setErrors((e) => (e[key] === undefined ? e : { ...e, [key]: undefined }));
   const comSheet = useRef(null);
   const blockSheet = useRef(null);
   const community = useMemo(
@@ -206,7 +211,10 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
             <Input
               label="Flat number"
               value={flat}
-              onChangeText={(t) => setFlat(cleanFlat(t))}
+              onChangeText={(t) => {
+                setFlat(cleanFlat(t));
+                clearError('flat');
+              }}
               placeholder="1204"
               autoCapitalize="characters"
               maxLength={12}
@@ -217,7 +225,10 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
             <Input
               label="Floor"
               value={floor}
-              onChangeText={(t) => setFloor(cleanFloor(t))}
+              onChangeText={(t) => {
+                setFloor(cleanFloor(t));
+                clearError('floor');
+              }}
               placeholder="12"
               keyboardType="number-pad"
               maxLength={3}
@@ -235,7 +246,10 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
           <Input
             label="Recipient name"
             value={name}
-            onChangeText={(t) => setName(cleanName(t))}
+            onChangeText={(t) => {
+              setName(cleanName(t));
+              clearError('name');
+            }}
             placeholder="Who should we hand it to?"
             autoCapitalize="words"
             textContentType="name"

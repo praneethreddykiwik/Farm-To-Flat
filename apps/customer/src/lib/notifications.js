@@ -1,6 +1,12 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { env } from './env';
+import { kv } from './kv';
+
+// Remembers that we have already shown the OS notification prompt once and been turned down, so a
+// cold start doesn't ask again. Android only stops offering the dialog after two refusals, which
+// meant a declined tester saw "Allow Farm to Flat to send you notifications?" on EVERY launch.
+const ASKED_KEY = 'notifications.prompted';
 
 let configured = false;
 
@@ -56,9 +62,14 @@ export async function registerForPush() {
     if (Platform.OS === 'android') {
       await ensureAndroidChannels();
     }
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let status = existing;
+    const perms = await Notifications.getPermissionsAsync();
+    let status = perms.status;
     if (status !== 'granted') {
+      // Ask at most once, and only while the OS is still willing to show the dialog. Re-prompting a
+      // shopper who already said no is nagging, not onboarding — they can still turn notifications
+      // on from system settings whenever they want the delivery updates.
+      if (perms.canAskAgain === false || kv.getString(ASKED_KEY)) return null;
+      kv.setString(ASKED_KEY, '1');
       status = (await Notifications.requestPermissionsAsync()).status;
     }
     if (status !== 'granted') return null;

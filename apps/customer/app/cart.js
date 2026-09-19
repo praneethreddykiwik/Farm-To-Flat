@@ -129,9 +129,10 @@ function Line({ item }) {
 
 /**
  * Progress toward the ₹500 minimum first, then — once that's met — toward the next coupon the basket
- * hasn't unlocked yet (e.g. "Spend ₹150 more to unlock 15% off"). Tracks live as the total grows.
+ * doesn't yet qualify for (e.g. "Add ₹150 more to qualify for 15% off"). Tracks live as the total
+ * grows, and at the top tier says plainly whether an offer is applied or merely available.
  */
-function MinimumBar({ subtotal, minimum, nextCoupon }) {
+function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCoupon }) {
   const sub = Number(subtotal);
   const min = Number(minimum);
   const belowMin = sub < min;
@@ -150,9 +151,13 @@ function MinimumBar({ subtotal, minimum, nextCoupon }) {
   const style = useAnimatedStyle(() => ({ width: w.value }));
 
   // Progressive, tier-by-tier nudge:
-  //  • below ₹500  → how much more to reach the minimum, and the first offer it unlocks
-  //  • past ₹500   → how much more to reach the NEXT offer (10% → 15% → 20% …)
-  //  • all unlocked→ celebrate
+  //  • below ₹500   → how much more to reach the minimum, and the first offer it qualifies for
+  //  • past ₹500    → how much more to reach the NEXT offer (10% → 15% → 20% …)
+  //  • top tier     → whether an offer is APPLIED, or merely available
+  //
+  // That last distinction is the point. Coupons are opt-in — qualifying for one changes nothing
+  // until it is applied — so this line used to read "You've unlocked every offer 🎉" over a total
+  // that still charged full price. Now it either names the applied coupon or says one is waiting.
   const rupeesTo = (t) => Math.ceil((t - sub) / 100);
   const built = Math.floor(sub / 100);
   let message;
@@ -160,12 +165,16 @@ function MinimumBar({ subtotal, minimum, nextCoupon }) {
     // A coupon whose threshold is at/below the ₹500 minimum is the first reward you get at ₹500.
     const firstReward = nextCoupon && Number(nextCoupon.minOrderPaise) <= min ? nextCoupon : null;
     message = firstReward
-      ? `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach ₹500 and unlock ${firstReward.discountText}`
+      ? `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach ₹500 and qualify for ${firstReward.discountText}`
       : `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach the ₹500 minimum`;
   } else if (nextCoupon) {
-    message = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to avail ${nextCoupon.discountText}`;
+    message = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to qualify for ${nextCoupon.discountText}`;
+  } else if (appliedCoupon) {
+    message = `${appliedCoupon.label || 'Coupon'} applied 🎉`;
+  } else if (availableCoupon) {
+    message = `You qualify for ${availableCoupon.discountText} — add a coupon below to use it`;
   } else {
-    message = "You've unlocked every offer 🎉";
+    message = 'Your basket is over the minimum';
   }
   const fillColor = belowMin ? colors.amber : colors.leaf;
 
@@ -194,6 +203,11 @@ export default function Cart() {
   const nextCoupon = useMemo(() => {
     const locked = (couponData?.coupons || []).filter((c) => !c.meetsMinimum);
     return locked.sort((a, b) => Number(a.minOrderPaise) - Number(b.minOrderPaise))[0] || null;
+  }, [couponData]);
+  // The best offer the basket already qualifies for. Qualifying is not applying — see MinimumBar.
+  const availableCoupon = useMemo(() => {
+    const eligible = (couponData?.coupons || []).filter((c) => c.meetsMinimum);
+    return eligible.sort((a, b) => Number(b.minOrderPaise) - Number(a.minOrderPaise))[0] || null;
   }, [couponData]);
   const items = cart?.items || [];
   const isSheet = Platform.OS === 'ios';
@@ -333,6 +347,8 @@ export default function Cart() {
                       subtotal={cart.subtotalPaise}
                       minimum={cart.minOrderValuePaise}
                       nextCoupon={nextCoupon}
+                      availableCoupon={availableCoupon}
+                      appliedCoupon={cart.coupon}
                     />
                   </Glass>
                 </Animated.View>
