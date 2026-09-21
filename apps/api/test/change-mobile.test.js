@@ -103,6 +103,32 @@ describe('changing your mobile number keeps your account', () => {
     expect(me.body.customer.id).toBe(customerId);
   });
 
+  it("the address's contact number follows, so the driver does not ring a dead number", async () => {
+    const { token } = await withAddress('9333000007', '407');
+    const before = await request(app).get('/api/v1/addresses').set(auth(token));
+    expect(before.body.addresses[0].contactNumber).toBe('9333000007');
+    await changeTo(token, '9333000094');
+    const after = await request(app).get('/api/v1/addresses').set(auth(token));
+    expect(after.body.addresses[0].contactNumber).toBe('9333000094');
+  });
+
+  it('an address given a different contact on purpose is left alone', async () => {
+    const { token } = await withAddress('9333000008', '408');
+    const { body: c } = await request(app).get('/api/v1/communities');
+    const community = c.communities[0];
+    await request(app).post('/api/v1/addresses').set(auth(token)).send({
+      communityId: community.id,
+      block: community.blocks[0],
+      flat: '409',
+      floor: '4',
+      contactNumber: '9333000500', // someone else entirely
+    });
+    await changeTo(token, '9333000093');
+    const after = await request(app).get('/api/v1/addresses').set(auth(token));
+    const other = after.body.addresses.find((a) => a.flat === '409');
+    expect(other.contactNumber).toBe('9333000500');
+  });
+
   it('cannot be called without being signed in', async () => {
     const r = await request(app).post('/api/v1/me/mobile/request').send({ mobile: '9333000095' });
     expect(r.status).toBe(401);

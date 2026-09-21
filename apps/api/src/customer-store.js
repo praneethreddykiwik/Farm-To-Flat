@@ -295,10 +295,22 @@ export function changeCustomerMobile(customerId, newMobile) {
         message: 'That number is already signed up. Sign in with it instead.',
       },
     };
-  cs.byMobile.delete(customer.mobile);
+  const previous = customer.mobile;
+  cs.byMobile.delete(previous);
   customer.mobile = newMobile;
   cs.byMobile.set(newMobile, customerId);
   persist.customerUpsert(customer, wallet(customerId));
+
+  // An address's contactNumber defaults to the account number when it is created — it is who the
+  // delivery partner calls from the gate. Carry those over, or the driver rings a number the
+  // customer has just stopped using. An address given a DIFFERENT contact on purpose ("call my
+  // mother") is left exactly as it is.
+  for (const a of cs.addresses.get(customerId) || []) {
+    if (a.contactNumber === previous) {
+      a.contactNumber = newMobile;
+      persist.addressUpsert(a, customerId);
+    }
+  }
   return { ok: true, customer };
 }
 
