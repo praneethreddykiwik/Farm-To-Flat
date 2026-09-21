@@ -84,3 +84,86 @@ describe('dev OTP confinement', () => {
     ).toBe(false);
   });
 });
+
+describe('one customer can never reach another customer', () => {
+  /** Sign in, save an address, fill a basket and place an order. Returns the token + order. */
+  async function customerWithOrder(mobile, flat) {
+    await request(app).post('/api/v1/auth/otp/request').send({ mobile });
+    const v = await request(app).post('/api/v1/auth/otp/verify').send({ mobile, otp: '123456' });
+    const token = v.body.accessToken;
+    const { body: c } = await request(app).get('/api/v1/communities');
+    const community = c.communities[0];
+    const a = await request(app)
+      .post('/api/v1/addresses')
+      .set(auth(token))
+      .send({ communityId: community.id, block: community.blocks[0], flat, floor: '3' });
+    const { body: cat } = await request(app).get('/api/v1/catalog?limit=100').set(auth(token));
+    for (const prod of (cat.products || [])
+      .filter((x) => (x.availability || 'AVAILABLE') === 'AVAILABLE')
+      .slice(0, 8)) {
+      await request(app)
+        .put('/api/v1/cart/items')
+        .set(auth(token))
+        .send({ productId: prod.id, quantity: 4 });
+    }
+    const w = await request(app)
+      .get(`/api/v1/delivery-windows?addressId=${a.body.address.id}`)
+      .set(auth(token));
+    const win = (w.body.windows || []).find((x) => x.isOpen);
+    const r = await request(app)
+      .post('/api/v1/orders')
+      .set(auth(token))
+      .send({ addressId: a.body.address.id, deliveryDate: win.date, window: win.window });
+    expect(r.status).toBe(201);
+    return { token, order: r.body.order, addressId: a.body.address.id };
+  }
+
+  it("another customer's order reads as not found, and cannot be cancelled", async () => {
+    const owner = await customerWithOrder('9777001001', '301');
+    const stranger = await customerWithOrder('9777001002', '302');
+
+    // Not 403 — 404. A stranger should not even learn that the order exists.
+    const read = await request(app)
+      .get(`/api/v1/orders/${owner.order.id}`)
+      .set(auth(stranger.token));
+    expect(read.status).toBe(404);
+
+    const cancel = await request(app)
+      .post(`/api/v1/orders/${owner.order.id}/cancel`)
+      .set(auth(stranger.token))
+      .send({});
+    expect(cancel.status).toBe(404);
+
+    // The owner is unaffected by the attempt.
+    const mine = await request(app).get(`/api/v1/orders/${owner.order.id}`).set(auth(owner.token));
+    expect(mine.status).toBe(200);
+    expect(mine.body.order.status).not.toBe('CANCELLED');
+  });
+
+  it("a stranger cannot deliver to, or destroy, someone else's address", async () => {
+    const owner = await customerWithOrder('9777001003', '303');
+    const stranger = await customerWithOrder('9777001004', '304');
+    const w = await request(app)
+      .get(`/api/v1/delivery-windows?addressId=${owner.addressId}`)
+      .set(auth(stranger.token));
+    const win = (w.body.windows || []).find((x) => x.isOpen);
+    const r = await request(app)
+      .post('/api/v1/orders')
+      .set(auth(stranger.token))
+      .send({ addressId: owner.addressId, deliveryDate: win?.date, window: win?.window });
+    expect(r.status).toBeGreaterThanOrEqual(400);
+    const del = await request(app)
+      .delete(`/api/v1/addresses/${owner.addressId}`)
+      .set(auth(stranger.token));
+    expect(del.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('the order list only ever contains your own orders', async () => {
+    const owner = await customerWithOrder('9777001005', '305');
+    const stranger = await customerWithOrder('9777001006', '306');
+    const list = await request(app).get('/api/v1/orders').set(auth(stranger.token));
+    expect(list.status).toBe(200);
+    const ids = (list.body.orders || []).map((o) => o.id);
+    expect(ids).not.toContain(owner.order.id);
+  });
+});
