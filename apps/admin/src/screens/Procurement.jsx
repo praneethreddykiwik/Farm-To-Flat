@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { CountRupee, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
-import { IconCheck, IconDownload } from '../components/icons.jsx';
+import { IconCheck, IconDownload, IconCopy } from '../components/icons.jsx';
 import { inr, num, shortDate } from '../lib/format.js';
 
 const UNIT_SHORT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: 'pack' };
@@ -146,6 +146,48 @@ export function Procurement() {
     }
   }
 
+  /**
+   * The buy list as a message a person can read.
+   *
+   * The CSV export is the right shape for a spreadsheet and the wrong shape for WhatsApp, which is
+   * where the buyer actually reads it: pasted into a chat it wraps into a wall of commas with the
+   * header repeated in the first line, and the Telugu build is worse because the words are longer.
+   * This writes the same list grouped by category, one item per line, with the quantity first —
+   * that is the only number the person standing in the market needs.
+   */
+  function listAsText() {
+    if (!data) return '';
+    const day = new Date().toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+    const lines = [`FARM TO FLAT · Buy list · ${day}`, ''];
+    for (const g of data.byCategory) {
+      lines.push(`${g.name.toUpperCase()}`);
+      for (const it of g.items) {
+        // Trailing zeros on a market list are noise: 2.000 kg reads as 2 kg.
+        const qty = String(Number(it.procureQty)).replace(/\.0+$/, '');
+        const tick = it.procured ? '✓ ' : '• ';
+        lines.push(`${tick}${qty} ${it.unit.toLowerCase()} — ${it.name}`);
+      }
+      lines.push('');
+    }
+    lines.push(`Total est. ${inr(data.totalProcureCostPaise)} · ${data.skuCount} items`);
+    return lines.join('\n');
+  }
+
+  async function copyList() {
+    const text = listAsText();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Buy list copied — paste it into WhatsApp');
+    } catch {
+      toast('Could not copy. Check the browser permissions.', 'err');
+    }
+  }
+
   async function downloadCsv(lang = 'en') {
     const p = new URLSearchParams(params);
     if (lang !== 'en') p.set('lang', lang);
@@ -175,27 +217,34 @@ export function Procurement() {
             What to buy for the open orders · quantity + buffer, rounded to purchase units
           </p>
         </div>
-        <div className="dropdown">
-          <button className="btn btn--accent" onClick={() => setLangMenu((v) => !v)}>
-            <IconDownload size={17} /> Purchase list CSV ▾
+        <div className="topbar__actions">
+          {/* CSV is for the spreadsheet; this is for the person in the market reading it on a
+              phone. Same list, one item per line, quantity first. */}
+          <button className="btn" onClick={copyList} disabled={!data || !data.skuCount}>
+            <IconCopy size={17} /> Copy buy list
           </button>
-          {langMenu && (
-            <>
-              <div className="dropdown__scrim" onClick={() => setLangMenu(false)} />
-              <div className="dropdown__menu">
-                <div className="dropdown__label">Download in</div>
-                {LANG_OPTS.map((l) => (
-                  <button
-                    key={l.code}
-                    className="dropdown__item"
-                    onClick={() => downloadCsv(l.code)}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          <div className="dropdown">
+            <button className="btn btn--accent" onClick={() => setLangMenu((v) => !v)}>
+              <IconDownload size={17} /> Purchase list CSV ▾
+            </button>
+            {langMenu && (
+              <>
+                <div className="dropdown__scrim" onClick={() => setLangMenu(false)} />
+                <div className="dropdown__menu">
+                  <div className="dropdown__label">Download in</div>
+                  {LANG_OPTS.map((l) => (
+                    <button
+                      key={l.code}
+                      className="dropdown__item"
+                      onClick={() => downloadCsv(l.code)}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 

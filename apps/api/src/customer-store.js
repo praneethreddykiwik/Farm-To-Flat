@@ -233,6 +233,75 @@ export async function requestOtp(mobile) {
 }
 
 /** @returns {{ ok:true, customer:any, isNew:boolean } | { error:{status,code,message} }} */
+/**
+ * Check a one-time code WITHOUT signing anyone in.
+ *
+ * `verifyOtp` creates a customer for an unrecognised number as a side effect, which is right for
+ * sign-in and wrong for everything else. Changing your mobile has to prove you hold the NEW number
+ * without minting a second account for it — otherwise the change would orphan the account you are
+ * standing in, which is exactly the bug: the app signed you out and you came back as a new user
+ * with no addresses and no order history.
+ *
+ * @returns {{ ok: true } | { error: { status:number, code:string, message:string } }}
+ */
+export function checkOtpOnly(mobile, otp) {
+  const rec = cs.otp.get(mobile);
+  if (!rec || Date.now() > rec.expiresAt)
+    return {
+      error: {
+        status: 401,
+        code: 'OTP_INVALID',
+        message: 'That code has expired. Request a new one.',
+      },
+    };
+  if (otp !== rec.otp) {
+    rec.attempts += 1;
+    if (rec.attempts >= 3)
+      return {
+        error: {
+          status: 423,
+          code: 'OTP_LOCKED',
+          message: 'Too many attempts. Wait a few minutes and try again.',
+        },
+      };
+    return {
+      error: {
+        status: 401,
+        code: 'OTP_INVALID',
+        message: `That code is not right. ${3 - rec.attempts} attempts left.`,
+      },
+    };
+  }
+  cs.otp.delete(mobile);
+  return { ok: true };
+}
+
+/**
+ * Move an existing account onto a new mobile number, keeping the same customer id — so addresses,
+ * orders, wallet and sessions all follow. Refuses a number another account already holds.
+ * @returns {{ ok:true, customer:any } | { error:{ status:number, code:string, message:string } }}
+ */
+export function changeCustomerMobile(customerId, newMobile) {
+  const customer = cs.customers.get(customerId);
+  if (!customer)
+    return { error: { status: 404, code: 'NOT_FOUND', message: 'Customer not found' } };
+  if (customer.mobile === newMobile) return { ok: true, customer };
+  const holder = cs.byMobile.get(newMobile);
+  if (holder && holder !== customerId)
+    return {
+      error: {
+        status: 409,
+        code: 'MOBILE_TAKEN',
+        message: 'That number is already signed up. Sign in with it instead.',
+      },
+    };
+  cs.byMobile.delete(customer.mobile);
+  customer.mobile = newMobile;
+  cs.byMobile.set(newMobile, customerId);
+  persist.customerUpsert(customer, wallet(customerId));
+  return { ok: true, customer };
+}
+
 export function verifyOtp(mobile, otp) {
   const rec = cs.otp.get(mobile);
   if (!rec || Date.now() > rec.expiresAt) {

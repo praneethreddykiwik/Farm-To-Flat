@@ -24,6 +24,15 @@ export const api = createApi({
       query: (body) => ({ url: '/me', method: 'PATCH', body }),
       invalidatesTags: ['Me'],
     }),
+    // Changing the number keeps the same account — see apps/api/src/routes/me.js. Invalidating Me
+    // and Addresses is what makes the profile show the new number without a sign-out.
+    requestMobileChange: b.mutation({
+      query: (body) => ({ url: '/me/mobile/request', method: 'POST', body }),
+    }),
+    verifyMobileChange: b.mutation({
+      query: (body) => ({ url: '/me/mobile/verify', method: 'POST', body }),
+      invalidatesTags: ['Me', 'Addresses'],
+    }),
     getCommunities: b.query({ query: () => '/communities' }),
     getAddresses: b.query({ query: () => '/addresses', providesTags: ['Addresses'] }),
     createAddress: b.mutation({
@@ -155,6 +164,8 @@ export const {
   useLogoutMutation,
   useGetMeQuery,
   useUpdateMeMutation,
+  useRequestMobileChangeMutation,
+  useVerifyMobileChangeMutation,
   useGetCommunitiesQuery,
   useGetAddressesQuery,
   useCreateAddressMutation,

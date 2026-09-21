@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { kv } from '../src/lib/kv';
@@ -134,16 +134,10 @@ export default function Profile() {
     }
   };
 
-  const changeMobile = () => {
-    Alert.alert(
-      'Change mobile number',
-      'Your number is how you sign in, so a new one has to be verified by OTP. We’ll sign you out and send a code to the new number.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue', onPress: signOut },
-      ],
-    );
-  };
+  // Changing the number no longer signs you out. It used to, which meant you came back through
+  // sign-in as a brand-new customer and were asked for your community and address again, with your
+  // orders left on the old number.
+  const changeMobile = () => router.push('/change-mobile');
 
   const togglePush = async (v) => {
     setPush(v);
