@@ -51,6 +51,11 @@ export default function Wallet() {
       const res = await verifyPayment({
         paymentId,
         razorpayPaymentId: result.paymentId,
+        // The signature and gateway order id are what PROVE this payment. Sending only the payment
+        // id makes the server verify a signature it was never given, which fails every real
+        // top-up — the money leaves the customer's account and the wallet is never credited.
+        razorpayOrderId: result.razorpayOrderId,
+        razorpaySignature: result.signature,
         success: result.success,
       }).unwrap();
       if (result.success) {
@@ -94,7 +99,12 @@ export default function Wallet() {
       if (razorpayAvailable) {
         try {
           const r = await openRazorpay(pi);
-          await settle(pi.paymentId, { success: true, paymentId: r.razorpay_payment_id });
+          await settle(pi.paymentId, {
+            success: true,
+            paymentId: r.razorpay_payment_id,
+            razorpayOrderId: r.razorpay_order_id,
+            signature: r.razorpay_signature,
+          });
         } catch {
           await settle(pi.paymentId, { success: false });
         }

@@ -23,6 +23,10 @@ function ProductCardBase({ product, index = 0, width }) {
   const alias = product.aliases?.find(
     (a) => /^[a-z ]+$/i.test(a) && a.toLowerCase() !== product.name.toLowerCase(),
   );
+  // The server already refuses a sold-out product with 409 UNAVAILABLE, so nothing oversells — but
+  // the card showed a live stepper regardless, so the shopper tapped Add and got an error instead
+  // of simply seeing that it had run out.
+  const soldOut = !!product.availability && product.availability !== 'AVAILABLE';
 
   return (
     <Animated.View
@@ -48,9 +52,16 @@ function ProductCardBase({ product, index = 0, width }) {
               radius={radius.md}
               recyclingKey={product.id}
             />
-            {product.variableWeight ? (
+            {product.variableWeight && !soldOut ? (
               <View style={styles.tag}>
                 <Small style={{ fontSize: 10, color: colors.inkOnDark }}>WEIGHED</Small>
+              </View>
+            ) : null}
+            {soldOut ? (
+              <View style={styles.soldOutVeil}>
+                <View style={styles.soldOutPill}>
+                  <Small style={{ fontSize: 10.5, color: colors.inkOnDark }}>SOLD OUT</Small>
+                </View>
               </View>
             ) : null}
           </View>
@@ -72,14 +83,20 @@ function ProductCardBase({ product, index = 0, width }) {
             </Small>
           </View>
           <View style={styles.stepperRow}>
-            <Stepper
-              value={quantity}
-              increment={product.increment}
-              unit={product.unit}
-              max={product.dailyCap}
-              onChange={setQuantity}
-              size="sm"
-            />
+            {soldOut ? (
+              <View style={styles.soldOutNote}>
+                <Small muted>Back when it&rsquo;s picked</Small>
+              </View>
+            ) : (
+              <Stepper
+                value={quantity}
+                increment={product.increment}
+                unit={product.unit}
+                max={product.dailyCap}
+                onChange={setQuantity}
+                size="sm"
+              />
+            )}
           </View>
         </View>
       </Glass>
@@ -102,6 +119,20 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.pill,
   },
+  soldOutVeil: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(243,245,239,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+  },
+  soldOutPill: {
+    backgroundColor: colors.glassDark,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  soldOutNote: { paddingVertical: 6 },
   meta: { paddingTop: 10, paddingHorizontal: 2 },
   footer: { paddingTop: 10, paddingHorizontal: 2, gap: 8 },
   priceRow: { flexDirection: 'row', alignItems: 'flex-end' },

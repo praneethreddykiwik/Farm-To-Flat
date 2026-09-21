@@ -6,10 +6,13 @@
 
 const IST_OFFSET_MIN = 5 * 60 + 30;
 
-/** Current business date in IST as `YYYY-MM-DD`. */
-export function todayISO() {
-  const now = new Date();
-  const ist = new Date(now.getTime() + IST_OFFSET_MIN * 60 * 1000);
+/**
+ * Current business date in IST as `YYYY-MM-DD`.
+ * @param {number} [now] ms since epoch; injectable so window generation can be tested at a fixed
+ *   instant instead of depending on when the suite happens to run.
+ */
+export function todayISO(now = Date.now()) {
+  const ist = new Date(now + IST_OFFSET_MIN * 60 * 1000);
   return ist.toISOString().slice(0, 10);
 }
 

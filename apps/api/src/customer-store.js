@@ -607,6 +607,33 @@ export const rawCart = (cid) => cart(cid);
 export function clearCart(cid) {
   cs.carts.set(cid, { items: [], couponCode: null });
 }
+
+/**
+ * Put an abandoned order's lines back in the basket.
+ *
+ * The basket is emptied when the order is CREATED, not when it is paid — so backing out of the
+ * payment sheet left the shopper with a failed order and nothing to retry with, and the app asked
+ * them to pick everything again. This returns the lines so "try again" means one tap.
+ *
+ * Only ever fills an EMPTY basket: if they have since started a new one, that is the basket they
+ * are working on and silently merging a dead order into it would be worse than doing nothing.
+ * @returns {boolean} whether anything was restored
+ */
+export function restoreCartFromOrder(cid, order) {
+  const cur = cart(cid);
+  if (cur.items.length) return false;
+  const items = (order?.items || [])
+    .filter((i) => i.productId)
+    .map((i) => ({
+      id: id('ci', 8),
+      productId: i.productId,
+      quantity: Number(i.quantity),
+      note: i.note || null,
+    }));
+  if (!items.length) return false;
+  cs.carts.set(cid, { items, couponCode: order.couponCode || null });
+  return true;
+}
 export const cartCount = (cid) => cart(cid).items.length;
 
 // ── wallet ────────────────────────────────────────────────────────────────────

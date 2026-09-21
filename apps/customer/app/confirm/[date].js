@@ -117,6 +117,10 @@ export default function ConfirmDay() {
       const res = await verifyPayment({
         paymentId: pi.paymentId,
         razorpayPaymentId: result.paymentId,
+        // Same proof the checkout screen sends — without it the server rejects a payment the
+        // customer has already made.
+        razorpayOrderId: result.razorpayOrderId,
+        razorpaySignature: result.signature,
         success: result.success,
       }).unwrap();
       if (result.success) finish(res.order || pendingOrder);
@@ -194,7 +198,12 @@ export default function ConfirmDay() {
             contact: customer?.mobile,
             name: customer?.name,
           });
-          await settle(res.paymentIntent, { success: true, paymentId: r.razorpay_payment_id });
+          await settle(res.paymentIntent, {
+            success: true,
+            paymentId: r.razorpay_payment_id,
+            razorpayOrderId: r.razorpay_order_id,
+            signature: r.razorpay_signature,
+          });
         } catch {
           await settle(res.paymentIntent, { success: false });
         }

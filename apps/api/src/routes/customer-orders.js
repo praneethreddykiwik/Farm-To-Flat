@@ -220,11 +220,16 @@ customerOrdersRouter.get(
 );
 
 /**
- * Cancel an order. If it hasn't been paid/started (PENDING_PAYMENT) it's cancelled immediately and
- * any wallet money is refunded. Once it's CONFIRMED or further (the farm procures and packs against
- * it), a straight cancel isn't safe — so it becomes a CANCELLATION REQUEST that surfaces on the
- * operator's Fulfilment board for approval. The refund/coupon release happens when the operator
- * approves, not before.
+ * Cancel an order.
+ *
+ * The rule is the packing bench, not the payment: until the farm starts putting the order together
+ * the customer cancels outright and is refunded immediately — no request, no waiting on staff. Once
+ * it is PACKING the goods are already weighed and bagged against it, so cancelling is refused and
+ * the app stops offering it.
+ *
+ * Previously everything from CONFIRMED onwards raised a CANCELLATION REQUEST for an operator to
+ * approve, which left the customer waiting on a human for an order nobody had touched yet — and
+ * showed the operator an order that was both "Confirmed" and "Cancellation requested" at once.
  */
 customerOrdersRouter.post(
   '/:id/cancel',
@@ -236,23 +241,16 @@ customerOrdersRouter.post(
     if (existing.status === 'CANCELLED') throw fail(409, 'CANNOT_CANCEL', 'Already cancelled.');
     if (existing.status === 'DELIVERED')
       throw fail(409, 'CANNOT_CANCEL', 'This order has already been delivered.');
-    if (existing.cancelRequested)
-      // already asked — idempotent, just return it
-      return res.json({ order: orderCustomer(existing), cancelRequested: true });
+    // Packed or on the road: the goods exist and are allocated. Refuse, and say why.
+    if (existing.status === 'PACKING' || existing.status === 'OUT_FOR_DELIVERY')
+      throw fail(
+        409,
+        'CANNOT_CANCEL',
+        'This order is already being packed, so it can no longer be cancelled here. Contact support if something is wrong.',
+      );
 
-    // Not yet paid/started → cancel outright and refund now (single, idempotent cancel path).
-    if (existing.status === 'PENDING_PAYMENT' || existing.status === 'PAYMENT_FAILED') {
-      const { order: updated } = cancelOrder(req.params.id);
-      return res.json({ order: orderCustomer(updated), cancelled: true });
-    }
-
-    // CONFIRMED / PACKING / OUT_FOR_DELIVERY → ask the operator to approve.
-    const updated = patchOrder(req.params.id, (o) => {
-      o.cancelRequested = true;
-      o.cancelReason = req.body.reason || null;
-      o.cancelRequestedAt = new Date().toISOString();
-      o.timeline.push({ status: 'CANCEL_REQUESTED', at: o.cancelRequestedAt });
-    });
-    res.json({ order: orderCustomer(updated), cancelRequested: true });
+    // Everything before the packing bench — cancel outright and refund now.
+    const { order: updated } = cancelOrder(req.params.id);
+    res.json({ order: orderCustomer(updated), cancelled: true });
   }),
 );

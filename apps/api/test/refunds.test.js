@@ -55,15 +55,12 @@ async function readyToOrder(mobile) {
   return { token, addressId: a.body.address.id, win };
 }
 async function place(ctx, useWallet = true) {
-  const r = await request(app)
-    .post('/api/v1/orders')
-    .set(auth(ctx.token))
-    .send({
-      addressId: ctx.addressId,
-      deliveryDate: ctx.win.date,
-      window: ctx.win.window,
-      useWallet,
-    });
+  const r = await request(app).post('/api/v1/orders').set(auth(ctx.token)).send({
+    addressId: ctx.addressId,
+    deliveryDate: ctx.win.date,
+    window: ctx.win.window,
+    useWallet,
+  });
   expect(r.status).toBe(201);
   return r.body;
 }
@@ -130,7 +127,9 @@ describe('refunds are idempotent and never stranded', () => {
     expect(cust.status).toBe(409);
   });
 
-  it('5 concurrent cancel-decision approvals refund exactly once', async () => {
+  it('a CONFIRMED order cancels outright, and 5 concurrent cancels refund exactly once', async () => {
+    // The customer no longer waits on an operator: until the order is being packed, cancelling is
+    // immediate. The refund still has to survive the customer hammering the button.
     const ctx = await readyToOrder('9222000003');
     const topped = await topUp(ctx.token);
     const { order, paymentIntent } = await place(ctx);
@@ -140,21 +139,35 @@ describe('refunds are idempotent and never stranded', () => {
         .post('/api/v1/payments/verify')
         .set(auth(ctx.token))
         .send({ paymentId: paymentIntent.paymentId, success: true });
-    await request(app)
-      .post(`/api/v1/orders/${order.id}/cancel`)
-      .set(auth(ctx.token))
-      .send({ reason: 'x' });
+
     const results = await Promise.all(
       Array.from({ length: 5 }, () =>
-        request(app)
-          .post(`/api/v1/admin/orders/${order.id}/cancel-decision`)
-          .send({ decision: 'APPROVE' }),
+        request(app).post(`/api/v1/orders/${order.id}/cancel`).set(auth(ctx.token)).send({}),
       ),
     );
-    expect(results.filter((r) => r.status === 200).length).toBe(1);
-    expect(results.filter((r) => r.status === 409).length).toBe(4);
+    // Every call answers cleanly — the first cancels, the rest see it is already cancelled.
+    expect(results.every((r) => r.status === 200 || r.status === 409)).toBe(true);
+    expect(results.filter((r) => r.status === 200 && r.body.cancelled).length).toBeGreaterThan(0);
+    // The money came back exactly once.
     expect(await balance(ctx.token)).toBe(topped);
     expect(applied).toBeGreaterThan(0);
+  });
+
+  it('an order already being packed refuses to cancel', async () => {
+    const ctx = await readyToOrder('9222000009');
+    const { order, paymentIntent } = await place(ctx);
+    if (paymentIntent)
+      await request(app)
+        .post('/api/v1/payments/verify')
+        .set(auth(ctx.token))
+        .send({ paymentId: paymentIntent.paymentId, success: true });
+    await request(app).patch(`/api/v1/admin/orders/${order.id}/status`).send({ status: 'PACKING' });
+    const r = await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(auth(ctx.token))
+      .send({});
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe('CANNOT_CANCEL');
   });
 
   it('a gateway capture that lands after the order was cancelled is returned to the wallet, not lost', async () => {

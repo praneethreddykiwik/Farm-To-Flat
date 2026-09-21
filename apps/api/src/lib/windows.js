@@ -15,6 +15,39 @@
 import { addDaysISO, istInstantMs, todayISO, weekdayOf } from './dates.js';
 
 /**
+ * How many days ahead the earliest orderable delivery is.
+ *
+ * The farm harvests against the night's order list — "picked tonight, at your door by breakfast" —
+ * so an order placed today is delivered tomorrow at the earliest. Before this, a midday order could
+ * take that same evening's slot, which showed a customer a delivery date of TODAY for produce that
+ * had not been picked yet.
+ *
+ * Today's windows are still generated so the operator's schedule shows the run that is in flight;
+ * they simply cannot be ordered into (`isOpen: false`, with `tooSoon` saying why).
+ */
+export const MIN_LEAD_DAYS = 1;
+
+/**
+ * The last instant an order may be placed for delivery date `d`.
+ *
+ * Two deadlines apply and the earlier one wins:
+ *  - the community's configured harvest cut-off, a clock time ON the delivery day (03:45 / 15:00);
+ *  - the lead-time boundary — once the delivery day is no longer far enough out, it is closed.
+ *
+ * With a one-day lead the boundary is midnight at the start of the delivery day, which always falls
+ * before that day's 03:45, so in practice the boundary is what binds: orders for Tuesday close at
+ * midnight on Monday. That is strictly earlier than the harvest cut-off, so it is operationally
+ * safe — and it is the deadline the countdown must count to, otherwise the app would show time
+ * remaining against a cut-off the customer can no longer reach.
+ */
+function closesAtMs(community, d, w) {
+  const cutoffTime = w === 'MORNING' ? community.morningCutoff : community.eveningCutoff;
+  const harvestCutoff = istInstantMs(d, cutoffTime);
+  const leadBoundary = istInstantMs(addDaysISO(d, 1 - MIN_LEAD_DAYS), '00:00');
+  return Math.min(harvestCutoff, leadBoundary);
+}
+
+/**
  * @param {any} community
  * @param {string} fromDate  YYYY-MM-DD
  * @param {(communityId:string,date:string,window:string)=>number} bookedFor  informational order
@@ -24,13 +57,15 @@ import { addDaysISO, istInstantMs, todayISO, weekdayOf } from './dates.js';
 export function generateWindows(community, fromDate, bookedFor, now = Date.now()) {
   const out = [];
   const warningMs = (community.cutoffWarningMinutes ?? 15) * 60 * 1000;
+  const earliest = addDaysISO(todayISO(now), MIN_LEAD_DAYS);
   for (let i = 0; i < 14; i += 1) {
     const d = addDaysISO(fromDate, i);
     if (!community.deliveryDays.includes(weekdayOf(d))) continue;
     for (const w of ['MORNING', 'EVENING']) {
       const cutoffTime = w === 'MORNING' ? community.morningCutoff : community.eveningCutoff;
-      const cutoffAtMs = istInstantMs(d, cutoffTime);
-      const msLeft = cutoffAtMs - now;
+      const closesAt = closesAtMs(community, d, w);
+      const msLeft = closesAt - now;
+      const tooSoon = d < earliest;
       const isOpen = msLeft > 0;
       const secondsUntilCutoff = isOpen ? Math.round(msLeft / 1000) : 0;
       out.push({
@@ -39,7 +74,11 @@ export function generateWindows(community, fromDate, bookedFor, now = Date.now()
         window: w,
         booked: bookedFor(community.id, d, w), // informational only — never gates ordering
         isOpen,
-        cutoffAt: new Date(cutoffAtMs).toISOString(),
+        // Why it is shut, for copy: too close to the delivery day vs. the deadline simply passed.
+        tooSoon: !isOpen && tooSoon,
+        cutoffAt: new Date(closesAt).toISOString(),
+        // The operator's configured harvest time, kept separate from the ordering deadline above.
+        harvestCutoffAt: new Date(istInstantMs(d, cutoffTime)).toISOString(),
         secondsUntilCutoff,
         showCountdown: isOpen && msLeft <= warningMs,
       });

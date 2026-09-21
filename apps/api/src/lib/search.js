@@ -44,13 +44,35 @@ export function scoreProduct(product, nq) {
   return score;
 }
 
-/** Ranked product ids for a query. Threshold matches the mock (0.28). */
+/** Absolute floor — low enough that a real misspelling still finds its product. */
+const MIN_SCORE = 0.28;
+/** At or above this, the top hit is a confident match rather than a guess. */
+const STRONG_SCORE = 0.6;
+/** When there IS a confident hit, everything else must reach this fraction of it. */
+const RELATIVE_TO_TOP = 0.5;
+
+/**
+ * Ranked products for a query.
+ *
+ * The absolute floor alone is not enough. Searching "karela" returned Banana, because one of its
+ * aliases is "kela"; "chicken" returned Soaked chana, because one of ITS aliases is "chickpea".
+ * Both are genuine trigram neighbours, not noise — but showing them next to an exact hit makes the
+ * search look broken, and that is what a shopper reports.
+ *
+ * So the floor stays (a misspelling with no strong match still finds its product), and a second
+ * rule applies only when a confident match exists: near-misses must be at least half as good as the
+ * winner, otherwise they are a distraction rather than an alternative.
+ */
 export function search(products, q) {
   const nq = normalise(q);
   if (!nq) return [];
-  return products
+  const ranked = products
     .map((p) => ({ p, score: scoreProduct(p, nq) }))
-    .filter((x) => x.score >= 0.28)
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.p);
+    .filter((x) => x.score >= MIN_SCORE)
+    .sort((a, b) => b.score - a.score);
+  if (!ranked.length) return [];
+
+  const top = ranked[0].score;
+  const cutoff = top >= STRONG_SCORE ? Math.max(MIN_SCORE, top * RELATIVE_TO_TOP) : MIN_SCORE;
+  return ranked.filter((x) => x.score >= cutoff).map((x) => x.p);
 }

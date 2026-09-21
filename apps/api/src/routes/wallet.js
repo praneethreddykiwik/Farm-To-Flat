@@ -17,6 +17,7 @@ import {
   ledgerPush,
   releaseCoupon,
   savePayment,
+  restoreCartFromOrder,
 } from '../customer-store.js';
 import { refundOrderWallet } from '../lib/order-lifecycle.js';
 import {
@@ -105,6 +106,8 @@ paymentsRouter.post(
           // Idempotent: only the not-yet-returned wallet portion is credited.
           refundOrderWallet(o, 'Payment abandoned, wallet returned');
           if (o.couponCode) releaseCoupon(cid, o.couponCode);
+          // Give the basket back, so "try again" does not mean "pick it all out again".
+          restoreCartFromOrder(cid, o);
         }
       }
       return res.json({ status: 'FAILED' });
