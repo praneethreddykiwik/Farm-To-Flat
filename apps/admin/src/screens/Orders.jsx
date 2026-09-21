@@ -165,15 +165,23 @@ export function Orders() {
                       <span className="rupee">{inr(o.totalPaise)}</span>
                     </td>
                     <td>
-                      <div className="hstack" style={{ gap: 6, flexWrap: 'wrap' }}>
-                        <StatusBadge status={o.status} />
-                        {isCancelRequest(o) && (
+                      {/* A pending cancellation is the state that needs a decision, so it reads as
+                          ONE state with the fulfilment status behind it. Showing both as equal
+                          badges made an order look like it was "Confirmed" and "Cancellation
+                          requested" at the same time, which reads as a contradiction. */}
+                      {isCancelRequest(o) ? (
+                        <div className="hstack" style={{ gap: 6, flexWrap: 'wrap' }}>
                           <span className="badge st-CANCELLED" title="Customer asked to cancel">
                             <span className="badge__dot" />
                             Cancellation requested
                           </span>
-                        )}
-                      </div>
+                          <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+                            was {String(o.status).replace(/_/g, ' ').toLowerCase()}
+                          </span>
+                        </div>
+                      ) : (
+                        <StatusBadge status={o.status} />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -218,11 +226,14 @@ export function OrderDrawer({ id, onClose, onChanged }) {
       footer={
         nexts.length > 0 ? (
           <>
+            {/* "Advance to" alone did not say what it acted on or what would happen — a tester
+                asked what the button was for. Name the thing being moved. */}
             <span
               className="muted"
               style={{ fontSize: 12.5, marginRight: 'auto', alignSelf: 'center' }}
+              title="Moves this order to the next fulfilment stage. The customer sees the change immediately."
             >
-              Advance to
+              Move this order to
             </span>
             {nexts.map((s) => (
               <button
