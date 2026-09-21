@@ -195,8 +195,11 @@ export function orderCustomer(o) {
     timeline: o.timeline,
     cancelRequested: !!o.cancelRequested,
     cancelReason: o.cancelReason || null,
-    // Can start a cancellation unless it's already done, delivered, or a request is pending.
-    canCancel: !['DELIVERED', 'CANCELLED'].includes(o.status) && !o.cancelRequested,
+    // Mirrors the cancel route exactly: free until the packing bench, refused after. Kept in step
+    // with it so the app never offers a button the server will reject.
+    canCancel:
+      !['DELIVERED', 'CANCELLED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status) &&
+      !o.cancelRequested,
   };
 }
 

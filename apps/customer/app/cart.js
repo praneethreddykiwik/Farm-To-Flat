@@ -11,7 +11,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { NotebookPen, ShoppingBasket, Ticket, Trash2, X } from 'lucide-react-native';
+import { NotebookPen, Plus, ShoppingBasket, Ticket, Trash2, X } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -290,6 +290,27 @@ export default function Cart() {
                   </Glass>
                 </Animated.View>
 
+                {/* Getting back to the catalog meant closing the basket by hand and finding your
+                    place again. Same destination as the empty state's Browse, one tap from here. */}
+                <Animated.View
+                  entering={FadeInDown.delay(60).duration(360).springify().damping(18)}
+                  style={{ marginTop: 12 }}
+                >
+                  <Pressy
+                    onPress={browse}
+                    haptics="soft"
+                    scale={0.985}
+                    accessibilityLabel="Add more items"
+                  >
+                    <Glass radius={radius.lg} innerStyle={styles.addMore}>
+                      <Plus size={17} color={colors.leafDeep} />
+                      <Text variant="bodyMedium" color={colors.leafDeep}>
+                        Add more items
+                      </Text>
+                    </Glass>
+                  </Pressy>
+                </Animated.View>
+
                 <Animated.View
                   entering={FadeInDown.delay(80).duration(360).springify().damping(18)}
                   style={{ marginTop: 14 }}
@@ -428,6 +449,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     minWidth: 200,
+  },
+  addMore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
   },
   coupon: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   couponIcon: {

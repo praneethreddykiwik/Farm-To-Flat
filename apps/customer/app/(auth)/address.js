@@ -27,9 +27,17 @@ export default function AddressCapture() {
   };
   return (
     <Screen edges={['top']}>
+      {/* The form below is its own ScrollView, and this heading sits above it rather than inside
+          it. Without an opaque ground the scrolled fields showed THROUGH the heading — which is
+          what reads as "Where do we deliver? is overlapped". */}
       <Animated.View
         entering={FadeInDown.duration(420).springify().damping(18)}
-        style={{ marginTop: 20, marginBottom: 20 }}
+        style={{
+          marginTop: 20,
+          marginBottom: 20,
+          backgroundColor: colors.canvas,
+          zIndex: 2,
+        }}
       >
         <Small muted>ALMOST THERE</Small>
         <Display style={{ marginTop: 6 }}>Where do we deliver?</Display>

@@ -125,20 +125,15 @@ export default function OrderDetail() {
   };
 
   const confirmCancel = () => {
-    // An order that hasn't been paid yet cancels instantly with an immediate refund. Once it's
-    // CONFIRMED (the farm procures and packs against it) a straight cancel isn't safe — it becomes a
-    // request our team reviews on the ops board. Tell the customer which one is about to happen so
-    // the "under review" outcome is never a surprise.
-    const willReview = !!order && order.status !== 'PENDING_PAYMENT';
+    // Cancelling is immediate right up until the order is packed — no request, no waiting on a
+    // human. Once it IS being packed the button is gone entirely, so there is no third case here.
     Alert.alert(
-      willReview ? 'Request cancellation?' : 'Cancel this order?',
-      willReview
-        ? 'Your order is already confirmed and being prepared, so our team will quickly review this request. You can cancel anytime before it’s packed — we’ll message you the moment it’s confirmed.'
-        : 'Anything paid from your wallet is returned instantly. Gateway payments are refunded to the original method.',
+      'Cancel this order?',
+      'Anything paid from your wallet is returned instantly. Gateway payments are refunded to the original method.',
       [
         { text: 'Keep order', style: 'cancel' },
         {
-          text: willReview ? 'Request cancellation' : 'Cancel order',
+          text: 'Cancel order',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -253,6 +248,14 @@ export default function OrderDetail() {
                         {formatQty(it.quantity, it.unit)}
                         {it.variableWeight ? ' · billed on packed weight' : ''}
                       </Small>
+                      {/* The note the shopper typed for this line. The operator has always seen it
+                          on the ops board; the customer could not see their own instruction back,
+                          so there was no way to check it had been recorded. */}
+                      {it.note ? (
+                        <Small color={colors.leafDeep} style={{ marginTop: 3 }}>
+                          “{it.note}”
+                        </Small>
+                      ) : null}
                     </View>
                     <Money paise={it.lineTotalPaise} variant="bodyMedium" />
                   </View>
@@ -294,9 +297,7 @@ export default function OrderDetail() {
                   loading={cancelling}
                 />
                 <Small muted center style={{ marginTop: 8 }}>
-                  {order.status === 'PENDING_PAYMENT'
-                    ? 'Free until the evening before your window.'
-                    : 'Cancel anytime before it’s packed — our team reviews the request.'}
+                  Free to cancel until we start packing your order.
                 </Small>
               </Animated.View>
             ) : order.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(order.status) ? (
@@ -304,7 +305,9 @@ export default function OrderDetail() {
                 entering={FadeInDown.delay(180).duration(360)}
                 style={{ marginTop: 24 }}
               >
-                <Glass style={styles.reviewBanner}>
+                {/* Padding belongs on innerStyle: Glass's `style` is the OUTER wrapper, so putting
+                    it there left the text hard against the card edge and clipped the heading. */}
+                <Glass radius={radius.lg} innerStyle={styles.reviewBanner}>
                   <Label style={{ color: colors.leafDeep }}>Cancellation under review</Label>
                   <Small muted style={{ marginTop: 6 }}>
                     Our team is reviewing your cancellation request. You’ll get a message the moment
@@ -365,10 +368,5 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  reviewBanner: {
-    padding: 16,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.leafDeep + '33',
-  },
+  reviewBanner: { padding: 16 },
 });

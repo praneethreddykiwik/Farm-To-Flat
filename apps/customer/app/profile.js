@@ -1,6 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { kv } from '../src/lib/kv';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -69,6 +71,9 @@ function Row({
 
 const DIETS = ['vegetarian', 'vegetarian + eggs', 'non-vegetarian', 'vegan'];
 
+/** Whether the shopper wants order/wallet notifications, independent of the OS permission. */
+const PUSH_PREF = 'notifications.enabled';
+
 export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -83,7 +88,26 @@ export default function Profile() {
   const [registerDevice] = useRegisterDeviceMutation();
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
   const signOut = useSignOut();
+  // Reflect the REAL notification permission, not a guess. This was `useState(false)`, so the
+  // switch reset itself to off every time the screen remounted — turn it on, go back, come back,
+  // and it read as off while notifications were in fact enabled.
   const [push, setPush] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      Notifications.getPermissionsAsync()
+        // Two things have to be true: the OS lets us notify, and the shopper has not switched it
+        // off in here. The OS permission cannot be revoked from inside the app, so without the
+        // second half, turning the switch off and coming back would show it on again.
+        .then(
+          (perm) => alive && setPush(perm.status === 'granted' && kv.getString(PUSH_PREF) !== '0'),
+        )
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
   const [busy, setBusy] = useState(false);
   const [field, setField] = useState(null);
   const editSheet = useRef(null);
@@ -123,6 +147,7 @@ export default function Profile() {
 
   const togglePush = async (v) => {
     setPush(v);
+    kv.setString(PUSH_PREF, v ? '1' : '0');
     if (!v) return;
     setBusy(true);
     const token = await registerForPush();
