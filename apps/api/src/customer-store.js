@@ -12,7 +12,7 @@ import {
   listCoupons,
 } from './store.js';
 import { id, shortId } from './lib/ids.js';
-import { msg91Enabled, sendOtpSms } from './lib/msg91.js';
+import { deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist } from './persistence.js';
@@ -178,7 +178,7 @@ if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
 /**
  * Request a login OTP. Security:
  *  - In production the code is RANDOM and is NEVER returned in the response (it must be delivered by
- *    SMS via MSG91 — wired in the auth pass). Only dev/test use the fixed 123456 for convenience.
+ *    WhatsApp via MSG91 — see lib/msg91.js). Only dev/test use the fixed 123456 for convenience.
  *  - Rate-limited per number (max 5 requests / 10 min) to stop SMS-bombing / abuse.
  * @returns {Promise<{ ok:true, expiresInSeconds:number, devOtp?:string } | { error:{status,code,message} }>}
  */
@@ -211,7 +211,7 @@ export async function requestOtp(mobile) {
   if (!useDev) {
     if (msg91Enabled) {
       try {
-        await sendOtpSms({ mobile, otp });
+        await deliverOtp({ mobile, otp }); // WhatsApp, with SMS only if enabled as a fallback
       } catch {
         return {
           error: {
@@ -223,7 +223,9 @@ export async function requestOtp(mobile) {
       }
     } else {
       // eslint-disable-next-line no-console
-      console.warn('[otp] MSG91 not configured — OTP generated but not delivered.');
+      console.warn(
+        '[otp] No delivery channel configured (set MSG91_AUTH_KEY + MSG91_WA_NUMBER + MSG91_WA_TEMPLATE_NAME) — OTP generated but not delivered.',
+      );
     }
     return { ok: true, expiresInSeconds: 300 }; // never leak the code in prod
   }
