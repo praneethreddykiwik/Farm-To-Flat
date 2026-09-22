@@ -17,11 +17,13 @@ function hms(totalSeconds) {
 }
 
 /**
- * Live ticking "closes in 12:45" — the exact scenario a customer sees at 3:30 AM ordering into a
- * 3:45 cut-off. Ticks client-side from the server's `secondsUntilCutoff` snapshot (no per-second
- * network polling); resets whenever a fresh snapshot arrives from a refetch.
+ * Live ticking "closes in 59:59" — shown for the WHOLE time a window is open, not just the last
+ * few minutes, so a customer looking at 2:15 PM at a window that closes at 3:15 PM sees the hour
+ * counting down. Ticks client-side from the server's `secondsUntilCutoff` snapshot (no per-second
+ * network polling); resets whenever a fresh snapshot arrives from a refetch. `urgent` turns it red
+ * inside the community's warning window.
  */
-function CutoffCountdown({ windowId, secondsUntilCutoff }) {
+function CutoffCountdown({ windowId, secondsUntilCutoff, urgent }) {
   const [left, setLeft] = useState(secondsUntilCutoff);
   useEffect(() => {
     // Re-sync to the server's latest snapshot whenever it changes (a refetch, or a new window),
@@ -32,8 +34,11 @@ function CutoffCountdown({ windowId, secondsUntilCutoff }) {
     return () => clearInterval(t);
   }, [windowId, secondsUntilCutoff]);
   return (
-    <Mono color={colors.tomato} style={{ fontSize: 12, fontWeight: '700' }}>
-      Closes in {hms(left)}
+    <Mono
+      color={urgent ? colors.tomato : colors.leafDeep}
+      style={{ fontSize: 12, fontWeight: '700' }}
+    >
+      Order in {hms(left)}
     </Mono>
   );
 }
@@ -176,7 +181,11 @@ export function WindowPicker({ windows, loading, value, onChange }) {
                   </View>
                   {w.isOpen ? (
                     w.showCountdown ? (
-                      <CutoffCountdown windowId={w.id} secondsUntilCutoff={w.secondsUntilCutoff} />
+                      <CutoffCountdown
+                        windowId={w.id}
+                        secondsUntilCutoff={w.secondsUntilCutoff}
+                        urgent={w.isUrgent}
+                      />
                     ) : (
                       <Mono color={colors.leafDeep} style={{ fontSize: 12 }}>
                         open

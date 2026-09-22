@@ -10,7 +10,7 @@
  * request, or a restart between two attempts) returns nothing.
  */
 import { getOrder, patchOrder, rawOrders } from '../store.js';
-import { getWallet, ledgerPush, releaseCoupon } from '../customer-store.js';
+import { getWallet, ledgerPush, releaseCoupon, restoreCartFromOrder } from '../customer-store.js';
 import { IS_TEST } from './env.js';
 
 const TERMINAL = new Set(['CANCELLED', 'DELIVERED']);
@@ -68,6 +68,11 @@ export function cancelOrder(orderId, { timelineStatus = 'CANCELLED' } = {}) {
   });
   const refundedPaise = refundOrderWallet(order);
   if (order.customerId && order.couponCode) releaseCoupon(order.customerId, order.couponCode);
+  // An order that never got paid for is an abandoned checkout, not a completed purchase: give the
+  // basket back so "try again" is one tap, not a re-shop. Only ever fills an EMPTY cart
+  // (restoreCartFromOrder refuses otherwise), so a basket built since is never clobbered.
+  if (changed && existing.status === 'PENDING_PAYMENT' && order.customerId)
+    restoreCartFromOrder(order.customerId, order);
   return { order, changed, refundedPaise };
 }
 
@@ -106,6 +111,8 @@ export function expirePendingOrders({
     });
     refundOrderWallet(updated, `Checkout timed out for ${o.orderNumber}, wallet returned`);
     if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
+    // The customer walked away mid-payment. Put the basket back for when they return.
+    if (o.customerId) restoreCartFromOrder(o.customerId, updated);
     n += 1;
   }
   return n;

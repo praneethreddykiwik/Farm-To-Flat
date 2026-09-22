@@ -8,9 +8,13 @@
  * delivery run) — configurable from the admin panel. A window is open until that instant passes;
  * there is no other limit on how many orders it can hold.
  *
- * The last `cutoffWarningMinutes` before the deadline, the window carries `secondsUntilCutoff` and
- * `showCountdown: true` so the app can show a live "12:45 left to order" timer — the exact scenario
- * of a customer trying to order at 3:30 AM for the 03:45 morning cut-off.
+ * Every OPEN window carries `secondsUntilCutoff` and `showCountdown: true`, so the app can show a
+ * live "59:59 left to order" timer for the whole time the window is orderable — not only in the
+ * final minutes. A customer looking at 2:15 PM at a window that closes at 3:15 PM must see 59:59
+ * ticking down, which is the whole point of the countdown.
+ *
+ * `isUrgent` marks the last `cutoffWarningMinutes` before the deadline, so the client can turn the
+ * same timer red without changing whether it is shown at all.
  */
 import { addDaysISO, istInstantMs, todayISO, weekdayOf } from './dates.js';
 
@@ -80,7 +84,9 @@ export function generateWindows(community, fromDate, bookedFor, now = Date.now()
         // The operator's configured harvest time, kept separate from the ordering deadline above.
         harvestCutoffAt: new Date(istInstantMs(d, cutoffTime)).toISOString(),
         secondsUntilCutoff,
-        showCountdown: isOpen && msLeft <= warningMs,
+        // Shown for the entire time the window is open — see the countdown note at the top.
+        showCountdown: isOpen,
+        isUrgent: isOpen && msLeft <= warningMs,
       });
     }
   }

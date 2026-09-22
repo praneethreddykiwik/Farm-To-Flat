@@ -58,12 +58,14 @@ describe('generateWindows — cut-off timing (pure)', () => {
       (w) => w.date === dayAfter(today) && w.window === 'MORNING',
     );
     expect(morning.isOpen).toBe(true);
-    expect(morning.showCountdown).toBe(false);
+    // The countdown runs for the whole time the window is orderable, not only near the deadline.
+    expect(morning.showCountdown).toBe(true);
+    expect(morning.isUrgent).toBe(false);
     // The deadline is midnight tonight — 23h, not the 03:45 harvest time on the delivery day.
     expect(morning.secondsUntilCutoff).toBe(23 * 60 * 60);
   });
 
-  it('the countdown appears in the last 15 minutes before the deadline', () => {
+  it('the countdown turns urgent in the last 15 minutes before the deadline', () => {
     const today = '2026-09-19';
     const now = istInstantMs(today, '23:45'); // 15 min before midnight closes tomorrow's windows
     const morning = generateWindows(community, today, noBookings, now).find(
@@ -71,6 +73,7 @@ describe('generateWindows — cut-off timing (pure)', () => {
     );
     expect(morning.isOpen).toBe(true);
     expect(morning.showCountdown).toBe(true);
+    expect(morning.isUrgent).toBe(true);
     expect(morning.secondsUntilCutoff).toBe(15 * 60);
   });
 
@@ -82,6 +85,7 @@ describe('generateWindows — cut-off timing (pure)', () => {
     );
     expect(morning.isOpen).toBe(false);
     expect(morning.showCountdown).toBe(false);
+    expect(morning.isUrgent).toBe(false);
     expect(morning.secondsUntilCutoff).toBe(0);
   });
 
@@ -103,7 +107,8 @@ describe('generateWindows — cut-off timing (pure)', () => {
     const windows = generateWindows(community, today, noBookings, now);
     const dayAfterTomorrow = windows.find((w) => w.date === '2026-09-21' && w.window === 'MORNING');
     expect(dayAfterTomorrow.isOpen).toBe(true);
-    expect(dayAfterTomorrow.showCountdown).toBe(false);
+    expect(dayAfterTomorrow.showCountdown).toBe(true);
+    expect(dayAfterTomorrow.isUrgent).toBe(false);
   });
 
   it('there is no capacity field at all — booked is informational only', () => {

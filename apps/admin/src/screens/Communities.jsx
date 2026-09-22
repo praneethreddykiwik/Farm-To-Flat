@@ -204,8 +204,10 @@ function WindowStatus({ w }) {
   }
   if (w.showCountdown) {
     const left = w.secondsUntilCutoff - elapsed;
+    // Amber for the whole open period, red once inside the community's warning window.
+    const color = w.isUrgent ? 'var(--tomato)' : 'var(--leaf-deep)';
     return (
-      <span className="mono" style={{ fontSize: 11, color: 'var(--tomato)', fontWeight: 700 }}>
+      <span className="mono" style={{ fontSize: 11, color, fontWeight: 700 }}>
         {left > 0 ? `Closes in ${hms(left)}` : 'Closing…'}
       </span>
     );

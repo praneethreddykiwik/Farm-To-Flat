@@ -283,7 +283,8 @@ function windowsFor(communityId, date) {
         isOpen,
         cutoffAt: new Date(cutoffAtMs).toISOString(),
         secondsUntilCutoff: isOpen ? Math.round(msLeft / 1000) : 0,
-        showCountdown: isOpen && msLeft <= warningMs,
+        showCountdown: isOpen,
+        isUrgent: isOpen && msLeft <= warningMs,
       });
     }
   }
