@@ -3,52 +3,36 @@
  * delivery weekdays, two windows a day (MORNING / EVENING).
  *
  * Ordering is gated by a per-window CUT-OFF TIME, not by a capacity count. Each community sets a
- * same-day clock time for each window (e.g. MORNING closes at 03:45 IST — late enough for a
- * customer to order fresh, early enough for the farm to actually procure and pack before the
- * delivery run) — configurable from the admin panel. A window is open until that instant passes;
- * there is no other limit on how many orders it can hold.
+ * same-day clock time for each window (e.g. MORNING closes at 03:45 IST, EVENING at 15:00 — late
+ * enough for a customer to order fresh, early enough for the farm to actually procure and pack
+ * before that window's delivery run) — configurable from the admin panel. A window is open until
+ * that instant passes; there is no other limit on how many orders it can hold.
+ *
+ * THE CUT-OFF IS THE ONLY DEADLINE. Each window closes at its own configured time on its own
+ * delivery day, so the morning and evening slots of the same day have DIFFERENT deadlines and
+ * therefore different countdowns — "order by 03:45 for the 6–12 run, by 15:00 for the 17–21 run".
+ *
+ * There is deliberately no extra whole-day lead time on top. A one-day lead was tried, and because
+ * it landed on midnight before the delivery day it was always earlier than either cut-off — so it
+ * became the binding deadline for both windows, collapsing them onto the same instant. Every slot
+ * then showed an identical countdown to midnight, and the operator's configured cut-off times had
+ * no effect on ordering at all. The cut-off time itself is what buys the harvest-and-pack runway;
+ * moving it is how the operator changes that runway.
  *
  * Every OPEN window carries `secondsUntilCutoff` and `showCountdown: true`, so the app can show a
- * live "59:59 left to order" timer for the whole time the window is orderable — not only in the
- * final minutes. A customer looking at 2:15 PM at a window that closes at 3:15 PM must see 59:59
- * ticking down, which is the whole point of the countdown.
- *
- * `isUrgent` marks the last `cutoffWarningMinutes` before the deadline, so the client can turn the
- * same timer red without changing whether it is shown at all.
+ * live "59:59 left to order" timer for the whole time the window is orderable, not only in the
+ * final minutes. `isUrgent` marks the last `cutoffWarningMinutes` before the deadline, so the
+ * client can turn the same timer red without changing whether it is shown at all.
  */
 import { addDaysISO, istInstantMs, todayISO, weekdayOf } from './dates.js';
 
 /**
- * How many days ahead the earliest orderable delivery is.
- *
- * The farm harvests against the night's order list — "picked tonight, at your door by breakfast" —
- * so an order placed today is delivered tomorrow at the earliest. Before this, a midday order could
- * take that same evening's slot, which showed a customer a delivery date of TODAY for produce that
- * had not been picked yet.
- *
- * Today's windows are still generated so the operator's schedule shows the run that is in flight;
- * they simply cannot be ordered into (`isOpen: false`, with `tooSoon` saying why).
- */
-export const MIN_LEAD_DAYS = 1;
-
-/**
- * The last instant an order may be placed for delivery date `d`.
- *
- * Two deadlines apply and the earlier one wins:
- *  - the community's configured harvest cut-off, a clock time ON the delivery day (03:45 / 15:00);
- *  - the lead-time boundary — once the delivery day is no longer far enough out, it is closed.
- *
- * With a one-day lead the boundary is midnight at the start of the delivery day, which always falls
- * before that day's 03:45, so in practice the boundary is what binds: orders for Tuesday close at
- * midnight on Monday. That is strictly earlier than the harvest cut-off, so it is operationally
- * safe — and it is the deadline the countdown must count to, otherwise the app would show time
- * remaining against a cut-off the customer can no longer reach.
+ * The last instant an order may be placed for window `w` on delivery date `d`: the community's
+ * configured cut-off clock time, on the delivery day itself.
  */
 function closesAtMs(community, d, w) {
   const cutoffTime = w === 'MORNING' ? community.morningCutoff : community.eveningCutoff;
-  const harvestCutoff = istInstantMs(d, cutoffTime);
-  const leadBoundary = istInstantMs(addDaysISO(d, 1 - MIN_LEAD_DAYS), '00:00');
-  return Math.min(harvestCutoff, leadBoundary);
+  return istInstantMs(d, cutoffTime);
 }
 
 /**
@@ -61,15 +45,12 @@ function closesAtMs(community, d, w) {
 export function generateWindows(community, fromDate, bookedFor, now = Date.now()) {
   const out = [];
   const warningMs = (community.cutoffWarningMinutes ?? 15) * 60 * 1000;
-  const earliest = addDaysISO(todayISO(now), MIN_LEAD_DAYS);
   for (let i = 0; i < 14; i += 1) {
     const d = addDaysISO(fromDate, i);
     if (!community.deliveryDays.includes(weekdayOf(d))) continue;
     for (const w of ['MORNING', 'EVENING']) {
-      const cutoffTime = w === 'MORNING' ? community.morningCutoff : community.eveningCutoff;
       const closesAt = closesAtMs(community, d, w);
       const msLeft = closesAt - now;
-      const tooSoon = d < earliest;
       const isOpen = msLeft > 0;
       const secondsUntilCutoff = isOpen ? Math.round(msLeft / 1000) : 0;
       out.push({
@@ -78,11 +59,13 @@ export function generateWindows(community, fromDate, bookedFor, now = Date.now()
         window: w,
         booked: bookedFor(community.id, d, w), // informational only — never gates ordering
         isOpen,
-        // Why it is shut, for copy: too close to the delivery day vs. the deadline simply passed.
-        tooSoon: !isOpen && tooSoon,
+        // A window is now only ever shut for one reason: its cut-off passed. Kept as a field so
+        // existing clients that read it don't see `undefined`.
+        tooSoon: false,
         cutoffAt: new Date(closesAt).toISOString(),
-        // The operator's configured harvest time, kept separate from the ordering deadline above.
-        harvestCutoffAt: new Date(istInstantMs(d, cutoffTime)).toISOString(),
+        // Same instant as `cutoffAt` now that the cut-off is the only deadline; kept separate
+        // because the admin schedule labels it as the operator's configured harvest time.
+        harvestCutoffAt: new Date(closesAt).toISOString(),
         secondsUntilCutoff,
         // Shown for the entire time the window is open — see the countdown note at the top.
         showCountdown: isOpen,

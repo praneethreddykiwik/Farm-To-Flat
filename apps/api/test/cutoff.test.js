@@ -26,50 +26,56 @@ const dayAfter = (iso) => {
   return d.toISOString().slice(0, 10);
 };
 
-describe('generateWindows — next-day lead time', () => {
-  it("today is never orderable, however early it is and however far off the day's cut-off", () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(today, '01:00'); // 2h45 before the 03:45 harvest cut-off
-    const sameDay = generateWindows(community, today, noBookings, now).filter(
-      (w) => w.date === today,
-    );
-    expect(sameDay.length).toBe(2);
-    for (const w of sameDay) {
-      expect(w.isOpen).toBe(false);
-      expect(w.tooSoon).toBe(true); // shut because it is too close, not because time ran out
-    }
+describe('generateWindows — each window closes at its own cut-off', () => {
+  it('the morning and evening slots of one day have DIFFERENT deadlines', () => {
+    // The tester's report: "each time slot has different timer at different time". Under the old
+    // one-day lead both slots closed at midnight before the delivery day, so both counted down to
+    // the same instant and the configured cut-off times did nothing.
+    const now = istInstantMs('2026-09-22', '14:15');
+    const ws = generateWindows(community, '2026-09-22', noBookings, now);
+    const m = ws.find((w) => w.date === '2026-09-23' && w.window === 'MORNING');
+    const e = ws.find((w) => w.date === '2026-09-23' && w.window === 'EVENING');
+    expect(m.cutoffAt).not.toBe(e.cutoffAt);
+    expect(Date.parse(m.cutoffAt)).toBe(istInstantMs('2026-09-23', '03:45'));
+    expect(Date.parse(e.cutoffAt)).toBe(istInstantMs('2026-09-23', '15:00'));
+    expect(m.secondsUntilCutoff).toBe(13 * 3600 + 30 * 60);
+    expect(e.secondsUntilCutoff).toBe(24 * 3600 + 45 * 60);
   });
 
-  it('the earliest orderable delivery is tomorrow — the bug the tester reported', () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(today, '12:55'); // midday, as in the report
-    const open = generateWindows(community, today, noBookings, now).filter((w) => w.isOpen);
-    expect(open.length).toBeGreaterThan(0);
-    expect(open.every((w) => w.date > today)).toBe(true);
-    expect(open[0].date).toBe(dayAfter(today));
+  it("today's window is orderable right up to its own cut-off — the 2:15-for-a-3:00 case", () => {
+    // 45 minutes before today's 15:00 evening cut-off: the customer can still take that slot, and
+    // sees 45:00 ticking. This is the scenario the countdown exists for.
+    const now = istInstantMs('2026-09-22', '14:15');
+    const ws = generateWindows(community, '2026-09-22', noBookings, now);
+    const todayEvening = ws.find((w) => w.date === '2026-09-22' && w.window === 'EVENING');
+    expect(todayEvening.isOpen).toBe(true);
+    expect(todayEvening.secondsUntilCutoff).toBe(45 * 60);
+    expect(todayEvening.showCountdown).toBe(true);
+
+    // ...while today's morning slot closed at 03:45 and is long gone.
+    const todayMorning = ws.find((w) => w.date === '2026-09-22' && w.window === 'MORNING');
+    expect(todayMorning.isOpen).toBe(false);
+    expect(todayMorning.secondsUntilCutoff).toBe(0);
   });
 });
 
 describe('generateWindows — cut-off timing (pure)', () => {
-  it('ordering for tomorrow stays open through today, with no countdown yet', () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(today, '01:00');
-    const morning = generateWindows(community, today, noBookings, now).find(
-      (w) => w.date === dayAfter(today) && w.window === 'MORNING',
+  it('a window well before its cut-off counts down without being urgent', () => {
+    const now = istInstantMs('2026-09-19', '01:00'); // 2h45 before the 03:45 morning cut-off
+    const morning = generateWindows(community, '2026-09-19', noBookings, now).find(
+      (w) => w.date === '2026-09-19' && w.window === 'MORNING',
     );
     expect(morning.isOpen).toBe(true);
     // The countdown runs for the whole time the window is orderable, not only near the deadline.
     expect(morning.showCountdown).toBe(true);
     expect(morning.isUrgent).toBe(false);
-    // The deadline is midnight tonight — 23h, not the 03:45 harvest time on the delivery day.
-    expect(morning.secondsUntilCutoff).toBe(23 * 60 * 60);
+    expect(morning.secondsUntilCutoff).toBe(2 * 3600 + 45 * 60);
   });
 
   it('the countdown turns urgent in the last 15 minutes before the deadline', () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(today, '23:45'); // 15 min before midnight closes tomorrow's windows
-    const morning = generateWindows(community, today, noBookings, now).find(
-      (w) => w.date === dayAfter(today) && w.window === 'MORNING',
+    const now = istInstantMs('2026-09-19', '03:30'); // 15 min before the 03:45 cut-off
+    const morning = generateWindows(community, '2026-09-19', noBookings, now).find(
+      (w) => w.date === '2026-09-19' && w.window === 'MORNING',
     );
     expect(morning.isOpen).toBe(true);
     expect(morning.showCountdown).toBe(true);
@@ -78,10 +84,9 @@ describe('generateWindows — cut-off timing (pure)', () => {
   });
 
   it('one second after the deadline, the window is closed and the countdown is gone', () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(dayAfter(today), '00:00') + 1000;
-    const morning = generateWindows(community, today, noBookings, now).find(
-      (w) => w.date === dayAfter(today) && w.window === 'MORNING',
+    const now = istInstantMs('2026-09-19', '03:45') + 1000;
+    const morning = generateWindows(community, '2026-09-19', noBookings, now).find(
+      (w) => w.date === '2026-09-19' && w.window === 'MORNING',
     );
     expect(morning.isOpen).toBe(false);
     expect(morning.showCountdown).toBe(false);
@@ -89,26 +94,24 @@ describe('generateWindows — cut-off timing (pure)', () => {
     expect(morning.secondsUntilCutoff).toBe(0);
   });
 
-  it('the community harvest cut-off is still reported, separately from the ordering deadline', () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(today, '10:00');
-    const ws = generateWindows(community, today, noBookings, now);
-    const m = ws.find((w) => w.date === dayAfter(today) && w.window === 'MORNING');
-    const e = ws.find((w) => w.date === dayAfter(today) && w.window === 'EVENING');
-    expect(m.harvestCutoffAt).toBe(new Date(istInstantMs(dayAfter(today), '03:45')).toISOString());
-    expect(e.harvestCutoffAt).toBe(new Date(istInstantMs(dayAfter(today), '15:00')).toISOString());
-    // Both still close at the same moment: midnight tonight.
-    expect(m.cutoffAt).toBe(e.cutoffAt);
+  it('the ordering deadline and the reported harvest cut-off are the same instant', () => {
+    const now = istInstantMs('2026-09-19', '10:00');
+    const ws = generateWindows(community, '2026-09-19', noBookings, now);
+    const m = ws.find((w) => w.date === dayAfter('2026-09-19') && w.window === 'MORNING');
+    const e = ws.find((w) => w.date === dayAfter('2026-09-19') && w.window === 'EVENING');
+    expect(Date.parse(m.harvestCutoffAt)).toBe(istInstantMs(m.date, '03:45'));
+    expect(Date.parse(e.harvestCutoffAt)).toBe(istInstantMs(e.date, '15:00'));
+    expect(m.cutoffAt).toBe(m.harvestCutoffAt);
+    expect(e.cutoffAt).toBe(e.harvestCutoffAt);
   });
 
   it('a future date is always open regardless of the current clock time', () => {
-    const today = '2026-09-19';
-    const now = istInstantMs(today, '23:00'); // well past both cut-offs today
-    const windows = generateWindows(community, today, noBookings, now);
-    const dayAfterTomorrow = windows.find((w) => w.date === '2026-09-21' && w.window === 'MORNING');
-    expect(dayAfterTomorrow.isOpen).toBe(true);
-    expect(dayAfterTomorrow.showCountdown).toBe(true);
-    expect(dayAfterTomorrow.isUrgent).toBe(false);
+    const now = istInstantMs('2026-09-19', '23:00'); // well past both cut-offs today
+    const windows = generateWindows(community, '2026-09-19', noBookings, now);
+    const future = windows.find((w) => w.date === '2026-09-21' && w.window === 'MORNING');
+    expect(future.isOpen).toBe(true);
+    expect(future.showCountdown).toBe(true);
+    expect(future.isUrgent).toBe(false);
   });
 
   it('there is no capacity field at all — booked is informational only', () => {
