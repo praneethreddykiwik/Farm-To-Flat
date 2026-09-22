@@ -270,7 +270,15 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
       <Sheet
         ref={comSheet}
         title="Your community"
-        subtitle="Currently serving three communities in West Hyderabad"
+        // Counted from the list actually loaded. It used to read "three communities" while the
+        // sheet below listed seven, which is the first thing a new customer sees us get wrong.
+        subtitle={
+          communities.length
+            ? `Currently serving ${communities.length} ${
+                communities.length === 1 ? 'community' : 'communities'
+              } in West Hyderabad`
+            : 'Loading communities…'
+        }
       >
         <View style={{ gap: 10 }}>
           {communities.map((c) => (

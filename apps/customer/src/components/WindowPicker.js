@@ -17,6 +17,19 @@ function hms(totalSeconds) {
 }
 
 /**
+ * Seconds of ordering time left on a window, and whether that is down to the wire.
+ *
+ * Deliberately NOT just `w.showCountdown`. An over-the-air update reaches phones long before (or
+ * without) the matching API deploy, and the old API only sets `showCountdown` inside the last few
+ * minutes — which is the bug the tester hit as "the timer is not started". Deriving both from
+ * `secondsUntilCutoff`, which every API version sends, makes the timer work against either server.
+ */
+const COUNTDOWN_URGENT_SECONDS = 15 * 60;
+const countdownFor = (w) => Number(w?.secondsUntilCutoff) || 0;
+const urgentFor = (w) =>
+  typeof w?.isUrgent === 'boolean' ? w.isUrgent : countdownFor(w) <= COUNTDOWN_URGENT_SECONDS;
+
+/**
  * Live ticking "closes in 59:59" — shown for the WHOLE time a window is open, not just the last
  * few minutes, so a customer looking at 2:15 PM at a window that closes at 3:15 PM sees the hour
  * counting down. Ticks client-side from the server's `secondsUntilCutoff` snapshot (no per-second
@@ -179,18 +192,16 @@ export function WindowPicker({ windows, loading, value, onChange }) {
                     <Text variant="bodyMedium">{meta.label}</Text>
                     <Small muted>{meta.hours}</Small>
                   </View>
-                  {w.isOpen ? (
-                    w.showCountdown ? (
-                      <CutoffCountdown
-                        windowId={w.id}
-                        secondsUntilCutoff={w.secondsUntilCutoff}
-                        urgent={w.isUrgent}
-                      />
-                    ) : (
-                      <Mono color={colors.leafDeep} style={{ fontSize: 12 }}>
-                        open
-                      </Mono>
-                    )
+                  {w.isOpen && countdownFor(w) > 0 ? (
+                    <CutoffCountdown
+                      windowId={w.id}
+                      secondsUntilCutoff={countdownFor(w)}
+                      urgent={urgentFor(w)}
+                    />
+                  ) : w.isOpen ? (
+                    <Mono color={colors.leafDeep} style={{ fontSize: 12 }}>
+                      open
+                    </Mono>
                   ) : (
                     <Mono color={colors.ink3} style={{ fontSize: 12 }}>
                       closed
