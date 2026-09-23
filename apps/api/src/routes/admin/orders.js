@@ -248,6 +248,15 @@ adminOrdersRouter.post(
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
     if (!o.cancelRequested) throw fail(409, 'NO_REQUEST', 'No cancellation request on this order.');
+    // A request left over on an order that has since been delivered (or already cancelled) is
+    // settled, not pending. Approving it would refund goods the customer is holding.
+    if (o.status === 'DELIVERED')
+      throw fail(
+        409,
+        'CANNOT_CANCEL',
+        'This order has already been delivered, so the cancellation can no longer be approved.',
+      );
+    if (o.status === 'CANCELLED') throw fail(409, 'CANNOT_CANCEL', 'Already cancelled.');
 
     if (req.body.decision === 'APPROVE') {
       const { order: updated } = cancelOrder(req.params.id);

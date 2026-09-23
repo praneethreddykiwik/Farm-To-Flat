@@ -92,9 +92,15 @@ export function Fulfilment() {
     return map;
   }, [data]);
 
-  // cancellation requests can come from any stage — filter on the boolean, not on status
+  // Cancellation requests can come from any stage — filter on the boolean, not on status. But a
+  // request on an order that is already CANCELLED or DELIVERED is settled: the board used to keep
+  // offering Approve on delivered orders, and approving one would have refunded goods the customer
+  // already has. Same predicate the Orders screen uses, so the two counts agree.
   const cancelReqs = useMemo(
-    () => (data?.orders || []).filter((o) => o.cancelRequested === true),
+    () =>
+      (data?.orders || []).filter(
+        (o) => o.cancelRequested === true && !['CANCELLED', 'DELIVERED'].includes(o.status),
+      ),
     [data],
   );
 

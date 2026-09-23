@@ -182,7 +182,11 @@ button {
   position: sticky;
   top: 0;
   align-self: start;
-  height: 100vh;
+  /* 100vh plus a 12px margin top AND bottom is 24px TALLER than the screen, and `overflow: hidden`
+     then cut the footer off with no way to reach it — which is what read as "something is missing
+     at the bottom of the page". Subtract the margins, and let the rail scroll on a short screen so
+     every nav item stays reachable however little vertical room the operator's laptop has. */
+  height: calc(100vh - 24px);
   margin: 12px;
   padding: 22px 16px;
   display: flex;
@@ -192,7 +196,9 @@ button {
   color: var(--ink-on-dark);
   background: linear-gradient(180deg, var(--night-2) 0%, var(--night) 100%);
   box-shadow: var(--shadow-lift);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
 }
 .rail::before {
   /* subtle leaf glow at the top */
