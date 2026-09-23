@@ -349,6 +349,17 @@ adminOrdersRouter.post(
         skipped.push({ id, reason: 'INVALID_TRANSITION' });
         continue;
       }
+      // Delivery is settled one door at a time. An order still owing cash, or still waiting on the
+      // customer's code, cannot be swept to DELIVERED with the rest of the van — the whole point of
+      // the proof is that someone stood there and took it.
+      if (
+        status === 'DELIVERED' &&
+        (o.deliveryOtp ||
+          (o.paymentMethod === 'COD' && Number(o.codCollectedPaise || 0) < Number(o.totalPaise)))
+      ) {
+        skipped.push({ id, reason: 'DELIVERY_PROOF_REQUIRED', orderNumber: o.orderNumber });
+        continue;
+      }
       const row = transition(id, status);
       notifyOrderStatus(row, getDevices); // push each customer their new status
       updated.push(orderAdmin(row));

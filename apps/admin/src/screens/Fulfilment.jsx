@@ -262,6 +262,26 @@ export function Fulfilment() {
           {o.itemCount} items · {titleCase(o.window)}
         </span>
       </div>
+      {/* Cash to take at the door, on the card itself — the person loading the van needs to know
+          before they open anything, and it disappears the moment the money is in. */}
+      {Number(o.codDuePaise) > 0 && (
+        <div
+          className="hstack"
+          style={{
+            justifyContent: 'space-between',
+            marginTop: 8,
+            padding: '5px 9px',
+            borderRadius: 8,
+            background: 'rgba(214,92,63,0.10)',
+            border: '1px solid rgba(214,92,63,0.26)',
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>COLLECT CASH</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tomato)' }}>
+            {inr(o.codDuePaise)}
+          </span>
+        </div>
+      )}
       {col.next && (
         <button
           className="btn btn--primary btn--sm"

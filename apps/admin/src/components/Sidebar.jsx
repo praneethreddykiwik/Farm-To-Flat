@@ -17,6 +17,7 @@ import {
   IconMap,
   IconReceipt,
   IconShield,
+  IconRupee,
   IconTag,
   IconTicket,
   IconTruck,
@@ -39,6 +40,7 @@ const NAV = [
   { to: '/stats', label: 'Statistics', icon: IconChart },
   { section: 'Admin' },
   { to: '/access', label: 'Access & roles', icon: IconShield },
+  { to: '/payments', label: 'Payments & COD', icon: IconRupee },
   { to: '/settings', label: 'Support contact', icon: IconLifeBuoy },
 ];
 

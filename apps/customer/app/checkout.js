@@ -24,6 +24,7 @@ import { useCart } from '../src/hooks/useCart';
 import {
   useGetAddressesQuery,
   useGetWalletQuery,
+  useGetSupportQuery,
   useGetWindowsQuery,
   usePlaceOrderMutation,
   useRemoveCouponMutation,
@@ -86,6 +87,12 @@ export default function Checkout() {
   const [slot, setSlot] = useState(null);
   const [deliveryNote, setDeliveryNote] = useState('');
   const [useWallet, setUseWallet] = useState(true);
+  // Whether the operator is accepting cash right now, and up to what order value. Read live rather
+  // than assumed: cash can be switched off between one checkout and the next.
+  const support = useGetSupportQuery();
+  const codOffered = !!support.data?.payment?.codEnabled;
+  const codMax = Number(support.data?.payment?.codMaxOrderPaise || 0);
+  const [payCash, setPayCash] = useState(false);
   const [intent, setIntent] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -124,8 +131,13 @@ export default function Checkout() {
 
   const balance = Number(wallet.data?.balancePaise || 0);
   const total = Number(cart?.totalPaise || 0);
-  const walletApplied = useWallet ? Math.min(balance, total) : 0;
-  const gateway = total - walletApplied;
+  // A cash order is paid entirely in cash — the wallet is not split across it (the server enforces
+  // the same rule), so the toggle is taken out of play while cash is chosen.
+  const codTooBig = codOffered && codMax > 0 && total > codMax;
+  const canPayCash = codOffered && !codTooBig;
+  const cash = payCash && canPayCash;
+  const walletApplied = useWallet && !cash ? Math.min(balance, total) : 0;
+  const gateway = cash ? 0 : total - walletApplied;
 
   const finish = (order) => {
     haptic.success();
@@ -198,7 +210,8 @@ export default function Checkout() {
         deliveryDate: chosenSlot.date,
         window: chosenSlot.window,
         couponCode: cart?.coupon?.code,
-        useWallet,
+        useWallet: cash ? false : useWallet,
+        paymentMethod: cash ? 'COD' : 'PREPAID',
         deliveryNote: deliveryNote.trim() || undefined,
       }).unwrap();
       setPendingOrder(res.order);
@@ -405,6 +418,60 @@ export default function Checkout() {
           delay={180}
         />
 
+        {codOffered ? (
+          <Animated.View
+            entering={FadeInDown.delay(195).duration(360).springify().damping(18)}
+            style={{ marginTop: 20 }}
+          >
+            <Label>How you’ll pay</Label>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+              {[
+                { cash: false, title: 'Pay now', sub: 'UPI, card or wallet' },
+                { cash: true, title: 'Cash on delivery', sub: 'Pay at your door' },
+              ].map((opt) => {
+                const active = cash === opt.cash;
+                const blocked = opt.cash && codTooBig;
+                return (
+                  <Pressy
+                    key={String(opt.cash)}
+                    style={{ flex: 1 }}
+                    haptics="select"
+                    disabled={blocked}
+                    onPress={() => setPayCash(opt.cash)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active, disabled: blocked }}
+                    accessibilityLabel={opt.title}
+                  >
+                    <Glass
+                      radius={radius.lg}
+                      innerStyle={{
+                        padding: 14,
+                        borderWidth: 1.5,
+                        borderColor: active ? colors.leaf : 'rgba(14,27,20,0.10)',
+                        opacity: blocked ? 0.45 : 1,
+                      }}
+                    >
+                      <Label style={{ color: active ? colors.leafDeep : colors.ink }}>
+                        {opt.title}
+                      </Label>
+                      <Small muted style={{ marginTop: 3 }}>
+                        {opt.sub}
+                      </Small>
+                    </Glass>
+                  </Pressy>
+                );
+              })}
+            </View>
+            {/* Say WHY the option is unavailable rather than silently hiding it — otherwise a
+                customer who used cash last week thinks the app is broken. */}
+            {codTooBig ? (
+              <Small muted style={{ marginTop: 8 }}>
+                Orders above ₹{Math.round(codMax / 100)} are paid online.
+              </Small>
+            ) : null}
+          </Animated.View>
+        ) : null}
+
         <Animated.View
           entering={FadeInDown.delay(210).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
@@ -474,7 +541,9 @@ export default function Checkout() {
             <Money paise={gateway} animated color={colors.inkOnDark} variant="h2" />
           </View>
           <Button
-            title={gateway > 0 ? 'Pay & place order' : 'Place order'}
+            title={
+              cash ? 'Place order · pay cash' : gateway > 0 ? 'Pay & place order' : 'Place order'
+            }
             variant="accent"
             size="md"
             full={false}

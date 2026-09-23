@@ -200,7 +200,31 @@ export function Orders() {
 export function OrderDrawer({ id, onClose, onChanged }) {
   const { data, loading, error, reload } = useResource(`/admin/orders/${id}`);
   const [busy, setBusy] = useState(false);
+  const [otp, setOtp] = useState('');
   const o = data?.order;
+  // What is still owed at the door. Zero on a prepaid order and zero once settled, so this is the
+  // figure to ask for — never the order value.
+  const due = Number(o?.codDuePaise || 0);
+  const atTheDoor = o?.status === 'OUT_FOR_DELIVERY';
+  const needsCode = !!o?.deliveryOtpPending;
+
+  async function completeDelivery() {
+    setBusy(true);
+    try {
+      await api.post(`/admin/orders/${id}/deliver`, {
+        ...(needsCode ? { otp: otp.trim() } : {}),
+        ...(due > 0 ? { collectedPaise: due } : {}),
+      });
+      toast(due > 0 ? `Delivered · ₹${Math.round(due / 100)} collected` : 'Delivered');
+      setOtp('');
+      reload();
+      onChanged?.();
+    } catch (e) {
+      toast(e.message || 'Could not complete the delivery', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function move(status) {
     setBusy(true);
@@ -216,7 +240,9 @@ export function OrderDrawer({ id, onClose, onChanged }) {
     }
   }
 
-  const nexts = o ? NEXT[o.status] || [] : [];
+  // DELIVERED is deliberately not a plain "move": it needs the customer's code and, on a cash
+  // order, the money. The panel below handles it, and the API refuses the shortcut anyway.
+  const nexts = (o ? NEXT[o.status] || [] : []).filter((s) => !(atTheDoor && s === 'DELIVERED'));
 
   return (
     <Drawer
@@ -224,7 +250,55 @@ export function OrderDrawer({ id, onClose, onChanged }) {
       subtitle={o ? `${o.customerName} · ${o.mobile}` : undefined}
       onClose={onClose}
       footer={
-        nexts.length > 0 ? (
+        atTheDoor ? (
+          <div style={{ width: '100%', display: 'grid', gap: 8 }}>
+            {due > 0 && (
+              <div
+                className="hstack"
+                style={{
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(214,92,63,0.10)',
+                  border: '1px solid rgba(214,92,63,0.28)',
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Collect in cash</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--tomato)' }}>
+                  ₹{Math.round(due / 100)}
+                </span>
+              </div>
+            )}
+            <div className="hstack" style={{ gap: 8 }}>
+              {needsCode && (
+                <input
+                  className="field__input"
+                  style={{ width: 130, letterSpacing: 4, fontSize: 18, textAlign: 'center' }}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="0000"
+                  inputMode="numeric"
+                  aria-label="Code the customer read out"
+                />
+              )}
+              <button
+                className="btn btn--primary"
+                style={{ flex: 1 }}
+                disabled={busy || (needsCode && otp.length !== 4)}
+                onClick={completeDelivery}
+              >
+                {due > 0
+                  ? `Collected ₹${Math.round(due / 100)} · mark delivered`
+                  : 'Mark delivered'}
+              </button>
+            </div>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {needsCode
+                ? 'Ask the customer for the four-digit code in their app.'
+                : 'No code required — the operator turned that off.'}
+            </span>
+          </div>
+        ) : nexts.length > 0 ? (
           <>
             {/* "Advance to" alone did not say what it acted on or what would happen — a tester
                 asked what the button was for. Name the thing being moved. */}

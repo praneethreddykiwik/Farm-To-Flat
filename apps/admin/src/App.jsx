@@ -19,6 +19,7 @@ import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
 import { Coupons } from './screens/Coupons.jsx';
 import { Settings } from './screens/Settings.jsx';
+import Payments from './screens/Payments.jsx';
 import { Privacy } from './screens/Privacy.jsx';
 import { Terms } from './screens/Terms.jsx';
 import { SignIn } from './screens/SignIn.jsx';
@@ -76,6 +77,7 @@ function AdminShell() {
             <Route path="/stats" element={<Statistics />} />
             <Route path="/access" element={<Access />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/payments" element={<Payments />} />
           </Routes>
         </main>
       </div>

@@ -231,3 +231,22 @@ describe('cash on delivery', () => {
     expect(done.body.order.status).toBe('DELIVERED');
   });
 });
+
+describe('bulk advance respects the door proof', () => {
+  it('skips orders that still owe cash or a code, and says why', async () => {
+    updatePaymentSettings({ codEnabled: true, deliveryOtpEnabled: true });
+    const ctx = await basket();
+    const { body } = await placeCod(ctx);
+    const id = body.order.id;
+    await advance(id, 'PACKING');
+    await advance(id, 'OUT_FOR_DELIVERY');
+
+    const bulk = await request(app)
+      .post('/api/v1/admin/orders/advance')
+      .send({ orderIds: [id], status: 'DELIVERED' });
+    expect(bulk.status).toBe(200);
+    expect(bulk.body.count).toBe(0);
+    expect(bulk.body.skipped[0].reason).toBe('DELIVERY_PROOF_REQUIRED');
+    expect(getOrder(id).status).toBe('OUT_FOR_DELIVERY');
+  });
+});
