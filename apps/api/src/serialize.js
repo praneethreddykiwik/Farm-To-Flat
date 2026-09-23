@@ -195,6 +195,12 @@ export function orderCustomer(o) {
     timeline: o.timeline,
     cancelRequested: !!o.cancelRequested,
     cancelReason: o.cancelReason || null,
+    paymentMethod: o.paymentMethod || 'PREPAID',
+    codDuePaise: money(codDuePaise(o)),
+    // The code the customer reads out at the door. Only ever on THEIR OWN order, and only while it
+    // is actually on the way — there is nothing to prove before that and nothing after.
+    deliveryOtp: o.status === 'OUT_FOR_DELIVERY' ? o.deliveryOtp || null : null,
+    deliveredAt: o.deliveredAt || null,
     // Mirrors the cancel route exactly: free until the packing bench, refused after. Kept in step
     // with it so the app never offers a button the server will reject.
     canCancel:
@@ -202,6 +208,16 @@ export function orderCustomer(o) {
       !o.cancelRequested,
   };
 }
+
+/**
+ * Cash still owed at the door. Zero on a prepaid order, and zero again once a cash order has been
+ * settled — always the OUTSTANDING amount, never the order value, so the person collecting cannot
+ * read a settled order as still owing.
+ */
+export const codDuePaise = (o) =>
+  o.paymentMethod === 'COD'
+    ? Math.max(0, Number(o.totalPaise) - Number(o.codCollectedPaise || 0))
+    : 0;
 
 /** Operator order — used by the admin order list + fulfilment screens. */
 export function orderAdmin(o) {
@@ -227,5 +243,14 @@ export function orderAdmin(o) {
     cancelRequested: !!o.cancelRequested,
     cancelReason: o.cancelReason || null,
     cancelRequestedAt: o.cancelRequestedAt || null,
+    paymentMethod: o.paymentMethod || 'PREPAID',
+    // What to take at the door, and what has already been taken.
+    codDuePaise: money(codDuePaise(o)),
+    codCollectedPaise: money(o.codCollectedPaise || 0),
+    codCollectedAt: o.codCollectedAt || null,
+    // Whether a code is waiting to be read out — never the code itself. Handing the operator the
+    // digits would defeat the point: it is proof the CUSTOMER was at the door.
+    deliveryOtpPending: !!(o.status === 'OUT_FOR_DELIVERY' && o.deliveryOtp),
+    deliveredAt: o.deliveredAt || null,
   };
 }

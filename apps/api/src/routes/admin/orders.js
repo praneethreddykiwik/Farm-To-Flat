@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
-import { orderAdmin } from '../../serialize.js';
+import { codDuePaise, orderAdmin } from '../../serialize.js';
 import {
   createOrder,
   getOrder,
@@ -20,6 +20,7 @@ import {
   listProducts,
   patchOrder,
   updateOrderStatus,
+  completeDelivery,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
 import { getDevices, getCustomer } from '../../customer-store.js';
@@ -186,6 +187,8 @@ adminOrdersRouter.get(
               { header: 'Window', key: 'window', width: 12 },
               { header: 'Items', key: 'items', width: 8 },
               { header: 'Total', key: 'total', width: 14, money: true },
+              { header: 'Pay', key: 'method', width: 10 },
+              { header: 'COLLECT', key: 'collect', width: 14, money: true },
               { header: 'Status', key: 'status', width: 18 },
             ],
             rows: orders.map((o) => ({
@@ -198,6 +201,10 @@ adminOrdersRouter.get(
               window: o.window,
               items: o.items.length,
               total: rupees(o.totalPaise),
+              method: o.paymentMethod === 'COD' ? 'CASH' : 'Paid',
+              // The figure the person at the door actually asks for: blank on a prepaid order so
+              // nobody collects twice, and blank again once a cash order has been settled.
+              collect: rupees(codDuePaise(o)),
               status: o.status,
             })),
           }
@@ -259,6 +266,28 @@ adminOrdersRouter.get(
   }),
 );
 
+/**
+ * Hand-over at the door.
+ *
+ * DELIVERED is deliberately NOT reachable through the plain status PATCH any more when a code or
+ * cash is outstanding: marking an order delivered from the board would skip the proof entirely.
+ */
+adminOrdersRouter.post(
+  '/orders/:id/deliver',
+  validateBody(
+    z.object({
+      otp: z.string().trim().min(1).max(10).optional(),
+      collectedPaise: z.number().int().min(0).optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const r = completeDelivery(req.params.id, req.body);
+    if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
+    notifyOrderStatus(r.order, getDevices);
+    res.json({ order: orderAdmin(r.order) });
+  }),
+);
+
 const StatusBody = z.object({ status: z.enum(STATUSES) });
 adminOrdersRouter.patch(
   '/orders/:id/status',
@@ -266,6 +295,21 @@ adminOrdersRouter.patch(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    // A cash order, or one with a code waiting to be read out, must go through /deliver so the
+    // proof is actually taken. Without this the board could mark it delivered and the money would
+    // never be recorded against it.
+    if (req.body.status === 'DELIVERED') {
+      const needsCash =
+        o.paymentMethod === 'COD' && Number(o.codCollectedPaise || 0) < Number(o.totalPaise);
+      if (needsCash || o.deliveryOtp)
+        throw fail(
+          409,
+          'DELIVERY_PROOF_REQUIRED',
+          needsCash
+            ? 'Collect the cash and the customer’s code to complete this delivery.'
+            : 'Enter the customer’s code to complete this delivery.',
+        );
+    }
     const allowed = NEXT[o.status] || [];
     if (o.status !== req.body.status && !allowed.includes(req.body.status)) {
       throw fail(409, 'INVALID_TRANSITION', `Cannot move ${o.status} → ${req.body.status}.`, {

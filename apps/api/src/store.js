@@ -41,6 +41,13 @@ const db = {
     // Procurement cost-variance buffer. If the price actually paid is within ±costBufferPct of the
     // estimate, the buy is auto-approved; otherwise it waits for admin approval. Admin editable.
     procurement: { costBufferPct: 2, autoApprove: true },
+    // Cash on delivery. Off until the operator turns it on: an unpaid order costs a real packed
+    // bag if nobody answers the door, so it must be a deliberate decision, and the cap keeps a
+    // large amount of cash off a rider's person.
+    cod: { enabled: false, maxOrderPaise: 300000 },
+    // Proof of hand-over: the customer reads a one-time code to the delivery person at the door.
+    // For a cash order it is also the proof the money changed hands.
+    deliveryOtp: { enabled: true },
     // Support contact shown in the app. Each channel is shown to customers only when its toggle is on.
     support: {
       email: 'support@farmtoflat.in',
@@ -129,6 +136,14 @@ export function createOrder(input) {
       block: input.block,
       flat: input.flat,
     },
+    paymentMethod: input.paymentMethod === 'COD' ? 'COD' : 'PREPAID',
+    // What the person at the door has to take. Zero on a prepaid order, and zero again once a cash
+    // order has been settled — the figure is the OUTSTANDING amount, not the order value.
+    codCollectedPaise: 0,
+    codCollectedAt: null,
+    deliveryOtp: null,
+    deliveryOtpIssuedAt: null,
+    deliveredAt: null,
     createdAt,
     timeline: [{ status, at: createdAt }],
   };
@@ -163,6 +178,13 @@ export function hydrate(data) {
     db.constants.procurement = {
       costBufferPct: cfg.procurementCostBufferPct ?? db.constants.procurement.costBufferPct,
       autoApprove: cfg.procurementAutoApprove ?? db.constants.procurement.autoApprove,
+    };
+    db.constants.cod = {
+      enabled: cfg.codEnabled ?? db.constants.cod.enabled,
+      maxOrderPaise: cfg.codMaxOrderPaise ?? db.constants.cod.maxOrderPaise,
+    };
+    db.constants.deliveryOtp = {
+      enabled: cfg.deliveryOtpEnabled ?? db.constants.deliveryOtp.enabled,
     };
     db.constants.support = {
       email: cfg.supportEmail ?? '',
@@ -308,6 +330,35 @@ export function publicSupport() {
   };
 }
 
+// ── cash on delivery + proof of hand-over ───────────────────────────────────
+/** Full settings, for the operator. */
+export const getPaymentSettings = () => ({
+  cod: clone(db.constants.cod),
+  deliveryOtp: clone(db.constants.deliveryOtp),
+});
+export function updatePaymentSettings(patch) {
+  const c = db.constants.cod;
+  const d = db.constants.deliveryOtp;
+  if (patch.codEnabled !== undefined) c.enabled = !!patch.codEnabled;
+  if (patch.codMaxOrderPaise != null) c.maxOrderPaise = Math.max(0, Number(patch.codMaxOrderPaise));
+  if (patch.deliveryOtpEnabled !== undefined) d.enabled = !!patch.deliveryOtpEnabled;
+  persist.configUpdate({
+    codEnabled: c.enabled,
+    codMaxOrderPaise: c.maxOrderPaise,
+    deliveryOtpEnabled: d.enabled,
+  });
+  return getPaymentSettings();
+}
+/**
+ * What the shopping app is allowed to know: whether it may offer to pay in cash, and up to what
+ * order value. The cap is public on purpose — the app has to explain WHY the option disappeared on
+ * a large basket rather than silently hiding it.
+ */
+export const publicPaymentOptions = () => ({
+  codEnabled: !!db.constants.cod.enabled,
+  codMaxOrderPaise: String(db.constants.cod.maxOrderPaise),
+});
+
 // ── procurement cost-buffer approval ────────────────────────────────────────
 export const getProcurementSettings = () => clone(db.constants.procurement);
 export function updateProcurementSettings(patch) {
@@ -451,8 +502,76 @@ export function updateOrderStatus(oid, status) {
   if (!o) return null;
   o.status = status;
   o.timeline.push({ status, at: new Date().toISOString() });
+  // Going out for delivery mints the code the customer reads to the person at the door. Issued
+  // here rather than at the door so it reaches them over push/WhatsApp while the rider is still
+  // travelling, and re-issued on every dispatch so a code from a failed first attempt is dead.
+  if (status === 'OUT_FOR_DELIVERY' && db.constants.deliveryOtp.enabled) {
+    o.deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
+    o.deliveryOtpIssuedAt = new Date().toISOString();
+  }
   if (orderPersist) persist.orderUpsert(o);
   return clone(o);
+}
+
+/**
+ * Hand-over at the door: the code the customer read out, and the cash taken.
+ *
+ * Both halves are checked before anything is written, so a wrong code cannot bank the money and a
+ * short payment cannot mark the order delivered.
+ */
+export function completeDelivery(oid, { otp, collectedPaise } = {}) {
+  const o = db.orders.find((x) => x.id === oid);
+  if (!o) return { error: { status: 404, code: 'NOT_FOUND', message: 'Order not found' } };
+  if (o.status === 'DELIVERED')
+    return { error: { status: 409, code: 'ALREADY_DELIVERED', message: 'Already delivered.' } };
+  if (o.status !== 'OUT_FOR_DELIVERY')
+    return {
+      error: {
+        status: 409,
+        code: 'NOT_OUT_FOR_DELIVERY',
+        message: 'Send the order out for delivery before completing it.',
+      },
+    };
+  if (db.constants.deliveryOtp.enabled && o.deliveryOtp) {
+    if (String(otp || '').trim() !== o.deliveryOtp)
+      return {
+        error: {
+          status: 422,
+          code: 'DELIVERY_OTP_INVALID',
+          message: 'That code does not match. Ask the customer to read it again.',
+        },
+      };
+  }
+  const due =
+    o.paymentMethod === 'COD'
+      ? Math.max(0, Number(o.totalPaise) - Number(o.codCollectedPaise || 0))
+      : 0;
+  if (due > 0) {
+    const taken = Math.round(Number(collectedPaise));
+    if (!Number.isFinite(taken) || taken < 0)
+      return {
+        error: { status: 422, code: 'VALIDATION', message: 'Enter the cash you collected.' },
+      };
+    // Refuse a short payment outright rather than silently recording a shortfall nobody chases.
+    if (taken < due)
+      return {
+        error: {
+          status: 422,
+          code: 'COD_SHORT_PAYMENT',
+          message: 'That is less than the amount due. Collect the full amount or contact support.',
+          details: { duePaise: String(due), collectedPaise: String(taken) },
+        },
+      };
+    o.codCollectedPaise = Number(o.codCollectedPaise || 0) + taken;
+    o.codCollectedAt = new Date().toISOString();
+  }
+  const at = new Date().toISOString();
+  o.status = 'DELIVERED';
+  o.deliveredAt = at;
+  o.deliveryOtp = null; // spent
+  o.timeline.push({ status: 'DELIVERED', at });
+  if (orderPersist) persist.orderUpsert(o);
+  return { order: clone(o) };
 }
 
 // ── window bookings ─────────────────────────────────────────────────────────

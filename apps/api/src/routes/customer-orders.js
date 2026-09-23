@@ -54,6 +54,7 @@ const OrderBody = z.object({
   couponCode: z.string().nullable().optional(),
   useWallet: z.boolean().optional(),
   deliveryNote: z.string().trim().max(200).optional(), // "leave with the guard", gate code, etc.
+  paymentMethod: z.enum(['PREPAID', 'COD']).optional(),
 });
 
 customerOrdersRouter.post(
@@ -63,6 +64,7 @@ customerOrdersRouter.post(
     const cid = req.customerId;
     const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote, idempotencyKey } =
       req.body;
+    const cod = req.body.paymentMethod === 'COD';
     const replay = idempotencyGet(cid, idempotencyKey);
     if (replay) return res.status(replay.status).json(replay.body);
     const priced = priceCart(cid);
@@ -126,10 +128,25 @@ customerOrdersRouter.post(
 
     const delivery = constants().deliveryChargePaise;
     const payable = Math.max(0, subtotal - discount + delivery);
+
+    // Cash on delivery. Checked at COMMIT time against the live setting, never against what the app
+    // believed when the basket was built — an operator who turns cash off must have it off now.
+    if (cod) {
+      const codCfg = constants().cod;
+      if (!codCfg.enabled)
+        throw fail(409, 'COD_UNAVAILABLE', 'Cash on delivery is not available right now.');
+      if (payable > codCfg.maxOrderPaise)
+        throw fail(422, 'COD_LIMIT_EXCEEDED', 'This order is too large to pay in cash.', {
+          maxOrderPaise: String(codCfg.maxOrderPaise),
+        });
+    }
+
     const wallet = getWallet(cid);
+    // A cash order is paid entirely in cash. Splitting it across the wallet would leave the person
+    // at the door reconciling a part-payment, and a refund on a part-cash order has two sources.
     const walletApplied =
-      useWallet && wallet.balancePaise > 0 ? Math.min(wallet.balancePaise, payable) : 0;
-    const gateway = payable - walletApplied;
+      !cod && useWallet && wallet.balancePaise > 0 ? Math.min(wallet.balancePaise, payable) : 0;
+    const gateway = cod ? 0 : payable - walletApplied;
 
     // commit — the order itself is the booking (capacity is derived from live orders, see
     // store.bookedFor), so there is no separate counter to bump.
@@ -158,6 +175,9 @@ customerOrdersRouter.post(
       couponDiscountPaise: discount,
       walletAppliedPaise: walletApplied,
       gatewayAmountPaise: gateway,
+      paymentMethod: cod ? 'COD' : 'PREPAID',
+      // Nothing to collect online, so a cash order is live the moment it is placed — the money
+      // arrives at the door. This is what makes it the Zepto-style one-tap flow.
       status: gateway > 0 ? 'PENDING_PAYMENT' : 'CONFIRMED',
     });
     if (walletApplied > 0)

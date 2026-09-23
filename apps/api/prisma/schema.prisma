@@ -218,6 +218,12 @@ model Order {
   deliveryDate        String?
   window              String?
   deliveryNote        String?
+  paymentMethod       String   @default("PREPAID") // PREPAID | COD
+  codCollectedPaise   Int      @default(0)
+  codCollectedAt      String?
+  deliveryOtp         String?
+  deliveryOtpIssuedAt String?
+  deliveredAt         String?
   cancelRequested     Boolean  @default(false)
   cancelReason        String?
   cancelRequestedAt   String?
@@ -289,5 +295,13 @@ model AppConfig {
   supportPhone              String?  @default("")
   supportShowEmail          Boolean  @default(true)
   supportShowPhone          Boolean  @default(false)
+  /// Cash on delivery. Off by default: it must be a deliberate decision, because an unpaid order
+  /// costs a real packed bag if nobody answers the door.
+  codEnabled                Boolean  @default(false)
+  /// Largest order that may be paid in cash. Keeps a ₹9,000 cash order off a rider's person.
+  codMaxOrderPaise          Int      @default(300000)
+  /// Require the customer to read out a one-time code at the door before an order counts as
+  /// delivered. Proof of hand-over, and for a cash order proof the money changed hands.
+  deliveryOtpEnabled        Boolean  @default(true)
   updatedAt                 DateTime @updatedAt
 }

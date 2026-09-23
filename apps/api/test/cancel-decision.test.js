@@ -8,7 +8,7 @@ import request from 'supertest';
 
 process.env.NODE_ENV = 'test';
 const { app } = await import('../src/index.js');
-const { patchOrder } = await import('../src/store.js');
+const { patchOrder, getOrder } = await import('../src/store.js');
 
 const auth = (t) => ({ Authorization: `Bearer ${t}` });
 
@@ -56,7 +56,12 @@ describe('cancellation decisions', () => {
     const { id } = await placedOrder('9222000801');
     await advance(id, 'PACKING');
     await advance(id, 'OUT_FOR_DELIVERY');
-    await advance(id, 'DELIVERED');
+    // Delivery now needs the proof taken at the door, so it no longer goes through the plain status
+    // PATCH. The code is the customer's to read out — the test reads it from the store directly.
+    const otp = getOrder(id).deliveryOtp;
+    const done = await request(app).post(`/api/v1/admin/orders/${id}/deliver`).send({ otp });
+    expect(done.status).toBe(200);
+    expect(done.body.order.status).toBe('DELIVERED');
     // No route raises a request any more (the customer either cancels outright or is refused), but
     // orders carrying one from before that change are still in the database — this is that row.
     patchOrder(id, (ord) => {
