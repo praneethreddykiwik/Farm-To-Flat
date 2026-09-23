@@ -5,6 +5,9 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Glass, Money, Pressy, ProductImage, Small, Stepper, Text } from '../ui';
 import { colors, motion, radius } from '../theme';
 import { useCartLine } from '../hooks/useCart';
+import { useSelector } from 'react-redux';
+import { selectLanguage } from '../features/ui/uiSlice';
+import { productLabel } from '../lib/i18n';
 
 const UNIT_SUFFIX = { KG: '/kg', BUNCH: '/bunch', PIECE: '/pc', DOZEN: '/dozen', PACK: '/pack' };
 
@@ -20,9 +23,19 @@ function ProductCardBase({ product, index = 0, width }) {
     () => router.push({ pathname: '/product/[id]', params: { id: product.id } }),
     [product.id, router],
   );
-  const alias = product.aliases?.find(
-    (a) => /^[a-z ]+$/i.test(a) && a.toLowerCase() !== product.name.toLowerCase(),
-  );
+  const lang = useSelector(selectLanguage);
+  const label = productLabel(product, lang);
+  // The romanised alias under the name. In English it is the local word for the produce; once the
+  // name itself is already Telugu or Hindi it would just repeat, so show the English name instead —
+  // which is the useful cross-reference in that direction.
+  const alias =
+    lang === 'en'
+      ? product.aliases?.find(
+          (a) => /^[a-z ]+$/i.test(a) && a.toLowerCase() !== product.name.toLowerCase(),
+        )
+      : label !== product.name
+        ? product.name
+        : null;
   // The server already refuses a sold-out product with 409 UNAVAILABLE, so nothing oversells — but
   // the card showed a live stepper regardless, so the shopper tapped Add and got an error instead
   // of simply seeing that it had run out.
@@ -41,14 +54,14 @@ function ProductCardBase({ product, index = 0, width }) {
           onPress={open}
           haptics="soft"
           scale={0.985}
-          accessibilityLabel={`${product.name}, ${alias || ''}`}
+          accessibilityLabel={`${label}, ${alias || ''}`}
         >
           <View style={styles.imageWrap}>
             <ProductImage
               uri={product.image}
               blurhash={product.blurhash}
               tint={product.tint}
-              name={product.name}
+              name={label}
               radius={radius.md}
               recyclingKey={product.id}
             />
@@ -67,7 +80,7 @@ function ProductCardBase({ product, index = 0, width }) {
           </View>
           <View style={styles.meta}>
             <Text variant="bodyMedium" numberOfLines={1}>
-              {product.name}
+              {label}
             </Text>
             <Small muted numberOfLines={1} style={{ marginTop: 1 }}>
               {alias ? `${alias} · ` : ''}

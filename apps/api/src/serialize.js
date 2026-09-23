@@ -8,6 +8,7 @@
  */
 import { getProduct, listCategories } from './store.js';
 import { money } from './lib/money.js';
+import { categoryName, productName } from './lib/i18n.js';
 
 const rupees = (paise) => `₹${Math.round(Number(paise) / 100).toLocaleString('en-IN')}`;
 
@@ -68,9 +69,20 @@ export function productPublic(p) {
   return {
     id: p.id,
     name: p.name,
+    // Every language ships with every product rather than the catalog being re-fetched per
+    // language: switching is then instant and works offline on the cached catalog, and one shopper
+    // changing language cannot evict another's cache. Omitted when it would just repeat `name`.
+    names: {
+      hi: productName(p, 'hi') === p.name ? undefined : productName(p, 'hi'),
+      te: productName(p, 'te') === p.name ? undefined : productName(p, 'te'),
+    },
     aliases: p.aliases,
     categoryId: p.category,
     categoryName: catName(p.category),
+    categoryNames: {
+      hi: categoryName(p.category, catName(p.category), 'hi'),
+      te: categoryName(p.category, catName(p.category), 'te'),
+    },
     tint: tintFor(p.category),
     unit: p.unit,
     increment: p.increment,

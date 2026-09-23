@@ -50,4 +50,5 @@ export const KV_KEYS = {
   reducedMotion: 'ui.reducedMotion',
   lastCommunity: 'ui.lastCommunity',
   plan: 'plan.v1',
+  language: 'ui.language',
 };

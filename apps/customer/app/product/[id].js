@@ -29,6 +29,9 @@ import {
 import { useGetCatalogQuery, useGetProductQuery } from '../../src/api/api';
 import { useCartLine } from '../../src/hooks/useCart';
 import { colors, fonts, radius, tintOf } from '../../src/theme';
+import { useSelector } from 'react-redux';
+import { selectLanguage } from '../../src/features/ui/uiSlice';
+import { productLabel } from '../../src/lib/i18n';
 
 const { width: W } = Dimensions.get('window');
 const HERO = W * 1.05;
@@ -42,6 +45,7 @@ const UNIT_SUFFIX = {
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams();
+  const lang = useSelector(selectLanguage);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const catalog = useGetCatalogQuery();
@@ -90,6 +94,7 @@ export default function ProductDetail() {
   // customer who opened Coriander after the operator marked it SOLD_OUT could still add it, and
   // only found out when the order was placed. Same rule in both places.
   const soldOut = !!product.availability && product.availability !== 'AVAILABLE';
+  const label = productLabel(product, lang);
 
   return (
     <View style={styles.root}>
@@ -100,7 +105,7 @@ export default function ProductDetail() {
           uri={product.image}
           blurhash={product.blurhash}
           tint={product.tint}
-          name={product.name}
+          name={label}
           radius={0}
           priority="high"
           recyclingKey={product.id}
@@ -141,7 +146,7 @@ export default function ProductDetail() {
                 </GlassPill>
               ) : null}
             </View>
-            <Text style={styles.name}>{product.name}</Text>
+            <Text style={styles.name}>{label}</Text>
             <View style={styles.aliasRow}>
               {aliases.map((a) => (
                 <View key={a} style={[styles.alias, { backgroundColor: t.bg }]}>
@@ -197,7 +202,7 @@ export default function ProductDetail() {
             </Glass>
           </Pressy>
           <Animated.View style={[{ flex: 1, alignItems: 'center' }, titleBar]}>
-            <Title numberOfLines={1}>{product.name}</Title>
+            <Title numberOfLines={1}>{label}</Title>
           </Animated.View>
           <Pressy onPress={() => router.push('/cart')} haptics="select" accessibilityLabel="Basket">
             <Glass tone="dark" radius={radius.pill} innerStyle={styles.iconBtn}>

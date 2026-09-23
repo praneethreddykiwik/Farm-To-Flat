@@ -24,6 +24,7 @@ import { SectionHeader } from '../../src/components/SectionHeader';
 import { CartBar } from '../../src/components/CartBar';
 import { DietToggle } from '../../src/components/DietToggle';
 import { SeasonalRail } from '../../src/components/SeasonalRail';
+import { LanguageRail } from '../../src/components/LanguageRail';
 import { useSlowHint, WAKING_MESSAGE } from '../../src/hooks/useSlowHint';
 import { useGetCatalogQuery, useGetMeQuery, useGetWindowsQuery } from '../../src/api/api';
 import { selectCustomer } from '../../src/features/auth/authSlice';
@@ -116,6 +117,9 @@ export default function Home() {
         <HomeHeader name={customer?.name} address={me.data?.defaultAddress} />
         <SearchBar onPress={() => router.push('/search')} editable={false} style={styles.search} />
       </Animated.View>
+      {/* The three languages we serve, drifting past. It is the cue that a Telugu or Hindi reader
+          can switch — sitting where they are already looking rather than buried in a setting. */}
+      <LanguageRail />
       <ConfirmBanner style={{ paddingHorizontal: 20, marginBottom: 12 }} />
       <View style={{ marginTop: 4 }}>
         <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />

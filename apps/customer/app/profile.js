@@ -34,8 +34,10 @@ import {
 import { customerUpdated, selectCustomer } from '../src/features/auth/authSlice';
 import { profileUpdated, selectProfile } from '../src/features/plan/planSlice';
 import { selectAiVisible } from '../src/features/role/roleSlice';
-import { showToast } from '../src/features/ui/uiSlice';
+import { showToast, selectLanguage } from '../src/features/ui/uiSlice';
 import { useSignOut } from '../src/hooks/useSession';
+import { LanguagePicker } from '../src/components/LanguagePicker';
+import { t } from '../src/lib/i18n';
 import { colors, fonts, radius } from '../src/theme';
 import { registerForPush } from '../src/lib/notifications';
 import { env } from '../src/lib/env';
@@ -88,6 +90,7 @@ export default function Profile() {
   const [registerDevice] = useRegisterDeviceMutation();
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
   const signOut = useSignOut();
+  const lang = useSelector(selectLanguage);
   // Reflect the REAL notification permission, not a guess. This was `useState(false)`, so the
   // switch reset itself to off every time the screen remounted — turn it on, go back, come back,
   // and it read as off while notifications were in fact enabled.
@@ -407,6 +410,15 @@ export default function Profile() {
             </Glass>
           </>
         ) : null}
+
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('language', lang)} · Language</Label>
+        <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 14 }}>
+          <LanguagePicker />
+          <Small muted style={{ marginTop: 10 }}>
+            Product names appear in the language you choose. Prices and your order history stay the
+            same.
+          </Small>
+        </Glass>
 
         <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>

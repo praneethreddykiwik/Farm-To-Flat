@@ -105,6 +105,11 @@ function serialiseProduct(p) {
   return {
     id: p.id,
     name: p.name,
+    // Mirrors the real API (apps/api/src/serialize.js productPublic): all languages ship with the
+    // product so switching is instant. The mock has no translation table, so English is the
+    // fallback everywhere — which is exactly what the app must handle gracefully anyway.
+    names: {},
+    categoryNames: {},
     aliases: p.aliases,
     categoryId: p.category,
     categoryName: cat?.name,
