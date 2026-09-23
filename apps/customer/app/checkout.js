@@ -154,14 +154,16 @@ export default function Checkout() {
         haptic.error();
         dispatch(
           showToast({
-            title: 'Payment not completed',
-            message: 'Your basket is safe. Try again when ready.',
+            title: 'Payment cancelled',
+            message: 'Your basket is still here. Try again when ready.',
             tone: 'error',
           }),
         );
         idem.current = idempotencyKey();
-        if (order?.id) router.replace({ pathname: '/order/[id]', params: { id: order.id } });
-        else router.replace('/(tabs)/orders');
+        // The server hands the basket back when a payment is abandoned, so put the customer where
+        // that basket is — the cart — not on a PAYMENT_FAILED order they cannot do anything with.
+        // Backing out of the gateway used to strand them on a dead order screen with an empty bag.
+        router.replace('/cart');
       }
     } catch (e) {
       // The gateway may already have taken the money. Never leave the customer staring at an empty

@@ -26,6 +26,13 @@ export function ProductImage({
   priority = 'normal',
 }) {
   const [failed, setFailed] = useState(false);
+  // Adjust on render when the source changes: a tile that failed once kept showing the fallback for
+  // every later product that landed in the same recycled view.
+  const [failedFor, setFailedFor] = useState(uri);
+  if (failedFor !== uri) {
+    setFailedFor(uri);
+    setFailed(false);
+  }
   const t = tintOf(tint);
   const dim = size === 'fill' ? { width: '100%', height: '100%' } : { width: size, height: size };
   // Absolute URLs pass through unchanged; a Supabase Storage path becomes a public URL.

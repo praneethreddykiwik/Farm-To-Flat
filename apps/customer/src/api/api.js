@@ -135,7 +135,8 @@ export const api = createApi({
     }),
     cancelOrder: b.mutation({
       query: (id) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: {} }),
-      invalidatesTags: ['Orders', 'Wallet', 'Me'],
+      // Cancelling an order that never got paid for hands the basket back too — same reason.
+      invalidatesTags: ['Orders', 'Wallet', 'Me', 'Cart'],
     }),
 
     // ---- wallet & payments ----
@@ -149,7 +150,10 @@ export const api = createApi({
     }),
     verifyPayment: b.mutation({
       query: (body) => ({ url: '/payments/verify', method: 'POST', body }),
-      invalidatesTags: ['Wallet', 'Orders', 'Me'],
+      // 'Cart' matters on the FAILURE path: the server gives the basket back when a payment is
+      // abandoned, and without this the app kept serving the emptied cart it had cached at
+      // checkout — the customer saw an empty bag and had to pick everything out again.
+      invalidatesTags: ['Wallet', 'Orders', 'Me', 'Cart'],
     }),
     registerDevice: b.mutation({ query: (body) => ({ url: '/devices', method: 'POST', body }) }),
 

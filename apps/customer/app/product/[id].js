@@ -86,10 +86,16 @@ export default function ProductDetail() {
   const t = tintOf(product.tint);
   const lineTotal = Math.round(Number(product.pricePaise) * quantity);
   const aliases = (product.aliases || []).slice(0, 4);
+  // The card grid hides the Add button on a sold-out product, but this screen did not — so a
+  // customer who opened Coriander after the operator marked it SOLD_OUT could still add it, and
+  // only found out when the order was placed. Same rule in both places.
+  const soldOut = !!product.availability && product.availability !== 'AVAILABLE';
 
   return (
     <View style={styles.root}>
       <Animated.View style={[styles.hero, heroStyle]}>
+        {/* Without a recycling key expo-image keeps the PREVIOUS product's bitmap in this view when
+            one detail screen replaces another — which is why opening Karela showed Banana. */}
         <ProductImage
           uri={product.image}
           blurhash={product.blurhash}
@@ -97,6 +103,7 @@ export default function ProductDetail() {
           name={product.name}
           radius={0}
           priority="high"
+          recyclingKey={product.id}
         />
         <LinearGradient
           colors={['rgba(11,21,16,0.35)', 'rgba(11,21,16,0)', 'rgba(243,245,239,0)', colors.canvas]}
@@ -205,23 +212,29 @@ export default function ProductDetail() {
         <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.bar}>
           <View style={{ flex: 1 }}>
             <Small color="rgba(243,245,239,0.65)">
-              {quantity > 0 ? 'In your basket' : 'Add to basket'}
+              {soldOut ? 'Sold out today' : quantity > 0 ? 'In your basket' : 'Add to basket'}
             </Small>
             <Money
               paise={quantity > 0 ? lineTotal : product.pricePaise}
               animated
-              color={colors.sprout}
+              color={soldOut ? 'rgba(243,245,239,0.45)' : colors.sprout}
               variant="h2"
             />
           </View>
-          <Stepper
-            value={quantity}
-            increment={product.increment}
-            unit={product.unit}
-            max={product.dailyCap}
-            onChange={setQuantity}
-            tone="dark"
-          />
+          {soldOut ? (
+            <GlassPill>
+              <Small color="rgba(243,245,239,0.75)">Back tomorrow</Small>
+            </GlassPill>
+          ) : (
+            <Stepper
+              value={quantity}
+              increment={product.increment}
+              unit={product.unit}
+              max={product.dailyCap}
+              onChange={setQuantity}
+              tone="dark"
+            />
+          )}
         </Glass>
       </View>
     </View>
