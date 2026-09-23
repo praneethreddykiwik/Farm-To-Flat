@@ -215,7 +215,7 @@ const paymentToRow = (p) => ({
 
 /** Read all transactional tables. Enrichment (address community names) happens in the store. */
 export async function loadTransactional() {
-  const [customers, addresses, sessions, devices, redemptions, orders, payments] =
+  const [customers, addresses, sessions, devices, redemptions, orders, payments, carts] =
     await Promise.all([
       prisma.customer.findMany(),
       prisma.address.findMany(),
@@ -224,8 +224,16 @@ export async function loadTransactional() {
       prisma.couponRedemption.findMany(),
       prisma.order.findMany(),
       prisma.payment.findMany(),
+      // The basket table was added after the others. If it is not in the database yet, boot with
+      // empty baskets rather than failing hydration — a throw here would disable persistence for
+      // the whole process and drop the API back to seed data.
+      prisma.cart.findMany().catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error('[persist] cart table unavailable, starting with empty baskets:', e?.message);
+        return [];
+      }),
     ]);
-  return { customers, addresses, sessions, devices, redemptions, orders, payments };
+  return { customers, addresses, sessions, devices, redemptions, orders, payments, carts };
 }
 
 const logErr = (op) => (e) =>
@@ -312,6 +320,25 @@ export const persist = {
   staffDelete: wt('staff.delete', (sid) => prisma.staff.delete({ where: { id: sid } })),
   configUpdate: wt('config.update', (data) =>
     prisma.appConfig.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data }),
+  ),
+  // The basket. Serialised per customer: add-then-remove within milliseconds must not land in the
+  // wrong order and leave the removed line in the database.
+  cartSave: wt(
+    'cart.save',
+    (cid, c) => {
+      const row = { items: c?.items || [], couponCode: c?.couponCode || null };
+      return prisma.cart.upsert({
+        where: { customerId: cid },
+        create: { customerId: cid, ...row },
+        update: row,
+      });
+    },
+    (cid) => cid,
+  ),
+  cartDelete: wt(
+    'cart.delete',
+    (cid) => prisma.cart.delete({ where: { customerId: cid } }).catch(() => undefined),
+    (cid) => cid,
   ),
 
   // ── transactional (stage 2) ──

@@ -269,6 +269,16 @@ model ProcurementRecord {
 }
 
 // App-wide settings (min order, procurement buffer, support contact) as a single row.
+/// A shopper's basket. Kept in Postgres because the API holds carts in memory: before this, every
+/// server restart (and on the free plan, every overnight idle spin-down) silently emptied the
+/// basket of every customer who had not yet checked out.
+model Cart {
+  customerId String   @id
+  items      Json     @default("[]")
+  couponCode String?
+  updatedAt  DateTime @updatedAt
+}
+
 model AppConfig {
   id                        Int      @id @default(1)
   minOrderValuePaise        Int      @default(50000)

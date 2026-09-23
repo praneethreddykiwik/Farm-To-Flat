@@ -48,13 +48,17 @@ const cs = {
 
 const cart = (cid) =>
   cs.carts.get(cid) || cs.carts.set(cid, { items: [], couponCode: null }).get(cid);
+/** Write the basket through to Supabase. Every mutation below ends with one of these. */
+const saveCart = (cid) => persist.cartSave(cid, cart(cid));
 const wallet = (cid) =>
   cs.wallets.get(cid) || cs.wallets.set(cid, { balancePaise: 0, ledger: [] }).get(cid);
 const redemptions = (cid) => cs.redemptions.get(cid) || cs.redemptions.set(cid, new Set()).get(cid);
 
 /**
- * Load customers, addresses, wallets, sessions, devices, redemptions and payments from Supabase into
- * the in-memory cache at boot. Carts and OTPs stay ephemeral (never persisted). Called once by boot().
+ * Load customers, addresses, wallets, sessions, devices, redemptions, payments and BASKETS from
+ * Supabase into the in-memory cache at boot. OTPs stay ephemeral (never persisted). Called once by
+ * boot(). Baskets used to be ephemeral too, which meant every restart — and on the free plan every
+ * overnight idle spin-down — silently emptied the basket of everyone mid-shop.
  */
 export function hydrateCustomerData({
   customers,
@@ -63,9 +67,16 @@ export function hydrateCustomerData({
   devices,
   redemptions,
   payments,
+  carts,
 }) {
   const communities = listCommunities();
   const comm = (cid) => communities.find((c) => c.id === cid);
+  cs.carts = new Map(
+    (carts || []).map((r) => [
+      r.customerId,
+      { items: Array.isArray(r.items) ? r.items : [], couponCode: r.couponCode || null },
+    ]),
+  );
   cs.customers = new Map();
   cs.byMobile = new Map();
   cs.wallets = new Map();
@@ -673,22 +684,27 @@ export function setCartItem(cid, { productId, quantity, note }) {
     existing.quantity = qty;
     if (note !== undefined) existing.note = note;
   } else cur.items.push({ id: id('ci', 8), productId, quantity: qty, note: note || null });
+  saveCart(cid);
   return { ok: true };
 }
 
 export function removeCartItem(cid, lineId) {
   const cur = cart(cid);
   cur.items = cur.items.filter((i) => i.id !== lineId && i.productId !== lineId);
+  saveCart(cid);
 }
 export function setCartCoupon(cid, code) {
   cart(cid).couponCode = code;
+  saveCart(cid);
 }
 export function clearCartCoupon(cid) {
   cart(cid).couponCode = null;
+  saveCart(cid);
 }
 export const rawCart = (cid) => cart(cid);
 export function clearCart(cid) {
   cs.carts.set(cid, { items: [], couponCode: null });
+  saveCart(cid);
 }
 
 /**
@@ -715,6 +731,7 @@ export function restoreCartFromOrder(cid, order) {
     }));
   if (!items.length) return false;
   cs.carts.set(cid, { items, couponCode: order.couponCode || null });
+  saveCart(cid);
   return true;
 }
 export const cartCount = (cid) => cart(cid).items.length;
