@@ -36,6 +36,7 @@ const liveName = (o) => {
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
 import { csvEscape } from '../../lib/csv.js';
+import { buildWorkbook, rupees, sendWorkbook } from '../../lib/xlsx.js';
 
 export const adminOrdersRouter = Router();
 
@@ -155,6 +156,83 @@ adminOrdersRouter.post(
       lines,
     });
     res.status(201).json({ order: orderAdmin(order) });
+  }),
+);
+
+/**
+ * Packing sheet and driver manifest as a real spreadsheet. The packing sheet is one row per LINE
+ * (what to put in the bag); the manifest is one row per ORDER (what the driver carries and, once
+ * cash on delivery is on, what to collect at the door).
+ */
+adminOrdersRouter.get(
+  '/orders/export.xlsx',
+  asyncHandler(async (req, res) => {
+    const type = req.query.type === 'manifest' ? 'manifest' : 'packing';
+    const orders = applyFilters(listOrders(), req.query)
+      .filter((o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status))
+      .map(liveName);
+
+    const sheet =
+      type === 'manifest'
+        ? {
+            name: 'Manifest',
+            columns: [
+              { header: 'Order', key: 'order', width: 14 },
+              { header: 'Customer', key: 'customer', width: 20 },
+              { header: 'Mobile', key: 'mobile', width: 15 },
+              { header: 'Community', key: 'community', width: 22 },
+              { header: 'Block', key: 'block', width: 12 },
+              { header: 'Flat', key: 'flat', width: 10 },
+              { header: 'Window', key: 'window', width: 12 },
+              { header: 'Items', key: 'items', width: 8 },
+              { header: 'Total', key: 'total', width: 14, money: true },
+              { header: 'Status', key: 'status', width: 18 },
+            ],
+            rows: orders.map((o) => ({
+              order: o.orderNumber,
+              customer: o.customerName,
+              mobile: o.mobile,
+              community: o.address?.communityName,
+              block: o.address?.block,
+              flat: o.address?.flat,
+              window: o.window,
+              items: o.items.length,
+              total: rupees(o.totalPaise),
+              status: o.status,
+            })),
+          }
+        : {
+            name: 'Packing',
+            columns: [
+              { header: 'Order', key: 'order', width: 14 },
+              { header: 'Customer', key: 'customer', width: 20 },
+              { header: 'Community', key: 'community', width: 22 },
+              { header: 'Block', key: 'block', width: 12 },
+              { header: 'Flat', key: 'flat', width: 10 },
+              { header: 'Window', key: 'window', width: 12 },
+              { header: 'Product', key: 'product', width: 26 },
+              { header: 'Qty', key: 'qty', width: 10, qty: true },
+              { header: 'Unit', key: 'unit', width: 10 },
+              { header: 'Note', key: 'note', width: 28 },
+            ],
+            rows: orders.flatMap((o) =>
+              o.items.map((it) => ({
+                order: o.orderNumber,
+                customer: o.customerName,
+                community: o.address?.communityName,
+                block: o.address?.block,
+                flat: o.address?.flat,
+                window: o.window,
+                product: it.name,
+                qty: Number(it.quantity),
+                unit: it.unit,
+                note: it.note || '',
+              })),
+            ),
+          };
+
+    const buf = await buildWorkbook([sheet], { title: `Farm to Flat ${type}` });
+    sendWorkbook(res, buf, `f2f-${type}-${req.query.date || todayISO()}.xlsx`);
   }),
 );
 

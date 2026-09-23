@@ -214,8 +214,8 @@ export function Fulfilment() {
   async function downloadPacking() {
     const day = new Date().toISOString().slice(0, 10);
     try {
-      await api.download('/admin/orders/export.csv?type=packing', `f2f-packing-${day}.csv`);
-      toast('Packing CSV exported');
+      await api.download('/admin/orders/export.xlsx?type=packing', `f2f-packing-${day}.xlsx`);
+      toast('Packing sheet exported');
     } catch (e) {
       toast(e.message || 'Could not export', 'err');
     }
@@ -454,7 +454,7 @@ export function Fulfilment() {
             </button>
           )}
           <button className="btn btn--accent" onClick={downloadPacking}>
-            <IconDownload size={17} /> Packing CSV
+            <IconDownload size={17} /> Packing sheet
           </button>
         </div>
       </header>

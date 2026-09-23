@@ -76,7 +76,7 @@ async function download(path, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename || 'export.csv';
+  a.download = filename || 'export.xlsx';
   document.body.appendChild(a);
   a.click();
   a.remove();

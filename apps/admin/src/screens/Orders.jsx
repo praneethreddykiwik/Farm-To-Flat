@@ -57,8 +57,8 @@ export function Orders() {
     p.set('type', type);
     const day = new Date().toISOString().slice(0, 10);
     try {
-      await api.download(`/admin/orders/export.csv?${p.toString()}`, `f2f-${type}-${day}.csv`);
-      toast(`${titleCase(type)} CSV exported`);
+      await api.download(`/admin/orders/export.xlsx?${p.toString()}`, `f2f-${type}-${day}.xlsx`);
+      toast(`${titleCase(type)} sheet exported`);
     } catch (e) {
       toast(e.message || 'Could not export', 'err');
     }
@@ -75,10 +75,10 @@ export function Orders() {
         </div>
         <div className="topbar__actions">
           <button className="btn btn--ghost" onClick={() => download('packing')}>
-            <IconDownload size={17} /> Packing CSV
+            <IconDownload size={17} /> Packing sheet
           </button>
           <button className="btn btn--ghost" onClick={() => download('manifest')}>
-            <IconDownload size={17} /> Manifest CSV
+            <IconDownload size={17} /> Driver manifest
           </button>
         </div>
       </header>

@@ -24,12 +24,16 @@ const LANG_OPTS = [
 
 export function Procurement() {
   const [date, setDate] = useState('all');
+  const [communityId, setCommunityId] = useState('all');
+  const [win, setWin] = useState('all');
   const [override, setOverride] = useState(''); // run-level buffer override %
   const [editBuf, setEditBuf] = useState({});
   const [langMenu, setLangMenu] = useState(false);
 
   const params = new URLSearchParams();
   if (date !== 'all') params.set('date', date);
+  if (communityId !== 'all') params.set('communityId', communityId);
+  if (win !== 'all') params.set('window', win);
   if (override !== '' && Number(override) >= 0) params.set('bufferPct', override);
   const qs = params.toString() ? `?${params.toString()}` : '';
   const { data, loading, error, reload } = useResource(`/admin/procurement${qs}`);
@@ -114,6 +118,7 @@ export function Procurement() {
       : { bg: 'var(--leaf-soft)', fg: 'var(--leaf-deep)' };
 
   const dates = data?.dates || [];
+  const communities = data?.communities || [];
 
   async function saveBuffer(productId, rawValue, currentPct) {
     setEditBuf((s) => {
@@ -192,11 +197,14 @@ export function Procurement() {
     const p = new URLSearchParams(params);
     if (lang !== 'en') p.set('lang', lang);
     setLangMenu(false);
-    const day = new Date().toISOString().slice(0, 10);
+    // Name the file after the run it is FOR, not the day it was pressed — a list forwarded to the
+    // market must not be mistakable for another day's or another community's.
+    const day = date !== 'all' ? date : new Date().toISOString().slice(0, 10);
+    const scope = communityId !== 'all' ? `-${communityId.replace(/[^a-z0-9]/gi, '')}` : '';
     try {
       await api.download(
-        `/admin/procurement/export.csv${p.toString() ? `?${p.toString()}` : ''}`,
-        `f2f-procurement-${lang}-${day}.csv`,
+        `/admin/procurement/export.xlsx${p.toString() ? `?${p.toString()}` : ''}`,
+        `f2f-purchase-list-${lang}-${day}${scope}.xlsx`,
       );
       toast(
         `Purchase list exported · ${LANG_OPTS.find((l) => l.code === lang).label.split(' ')[0]}`,
@@ -438,6 +446,39 @@ export function Procurement() {
             {shortDate(d)}
           </button>
         ))}
+        <span className="spacer" />
+        {/* Buying for one apartment complex is a different run from buying for all seven, and the
+            slot matters too — the morning bag is picked before the evening one. Both narrow the
+            list AND the spreadsheet, so what the buyer carries to the market is what they see. */}
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          Community
+        </span>
+        <select
+          className="buf-input"
+          style={{ width: 'auto', minWidth: 150 }}
+          value={communityId}
+          onChange={(e) => setCommunityId(e.target.value)}
+        >
+          <option value="all">All communities</option>
+          {communities.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          Slot
+        </span>
+        <select
+          className="buf-input"
+          style={{ width: 'auto', minWidth: 110 }}
+          value={win}
+          onChange={(e) => setWin(e.target.value)}
+        >
+          <option value="all">Both</option>
+          <option value="MORNING">Morning</option>
+          <option value="EVENING">Evening</option>
+        </select>
         <span className="spacer" />
         <span className="muted" style={{ fontSize: 12.5 }}>
           Run buffer

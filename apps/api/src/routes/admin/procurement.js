@@ -32,6 +32,7 @@ import { money, formatINR } from '../../lib/money.js';
 import { csvEscape } from '../../lib/csv.js';
 import { todayISO } from '../../lib/dates.js';
 import { CSV_HEADERS, LANGS, YES, categoryName, productName, unitLabel } from '../../lib/i18n.js';
+import { buildWorkbook, rupees, sendWorkbook } from '../../lib/xlsx.js';
 
 export const adminProcurementRouter = Router();
 
@@ -145,6 +146,22 @@ adminProcurementRouter.get(
 
     const totalCost = lines.reduce((s, l) => s + l._procureCost, 0);
     const dates = [...new Set(orders.map((o) => o.deliveryDate))].sort();
+    // Which communities the UNFILTERED run actually covers, so the filter offers real options and
+    // does not disappear the moment the buyer picks one.
+    const { orders: allOrders } = collect({ ...req.query, communityId: undefined });
+    const communities = [
+      ...new Map(
+        allOrders
+          .filter((o) => o.address?.communityId)
+          .map((o) => [
+            o.address.communityId,
+            {
+              id: o.address.communityId,
+              name: o.address.community || o.address.communityName || o.address.communityId,
+            },
+          ]),
+      ).values(),
+    ].sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
     res.json({
       generatedAt: new Date().toISOString(),
@@ -152,9 +169,11 @@ adminProcurementRouter.get(
         statuses,
         date: req.query.date || null,
         window: req.query.window || null,
+        communityId: req.query.communityId || null,
         bufferOverride: override,
       },
       dates,
+      communities,
       orderCount: orders.length,
       skuCount: lines.length,
       procuredCount: lines.filter((l) => l.procured).length,
@@ -319,5 +338,99 @@ adminProcurementRouter.get(
       `attachment; filename="f2f-procurement-${lang}-${req.query.date || todayISO()}.csv"`,
     );
     res.send(csv);
+  }),
+);
+
+/**
+ * The purchase list as a real spreadsheet.
+ *
+ * Replaces the CSV the buyer used to get: Excel mangles CSV numbers, Telugu and Hindi only survive
+ * with a BOM, and a CSV shared to WhatsApp arrives as unreadable text instead of a file. This is a
+ * genuine .xlsx — typed cells, a frozen filterable header, money that sums.
+ *
+ * Every filter the screen offers is honoured (date, window, community, status, buffer override) and
+ * the active filters are written into a second sheet, so a list forwarded to the market cannot be
+ * mistaken for a different day's or a different community's run.
+ */
+adminProcurementRouter.get(
+  '/procurement/export.xlsx',
+  asyncHandler(async (req, res) => {
+    const lang = LANGS.includes(String(req.query.lang)) ? String(req.query.lang) : 'en';
+    const { agg, orders, statuses } = collect(req.query);
+    const categories = listCategories();
+    const catEnglish = (id) => categories.find((c) => c.id === id)?.name || id;
+    const dateKey = dateKeyOf(req.query);
+    const override = overrideOf(req.query);
+    const lines = [...agg.values()]
+      .map((a) => toLine(a, { override, dateKey }))
+      .sort((a, b) => a.categoryId.localeCompare(b.categoryId) || a.name.localeCompare(b.name));
+
+    const H = CSV_HEADERS[lang];
+    const rows = lines.map((l) => {
+      const product = getProduct(l.productId);
+      return {
+        category: categoryName(l.categoryId, catEnglish(l.categoryId), lang),
+        product: product ? productName(product, lang) : l.name,
+        farm: l.farm,
+        orders: Number(l.orders),
+        required: Number(l.requiredQty),
+        unit: unitLabel(l.unit, lang),
+        buffer: Number(l.bufferPct),
+        procure: Number(l.procureQty),
+        cost: rupees(l.procureCostPaise),
+        bought: l.procured ? YES[lang] : '',
+      };
+    });
+
+    const communityName =
+      orders.find((o) => o.address?.communityId === req.query.communityId)?.address?.community ||
+      req.query.communityId ||
+      'All communities';
+
+    const buf = await buildWorkbook(
+      [
+        {
+          name: 'Purchase list',
+          columns: [
+            { header: H[0], key: 'category', width: 18 },
+            { header: H[1], key: 'product', width: 26 },
+            { header: H[2], key: 'farm', width: 20 },
+            { header: H[3], key: 'orders', width: 10 },
+            { header: H[4], key: 'required', width: 12, qty: true },
+            { header: H[5], key: 'unit', width: 10 },
+            { header: H[6], key: 'buffer', width: 10 },
+            { header: H[7], key: 'procure', width: 13, qty: true },
+            { header: H[8], key: 'cost', width: 14, money: true },
+            { header: H[9], key: 'bought', width: 10 },
+          ],
+          rows,
+        },
+        {
+          name: 'Run details',
+          columns: [
+            { header: 'Field', key: 'k', width: 24 },
+            { header: 'Value', key: 'v', width: 40 },
+          ],
+          rows: [
+            { k: 'Generated', v: new Date().toISOString() },
+            { k: 'Delivery day', v: req.query.date || 'All open days' },
+            { k: 'Window', v: req.query.window || 'Both' },
+            { k: 'Community', v: communityName },
+            { k: 'Order statuses', v: statuses.join(', ') },
+            { k: 'Buffer override', v: override == null ? 'per-product default' : `${override}%` },
+            { k: 'Orders covered', v: orders.length },
+            { k: 'Distinct products', v: lines.length },
+            { k: 'Estimated cost', v: rupees(lines.reduce((t, l) => t + l._procureCost, 0)) },
+          ],
+        },
+      ],
+      { title: 'Farm to Flat purchase list' },
+    );
+
+    const stamp = req.query.date || todayISO();
+    const scope = req.query.communityId
+      ? `-${String(req.query.communityId).replace(/[^a-z0-9]/gi, '')}`
+      : '';
+    sendWorkbook(res, buf, `f2f-purchase-list-${lang}-${stamp}${scope}.xlsx`);
   }),
 );
