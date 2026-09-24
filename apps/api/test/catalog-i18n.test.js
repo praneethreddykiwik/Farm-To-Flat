@@ -36,6 +36,18 @@ describe('catalog localisation', () => {
     }
   });
 
+  it('translates a product the operator added later, keyed on its name not a seed id', async () => {
+    // Products created through the admin panel get a generated id, so an id-keyed map would leave
+    // them in English forever. This is the path that catches them.
+    const { productName } = await import('../src/lib/i18n.js');
+    const added = { id: 'p_cuid_generated', name: 'Rohu Fish', aliases: [] };
+    expect(productName(added, 'hi')).toBe('रोहू मछली');
+    expect(productName(added, 'te')).toBe('బొచ్చె చేప');
+    expect(productName({ id: 'p_x', name: 'ROHU FISH ', aliases: [] }, 'hi')).toBe('रोहू मछली');
+    // Something genuinely unknown still falls back to English rather than guessing.
+    expect(productName({ id: 'p_y', name: 'Dragonfruit', aliases: [] }, 'te')).toBe('Dragonfruit');
+  });
+
   it('still hides cost and margin, whatever language is being served', async () => {
     const { body } = await request(app).get('/api/v1/catalog').expect(200);
     const blob = JSON.stringify(body);

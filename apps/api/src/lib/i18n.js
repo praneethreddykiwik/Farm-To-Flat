@@ -132,6 +132,34 @@ const HINDI_NAMES = {
   p_eggs: 'अंडे',
 };
 
+/**
+ * Translations keyed by the ENGLISH NAME rather than the product id.
+ *
+ * The maps above are keyed by seed ids, so a product the operator adds through the admin panel gets
+ * a generated id and no translation at all — it would silently show English to a Telugu reader
+ * forever. Matching on the name instead means a newly added "Rohu fish" is translated the day it
+ * appears. Lower-cased and trimmed, so capitalisation in the admin form does not matter.
+ */
+const BY_NAME = {
+  'rohu fish': { hi: 'रोहू मछली', te: 'బొచ్చె చేప' },
+  'katla fish': { hi: 'कतला मछली', te: 'బొచ్చె చేప' },
+  fish: { hi: 'मछली', te: 'చేప' },
+  prawns: { hi: 'झींगा', te: 'రొయ్యలు' },
+  chicken: { hi: 'चिकन', te: 'కోడి మాంసం' },
+  mutton: { hi: 'मटन', te: 'మటన్' },
+  eggs: { hi: 'अंडे', te: 'కోడిగుడ్లు' },
+  curd: { hi: 'दही', te: 'పెరుగు' },
+  milk: { hi: 'दूध', te: 'పాలు' },
+  paneer: { hi: 'पनीर', te: 'పనీర్' },
+};
+
+const byName = (product, lang) =>
+  BY_NAME[
+    String(product?.name || '')
+      .trim()
+      .toLowerCase()
+  ]?.[lang];
+
 /** Telugu fallbacks for the few catalog items without a Telugu-script alias. */
 const TELUGU_FALLBACK = {
   p_spring: 'ఉల్లికాడలు',
@@ -145,9 +173,9 @@ const hasTelugu = (s) => /[ఀ-౿]/.test(s);
 export function productName(product, lang) {
   if (lang === 'te') {
     const alias = (product.aliases || []).find(hasTelugu);
-    return alias || TELUGU_FALLBACK[product.id] || product.name;
+    return alias || TELUGU_FALLBACK[product.id] || byName(product, 'te') || product.name;
   }
-  if (lang === 'hi') return HINDI_NAMES[product.id] || product.name;
+  if (lang === 'hi') return HINDI_NAMES[product.id] || byName(product, 'hi') || product.name;
   return product.name;
 }
 
