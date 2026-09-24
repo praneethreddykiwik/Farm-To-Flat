@@ -64,6 +64,8 @@ export const adminApi = {
   resolveRole: (mobile) => j(`${V1}/access/resolve?mobile=${encodeURIComponent(mobile)}`),
   metrics: () => j(`${ADMIN}/metrics`),
   procurement: (qs = '') => j(`${ADMIN}/procurement${qs}`),
+  /** Every customer note on the live orders — what the buyer and the delivery team act on. */
+  orderNotes: (qs = '') => j(`${ADMIN}/orders/notes${qs}`),
   procurementCsvUrl: (qs = '') => `${ADMIN}/procurement/export.csv${qs}`,
   procurementXlsxUrl: (qs = '') => `${ADMIN}/procurement/export.xlsx${qs}`,
   /** Fetch the procurement CSV as text WITH the Bearer auth header (j() sends it and returns text for non-JSON responses). */

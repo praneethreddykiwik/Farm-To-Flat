@@ -260,6 +260,11 @@ export default function StaffFulfilment() {
         title="Fulfilment"
         subtitle="Deliver by community — call, navigate, advance"
         roleLabel={role.label || 'Fulfilment'}
+        tabs={[
+          { key: 'fulfilment', label: 'Deliveries', href: '/staff/fulfilment' },
+          { key: 'notes', label: 'Customer notes', href: '/staff/notes' },
+        ]}
+        active="fulfilment"
       />
 
       {orders && communities.length > 0 ? (

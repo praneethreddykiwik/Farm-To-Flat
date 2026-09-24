@@ -130,12 +130,18 @@ function AuthGate({ ready }) {
     if (!role.resolved) return;
 
     const r = role.role;
+    // Each role has a home screen, and the customer-notes screen both of them need — a buyer reads
+    // the item notes before the market, a rider reads the door instructions. Pinning them to one
+    // screen meant neither could reach the notes at all.
+    const SHARED = 'notes';
     if (r === 'PROCUREMENT') {
-      if (segments[1] !== 'procurement') router.replace('/staff/procurement');
+      if (segments[1] !== 'procurement' && segments[1] !== SHARED)
+        router.replace('/staff/procurement');
       return;
     }
     if (r === 'FULFILMENT') {
-      if (segments[1] !== 'fulfilment') router.replace('/staff/fulfilment');
+      if (segments[1] !== 'fulfilment' && segments[1] !== SHARED)
+        router.replace('/staff/fulfilment');
       return;
     }
     if (r === 'ADMIN' || r === 'SUPER_ADMIN') {

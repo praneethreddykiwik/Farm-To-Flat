@@ -14,21 +14,33 @@
  * do not exist — a top-level import would throw as the screen mounted and take the whole staff app
  * down. Required inside the call instead, so those installs simply get told to update the app.
  */
-let native = null;
+let native;
 function loadNative() {
-  if (native) return native;
-  native = { fs: require('expo-file-system'), sharing: require('expo-sharing') };
+  if (native !== undefined) return native;
+  // Each module separately, and each probe separately. Requiring expo-sharing on a binary without
+  // it throws "Cannot find native module 'ExpoSharing'", and so does merely READING a property of
+  // expo-file-system's Paths — these objects throw from getters, not only from calls, so every
+  // touch has to be guarded or the throw escapes as an uncaught error.
+  const probe = (fn) => {
+    try {
+      return fn();
+    } catch {
+      return null;
+    }
+  };
+  const fs = probe(() => require('expo-file-system'));
+  const sharing = probe(() => require('expo-sharing'));
+  const ok =
+    !!probe(() => fs?.File) &&
+    !!probe(() => fs?.Paths?.cache) &&
+    !!probe(() => sharing?.shareAsync);
+  native = ok ? { fs, sharing } : null;
   return native;
 }
 
 /** Whether this build can write and share a file at all. False on an older binary. */
 export function canShareFiles() {
-  try {
-    const { fs, sharing } = loadNative();
-    return !!(fs?.File && fs?.Paths && sharing?.shareAsync);
-  } catch {
-    return false;
-  }
+  return !!loadNative();
 }
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -38,21 +50,25 @@ const XLSX_UTI = 'org.openxmlformats.spreadsheetml.sheet';
  * @param {{ url: string, filename: string, token?: string|null, mime?: string, uti?: string, dialogTitle?: string }} opts
  * @returns {Promise<{ shared: boolean, reason?: string }>}
  */
-export async function downloadAndShare({
-  url,
-  filename,
-  token,
-  mime = XLSX_MIME,
-  uti = XLSX_UTI,
-  dialogTitle,
-}) {
-  if (!canShareFiles()) {
+export async function downloadAndShare(opts) {
+  // Nothing in here may throw past this point. A staff screen losing its whole round to a red error
+  // because a file could not be saved is a far worse outcome than being told the download failed.
+  try {
+    return await run(opts);
+  } catch (e) {
+    return { shared: false, reason: e?.message || 'Could not download the list.' };
+  }
+}
+
+async function run({ url, filename, token, mime = XLSX_MIME, uti = XLSX_UTI, dialogTitle }) {
+  const mods = loadNative();
+  if (!mods) {
     return {
       shared: false,
       reason: 'Update the app from the link you were sent to download the spreadsheet.',
     };
   }
-  const { fs, sharing: Sharing } = loadNative();
+  const { fs, sharing: Sharing } = mods;
   const { Directory, File, Paths } = fs;
 
   // Its own folder in the cache, so a stale file from a previous export can never be shared by

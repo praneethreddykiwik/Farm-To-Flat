@@ -75,6 +75,13 @@ const ADMIN_UP = ['ADMIN', 'SUPER_ADMIN'];
  */
 const RULES = [
   { when: (p) => p.startsWith('/metrics'), roles: null }, // console KPIs: every staff role
+  // Customer notes are READ-ONLY and both working roles need them: the buyer reads the item notes
+  // before the market, the delivery team reads the door instructions. Listed before the general
+  // /orders rule, which would otherwise shut the buyer out of the very thing they have to shop to.
+  {
+    when: (p, m) => p === '/orders/notes' && m === 'GET',
+    sections: ['orders', 'fulfilment', 'procurement'],
+  },
   { when: (p) => p.startsWith('/orders'), sections: ['orders', 'fulfilment'] },
   { when: (p, m) => p === '/procurement/settings' && m !== 'GET', roles: ADMIN_UP },
   { when: (p) => p === '/procurement/approve' || p === '/procurement/approvals', roles: ADMIN_UP },

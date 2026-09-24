@@ -106,6 +106,11 @@ export default function StaffProcurement() {
         title="Procurement"
         subtitle="Buy the list, enter what you paid"
         roleLabel={role.label || 'Procurement'}
+        tabs={[
+          { key: 'procurement', label: 'Buy list', href: '/staff/procurement' },
+          { key: 'notes', label: 'Customer notes', href: '/staff/notes' },
+        ]}
+        active="procurement"
       />
       <ScrollView
         refreshControl={

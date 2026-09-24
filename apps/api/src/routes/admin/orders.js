@@ -262,6 +262,58 @@ adminOrdersRouter.get(
   }),
 );
 
+/**
+ * Every note a customer has written on the orders still being worked on, in one place.
+ *
+ * Both teams need these and neither was seeing them: the buyer needs the per-item notes BEFORE
+ * going to the market ("small ones please" changes what you pick up), and the delivery team needs
+ * the door instructions. Scattering them across individual order cards meant they were read only by
+ * whoever happened to open that order.
+ */
+adminOrdersRouter.get(
+  '/orders/notes',
+  asyncHandler(async (req, res) => {
+    const live = new Set(['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']);
+    const orders = listOrders()
+      .filter((o) => live.has(o.status))
+      .filter((o) => !req.query.date || o.deliveryDate === req.query.date)
+      .filter((o) => !req.query.communityId || o.address?.communityId === req.query.communityId)
+      .map(liveName);
+
+    const rows = [];
+    for (const o of orders) {
+      const base = {
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        customerName: o.customerName,
+        mobile: o.mobile,
+        deliveryDate: o.deliveryDate,
+        window: o.window,
+        community: o.address?.communityName || null,
+        communityId: o.address?.communityId || null,
+        block: o.address?.block || null,
+        flat: o.address?.flat || null,
+      };
+      // The instruction for the door — what the delivery team acts on.
+      if (o.deliveryNote)
+        rows.push({ ...base, kind: 'DELIVERY', product: null, note: o.deliveryNote });
+      // Per-item notes — what the buyer and the packer act on.
+      for (const it of o.items || [])
+        if (it.note) rows.push({ ...base, kind: 'ITEM', product: it.name, note: it.note });
+    }
+    rows.sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)));
+    res.json({
+      notes: rows,
+      counts: {
+        total: rows.length,
+        item: rows.filter((r) => r.kind === 'ITEM').length,
+        delivery: rows.filter((r) => r.kind === 'DELIVERY').length,
+      },
+    });
+  }),
+);
+
 adminOrdersRouter.get(
   '/orders/:id',
   asyncHandler(async (req, res) => {

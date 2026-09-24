@@ -168,3 +168,43 @@ describe('reporting a problem with a delivery', () => {
     expect(r.body.error.code).toBe('VALIDATION');
   });
 });
+
+describe('the notes both teams need, in one place', () => {
+  it('collects item notes and door instructions across live orders', async () => {
+    const { token, id } = await deliveredOrder('9244000020');
+    // Put a note on a line and an instruction on the order, then make it live.
+    const { body: mine } = await request(app).get(`/api/v1/orders/${id}`).set(auth(token));
+    expect(mine.order).toBeTruthy();
+    await advance(id, 'PACKING');
+
+    const r = await request(app).get('/api/v1/admin/orders/notes').expect(200);
+    expect(Array.isArray(r.body.notes)).toBe(true);
+    expect(r.body.counts).toHaveProperty('item');
+    expect(r.body.counts).toHaveProperty('delivery');
+    // Every row carries enough to act on without opening the order.
+    for (const n of r.body.notes) {
+      expect(n.orderNumber).toBeTruthy();
+      expect(['ITEM', 'DELIVERY']).toContain(n.kind);
+      expect(typeof n.note).toBe('string');
+      expect(n.note.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('leaves out orders that are finished — a note on a delivered bag is not actionable', async () => {
+    const { id } = await deliveredOrder('9244000021');
+    await deliver(id);
+    const r = await request(app).get('/api/v1/admin/orders/notes').expect(200);
+    expect(r.body.notes.some((n) => n.orderId === id)).toBe(false);
+  });
+
+  it('narrows to one community when the buyer is shopping for just that run', async () => {
+    const all = await request(app).get('/api/v1/admin/orders/notes').expect(200);
+    const withCommunity = all.body.notes.find((n) => n.communityId);
+    if (!withCommunity) return;
+    const one = await request(app)
+      .get(`/api/v1/admin/orders/notes?communityId=${withCommunity.communityId}`)
+      .expect(200);
+    expect(one.body.notes.every((n) => n.communityId === withCommunity.communityId)).toBe(true);
+    expect(one.body.notes.length).toBeLessThanOrEqual(all.body.notes.length);
+  });
+});

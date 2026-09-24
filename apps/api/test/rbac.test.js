@@ -113,3 +113,21 @@ describe('admin routes enforce roles', () => {
     expect((await request(app).get('/api/v1/admin/metrics').set(auth(t))).status).toBe(401);
   });
 });
+
+describe('customer notes are readable by the people who act on them', () => {
+  it('lets procurement and fulfilment READ the notes', () => {
+    for (const role of ['PROCUREMENT', 'FULFILMENT', 'ADMIN', 'SUPER_ADMIN'])
+      expect(roleMayAccess(role, '/orders/notes', 'GET'), role).toBe(true);
+  });
+
+  it('still keeps procurement out of the rest of the order book', () => {
+    expect(roleMayAccess('PROCUREMENT', '/orders', 'GET')).toBe(false);
+    expect(roleMayAccess('PROCUREMENT', '/orders/ord_1/status', 'PATCH')).toBe(false);
+    expect(roleMayAccess('PROCUREMENT', '/orders/ord_1/deliver', 'POST')).toBe(false);
+  });
+
+  it('is read-only — the notes path grants nothing that writes', () => {
+    expect(roleMayAccess('PROCUREMENT', '/orders/notes', 'POST')).toBe(false);
+    expect(roleMayAccess('PROCUREMENT', '/orders/notes', 'DELETE')).toBe(false);
+  });
+});
