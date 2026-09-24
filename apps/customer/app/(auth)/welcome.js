@@ -29,10 +29,6 @@ import {
   useReducedMotion,
 } from '../../src/components/VillageRidge';
 import { useGetCommunitiesQuery } from '../../src/api/api';
-import { useSelector } from 'react-redux';
-import { selectLanguageUnset } from '../../src/features/ui/uiSlice';
-import { LanguagePicker } from '../../src/components/LanguagePicker';
-import { t } from '../../src/lib/i18n';
 import { colors, fonts, radius } from '../../src/theme';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -206,7 +202,6 @@ function CtaGlow({ children }) {
 }
 
 export default function Welcome() {
-  const languageUnset = useSelector(selectLanguageUnset);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // Live serviceable-community count (public endpoint) — this was a hard-coded "3" while the admin
@@ -265,16 +260,6 @@ export default function Welcome() {
                 </View>
               ))}
             </View>
-            {/* Asked before anything else: someone who cannot read English must not have to get
-                through a sign-in written in it first. Shown only until it is answered. */}
-            {languageUnset ? (
-              <View style={{ marginBottom: 16 }}>
-                <Small center color="rgba(243,245,239,0.72)" style={{ marginBottom: 9 }}>
-                  {t('chooseLanguage', 'en')} · भाषा चुनें · భాష ఎంచుకోండి
-                </Small>
-                <LanguagePicker tone="dark" />
-              </View>
-            ) : null}
             <CtaGlow>
               <Button
                 title="Ready? Let's go"

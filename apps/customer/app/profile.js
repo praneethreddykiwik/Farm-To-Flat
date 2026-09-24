@@ -411,7 +411,11 @@ export default function Profile() {
           </>
         ) : null}
 
-        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('language', lang)} · Language</Label>
+        {/* In English the translated word IS "Language", so pairing them read "Language ·
+            Language". Show the pair only when it actually says something. */}
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>
+          {lang === 'en' ? 'Language' : `${t('language', lang)} · Language`}
+        </Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 14 }}>
           <LanguagePicker />
           <Small muted style={{ marginTop: 10 }}>

@@ -89,7 +89,11 @@ export const selectBagPulse = (s) => s.ui.bagPulse;
 export const selectDietPref = (s) => s.ui.dietPref;
 /** The chosen reading language, or 'en' until one is picked. */
 export const selectLanguage = (s) => s.ui.language || 'en';
-/** Whether we still owe this person the one-time language question. */
+/**
+ * Whether a language has been chosen yet. Nothing asks this at sign-up any more — the choice lives
+ * in the profile, and everyone starts in English — but it is what lets a later screen tell "never
+ * chosen" apart from "chose English", which are different answers.
+ */
 export const selectLanguageUnset = (s) => !s.ui.language;
 /** Filter a product list by the current veg/non-veg preference. */
 export const filterByDiet = (products, pref) =>
