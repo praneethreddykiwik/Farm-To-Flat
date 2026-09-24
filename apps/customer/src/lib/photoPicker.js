@@ -43,7 +43,9 @@ export async function pickPhoto(source = 'camera') {
   if (source === 'camera') {
     const perm = await p.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      const e = new Error('Allow camera access to send a photo, or choose one from your gallery.');
+      const e = /** @type {Error & { code?: string }} */ (
+        new Error('Allow camera access to send a photo, or choose one from your gallery.')
+      );
       e.code = 'PERMISSION';
       throw e;
     }

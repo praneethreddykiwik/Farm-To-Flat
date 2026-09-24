@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   RefreshControl,
@@ -15,7 +15,7 @@ import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
 import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { showToast } from '../../src/features/ui/uiSlice';
-import { downloadAndShare } from '../../src/lib/downloadFile';
+import { canShareFiles, downloadAndShare } from '../../src/lib/downloadFile';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 import { selectAccessToken } from '../../src/features/auth/authSlice';
 
@@ -43,6 +43,8 @@ export default function StaffProcurement() {
   const dispatch = useDispatch();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  // Whether this binary can write and share a file at all.
+  const canShare = useMemo(() => canShareFiles(), []);
 
   const load = useCallback(() => {
     setError(null);
@@ -151,11 +153,26 @@ export default function StaffProcurement() {
               <Text style={styles.dlTitle}>Download purchase list</Text>
               <View style={styles.dlRow}>
                 {LANGS.map((l) => (
-                  <Pressable key={l.code} style={styles.dlBtn} onPress={() => download(l.code)}>
-                    <Text style={styles.dlBtnText}>⬇ {l.label}</Text>
+                  <Pressable
+                    key={l.code}
+                    style={[styles.dlBtn, !canShare && styles.dlBtnOff]}
+                    disabled={!canShare}
+                    onPress={() => download(l.code)}
+                  >
+                    <Text style={[styles.dlBtnText, !canShare && styles.dlBtnTextOff]}>
+                      ⬇ {l.label}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
+              {/* Saving a file needs native code that an over-the-air update cannot add, so on an
+                  older binary these can never work. Say so on the card instead of leaving three
+                  live-looking buttons that only ever answer with an error. */}
+              {!canShare ? (
+                <Text style={styles.dlNote}>
+                  Update the app from the link you were sent to download the list.
+                </Text>
+              ) : null}
             </View>
 
             {data.byCategory.map((g) => (
@@ -390,6 +407,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dlBtnText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.night },
+  dlBtnOff: { opacity: 0.45 },
+  dlBtnTextOff: { color: colors.ink2 },
+  dlNote: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink3, marginTop: 10 },
   group: {
     backgroundColor: colors.white,
     borderRadius: 18,

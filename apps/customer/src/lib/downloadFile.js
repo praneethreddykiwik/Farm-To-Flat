@@ -60,6 +60,7 @@ export async function downloadAndShare(opts) {
   }
 }
 
+/** @param {{ url: string, filename: string, token?: string|null, mime?: string, uti?: string, dialogTitle?: string }} opts */
 async function run({ url, filename, token, mime = XLSX_MIME, uti = XLSX_UTI, dialogTitle }) {
   const mods = loadNative();
   if (!mods) {
