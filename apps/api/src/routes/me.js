@@ -132,6 +132,8 @@ addressesRouter.post(
 addressesRouter.post(
   '/:id/default',
   asyncHandler(async (req, res) => {
-    res.json({ addresses: setDefaultAddress(req.customerId, req.params.id) });
+    const list = setDefaultAddress(req.customerId, req.params.id);
+    if (!list) throw fail(404, 'NOT_FOUND', 'That address is not on your account.');
+    res.json({ addresses: list });
   }),
 );

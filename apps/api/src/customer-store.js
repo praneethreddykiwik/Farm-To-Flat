@@ -526,6 +526,12 @@ export function addAddress(cid, body) {
 
 export function setDefaultAddress(cid, addrId) {
   const list = cs.addresses.get(cid) || [];
+  // The id has to be one of THIS customer's addresses. It used to just mark every address
+  // `isDefault = a.id === addrId`, so an id belonging to someone else — or a stale one from an old
+  // session — matched nothing and quietly left the customer with NO default at all, which reads in
+  // the app as "no delivery address" and blocks checkout. Another customer's address was never
+  // modified, but the caller's own was wrecked.
+  if (!list.some((a) => a.id === addrId)) return null;
   list.forEach((a) => (a.isDefault = a.id === addrId));
   list.forEach((a) => persist.addressUpsert(a, cid));
   return list;

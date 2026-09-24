@@ -167,3 +167,52 @@ describe('one customer can never reach another customer', () => {
     expect(ids).not.toContain(owner.order.id);
   });
 });
+
+describe('one customer cannot touch another customer', () => {
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+  async function withAddress(mobile, flatNo) {
+    await request(app).post('/api/v1/auth/otp/request').send({ mobile });
+    const v = await request(app).post('/api/v1/auth/otp/verify').send({ mobile, otp: '123456' });
+    const token = v.body.accessToken;
+    const { body: c } = await request(app).get('/api/v1/communities');
+    const com = c.communities[0];
+    await request(app)
+      .post('/api/v1/addresses')
+      .set(auth(token))
+      .send({ communityId: com.id, block: com.blocks[0], flat: flatNo, floor: '3' });
+    const { body: a } = await request(app).get('/api/v1/addresses').set(auth(token));
+    return { token, address: a.addresses[0] };
+  }
+
+  it("refuses another customer's address id, and leaves the caller's own default intact", async () => {
+    const A = await withAddress('9233000001', 'A-101');
+    const B = await withAddress('9233000002', 'B-202');
+
+    const r = await request(app)
+      .post(`/api/v1/addresses/${B.address.id}/default`)
+      .set(auth(A.token))
+      .send({});
+    expect(r.status).toBe(404);
+
+    // The real damage was here: the old code matched nothing and cleared every flag, so the
+    // customer was left with NO default address and could not check out.
+    const { body: mine } = await request(app).get('/api/v1/addresses').set(auth(A.token));
+    expect(mine.addresses.some((x) => x.isDefault)).toBe(true);
+    expect(mine.addresses.every((x) => x.flat === 'A-101')).toBe(true);
+
+    // And B is untouched.
+    const { body: theirs } = await request(app).get('/api/v1/addresses').set(auth(B.token));
+    expect(theirs.addresses[0].isDefault).toBe(true);
+  });
+
+  it('a made-up address id is refused too', async () => {
+    const A = await withAddress('9233000003', 'C-303');
+    const r = await request(app)
+      .post('/api/v1/addresses/adr_does_not_exist/default')
+      .set(auth(A.token))
+      .send({});
+    expect(r.status).toBe(404);
+    const { body: mine } = await request(app).get('/api/v1/addresses').set(auth(A.token));
+    expect(mine.addresses.some((x) => x.isDefault)).toBe(true);
+  });
+});
