@@ -303,6 +303,9 @@ export function Fulfilment() {
   const renderGroupCard = (community, orders, col) => {
     const total = orders.reduce((s, o) => s + Number(o.totalPaise), 0);
     const items = orders.reduce((s, o) => s + o.itemCount, 0);
+    // What the van has to bring back from this community. Sums only what is still OWED, so a cash
+    // order already settled at the door stops counting.
+    const cashDue = orders.reduce((s, o) => s + Number(o.codDuePaise || 0), 0);
     const isBusy = busy === `grp:${orders[0].id}`;
     const isDragging =
       drag?.kind === 'group' &&
@@ -340,6 +343,27 @@ export function Fulfilment() {
           </span>
           <span className="rupee">{inr(total)}</span>
         </div>
+        {/* Grouping by community is the DEFAULT view, so the cash total has to be here too — the
+            badge on the individual card is invisible to anyone who never ungroups, which is the
+            person actually loading the van. */}
+        {cashDue > 0 && (
+          <div
+            className="hstack"
+            style={{
+              justifyContent: 'space-between',
+              marginTop: 8,
+              padding: '5px 9px',
+              borderRadius: 8,
+              background: 'rgba(214,92,63,0.10)',
+              border: '1px solid rgba(214,92,63,0.26)',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.3 }}>COLLECT CASH</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--tomato)' }}>
+              {inr(cashDue)}
+            </span>
+          </div>
+        )}
         <div className="commcard__list">
           {orders.slice(0, 4).map((o) => (
             <button
@@ -352,6 +376,14 @@ export function Fulfilment() {
             >
               <span>
                 {o.address?.block} {o.address?.flat}
+                {Number(o.codDuePaise) > 0 && (
+                  <span
+                    style={{ color: 'var(--tomato)', fontWeight: 700, marginLeft: 6, fontSize: 11 }}
+                    title={`Collect ${inr(o.codDuePaise)} in cash`}
+                  >
+                    ₹
+                  </span>
+                )}
               </span>
               <span className="muted mono">{o.orderNumber}</span>
             </button>
