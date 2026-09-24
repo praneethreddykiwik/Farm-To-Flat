@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { useKeyboardHeight } from '../src/hooks/useKeyboardHeight';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -74,6 +75,7 @@ function Card({
 }
 
 export default function Checkout() {
+  const kb = useKeyboardHeight();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
@@ -336,7 +338,9 @@ export default function Checkout() {
         contentContainerStyle={{
           paddingTop: insets.top + 8,
           paddingHorizontal: 20,
-          paddingBottom: 220,
+          // 220 clears the sticky pay footer; the keyboard has to be added on top of it, or the
+          // delivery-instructions field is typed into from behind the keyboard.
+          paddingBottom: 220 + kb,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -560,10 +564,13 @@ export default function Checkout() {
       >
         <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.footerInner}>
           <View style={{ flex: 1 }}>
+            {/* A cash order collects nothing now, so `gateway` is 0 — but printing ₹0 above
+                "pay cash" told the customer the opposite of what they owe at the door. Cash shows
+                the amount to have ready; the wallet label belongs only to a wallet-covered order. */}
             <Small color="rgba(243,245,239,0.65)">
-              {gateway > 0 ? 'Pay via Razorpay' : 'Covered by wallet'}
+              {cash ? 'Pay at the door' : gateway > 0 ? 'Pay via Razorpay' : 'Covered by wallet'}
             </Small>
-            <Money paise={gateway} animated color={colors.inkOnDark} variant="h2" />
+            <Money paise={cash ? total : gateway} animated color={colors.inkOnDark} variant="h2" />
           </View>
           <Button
             title={
@@ -574,7 +581,10 @@ export default function Checkout() {
             full={false}
             onPress={place}
             loading={placing || submitting}
-            disabled={submitting || !termsAccepted}
+            // NOT disabled on the terms: place() already answers an un-ticked box with a toast
+            // saying what to do, and disabling the button here meant that press never fired — the
+            // customer tapped a bright green "Place order" and got nothing at all.
+            disabled={submitting}
           />
         </Glass>
       </View>

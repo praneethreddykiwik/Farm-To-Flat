@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import * as Location from 'expo-location';
 import { useDispatch } from 'react-redux';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
@@ -50,6 +51,7 @@ function Picker({ label, value, placeholder, icon, onPress, disabled = false }) 
  * @param {{ onSaved: (address: any) => void, defaultName?: string|null, mobile?: string }} props
  */
 export function AddressForm({ onSaved, defaultName, mobile }) {
+  const kb = useKeyboardHeight();
   const dispatch = useDispatch();
   const { data, isLoading } = useGetCommunitiesQuery();
   const [createAddress, { isLoading: saving }] = useCreateAddressMutation();
@@ -150,7 +152,9 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        // Room for the keyboard. Without it the fields below the focused one — including the
+        // button that saves the address — sit under the keyboard with nowhere left to scroll.
+        contentContainerStyle={{ paddingBottom: 40 + kb }}
       >
         <Animated.View entering={FadeInDown.duration(380).springify().damping(18)}>
           <Pressy onPress={locate} haptics="soft" disabled={locating} scale={0.985}>

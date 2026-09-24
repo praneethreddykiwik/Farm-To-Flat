@@ -292,7 +292,13 @@ export default function OrderDetail() {
                       color={colors.leafDeep}
                     />
                   ) : null}
-                  <Row label="Paid via Razorpay" paise={order.gatewayAmountPaise} />
+                  {/* A cash order settles at the door, so the gateway line is always ₹0 — printing
+                      "Paid via Razorpay ₹0" under a ₹520 total read as though nothing was owed. */}
+                  {order.paymentMethod === 'COD' ? (
+                    <Row label="Pay at the door" paise={order.codDuePaise} />
+                  ) : (
+                    <Row label="Paid via Razorpay" paise={order.gatewayAmountPaise} />
+                  )}
                   <View style={[styles.row, { marginTop: 4 }]}>
                     <Text variant="bodyMedium">Total</Text>
                     <Money paise={order.totalPaise} variant="h3" />

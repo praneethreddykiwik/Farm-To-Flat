@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Keyboard,
   Linking,
@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useKeyboardHeight } from '../../src/hooks/useKeyboardHeight';
 import { useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
@@ -95,23 +96,8 @@ export default function StaffFulfilment() {
   const [door, setDoor] = useState(null);
   const [notice, setNotice] = useState(null);
   // The number pad covers the bottom of the screen, which is exactly where the amount to collect
-  // and the confirm button sit — the delivery person could see neither. KeyboardAvoidingView does
-  // not measure inside an absolutely-positioned overlay, so lift by the real keyboard height.
-  const [kb, setKb] = useState(0);
-  useEffect(() => {
-    const show = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => setKb(e.endCoordinates?.height ?? 0),
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKb(0),
-    );
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
+  // and the confirm button sit — the delivery person could see neither.
+  const kb = useKeyboardHeight();
 
   /**
    * Move an order on one step.
