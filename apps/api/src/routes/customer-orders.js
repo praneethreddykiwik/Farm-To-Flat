@@ -22,6 +22,7 @@ import {
   getProduct,
   listOrdersForCustomer,
   orderedQtyIndex,
+  addOrderIssue,
   patchOrder,
 } from '../store.js';
 import {
@@ -41,6 +42,7 @@ import {
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
+import { allowedImageTypes, storageEnabled, uploadIssuePhoto } from '../lib/storage.js';
 import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
@@ -289,5 +291,80 @@ customerOrdersRouter.post(
     // Everything before the packing bench — cancel outright and refund now.
     const { order: updated } = cancelOrder(req.params.id);
     res.json({ order: orderCustomer(updated), cancelled: true, requested: false });
+  }),
+);
+
+/**
+ * "Something in this bag is wrong."
+ *
+ * A photograph taken at the door is the only evidence either side will ever have, so the window to
+ * send one is deliberately generous — a customer who unpacks an hour later can still report it —
+ * but it closes eventually, because a claim about produce nobody can inspect any more is not
+ * something an operator can fairly judge.
+ *
+ * Photos go through the API rather than straight to storage: the storage key stays server-side, and
+ * an unbounded upload endpoint pointed at a public bucket is how that bucket becomes someone else's
+ * file host.
+ */
+const ISSUE_WINDOW_HOURS = 48;
+const IssueBody = z.object({
+  reason: z.enum(['DAMAGED', 'MISSING', 'WRONG_ITEM', 'QUALITY', 'OTHER']).optional(),
+  note: z.string().trim().max(500).optional(),
+  photos: z
+    .array(
+      z.object({
+        contentType: z.enum(/** @type {any} */ (allowedImageTypes)),
+        dataBase64: z.string().min(1),
+      }),
+    )
+    .max(5)
+    .optional(),
+});
+customerOrdersRouter.post(
+  '/:id/issue',
+  validateBody(IssueBody),
+  asyncHandler(async (req, res) => {
+    const cid = req.customerId;
+    const order = getOrderForCustomer(req.params.id, cid);
+    if (!order) throw fail(404, 'NOT_FOUND', 'Order not found');
+    if (order.status !== 'DELIVERED')
+      throw fail(
+        409,
+        'NOT_DELIVERED',
+        'You can report a problem once the order has been delivered.',
+      );
+    const deliveredAt = Date.parse(order.deliveredAt || order.createdAt);
+    if (Number.isFinite(deliveredAt) && Date.now() - deliveredAt > ISSUE_WINDOW_HOURS * 3600 * 1000)
+      throw fail(409, 'ISSUE_WINDOW_CLOSED', 'This order is too old to report a problem against.', {
+        windowHours: String(ISSUE_WINDOW_HOURS),
+      });
+
+    const photos = [];
+    for (const p of req.body.photos || []) {
+      const buffer = Buffer.from(p.dataBase64, 'base64');
+      if (!buffer.length) continue;
+      if (buffer.length > 6 * 1024 * 1024)
+        throw fail(413, 'TOO_LARGE', 'Each photo must be under 6 MB.');
+      if (!storageEnabled) throw fail(501, 'STORAGE_OFF', 'Photo storage is not configured yet.');
+      photos.push(
+        await uploadIssuePhoto({
+          buffer,
+          contentType: p.contentType,
+          orderId: order.id,
+        }),
+      );
+    }
+    if (!photos.length && !req.body.note)
+      throw fail(422, 'VALIDATION', 'Add a photo or tell us what went wrong.');
+
+    const issue = addOrderIssue(order.id, { ...req.body, photos });
+    // The operator has to find out. A complaint sitting on a screen nobody opens is worse than no
+    // complaint process at all.
+    notifyAdmins({
+      title: 'Problem reported',
+      body: `${order.orderNumber} · ${order.customerName} · ${issue.reason}`,
+      data: { type: 'ORDER_ISSUE', orderId: order.id, issueId: issue.id },
+    });
+    res.status(201).json({ issue, order: orderCustomer(getOrderForCustomer(order.id, cid)) });
   }),
 );

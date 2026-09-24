@@ -21,6 +21,7 @@ import {
   patchOrder,
   updateOrderStatus,
   completeDelivery,
+  resolveOrderIssue,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
 import { getDevices, getCustomer } from '../../customer-store.js';
@@ -289,6 +290,25 @@ adminOrdersRouter.post(
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
     notifyOrderStatus(r.order, getDevices);
     res.json({ order: orderAdmin(r.order) });
+  }),
+);
+
+/**
+ * Answer a reported problem. RESOLVED means it was put right; DECLINED means it was looked at and
+ * not upheld. Both are decisions — neither deletes what the customer sent.
+ */
+adminOrdersRouter.post(
+  '/orders/:id/issues/:issueId',
+  validateBody(
+    z.object({
+      status: z.enum(['RESOLVED', 'DECLINED']),
+      resolution: z.string().trim().max(400).optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const issue = resolveOrderIssue(req.params.id, req.params.issueId, req.body);
+    if (!issue) throw fail(404, 'NOT_FOUND', 'No such report on that order.');
+    res.json({ issue, order: orderAdmin(getOrder(req.params.id)) });
   }),
 );
 

@@ -208,6 +208,25 @@ export function OrderDrawer({ id, onClose, onChanged }) {
   const atTheDoor = o?.status === 'OUT_FOR_DELIVERY';
   const needsCode = !!o?.deliveryOtpPending;
 
+  /** Answer a reported problem. The customer's own words and photos are never rewritten. */
+  async function answerIssue(issueId, status) {
+    const resolution =
+      status === 'RESOLVED'
+        ? window.prompt('What did you do about it? (shown to the customer)') || undefined
+        : window.prompt('Why are you declining it? (shown to the customer)') || undefined;
+    setBusy(true);
+    try {
+      await api.post(`/admin/orders/${id}/issues/${issueId}`, { status, resolution });
+      toast(status === 'RESOLVED' ? 'Marked as put right' : 'Report declined');
+      reload();
+      onChanged?.();
+    } catch (e) {
+      toast(e.message || 'Could not update the report', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function completeDelivery() {
     setBusy(true);
     try {
@@ -365,6 +384,76 @@ export function OrderDrawer({ id, onClose, onChanged }) {
               {o.address?.block}, {o.address?.flat} · {o.address?.area}
             </div>
           </div>
+
+          {/* What the customer sent when something was wrong with the bag. Above everything else
+              in the drawer, because it is the only thing here that is waiting on a decision. */}
+          {(o.issues || []).length > 0 && (
+            <div className="vstack" style={{ gap: 10, marginBottom: 18 }}>
+              {o.issues.map((iss) => (
+                <div
+                  key={iss.id}
+                  className="glass--flat glass"
+                  style={{
+                    padding: 14,
+                    borderLeft: `3px solid ${iss.status === 'OPEN' ? 'var(--tomato)' : 'var(--ink-3)'}`,
+                  }}
+                >
+                  <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600 }}>
+                      {titleCase(String(iss.reason || 'OTHER').replace(/_/g, ' '))}
+                    </span>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {iss.status === 'OPEN' ? 'Waiting on you' : titleCase(iss.status)}
+                    </span>
+                  </div>
+                  {iss.note && <div style={{ fontSize: 14, marginTop: 4 }}>{iss.note}</div>}
+                  {iss.photos?.length > 0 && (
+                    <div className="hstack" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                      {iss.photos.map((u) => (
+                        // Opens full size: a bruise is often not visible in a thumbnail.
+                        <a key={u} href={u} target="_blank" rel="noreferrer">
+                          <img
+                            src={u}
+                            alt="Reported problem"
+                            style={{
+                              width: 88,
+                              height: 88,
+                              objectFit: 'cover',
+                              borderRadius: 10,
+                              border: '1px solid rgba(14,27,20,0.1)',
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {iss.resolution && (
+                    <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+                      {iss.resolution}
+                    </div>
+                  )}
+                  {iss.status === 'OPEN' && (
+                    <div className="hstack" style={{ gap: 8, marginTop: 12 }}>
+                      <button
+                        className="btn btn--primary btn--sm"
+                        disabled={busy}
+                        onClick={() => answerIssue(iss.id, 'RESOLVED')}
+                      >
+                        Put right
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        disabled={busy}
+                        onClick={() => answerIssue(iss.id, 'DECLINED')}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* What the customer asked for when they ordered. It was captured at checkout and then
               shown to nobody — the one person who needs it is whoever packs and delivers. */}

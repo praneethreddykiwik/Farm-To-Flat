@@ -214,6 +214,15 @@ export function orderCustomer(o) {
     // is actually on the way — there is nothing to prove before that and nothing after.
     deliveryOtp: o.status === 'OUT_FOR_DELIVERY' ? o.deliveryOtp || null : null,
     deliveredAt: o.deliveredAt || null,
+    issues: (o.issues || []).map((i) => ({
+      id: i.id,
+      reason: i.reason,
+      note: i.note || null,
+      photos: i.photos || [],
+      status: i.status,
+      createdAt: i.createdAt,
+      resolution: i.resolution || null,
+    })),
     // Mirrors the cancel route exactly: free until the packing bench, refused after. Kept in step
     // with it so the app never offers a button the server will reject.
     canCancel:
@@ -268,5 +277,6 @@ export function orderAdmin(o) {
     // digits would defeat the point: it is proof the CUSTOMER was at the door.
     deliveryOtpPending: !!(o.status === 'OUT_FOR_DELIVERY' && o.deliveryOtp),
     deliveredAt: o.deliveredAt || null,
+    issues: o.issues || [],
   };
 }

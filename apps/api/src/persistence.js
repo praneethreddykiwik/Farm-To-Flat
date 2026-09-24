@@ -205,6 +205,7 @@ const orderToRow = (o) => ({
   deliveryOtp: o.deliveryOtp ?? null,
   deliveryOtpIssuedAt: o.deliveryOtpIssuedAt ?? null,
   deliveredAt: o.deliveredAt ?? null,
+  issues: o.issues ?? [],
   cancelRequested: !!o.cancelRequested,
   cancelReason: o.cancelReason ?? null,
   cancelRequestedAt: o.cancelRequestedAt ?? null,

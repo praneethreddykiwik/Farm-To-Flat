@@ -144,6 +144,7 @@ export function createOrder(input) {
     deliveryOtp: null,
     deliveryOtpIssuedAt: null,
     deliveredAt: null,
+    issues: [],
     createdAt,
     timeline: [{ status, at: createdAt }],
   };
@@ -212,6 +213,7 @@ export function hydrateOrders(rows) {
         items: r.items || [],
         timeline: r.timeline || [],
         address: r.address || null,
+        issues: r.issues || [],
       }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   } else if (IS_PROD) {
@@ -573,6 +575,43 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
   o.timeline.push({ status: 'DELIVERED', at });
   if (orderPersist) persist.orderUpsert(o);
   return { order: clone(o) };
+}
+
+/**
+ * Attach a complaint to an order: what the customer said, and the photographs they sent.
+ *
+ * Only ever appends. A report is a record of something the customer told us at a moment in time —
+ * editing or replacing one would destroy the only evidence there is.
+ */
+export function addOrderIssue(oid, { reason, note, photos }) {
+  const o = db.orders.find((x) => x.id === oid);
+  if (!o) return null;
+  const issue = {
+    id: id('iss', 8),
+    reason: reason || 'OTHER',
+    note: note || null,
+    photos: Array.isArray(photos) ? photos.slice(0, 5) : [],
+    status: 'OPEN',
+    createdAt: new Date().toISOString(),
+    resolvedAt: null,
+    resolution: null,
+  };
+  o.issues = [...(o.issues || []), issue];
+  if (orderPersist) persist.orderUpsert(o);
+  return clone(issue);
+}
+
+/** The operator's answer. Also append-only in spirit: the report itself is never rewritten. */
+export function resolveOrderIssue(oid, issueId, { status, resolution }) {
+  const o = db.orders.find((x) => x.id === oid);
+  if (!o) return null;
+  const issue = (o.issues || []).find((i) => i.id === issueId);
+  if (!issue) return null;
+  issue.status = status;
+  issue.resolution = resolution || null;
+  issue.resolvedAt = new Date().toISOString();
+  if (orderPersist) persist.orderUpsert(o);
+  return clone(issue);
 }
 
 // ── window bookings ─────────────────────────────────────────────────────────

@@ -139,6 +139,11 @@ export const api = createApi({
       query: (id) => `/orders/${id}`,
       providesTags: (r, e, id) => [{ type: 'Orders', id }, 'Orders'],
     }),
+    /** Report a problem with a delivered order — photos as base64, uploaded by the API. */
+    reportOrderIssue: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/orders/${id}/issue`, method: 'POST', body }),
+      invalidatesTags: (r, e, { id }) => [{ type: 'Orders', id }, 'Orders'],
+    }),
     cancelOrder: b.mutation({
       query: (id) => ({ url: `/orders/${id}/cancel`, method: 'POST', body: {} }),
       // Cancelling an order that never got paid for hands the basket back too — same reason.
@@ -196,6 +201,7 @@ export const {
   useGetOrdersQuery,
   useGetOrderQuery,
   useCancelOrderMutation,
+  useReportOrderIssueMutation,
   useGetWalletQuery,
   useCreateTopupMutation,
   useVerifyPaymentMutation,

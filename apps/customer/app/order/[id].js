@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Alert, Image, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
@@ -22,8 +22,10 @@ import {
 } from '../../src/ui';
 import { OrderStatusTimeline } from '../../src/components/OrderStatusTimeline';
 import { DeliveryCode } from '../../src/components/DeliveryCode';
+import { ReportIssue } from '../../src/components/ReportIssue';
 import {
   useCancelOrderMutation,
+  useReportOrderIssueMutation,
   useGetOrderQuery,
   useSetCartItemMutation,
 } from '../../src/api/api';
@@ -56,6 +58,7 @@ export default function OrderDetail() {
     refetchOnReconnect: true,
   });
   const [cancel, { isLoading: cancelling }] = useCancelOrderMutation();
+  const [reportIssue, { isLoading: reporting }] = useReportOrderIssueMutation();
   const [setCartItem] = useSetCartItemMutation();
   const [reordering, setReordering] = useState(false);
   const order = data?.order;
@@ -332,6 +335,57 @@ export default function OrderDetail() {
               </Animated.View>
             ) : null}
 
+            {/* Once it is delivered the customer can finally see what arrived — so this is the
+                first honest moment to ask. Reports already answered are shown below it, so nobody
+                has to wonder whether theirs went anywhere. */}
+            {order.status === 'DELIVERED' ? (
+              <ReportIssue
+                busy={reporting}
+                onSubmit={async (body) => {
+                  await reportIssue({ id, ...body }).unwrap();
+                  dispatch(
+                    showToast({
+                      title: 'Sent to the team',
+                      message: 'We review every photo and come back to you.',
+                      tone: 'success',
+                    }),
+                  );
+                  refetch();
+                }}
+              />
+            ) : null}
+
+            {(order.issues || []).length ? (
+              <Animated.View entering={FadeInDown.duration(320)} style={{ marginTop: 20 }}>
+                <Label style={{ marginBottom: 8 }}>What you reported</Label>
+                {order.issues.map((iss) => (
+                  <Glass key={iss.id} radius={radius.lg} innerStyle={styles.issueCard}>
+                    <Small muted>
+                      {new Date(iss.createdAt).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                      {' · '}
+                      {iss.status === 'OPEN' ? 'Being reviewed' : iss.status.toLowerCase()}
+                    </Small>
+                    {iss.note ? <Text style={{ marginTop: 4 }}>{iss.note}</Text> : null}
+                    {iss.photos?.length ? (
+                      <View style={styles.issuePhotos}>
+                        {iss.photos.map((u) => (
+                          <Image key={u} source={{ uri: u }} style={styles.issueThumb} />
+                        ))}
+                      </View>
+                    ) : null}
+                    {iss.resolution ? (
+                      <Small style={{ marginTop: 6, color: colors.leafDeep }}>
+                        {iss.resolution}
+                      </Small>
+                    ) : null}
+                  </Glass>
+                ))}
+              </Animated.View>
+            ) : null}
+
             {canReorder ? (
               <Animated.View
                 entering={FadeInDown.delay(180).duration(360)}
@@ -384,4 +438,7 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   reviewBanner: { padding: 16 },
+  issueCard: { padding: 14, marginBottom: 10 },
+  issuePhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  issueThumb: { width: 62, height: 62, borderRadius: 10, backgroundColor: 'rgba(14,27,20,0.06)' },
 });

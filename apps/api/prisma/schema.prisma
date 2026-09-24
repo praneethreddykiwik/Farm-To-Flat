@@ -227,6 +227,9 @@ model Order {
   deliveryOtp         String?
   deliveryOtpIssuedAt String?
   deliveredAt         String?
+  /// Complaints the customer raised about this delivery — photographs, what they said, and what
+  /// the operator decided. Kept on the order because that is the only thing they are ever about.
+  issues              Json     @default("[]")
   cancelRequested     Boolean  @default(false)
   cancelReason        String?
   cancelRequestedAt   String?
