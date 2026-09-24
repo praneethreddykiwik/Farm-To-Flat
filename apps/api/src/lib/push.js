@@ -16,8 +16,26 @@ const MESSAGES = {
     body: `${o.orderNumber} is in — we'll harvest it fresh.`,
   }),
   PACKING: () => ({ title: 'Packing your order 📦', body: 'Weighed and bagged this morning.' }),
-  OUT_FOR_DELIVERY: () => ({ title: 'On its way 🛵', body: 'Heading to your block now.' }),
-  DELIVERED: () => ({ title: 'Delivered ✅', body: 'Left at your door — enjoy!' }),
+  // The code goes in the notification itself: the customer is usually holding the door open when
+  // they need it, and making them open the app, find the order and scroll is the wrong moment.
+  // Cash is named here too, so there is time to fetch it before the knock.
+  OUT_FOR_DELIVERY: (o) => {
+    const cash =
+      o.paymentMethod === 'COD'
+        ? Math.max(0, Number(o.totalPaise) - Number(o.codCollectedPaise || 0))
+        : 0;
+    const bits = [];
+    if (o.deliveryOtp) bits.push(`Your code is ${o.deliveryOtp}`);
+    if (cash > 0) bits.push(`keep ₹${Math.round(cash / 100)} ready`);
+    return {
+      title: 'On its way 🛵',
+      body: bits.length ? `${bits.join(' — ')}.` : 'Heading to your block now.',
+    };
+  },
+  DELIVERED: () => ({
+    title: 'Delivered ✅',
+    body: 'Please check the bag. Anything wrong? Send us a photo from your order screen.',
+  }),
   CANCELLED: (o) => ({ title: 'Order cancelled', body: `${o.orderNumber} was cancelled.` }),
 };
 

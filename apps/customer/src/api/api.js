@@ -118,6 +118,12 @@ export const api = createApi({
           ...(date ? { date } : {}),
         }).toString()}`,
       providesTags: ['Windows'],
+      // The schedule is live in two ways: the countdown to each cut-off is ticking, and the
+      // operator can change a community's delivery days at any moment. A cached copy therefore goes
+      // stale on its own — which is why changing the days on the website appeared to have no effect
+      // in the app. Refetch whenever the picker is opened, and keep the cached copy only briefly so
+      // an app left open overnight is not still offering yesterday's slots.
+      keepUnusedDataFor: 60,
     }),
     placeOrder: b.mutation({
       query: ({ idempotencyKey, ...body }) => ({

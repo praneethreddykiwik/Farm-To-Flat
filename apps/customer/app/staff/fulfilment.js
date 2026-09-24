@@ -5,6 +5,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  TextInput,
   StyleSheet,
   Text,
   View,
@@ -87,14 +88,57 @@ export default function StaffFulfilment() {
       .catch((e) => setError(e.message || 'Could not load'));
   }, []);
   const { refreshing, onRefresh } = useStaffRefresh(load);
+  // The door panel for one order, and a non-destructive message line. Neither ever replaces the
+  // round: a delivery person mid-round must not lose their list.
+  const [door, setDoor] = useState(null);
+  const [notice, setNotice] = useState(null);
 
+  /**
+   * Move an order on one step.
+   *
+   * DELIVERED is deliberately NOT a plain status change: the API refuses it while the customer's
+   * door code or their cash is outstanding, because the whole point of the proof is that someone
+   * stood at that door. Tapping it opens the panel below instead.
+   */
   async function advance(o, next) {
+    if (next === 'DELIVERED') {
+      setDoor({ id: o.id, order: o, otp: '' });
+      return;
+    }
     setBusy(o.id);
     try {
       await adminApi.setStatus(o.id, next);
       await load();
-    } catch {
-      setError('Could not update');
+    } catch (e) {
+      // A failure here used to call setError, which replaced the WHOLE round with a "Could not
+      // update / Try again" screen — the delivery person lost their list mid-round over one order.
+      // Keep the list, say which order failed.
+      setNotice(`${o.orderNumber}: ${e?.message || 'could not update'}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Hand-over at the door: the code the customer reads out, plus the cash if it is a cash order. */
+  async function completeDelivery() {
+    if (!door) return;
+    const o = door.order;
+    const due = Number(o.codDuePaise || 0);
+    setBusy(o.id);
+    try {
+      await adminApi.deliver(o.id, {
+        ...(o.deliveryOtpPending ? { otp: door.otp.trim() } : {}),
+        ...(due > 0 ? { collectedPaise: due } : {}),
+      });
+      setDoor(null);
+      setNotice(
+        due > 0
+          ? `${o.orderNumber} delivered · ${inr(due)} collected`
+          : `${o.orderNumber} delivered`,
+      );
+      await load();
+    } catch (e) {
+      setNotice(e?.message || 'Could not complete the delivery');
     } finally {
       setBusy(null);
     }
@@ -259,6 +303,37 @@ export default function StaffFulfilment() {
                           </Text>
                         </View>
 
+                        {/* What to take at the door. Blank on a prepaid order and blank once
+                            settled, so nobody collects twice. */}
+                        {Number(o.codDuePaise) > 0 ? (
+                          <View style={styles.cashRow}>
+                            <Text style={styles.cashLabel}>COLLECT CASH</Text>
+                            <Text style={styles.cashAmount}>{inr(o.codDuePaise)}</Text>
+                          </View>
+                        ) : null}
+
+                        {/* Everything the customer asked for, where the person at the door can
+                            actually read it: the order-level instruction and any per-item note.
+                            These were captured and then shown to nobody. */}
+                        {o.deliveryNote ? (
+                          <View style={styles.noteBox}>
+                            <Text style={styles.noteLabel}>DELIVERY INSTRUCTIONS</Text>
+                            <Text style={styles.noteText}>{o.deliveryNote}</Text>
+                          </View>
+                        ) : null}
+                        {(o.items || []).some((i) => i.note) ? (
+                          <View style={styles.noteBox}>
+                            <Text style={styles.noteLabel}>ITEM NOTES</Text>
+                            {(o.items || [])
+                              .filter((i) => i.note)
+                              .map((i) => (
+                                <Text key={i.id || i.productId} style={styles.noteText}>
+                                  {i.name}: {i.note}
+                                </Text>
+                              ))}
+                          </View>
+                        ) : null}
+
                         <View style={styles.actions}>
                           <Pressable style={styles.ghostBtn} onPress={() => call(o.mobile)}>
                             <Text style={styles.ghostText}>📞 Call</Text>
@@ -288,6 +363,80 @@ export default function StaffFulfilment() {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* A message, never a replacement for the round. One order failing must not cost the
+          delivery person their list. */}
+      {notice ? (
+        <Pressable style={styles.notice} onPress={() => setNotice(null)}>
+          <Text style={styles.noticeText}>{notice}</Text>
+          <Text style={styles.noticeDismiss}>Dismiss</Text>
+        </Pressable>
+      ) : null}
+
+      {/* The door. The code is the customer's to read out — this app never shows it, only asks. */}
+      {door ? (
+        <View style={styles.doorWrap}>
+          <Pressable style={styles.doorScrim} onPress={() => setDoor(null)} />
+          <View style={styles.doorCard}>
+            <Text style={styles.doorTitle}>{door.order.orderNumber}</Text>
+            <Text style={styles.doorSub}>
+              {door.order.customerName} · Flat {door.order.address?.flat}
+            </Text>
+
+            {Number(door.order.codDuePaise) > 0 ? (
+              <View style={styles.doorCash}>
+                <Text style={styles.cashLabel}>COLLECT IN CASH</Text>
+                <Text style={styles.doorCashAmount}>{inr(door.order.codDuePaise)}</Text>
+              </View>
+            ) : null}
+
+            {door.order.deliveryOtpPending ? (
+              <>
+                <Text style={styles.doorAsk}>Ask the customer for their four-digit code</Text>
+                <TextInput
+                  style={styles.otpInput}
+                  value={door.otp}
+                  onChangeText={(v) =>
+                    setDoor((d) => ({ ...d, otp: v.replace(/\D/g, '').slice(0, 4) }))
+                  }
+                  placeholder="0000"
+                  placeholderTextColor="rgba(14,27,20,0.25)"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  autoFocus
+                  accessibilityLabel="Code the customer read out"
+                />
+              </>
+            ) : (
+              <Text style={styles.doorAsk}>No code needed for this order.</Text>
+            )}
+
+            <Pressable
+              style={[
+                styles.doorConfirm,
+                (busy === door.id || (door.order.deliveryOtpPending && door.otp.length !== 4)) && {
+                  opacity: 0.45,
+                },
+              ]}
+              disabled={
+                busy === door.id || (door.order.deliveryOtpPending && door.otp.length !== 4)
+              }
+              onPress={completeDelivery}
+            >
+              <Text style={styles.doorConfirmText}>
+                {busy === door.id
+                  ? '…'
+                  : Number(door.order.codDuePaise) > 0
+                    ? `Collected ${inr(door.order.codDuePaise)} · mark delivered`
+                    : 'Mark delivered'}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => setDoor(null)} style={{ paddingVertical: 10 }}>
+              <Text style={styles.doorCancel}>Not now</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -417,6 +566,106 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
   },
   ghostText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink },
+  cashRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 9,
+    backgroundColor: 'rgba(214,92,63,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(214,92,63,0.28)',
+  },
+  cashLabel: { fontFamily: fonts.bodySemi, fontSize: 11, letterSpacing: 0.4, color: colors.ink2 },
+  cashAmount: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.tomato },
+  noteBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 9,
+    backgroundColor: 'rgba(14,27,20,0.04)',
+  },
+  noteLabel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 10.5,
+    letterSpacing: 0.5,
+    color: colors.ink3,
+    marginBottom: 3,
+  },
+  noteText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: colors.ink },
+  notice: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.night,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  noticeText: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: colors.inkOnDark },
+  noticeDismiss: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.sprout, marginLeft: 12 },
+  doorWrap: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
+  doorScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,21,16,0.45)' },
+  doorCard: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 22,
+    paddingBottom: 34,
+    alignItems: 'center',
+  },
+  doorTitle: { fontFamily: fonts.bodySemi, fontSize: 17, color: colors.ink },
+  doorSub: { fontFamily: fonts.body, fontSize: 13, color: colors.ink3, marginTop: 2 },
+  doorCash: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
+    borderRadius: 11,
+    backgroundColor: 'rgba(214,92,63,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(214,92,63,0.28)',
+  },
+  doorCashAmount: { fontFamily: fonts.bodySemi, fontSize: 21, color: colors.tomato },
+  doorAsk: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.ink2,
+    marginTop: 18,
+    textAlign: 'center',
+  },
+  otpInput: {
+    marginTop: 10,
+    width: 190,
+    textAlign: 'center',
+    fontFamily: fonts.mono,
+    fontSize: 30,
+    letterSpacing: 10,
+    color: colors.ink,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(14,27,20,0.18)',
+    backgroundColor: 'rgba(14,27,20,0.03)',
+  },
+  doorConfirm: {
+    alignSelf: 'stretch',
+    marginTop: 18,
+    paddingVertical: 15,
+    borderRadius: 13,
+    backgroundColor: colors.leafDeep,
+    alignItems: 'center',
+  },
+  doorConfirmText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.white },
+  doorCancel: { fontFamily: fonts.body, fontSize: 13, color: colors.ink3 },
   advance: {
     flex: 1,
     backgroundColor: colors.leaf,

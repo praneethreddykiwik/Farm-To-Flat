@@ -21,13 +21,14 @@ import {
   Title,
 } from '../../src/ui';
 import { OrderStatusTimeline } from '../../src/components/OrderStatusTimeline';
+import { DeliveryCode } from '../../src/components/DeliveryCode';
 import {
   useCancelOrderMutation,
   useGetOrderQuery,
   useSetCartItemMutation,
 } from '../../src/api/api';
 import { showToast } from '../../src/features/ui/uiSlice';
-import { colors, fonts, radius } from '../../src/theme';
+import { colors, radius } from '../../src/theme';
 import { formatDateShort, WINDOWS } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
 import { notifyLocal } from '../../src/lib/notifications';
@@ -220,42 +221,11 @@ export default function OrderDetail() {
               </View>
             </Animated.View>
 
-            {/* The code the delivery person will ask for. Shown large and above the fold, because
-                it is read out at the door with one hand holding the bag — and only while the order
-                is actually on the way, so there is never a stale code on screen. */}
+            {/* The code the delivery person will ask for. Shown only while the order is actually
+                on the way, so there is never a stale code on screen. */}
             {order.deliveryOtp ? (
-              <Animated.View
-                entering={FadeInDown.delay(40).duration(360).springify().damping(18)}
-                style={{ marginTop: 20 }}
-              >
-                <Glass
-                  radius={radius.lg}
-                  innerStyle={{
-                    padding: 18,
-                    alignItems: 'center',
-                    borderWidth: 1.5,
-                    borderColor: colors.leaf,
-                  }}
-                >
-                  <Small muted>Show this code to the delivery partner</Small>
-                  <Text
-                    style={{
-                      fontFamily: fonts.mono,
-                      fontSize: 42,
-                      letterSpacing: 10,
-                      color: colors.leafDeep,
-                      marginTop: 6,
-                    }}
-                    accessibilityLabel={`Your delivery code is ${String(order.deliveryOtp).split('').join(' ')}`}
-                  >
-                    {order.deliveryOtp}
-                  </Text>
-                  {Number(order.codDuePaise) > 0 ? (
-                    <Small style={{ marginTop: 8, color: colors.tomato }}>
-                      Keep ₹{Math.round(Number(order.codDuePaise) / 100)} in cash ready
-                    </Small>
-                  ) : null}
-                </Glass>
+              <Animated.View entering={FadeInDown.delay(40).duration(360).springify().damping(18)}>
+                <DeliveryCode code={order.deliveryOtp} cashDuePaise={order.codDuePaise} />
               </Animated.View>
             ) : null}
 

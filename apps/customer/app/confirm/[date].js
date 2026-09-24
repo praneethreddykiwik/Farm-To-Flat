@@ -90,7 +90,10 @@ export default function ConfirmDay() {
   const address =
     (addresses.data?.addresses || []).find((a) => a.isDefault) ||
     (addresses.data?.addresses || [])[0];
-  const windows = useGetWindowsQuery({ addressId: address?.id }, { skip: !address });
+  const windows = useGetWindowsQuery(
+    { addressId: address?.id },
+    { skip: !address, refetchOnMountOrArgChange: true, refetchOnFocus: true },
+  );
   // Prefer a window on the planned day; if the community does not deliver that day (or it is full),
   // fall back to the nearest open window and say so rather than dead-ending the customer.
   const slot = useMemo(() => {

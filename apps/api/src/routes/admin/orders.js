@@ -190,6 +190,9 @@ adminOrdersRouter.get(
               { header: 'Pay', key: 'method', width: 10 },
               { header: 'COLLECT', key: 'collect', width: 14, money: true },
               { header: 'Status', key: 'status', width: 18 },
+              // What the customer asked for. On the driver's sheet because they are the one who
+              // has to act on it — "leave with the guard", a gate code, "call on arrival".
+              { header: 'Instructions', key: 'note', width: 34 },
             ],
             rows: orders.map((o) => ({
               order: o.orderNumber,
@@ -206,6 +209,7 @@ adminOrdersRouter.get(
               // nobody collects twice, and blank again once a cash order has been settled.
               collect: rupees(codDuePaise(o)),
               status: o.status,
+              note: o.deliveryNote || '',
             })),
           }
         : {

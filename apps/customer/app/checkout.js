@@ -112,7 +112,9 @@ export default function Checkout() {
   );
   const windows = useGetWindowsQuery(
     { addressId: address?.id, communityId: address?.communityId },
-    { skip: !address },
+    // Always re-ask on arrival. The operator can change a community's delivery days while the app
+    // sits open, and a cached schedule would keep offering days the farm no longer serves.
+    { skip: !address, refetchOnMountOrArgChange: true, refetchOnFocus: true },
   );
   // After the chosen window fills up we must NOT quietly pick another day for the customer — they
   // choose again themselves. While this is set, there is no default slot.

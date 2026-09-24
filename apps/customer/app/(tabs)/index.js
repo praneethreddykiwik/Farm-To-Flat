@@ -46,7 +46,7 @@ export default function Home() {
   const catalog = useGetCatalogQuery();
   // First open after the service has slept can take ~50s on Render's free tier; say so.
   const catalogSlow = useSlowHint(catalog.isLoading);
-  const windows = useGetWindowsQuery({});
+  const windows = useGetWindowsQuery({}, { refetchOnMountOrArgChange: true, refetchOnFocus: true });
   const [category, setCategory] = useState(null);
   const dietPref = useSelector(selectDietPref);
   const listRef = useRef(null);

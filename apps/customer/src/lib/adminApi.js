@@ -100,6 +100,17 @@ export const adminApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderIds, status }),
     }),
+  /**
+   * Complete a delivery at the door: the code the customer read out, and the cash taken. Separate
+   * from setStatus because DELIVERED is refused through the plain status route while either is
+   * outstanding — that guard is what makes the proof mean anything.
+   */
+  deliver: (id, body) =>
+    j(`${ADMIN}/orders/${id}/deliver`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
   setStatus: (id, status) =>
     j(`${ADMIN}/orders/${id}/status`, {
       method: 'PATCH',

@@ -366,6 +366,24 @@ export function OrderDrawer({ id, onClose, onChanged }) {
             </div>
           </div>
 
+          {/* What the customer asked for when they ordered. It was captured at checkout and then
+              shown to nobody — the one person who needs it is whoever packs and delivers. */}
+          {o.deliveryNote && (
+            <div
+              className="glass--flat glass"
+              style={{
+                padding: 14,
+                marginBottom: 18,
+                borderLeft: '3px solid var(--sprout-deep, #7aa83e)',
+              }}
+            >
+              <div className="field__label" style={{ marginBottom: 4 }}>
+                Delivery instructions
+              </div>
+              <div style={{ fontSize: 14 }}>{o.deliveryNote}</div>
+            </div>
+          )}
+
           <div className="field__label">Items ({o.items.length})</div>
           <div className="vstack" style={{ gap: 0, marginBottom: 18 }}>
             {o.items.map((it) => (
