@@ -59,3 +59,5 @@ export default authSlice.reducer;
 export const selectAuth = (s) => s.auth;
 export const selectIsSignedIn = (s) => s.auth.status === 'signedIn';
 export const selectCustomer = (s) => s.auth.customer;
+/** The bearer token, for the few places that fetch outside RTK Query (file downloads). */
+export const selectAccessToken = (s) => s.auth.accessToken;

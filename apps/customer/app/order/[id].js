@@ -125,20 +125,24 @@ export default function OrderDetail() {
   };
 
   const confirmCancel = () => {
-    // Cancelling is immediate right up until the order is packed — no request, no waiting on a
-    // human. Once it IS being packed the button is gone entirely, so there is no third case here.
+    // Two different things, split at the packing bench. Before it, cancelling is immediate. After
+    // it the goods are already bagged, so this becomes a REQUEST someone answers — and the wording
+    // has to say so, or a customer walks away believing the order is already cancelled.
+    const isRequest = !!order?.canRequestCancel;
     Alert.alert(
-      'Cancel this order?',
-      'Anything paid from your wallet is returned instantly. Gateway payments are refunded to the original method.',
+      isRequest ? 'Ask us to cancel this order?' : 'Cancel this order?',
+      isRequest
+        ? 'Your order is already being packed, so our team has to approve this. Nothing is charged or refunded until they do — we’ll message you either way.'
+        : 'Anything paid from your wallet is returned instantly. Gateway payments are refunded to the original method.',
       [
         { text: 'Keep order', style: 'cancel' },
         {
-          text: 'Cancel order',
+          text: isRequest ? 'Request cancellation' : 'Cancel order',
           style: 'destructive',
           onPress: async () => {
             try {
               const res = await cancel(id).unwrap();
-              if (res?.cancelRequested) {
+              if (res?.requested || res?.cancelRequested) {
                 dispatch(
                   showToast({
                     title: 'Cancellation requested',
@@ -324,19 +328,21 @@ export default function OrderDetail() {
               </Glass>
             </Animated.View>
 
-            {order.canCancel ? (
+            {order.canCancel || order.canRequestCancel ? (
               <Animated.View
                 entering={FadeInDown.delay(180).duration(360)}
                 style={{ marginTop: 24 }}
               >
                 <Button
-                  title="Cancel order"
+                  title={order.canCancel ? 'Cancel order' : 'Request cancellation'}
                   variant="danger"
                   onPress={confirmCancel}
                   loading={cancelling}
                 />
                 <Small muted center style={{ marginTop: 8 }}>
-                  Free to cancel until we start packing your order.
+                  {order.canCancel
+                    ? 'Free to cancel until we start packing your order.'
+                    : 'Already being packed — our team will review your request.'}
                 </Small>
               </Animated.View>
             ) : order.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(order.status) ? (

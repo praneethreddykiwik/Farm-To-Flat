@@ -19,6 +19,7 @@ import {
   Text,
 } from '../src/ui';
 import { WindowPicker } from '../src/components/WindowPicker';
+import { OrderTerms } from '../src/components/OrderTerms';
 import { PaymentSimulator } from '../src/components/PaymentSimulator';
 import { useCart } from '../src/hooks/useCart';
 import {
@@ -93,6 +94,9 @@ export default function Checkout() {
   const codOffered = !!support.data?.payment?.codEnabled;
   const codMax = Number(support.data?.payment?.codMaxOrderPaise || 0);
   const [payCash, setPayCash] = useState(false);
+  // Not pre-ticked. A pre-ticked box is not consent, and on a fresh-produce order the replacement
+  // rule is precisely the part people need to have actually read.
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [intent, setIntent] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -190,6 +194,17 @@ export default function Checkout() {
   };
 
   const place = async () => {
+    if (!termsAccepted) {
+      haptic.warning();
+      dispatch(
+        showToast({
+          title: 'Please read and accept the terms',
+          message: 'They cover cancellations, weighed items and what to do if something is wrong.',
+          tone: 'neutral',
+        }),
+      );
+      return;
+    }
     if (!address || !chosenSlot) {
       haptic.warning();
       dispatch(
@@ -489,6 +504,14 @@ export default function Checkout() {
         </Animated.View>
 
         <Animated.View
+          entering={FadeInDown.delay(225).duration(360).springify().damping(18)}
+          style={{ marginTop: 20 }}
+        >
+          <Label style={{ marginBottom: 8 }}>Before you pay</Label>
+          <OrderTerms accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
+        </Animated.View>
+
+        <Animated.View
           entering={FadeInDown.delay(240).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
         >
@@ -549,7 +572,7 @@ export default function Checkout() {
             full={false}
             onPress={place}
             loading={placing || submitting}
-            disabled={submitting}
+            disabled={submitting || !termsAccepted}
           />
         </Glass>
       </View>

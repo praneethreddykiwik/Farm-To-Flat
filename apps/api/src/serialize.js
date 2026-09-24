@@ -218,6 +218,9 @@ export function orderCustomer(o) {
     canCancel:
       !['DELIVERED', 'CANCELLED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status) &&
       !o.cancelRequested,
+    // From the packing bench onwards the customer can still ASK. Separate flag so the app can word
+    // the button honestly — "Request cancellation", not "Cancel" — and stop offering it once asked.
+    canRequestCancel: ['PACKING', 'OUT_FOR_DELIVERY'].includes(o.status) && !o.cancelRequested,
   };
 }
 

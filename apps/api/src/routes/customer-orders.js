@@ -40,6 +40,7 @@ import {
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
+import { notifyAdmins } from '../lib/staff-notify.js';
 import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
@@ -240,16 +241,19 @@ customerOrdersRouter.get(
 );
 
 /**
- * Cancel an order.
+ * Cancel an order, or ask to.
  *
- * The rule is the packing bench, not the payment: until the farm starts putting the order together
- * the customer cancels outright and is refunded immediately — no request, no waiting on staff. Once
- * it is PACKING the goods are already weighed and bagged against it, so cancelling is refused and
- * the app stops offering it.
+ * Two different things, split at the packing bench:
  *
- * Previously everything from CONFIRMED onwards raised a CANCELLATION REQUEST for an operator to
- * approve, which left the customer waiting on a human for an order nobody had touched yet — and
- * showed the operator an order that was both "Confirmed" and "Cancellation requested" at once.
+ *   • Before PACKING nobody has touched the order, so the customer cancels OUTRIGHT and is refunded
+ *     immediately — no request, no waiting on a human.
+ *   • From PACKING onwards the goods are already weighed and bagged against it, so it becomes a
+ *     REQUEST an operator accepts or declines. Refusing outright was wrong: a customer whose plans
+ *     change forty minutes before a delivery window has no way to tell anyone, and the bag goes out
+ *     to a door nobody opens. Asking is always allowed; granting it is the operator's call.
+ *
+ * The operator answers on the Fulfilment board's "Cancellation requests" column, which refunds
+ * through the same shared cancel path as everything else.
  */
 customerOrdersRouter.post(
   '/:id/cancel',
@@ -261,16 +265,29 @@ customerOrdersRouter.post(
     if (existing.status === 'CANCELLED') throw fail(409, 'CANNOT_CANCEL', 'Already cancelled.');
     if (existing.status === 'DELIVERED')
       throw fail(409, 'CANNOT_CANCEL', 'This order has already been delivered.');
-    // Packed or on the road: the goods exist and are allocated. Refuse, and say why.
-    if (existing.status === 'PACKING' || existing.status === 'OUT_FOR_DELIVERY')
-      throw fail(
-        409,
-        'CANNOT_CANCEL',
-        'This order is already being packed, so it can no longer be cancelled here. Contact support if something is wrong.',
-      );
+    // Packed or on the road: the goods exist and are allocated, so this becomes a request rather
+    // than a cancellation. Idempotent — asking twice is the same as asking once.
+    if (existing.status === 'PACKING' || existing.status === 'OUT_FOR_DELIVERY') {
+      if (existing.cancelRequested)
+        return res.json({ order: orderCustomer(existing), cancelled: false, requested: true });
+      const updated = patchOrder(req.params.id, (ord) => {
+        ord.cancelRequested = true;
+        ord.cancelReason = req.body.reason || null;
+        ord.cancelRequestedAt = new Date().toISOString();
+        ord.timeline.push({ status: 'CANCEL_REQUESTED', at: ord.cancelRequestedAt });
+      });
+      // The operator has to actually find out. Without this the request sits on a board nobody is
+      // looking at while the customer waits, which is worse than having refused in the first place.
+      notifyAdmins({
+        title: 'Cancellation requested',
+        body: `${updated.orderNumber} · ${updated.customerName} · ${updated.address?.block || ''} ${updated.address?.flat || ''}`.trim(),
+        data: { type: 'CANCEL_REQUEST', orderId: updated.id },
+      });
+      return res.json({ order: orderCustomer(updated), cancelled: false, requested: true });
+    }
 
     // Everything before the packing bench — cancel outright and refund now.
     const { order: updated } = cancelOrder(req.params.id);
-    res.json({ order: orderCustomer(updated), cancelled: true });
+    res.json({ order: orderCustomer(updated), cancelled: true, requested: false });
   }),
 );

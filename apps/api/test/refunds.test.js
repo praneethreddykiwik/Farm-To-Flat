@@ -153,7 +153,7 @@ describe('refunds are idempotent and never stranded', () => {
     expect(applied).toBeGreaterThan(0);
   });
 
-  it('an order already being packed refuses to cancel', async () => {
+  it('an order already being packed raises a request, and moves no money until it is granted', async () => {
     const ctx = await readyToOrder('9222000009');
     const { order, paymentIntent } = await place(ctx);
     if (paymentIntent)
@@ -162,12 +162,57 @@ describe('refunds are idempotent and never stranded', () => {
         .set(auth(ctx.token))
         .send({ paymentId: paymentIntent.paymentId, success: true });
     await request(app).patch(`/api/v1/admin/orders/${order.id}/status`).send({ status: 'PACKING' });
+    const owed = await balance(ctx.token);
+
     const r = await request(app)
       .post(`/api/v1/orders/${order.id}/cancel`)
       .set(auth(ctx.token))
+      .send({ reason: 'plans changed' });
+    expect(r.status).toBe(200);
+    expect(r.body.requested).toBe(true);
+    expect(r.body.cancelled).toBe(false);
+    expect(r.body.order.cancelRequested).toBe(true);
+    // Still being packed, and nothing refunded — the operator has not decided yet.
+    expect(r.body.order.status).toBe('PACKING');
+    expect(await balance(ctx.token)).toBe(owed);
+
+    // Asking twice is the same as asking once.
+    const again = await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(auth(ctx.token))
       .send({});
-    expect(r.status).toBe(409);
-    expect(r.body.error.code).toBe('CANNOT_CANCEL');
+    expect(again.status).toBe(200);
+    expect(again.body.requested).toBe(true);
+
+    // The operator grants it — now, and only now, the money comes back.
+    const decided = await request(app)
+      .post(`/api/v1/admin/orders/${order.id}/cancel-decision`)
+      .send({ decision: 'APPROVE' });
+    expect(decided.status).toBe(200);
+    expect(decided.body.order.status).toBe('CANCELLED');
+    expect(await balance(ctx.token)).toBeGreaterThanOrEqual(owed);
+  });
+
+  it('a declined request leaves the order alone and lets the customer ask again', async () => {
+    const ctx = await readyToOrder('9222000011');
+    const { order, paymentIntent } = await place(ctx);
+    if (paymentIntent)
+      await request(app)
+        .post('/api/v1/payments/verify')
+        .set(auth(ctx.token))
+        .send({ paymentId: paymentIntent.paymentId, success: true });
+    await request(app).patch(`/api/v1/admin/orders/${order.id}/status`).send({ status: 'PACKING' });
+    await request(app).post(`/api/v1/orders/${order.id}/cancel`).set(auth(ctx.token)).send({});
+
+    const declined = await request(app)
+      .post(`/api/v1/admin/orders/${order.id}/cancel-decision`)
+      .send({ decision: 'DECLINE' });
+    expect(declined.status).toBe(200);
+    expect(declined.body.order.status).toBe('PACKING');
+    expect(declined.body.order.cancelRequested).toBe(false);
+
+    const mine = await request(app).get(`/api/v1/orders/${order.id}`).set(auth(ctx.token));
+    expect(mine.body.order.canRequestCancel).toBe(true); // they may ask again
   });
 
   it('a gateway capture that lands after the order was cancelled is returned to the wallet, not lost', async () => {

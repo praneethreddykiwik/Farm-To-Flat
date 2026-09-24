@@ -74,7 +74,8 @@
           "speechRecognitionPermission": "Farm to Flat converts your speech to text to search the catalog.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "reactCompiler": false

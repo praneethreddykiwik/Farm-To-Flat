@@ -4,7 +4,6 @@ import {
   RefreshControl,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +15,9 @@ import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
 import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { showToast } from '../../src/features/ui/uiSlice';
+import { downloadAndShare } from '../../src/lib/downloadFile';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
+import { selectAccessToken } from '../../src/features/auth/authSlice';
 
 const inr = (paise) => `₹${(Number(paise) / 100).toLocaleString('en-IN')}`;
 const UNIT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: 'pack' };
@@ -38,6 +39,7 @@ const STATUS = {
 
 export default function StaffProcurement() {
   const role = useSelector(selectEffectiveRole);
+  const accessToken = useSelector(selectAccessToken);
   const dispatch = useDispatch();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -52,9 +54,18 @@ export default function StaffProcurement() {
   const { refreshing, onRefresh } = useStaffRefresh(load);
 
   async function download(lang) {
+    // A real .xlsx handed to the share sheet, not text pasted into a message — the person in the
+    // market needs a file they can open, and the CSV arrived as a wall of commas.
     try {
-      const csv = await adminApi.procurementCsv(lang === 'en' ? '' : `?lang=${lang}`);
-      await Share.share({ message: csv });
+      const qs = lang === 'en' ? '' : `?lang=${lang}`;
+      const day = new Date().toISOString().slice(0, 10);
+      const { shared, reason } = await downloadAndShare({
+        url: adminApi.procurementXlsxUrl(qs),
+        filename: `f2f-purchase-list-${lang}-${day}.xlsx`,
+        token: accessToken,
+        dialogTitle: 'Send the purchase list',
+      });
+      if (!shared && reason) dispatch(showToast({ title: reason, tone: 'neutral' }));
     } catch (e) {
       dispatch(showToast({ title: e?.message || 'Could not download the list', tone: 'error' }));
     }
