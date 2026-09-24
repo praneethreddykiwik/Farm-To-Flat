@@ -15,6 +15,7 @@ import { useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { dial, numberFor, prettyNumber } from '../../src/lib/dial';
 import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
@@ -169,19 +170,32 @@ export default function StaffFulfilment() {
     }
   }
 
-  function call(mobile) {
-    if (mobile) Linking.openURL(`tel:${mobile}`).catch(() => {});
+  async function call(order) {
+    const res = await dial(numberFor(order));
+    if (!res.ok) setNotice(res.reason);
   }
-  function navigate(addr) {
+  async function navigate(addr) {
+    // The landmark is what actually gets a rider to the right gate — a community name alone can
+    // match the wrong compound in a city this size.
     const q = encodeURIComponent(
-      [addr?.communityName, addr?.area, 'Hyderabad'].filter(Boolean).join(', '),
+      [addr?.landmark, addr?.communityName, addr?.area, 'Hyderabad'].filter(Boolean).join(', '),
     );
     const url = Platform.select({
       ios: `http://maps.apple.com/?q=${q}`,
+      // `geo:` silently does nothing on an Android with no maps app; the https URL always resolves.
       android: `geo:0,0?q=${q}`,
       default: `https://www.google.com/maps/search/?api=1&query=${q}`,
     });
-    Linking.openURL(url).catch(() => {});
+    try {
+      await Linking.openURL(url);
+    } catch {
+      try {
+        await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
+      } catch {
+        // Same rule as Call: say so rather than leaving them tapping a button that does nothing.
+        setNotice('Could not open maps on this device.');
+      }
+    }
   }
 
   // Community filter chips — one per community that actually has orders, with live counts.
@@ -326,6 +340,23 @@ export default function StaffFulfilment() {
                           <Text style={styles.addrMeta}>
                             {title(o.window)} · {o.itemCount} items · {inr(o.totalPaise)}
                           </Text>
+                          {/* On screen as well as behind the button: if the dialer will not open,
+                              the delivery person can still read it out. Shows the door contact when
+                              the customer named one, since that is who will actually answer. */}
+                          {numberFor(o) ? (
+                            <Text style={styles.addrPhone}>
+                              📞 {prettyNumber(numberFor(o))}
+                              {o.address?.recipientName
+                                ? ` · ask for ${o.address.recipientName}`
+                                : ''}
+                              {o.address?.contactNumber && o.address.contactNumber !== o.mobile
+                                ? ' (door contact)'
+                                : ''}
+                            </Text>
+                          ) : null}
+                          {o.address?.landmark ? (
+                            <Text style={styles.addrMeta}>📍 {o.address.landmark}</Text>
+                          ) : null}
                         </View>
 
                         {/* What to take at the door. Blank on a prepaid order and blank once
@@ -360,7 +391,7 @@ export default function StaffFulfilment() {
                         ) : null}
 
                         <View style={styles.actions}>
-                          <Pressable style={styles.ghostBtn} onPress={() => call(o.mobile)}>
+                          <Pressable style={styles.ghostBtn} onPress={() => call(o)}>
                             <Text style={styles.ghostText}>📞 Call</Text>
                           </Pressable>
                           <Pressable style={styles.ghostBtn} onPress={() => navigate(o.address)}>
@@ -588,6 +619,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   addrLine: { fontFamily: fonts.bodyMedium, fontSize: 13.5, color: colors.ink },
+  addrPhone: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.leafDeep,
+    marginTop: 3,
+  },
   addrMeta: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink3, marginTop: 2 },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 11 },

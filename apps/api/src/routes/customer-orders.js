@@ -165,6 +165,12 @@ customerOrdersRouter.post(
         area: address.area,
         block: address.block,
         flat: address.flat,
+        // Who to ask for and what number to ring AT THE DOOR. The customer can put someone else
+        // here — a spouse, a parent, the flat's help — and without it the delivery person rings the
+        // account holder, who may be at work. The landmark is what actually gets them to the gate.
+        recipientName: address.recipientName || null,
+        contactNumber: address.contactNumber || null,
+        landmark: address.landmark || null,
       },
       deliveryDate,
       window,
