@@ -135,6 +135,7 @@ export function communityAdmin(c) {
     lat: c.lat,
     lng: c.lng,
     morningCutoff: c.morningCutoff,
+    orderLeadDays: c.orderLeadDays ?? 1,
     eveningCutoff: c.eveningCutoff,
     cutoffWarningMinutes: c.cutoffWarningMinutes,
     isActive: c.isActive !== false,

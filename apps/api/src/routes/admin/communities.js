@@ -35,6 +35,8 @@ const CreateCommunity = z.object({
   // Same-day IST cut-off clock times — orders for a window close at this time on its own delivery
   // date. Replaces the old capacity-based limit: a window never "fills up", it only closes on time.
   morningCutoff: clockTime.optional(),
+  // 0 = same-day ordering allowed; 1 = order today, delivered tomorrow (the default).
+  orderLeadDays: z.coerce.number().int().min(0).max(7).optional(),
   eveningCutoff: clockTime.optional(),
   cutoffWarningMinutes: z.number().int().min(1).max(120).optional(),
   blocks: z.array(z.string().max(40)).max(100),

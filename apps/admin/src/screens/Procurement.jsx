@@ -152,33 +152,53 @@ export function Procurement() {
   }
 
   /**
-   * The buy list as a message a person can read.
+   * The buy list as a message a person can read on a phone.
    *
-   * The CSV export is the right shape for a spreadsheet and the wrong shape for WhatsApp, which is
-   * where the buyer actually reads it: pasted into a chat it wraps into a wall of commas with the
-   * header repeated in the first line, and the Telugu build is worse because the words are longer.
-   * This writes the same list grouped by category, one item per line, with the quantity first —
-   * that is the only number the person standing in the market needs.
+   * A spreadsheet is the wrong shape for WhatsApp, which is where the buyer actually reads it —
+   * pasted into a chat a CSV wraps into a wall of commas, and the Telugu build is worse because the
+   * words are longer. Two details make this legible where the earlier version was not:
+   *
+   *  • It is wrapped in a ``` block. WhatsApp collapses runs of spaces in ordinary text, so column
+   *    padding did nothing at all; inside a monospace block it survives, and the quantities line up.
+   *  • The heading names the RUN — delivery day, community, slot — not the day it was copied. A list
+   *    forwarded to the market must not be mistakable for another day's or another community's.
    */
   function listAsText() {
     if (!data) return '';
-    const day = new Date().toLocaleDateString('en-IN', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
-    const lines = [`FARM TO FLAT · Buy list · ${day}`, ''];
+    const dayLabel =
+      date !== 'all'
+        ? new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          })
+        : 'All open days';
+    const where =
+      communityId !== 'all' ? communities.find((c) => c.id === communityId)?.name : null;
+    const slot = win !== 'all' ? (win === 'MORNING' ? 'Morning' : 'Evening') : null;
+
+    const head = ['FARM TO FLAT · Buy list', dayLabel, where, slot].filter(Boolean).join(' · ');
+
+    // Widest quantity in the whole list, so every column lines up rather than each category
+    // finding its own width.
+    const qtyOf = (it) =>
+      `${String(Number(it.procureQty)).replace(/\.0+$/, '')} ${it.unit.toLowerCase()}`;
+    const width = Math.max(
+      ...data.byCategory.flatMap((g) => g.items.map((it) => qtyOf(it).length)),
+      4,
+    );
+
+    const lines = ['```', head, ''];
     for (const g of data.byCategory) {
-      lines.push(`${g.name.toUpperCase()}`);
+      lines.push(g.name.toUpperCase());
       for (const it of g.items) {
-        // Trailing zeros on a market list are noise: 2.000 kg reads as 2 kg.
-        const qty = String(Number(it.procureQty)).replace(/\.0+$/, '');
-        const tick = it.procured ? '✓ ' : '• ';
-        lines.push(`${tick}${qty} ${it.unit.toLowerCase()} — ${it.name}`);
+        const tick = it.procured ? '✓' : '·';
+        lines.push(`${tick} ${qtyOf(it).padStart(width)}  ${it.name}`);
       }
       lines.push('');
     }
-    lines.push(`Total est. ${inr(data.totalProcureCostPaise)} · ${data.skuCount} items`);
+    lines.push(`${data.skuCount} items · est. ${inr(data.totalProcureCostPaise)}`);
+    lines.push('```');
     return lines.join('\n');
   }
 

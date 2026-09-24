@@ -12,12 +12,17 @@
  * delivery day, so the morning and evening slots of the same day have DIFFERENT deadlines and
  * therefore different countdowns — "order by 03:45 for the 6–12 run, by 15:00 for the 17–21 run".
  *
- * There is deliberately no extra whole-day lead time on top. A one-day lead was tried, and because
- * it landed on midnight before the delivery day it was always earlier than either cut-off — so it
- * became the binding deadline for both windows, collapsing them onto the same instant. Every slot
- * then showed an identical countdown to midnight, and the operator's configured cut-off times had
- * no effect on ordering at all. The cut-off time itself is what buys the harvest-and-pack runway;
- * moving it is how the operator changes that runway.
+ * HOW SOON A SLOT MAY BE is a separate question from WHEN IT CLOSES, and conflating the two broke
+ * this twice. `orderLeadDays` (default 1) decides how far ahead the earliest deliverable day is —
+ * with 1, ordering today reaches tomorrow at the soonest, which is what the farm needs to harvest
+ * against real orders. The cut-off time still belongs to the delivery day itself, so morning and
+ * evening keep DIFFERENT deadlines and different countdowns.
+ *
+ * An earlier attempt expressed the lead as a midnight deadline instead. Because midnight is always
+ * earlier than either cut-off it became the binding deadline for both windows, collapsing them onto
+ * the same instant — every slot showed an identical countdown and the operator's cut-off times had
+ * no effect on ordering at all. Leaving the cut-off where it is and filtering the DATES is what
+ * keeps both behaviours intact.
  *
  * Every OPEN window carries `secondsUntilCutoff` and `showCountdown: true`, so the app can show a
  * live "59:59 left to order" timer for the whole time the window is orderable, not only in the
@@ -45,8 +50,12 @@ function closesAtMs(community, d, w) {
 export function generateWindows(community, fromDate, bookedFor, now = Date.now()) {
   const out = [];
   const warningMs = (community.cutoffWarningMinutes ?? 15) * 60 * 1000;
-  for (let i = 0; i < 14; i += 1) {
+  // The soonest day an order placed now may be delivered. 0 means same-day is allowed.
+  const lead = Math.max(0, Number(community.orderLeadDays ?? 1));
+  const earliest = addDaysISO(fromDate, lead);
+  for (let i = 0; i < 14 + lead; i += 1) {
     const d = addDaysISO(fromDate, i);
+    if (d < earliest) continue;
     if (!community.deliveryDays.includes(weekdayOf(d))) continue;
     for (const w of ['MORNING', 'EVENING']) {
       const closesAt = closesAtMs(community, d, w);

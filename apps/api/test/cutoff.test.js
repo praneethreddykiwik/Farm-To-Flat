@@ -11,12 +11,15 @@ import { istInstantMs, todayISO } from '../src/lib/dates.js';
 process.env.NODE_ENV = 'test';
 const { app } = await import('../src/index.js');
 
+// These exercise the CUT-OFF, so they allow same-day slots (orderLeadDays: 0) and look at today's
+// window directly. How far ahead the earliest deliverable day is belongs to lead-days.test.js.
 const community = {
   id: 'com_test',
   deliveryDays: [0, 1, 2, 3, 4, 5, 6],
   morningCutoff: '03:45',
   eveningCutoff: '15:00',
   cutoffWarningMinutes: 15,
+  orderLeadDays: 0,
 };
 const noBookings = () => 0;
 
@@ -192,7 +195,7 @@ describe('order placement re-checks the cut-off at commit time (never trusts a s
     // morning cut-off to a time that has already passed today.
     await request(app)
       .patch(`/api/v1/admin/communities/${c.id}`)
-      .send({ deliveryDays: [0, 1, 2, 3, 4, 5, 6], morningCutoff: '00:00' });
+      .send({ deliveryDays: [0, 1, 2, 3, 4, 5, 6], morningCutoff: '00:00', orderLeadDays: 0 });
 
     const ctx = await customerReady('9299000001', c.id);
     const sched = await request(app)
@@ -211,7 +214,11 @@ describe('order placement re-checks the cut-off at commit time (never trusts a s
 
     await request(app)
       .patch(`/api/v1/admin/communities/${c.id}`)
-      .send({ deliveryDays: c.deliveryDays, morningCutoff: '03:45' });
+      .send({
+        deliveryDays: c.deliveryDays,
+        morningCutoff: '03:45',
+        orderLeadDays: c.orderLeadDays ?? 1,
+      });
   });
 
   it('an open window with no bookings at all still accepts unlimited real orders (no capacity ceiling)', async () => {

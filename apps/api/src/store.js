@@ -488,6 +488,7 @@ export function createCommunity(data) {
     // farm real lead time: orders for the morning run close pre-dawn, evening orders close mid-
     // afternoon. Admin-editable per community.
     morningCutoff: data.morningCutoff ?? '03:45',
+    orderLeadDays: data.orderLeadDays ?? 1,
     eveningCutoff: data.eveningCutoff ?? '15:00',
     cutoffWarningMinutes: data.cutoffWarningMinutes ?? 15,
   };

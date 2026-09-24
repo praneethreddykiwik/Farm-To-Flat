@@ -105,6 +105,9 @@ model Community {
   morningCutoff        String  @default("03:45")
   eveningCutoff        String  @default("15:00")
   cutoffWarningMinutes Int     @default(15)
+  /// How many days ahead the SOONEST deliverable day is. 1 = order today, delivered tomorrow, which
+  /// is what gives the farm a night to harvest against real orders. 0 allows same-day.
+  orderLeadDays        Int     @default(1)
   cutoffHours    Int       @default(10)
   windowCapacity Int       @default(30)
   isActive       Boolean   @default(true)
