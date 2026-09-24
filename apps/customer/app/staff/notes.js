@@ -12,6 +12,8 @@ import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
 import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
+import { useSelector } from 'react-redux';
+import { selectEffectiveRole } from '../../src/features/role/roleSlice';
 
 /**
  * Everything customers have written, on one screen.
@@ -38,6 +40,17 @@ const dayLabel = (iso) => {
 };
 
 export default function StaffNotes() {
+  // Which screen this person came from, so they have a way back. Without it the notes tab was a
+  // dead end — you could get in and not out, which is worse than not having the tab.
+  const role = useSelector(selectEffectiveRole);
+  const home = useMemo(() => {
+    if (role?.role === 'PROCUREMENT')
+      return { key: 'procurement', label: 'Buy list', href: '/staff/procurement' };
+    if (role?.role === 'FULFILMENT')
+      return { key: 'fulfilment', label: 'Deliveries', href: '/staff/fulfilment' };
+    // Admin and super admin come from the console and can go anywhere.
+    return { key: 'console', label: 'Console', href: '/staff/console' };
+  }, [role]);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [kind, setKind] = useState('ALL'); // ALL | ITEM | DELIVERY
@@ -79,6 +92,8 @@ export default function StaffNotes() {
       <StaffHeader
         title="Customer notes"
         subtitle="What people asked for — buy and deliver accordingly"
+        tabs={home ? [home, { key: 'notes', label: 'Customer notes', href: '/staff/notes' }] : null}
+        active="notes"
       />
       <ScrollView
         contentContainerStyle={styles.scroll}
