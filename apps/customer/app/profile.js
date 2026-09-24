@@ -445,14 +445,6 @@ export default function Profile() {
               Terms & conditions
             </Small>
           </Pressy>
-          {/* Internal diagnostics (API host, build channel) are shown ONLY in development — a release
-              build must never reveal the backend URL or mock/dev state to customers. */}
-          {__DEV__ ? (
-            <Small muted>
-              {env.useMocks ? 'Mock server' : `API: ${env.apiUrl}`} ·{' '}
-              {env.isExpoGo ? 'Expo Go' : 'Dev build'}
-            </Small>
-          ) : null}
         </Glass>
 
         <View style={{ marginTop: 26 }}>
