@@ -13,6 +13,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { StaffHeader } from '../../src/components/StaffHeader';
 import { colors, fonts } from '../../src/theme';
 import { adminApi } from '../../src/lib/adminApi';
+import { todayISO } from '../../src/lib/dates';
 import { useStaffRefresh } from '../../src/hooks/useStaffRefresh';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { canShareFiles, downloadAndShare } from '../../src/lib/downloadFile';
@@ -60,7 +61,9 @@ export default function StaffProcurement() {
     // market needs a file they can open, and the CSV arrived as a wall of commas.
     try {
       const qs = lang === 'en' ? '' : `?lang=${lang}`;
-      const day = new Date().toISOString().slice(0, 10);
+      // todayISO(), not toISOString() — the latter is UTC, so a buyer downloading the list at
+      // 2am IST (which is when the buying day actually starts) got a file named yesterday.
+      const day = todayISO();
       const { shared, reason } = await downloadAndShare({
         url: adminApi.procurementXlsxUrl(qs),
         filename: `f2f-purchase-list-${lang}-${day}.xlsx`,
