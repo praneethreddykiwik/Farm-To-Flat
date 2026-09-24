@@ -11,7 +11,8 @@ import Animated, {
 import { Text } from '../ui';
 import { colors, fonts } from '../theme';
 import { RAIL_WORDS } from '../lib/i18n';
-import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useSelector } from 'react-redux';
+import { selectReducedMotion } from '../features/ui/uiSlice';
 
 /**
  * A strip of the same few phrases drifting past in English, Hindi and Telugu, looping forever.
@@ -25,7 +26,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
  * from character counts) is what keeps that true in three different scripts.
  */
 export function LanguageRail({ speed = 42 }) {
-  const reduced = useReducedMotion();
+  const reduced = useSelector(selectReducedMotion);
   const x = useSharedValue(0);
   const width = useSharedValue(0);
 

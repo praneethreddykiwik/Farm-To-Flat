@@ -38,6 +38,7 @@ import { configureNotifications, registerForPush } from '../src/lib/notification
 import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
+import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SplashScreen.setOptions?.({ duration: 320, fade: true });
@@ -55,6 +56,13 @@ function AuthGate({ ready }) {
   const dispatch = useDispatch();
   const [registerDevice] = useRegisterDeviceMutation();
   const pushDone = useRef(false);
+
+  // Restore the saved reading language once the app is running, rather than while the slice module
+  // is still evaluating — storage is not necessarily ready that early.
+  useEffect(() => {
+    const saved = readSavedLanguage();
+    if (saved) dispatch(hydrateLanguage(saved));
+  }, [dispatch]);
 
   // Register this phone for order push-notifications once after sign-in (asks permission, gets the
   // Expo token, hands it to the server). Fail-open — a denied permission just means no push.
