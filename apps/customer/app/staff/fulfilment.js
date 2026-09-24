@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Keyboard,
   Linking,
   Platform,
   Pressable,
@@ -92,6 +93,24 @@ export default function StaffFulfilment() {
   // round: a delivery person mid-round must not lose their list.
   const [door, setDoor] = useState(null);
   const [notice, setNotice] = useState(null);
+  // The number pad covers the bottom of the screen, which is exactly where the amount to collect
+  // and the confirm button sit — the delivery person could see neither. KeyboardAvoidingView does
+  // not measure inside an absolutely-positioned overlay, so lift by the real keyboard height.
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKb(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKb(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   /**
    * Move an order on one step.
@@ -120,14 +139,15 @@ export default function StaffFulfilment() {
   }
 
   /** Hand-over at the door: the code the customer reads out, plus the cash if it is a cash order. */
-  async function completeDelivery() {
+  async function completeDelivery(otpOverride) {
     if (!door) return;
     const o = door.order;
+    const otp = (otpOverride ?? door.otp ?? '').trim();
     const due = Number(o.codDuePaise || 0);
     setBusy(o.id);
     try {
       await adminApi.deliver(o.id, {
-        ...(o.deliveryOtpPending ? { otp: door.otp.trim() } : {}),
+        ...(o.deliveryOtpPending ? { otp } : {}),
         ...(due > 0 ? { collectedPaise: due } : {}),
       });
       setDoor(null);
@@ -138,7 +158,12 @@ export default function StaffFulfilment() {
       );
       await load();
     } catch (e) {
-      setNotice(e?.message || 'Could not complete the delivery');
+      // The panel is on top of everything, so a message behind it is a message nobody sees — the
+      // delivery person would type a wrong code and watch nothing happen. Keep it in the panel,
+      // and clear the box so the next attempt starts from empty.
+      setDoor((d) =>
+        d ? { ...d, otp: '', error: e?.message || 'Could not complete the delivery' } : d,
+      );
     } finally {
       setBusy(null);
     }
@@ -377,7 +402,8 @@ export default function StaffFulfilment() {
       {door ? (
         <View style={styles.doorWrap}>
           <Pressable style={styles.doorScrim} onPress={() => setDoor(null)} />
-          <View style={styles.doorCard}>
+
+          <View style={[styles.doorCard, { marginBottom: kb }]}>
             <Text style={styles.doorTitle}>{door.order.orderNumber}</Text>
             <Text style={styles.doorSub}>
               {door.order.customerName} · Flat {door.order.address?.flat}
@@ -396,9 +422,17 @@ export default function StaffFulfilment() {
                 <TextInput
                   style={styles.otpInput}
                   value={door.otp}
-                  onChangeText={(v) =>
-                    setDoor((d) => ({ ...d, otp: v.replace(/\D/g, '').slice(0, 4) }))
-                  }
+                  onChangeText={(v) => {
+                    const otp = v.replace(/\D/g, '').slice(0, 4);
+                    setDoor((d) => ({ ...d, otp, error: null }));
+                    // Submit on the fourth digit rather than making them find a button. This is
+                    // done at a door, one-handed, holding a bag — and the number pad covers the
+                    // bottom of the screen while they type, so the button is not even reachable.
+                    if (otp.length === 4) {
+                      Keyboard.dismiss();
+                      setTimeout(() => completeDelivery(otp), 120);
+                    }
+                  }}
                   placeholder="0000"
                   placeholderTextColor="rgba(14,27,20,0.25)"
                   keyboardType="number-pad"
@@ -666,6 +700,14 @@ const styles = StyleSheet.create({
   },
   doorConfirmText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.white },
   doorCancel: { fontFamily: fonts.body, fontSize: 13, color: colors.ink3 },
+  doorError: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.tomato,
+    textAlign: 'center',
+    marginTop: 12,
+  },
   advance: {
     flex: 1,
     backgroundColor: colors.leaf,
