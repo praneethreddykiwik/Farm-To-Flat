@@ -15,7 +15,12 @@ const STAFF = [
 
 async function main() {
   await prisma.category.createMany({
-    data: CATEGORIES.map((c) => ({ id: c.id, name: c.name, tint: c.tint ?? null, order: c.order ?? 0 })),
+    data: CATEGORIES.map((c) => ({
+      id: c.id,
+      name: c.name,
+      tint: c.tint ?? null,
+      order: c.order ?? 0,
+    })),
     skipDuplicates: true,
   });
 

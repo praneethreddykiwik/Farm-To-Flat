@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
 import { codDuePaise, issueAdmin, orderAdmin } from '../../serialize.js';
+import { signOrderIssuePhotos } from '../../lib/storage.js';
 import {
   createOrder,
   getOrder,
@@ -99,7 +100,7 @@ adminOrdersRouter.get(
     for (const s of STATUSES) counts[s] = 0;
     for (const o of all) counts[o.status] = (counts[o.status] || 0) + 1;
     res.json({
-      orders: filtered.map((o) => orderAdmin(liveName(o))),
+      orders: await signOrderIssuePhotos(filtered.map((o) => orderAdmin(liveName(o)))),
       total: filtered.length,
       counts,
       statuses: STATUSES,
@@ -159,7 +160,7 @@ adminOrdersRouter.post(
       status: 'CONFIRMED',
       lines,
     });
-    res.status(201).json({ order: orderAdmin(order) });
+    res.status(201).json({ order: await signOrderIssuePhotos(orderAdmin(order)) });
   }),
 );
 
@@ -321,7 +322,7 @@ adminOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: orderAdmin(liveName(o)) });
+    res.json({ order: await signOrderIssuePhotos(orderAdmin(liveName(o))) });
   }),
 );
 
@@ -343,7 +344,7 @@ adminOrdersRouter.post(
     const r = completeDelivery(req.params.id, req.body);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
     notifyOrderStatus(r.order, getDevices);
-    res.json({ order: orderAdmin(r.order) });
+    res.json({ order: await signOrderIssuePhotos(orderAdmin(r.order)) });
   }),
 );
 
@@ -360,8 +361,13 @@ adminOrdersRouter.get(
     const status = ['OPEN', 'RESOLVED', 'DECLINED'].includes(String(req.query.status))
       ? String(req.query.status)
       : undefined;
-    const issues = listOrderIssues({ status, limit: Number(req.query.limit) || 200 });
-    res.json({ issues: issues.map(issueAdmin), openCount: openIssueCount() });
+    const issues = listOrderIssues({ status, limit: Number(req.query.limit) || 200 }).map(
+      issueAdmin,
+    );
+    // The queue is the one place that renders photos without an order around them, so it signs the
+    // same way — `signOrderIssuePhotos` takes anything shaped like { issues }.
+    await signOrderIssuePhotos({ issues });
+    res.json({ issues, openCount: openIssueCount() });
   }),
 );
 
@@ -380,7 +386,7 @@ adminOrdersRouter.post(
   asyncHandler(async (req, res) => {
     const issue = resolveOrderIssue(req.params.id, req.params.issueId, req.body);
     if (!issue) throw fail(404, 'NOT_FOUND', 'No such report on that order.');
-    res.json({ issue, order: orderAdmin(getOrder(req.params.id)) });
+    res.json({ issue, order: await signOrderIssuePhotos(orderAdmin(getOrder(req.params.id))) });
   }),
 );
 
@@ -414,7 +420,7 @@ adminOrdersRouter.patch(
     }
     const updated = transition(req.params.id, req.body.status);
     notifyOrderStatus(updated, getDevices); // push the customer their new status
-    res.json({ order: orderAdmin(updated) });
+    res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
   }),
 );
 
@@ -490,7 +496,7 @@ adminOrdersRouter.post(
     if (req.body.decision === 'APPROVE') {
       const { order: updated } = cancelOrder(req.params.id);
       notifyOrderStatus(updated, getDevices);
-      return res.json({ order: orderAdmin(updated) });
+      return res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
     }
 
     const updated = patchOrder(req.params.id, (ord) => {
@@ -498,7 +504,7 @@ adminOrdersRouter.post(
       ord.cancelReason = null;
       ord.timeline.push({ status: 'CANCEL_DECLINED', at: new Date().toISOString() });
     });
-    res.json({ order: orderAdmin(updated) });
+    res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
   }),
 );
 

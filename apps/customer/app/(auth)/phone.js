@@ -37,8 +37,8 @@ export default function PhoneScreen() {
       if (res?.devOtp)
         dispatch(
           showToast({
-            title: `Dev OTP: ${res.devOtp}`,
-            message: 'Mock server — MSG91 not wired yet',
+            title: `Your code: ${res.devOtp}`,
+            message: 'Test number — no message is sent to it',
             tone: 'neutral',
             duration: 5000,
           }),
@@ -74,8 +74,8 @@ export default function PhoneScreen() {
           <Small muted>STEP 1 OF 2</Small>
           <Display style={{ marginTop: 6 }}>What’s your number?</Display>
           <Body muted style={{ marginTop: 8 }}>
-            We’ll text you a 6-digit code. This is also the number our delivery partner will call
-            from the gate.
+            We’ll send a 6-digit code to this number on WhatsApp. It is also the number our delivery
+            partner will call from the gate.
           </Body>
         </Animated.View>
 

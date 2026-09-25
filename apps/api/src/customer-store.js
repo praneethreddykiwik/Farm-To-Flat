@@ -180,6 +180,11 @@ export function devOtpAllowedFor(mobile, ctx) {
   // No allowlist — the open closed-test posture: every number, staff included.
   return true;
 }
+if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0 && msg91Enabled)
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[otp] ALLOW_DEV_OTP=1 with no DEV_OTP_ALLOWLIST takes precedence over MSG91: every number gets the fixed code and NO WhatsApp message is ever sent, however well MSG91 is configured. Remove ALLOW_DEV_OTP to start delivering real codes.',
+  );
 if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
   // eslint-disable-next-line no-console
   console.warn(
@@ -217,32 +222,48 @@ export async function requestOtp(mobile) {
   const otp = useDev ? DEV_OTP : String(Math.floor(100000 + Math.random() * 900000));
   cs.otp.set(mobile, { otp, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-  // Real production (no dev OTP for this number): deliver a random code by SMS and never return it.
-  // Otherwise (dev / test / an allowlisted tester) use the fixed 123456 and skip SMS.
+  // Real production (no dev OTP for this number): deliver a random code and never return it.
+  // Otherwise (dev / test / an allowlisted tester) use the fixed 123456 and skip delivery.
   if (!useDev) {
-    if (msg91Enabled) {
-      try {
-        await deliverOtp({ mobile, otp }); // WhatsApp, with SMS only if enabled as a fallback
-      } catch {
-        return {
-          error: {
-            status: 502,
-            code: 'OTP_SEND_FAILED',
-            message: "Couldn't send the code right now. Please try again.",
-          },
-        };
-      }
-    } else {
+    if (!msg91Enabled) {
+      // Answering "ok" here is what made this look like a working sign-in that simply never
+      // arrived. A code was minted, nothing carried it, and the app sat on "Sent to +91 …" with
+      // six empty boxes — for every tester, indefinitely. There is no channel, so say so.
       // eslint-disable-next-line no-console
-      console.warn(
-        '[otp] No delivery channel configured (set MSG91_AUTH_KEY + MSG91_WA_NUMBER + MSG91_WA_TEMPLATE_NAME) — OTP generated but not delivered.',
+      console.error(
+        '[otp] No delivery channel configured (set MSG91_AUTH_KEY + MSG91_WA_NUMBER + MSG91_WA_TEMPLATE_NAME, or name this number in DEV_OTP_ALLOWLIST) — refusing to pretend a code was sent.',
       );
+      return {
+        error: {
+          status: 503,
+          code: 'OTP_CHANNEL_UNCONFIGURED',
+          message: "We can't send codes to this number yet. Please contact support.",
+        },
+      };
+    }
+    try {
+      await deliverOtp({ mobile, otp }); // WhatsApp, with SMS only if enabled as a fallback
+    } catch {
+      return {
+        error: {
+          status: 502,
+          code: 'OTP_SEND_FAILED',
+          message: "Couldn't send the code right now. Please try again.",
+        },
+      };
     }
     return { ok: true, expiresInSeconds: 300 }; // never leak the code in prod
   }
-  // Never put the code in the HTTP response in production — even a test deployment with ALLOW_DEV_OTP=1
-  // must not hand the OTP back to the caller (that turned the fixed 123456 into a public auth bypass).
-  return { ok: true, expiresInSeconds: 300, ...(IS_PROD ? {} : { devOtp: DEV_OTP }) };
+  // Handing the code back is safe in exactly one production case: the operator NAMED this number in
+  // DEV_OTP_ALLOWLIST. That is a deliberate "this is a test account" declaration, and the reply only
+  // ever reaches whoever holds that number — an attacker's number is not on the list and learns
+  // nothing. Withholding it from a named tester was not security: 123456 already works for them, so
+  // the only thing hiding it accomplished was leaving them staring at six empty boxes.
+  //
+  // With ALLOW_DEV_OTP=1 and NO allowlist, every number is a dev number, so returning the code would
+  // publish the bypass to anyone who asks. That case stays silent — and is the one to get off.
+  const named = IS_PROD && DEV_OTP_ALLOWLIST.has(mobile);
+  return { ok: true, expiresInSeconds: 300, ...(!IS_PROD || named ? { devOtp: DEV_OTP } : {}) };
 }
 
 /** @returns {{ ok:true, customer:any, isNew:boolean } | { error:{status,code,message} }} */

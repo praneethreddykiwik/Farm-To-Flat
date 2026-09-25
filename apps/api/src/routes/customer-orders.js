@@ -42,7 +42,12 @@ import {
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
-import { allowedImageTypes, storageEnabled, uploadIssuePhoto } from '../lib/storage.js';
+import {
+  allowedImageTypes,
+  signOrderIssuePhotos,
+  storageEnabled,
+  uploadIssuePhoto,
+} from '../lib/storage.js';
 import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
@@ -227,7 +232,7 @@ customerOrdersRouter.post(
         description: `Order ${order.orderNumber}`,
       };
     }
-    const body = { order: orderCustomer(order), paymentIntent };
+    const body = { order: await signOrderIssuePhotos(orderCustomer(order)), paymentIntent };
     idempotencyPut(cid, idempotencyKey, 201, body);
     res.status(201).json(body);
   }),
@@ -248,7 +253,7 @@ customerOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrderForCustomer(req.params.id, req.customerId);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: orderCustomer(o) });
+    res.json({ order: await signOrderIssuePhotos(orderCustomer(o)) });
   }),
 );
 
@@ -281,7 +286,11 @@ customerOrdersRouter.post(
     // than a cancellation. Idempotent — asking twice is the same as asking once.
     if (existing.status === 'PACKING' || existing.status === 'OUT_FOR_DELIVERY') {
       if (existing.cancelRequested)
-        return res.json({ order: orderCustomer(existing), cancelled: false, requested: true });
+        return res.json({
+          order: await signOrderIssuePhotos(orderCustomer(existing)),
+          cancelled: false,
+          requested: true,
+        });
       const updated = patchOrder(req.params.id, (ord) => {
         ord.cancelRequested = true;
         ord.cancelReason = req.body.reason || null;
@@ -295,12 +304,20 @@ customerOrdersRouter.post(
         body: `${updated.orderNumber} · ${updated.customerName} · ${updated.address?.block || ''} ${updated.address?.flat || ''}`.trim(),
         data: { type: 'CANCEL_REQUEST', orderId: updated.id },
       });
-      return res.json({ order: orderCustomer(updated), cancelled: false, requested: true });
+      return res.json({
+        order: await signOrderIssuePhotos(orderCustomer(updated)),
+        cancelled: false,
+        requested: true,
+      });
     }
 
     // Everything before the packing bench — cancel outright and refund now.
     const { order: updated } = cancelOrder(req.params.id);
-    res.json({ order: orderCustomer(updated), cancelled: true, requested: false });
+    res.json({
+      order: await signOrderIssuePhotos(orderCustomer(updated)),
+      cancelled: true,
+      requested: false,
+    });
   }),
 );
 
@@ -375,6 +392,9 @@ customerOrdersRouter.post(
       body: `${order.orderNumber} · ${order.customerName} · ${issue.reason}`,
       data: { type: 'ORDER_ISSUE', orderId: order.id, issueId: issue.id },
     });
-    res.status(201).json({ issue, order: orderCustomer(getOrderForCustomer(order.id, cid)) });
+    res.status(201).json({
+      issue,
+      order: await signOrderIssuePhotos(orderCustomer(getOrderForCustomer(order.id, cid))),
+    });
   }),
 );

@@ -90,7 +90,14 @@ export default function OtpScreen() {
       setSeconds(30);
       setError(null);
       if (res?.devOtp)
-        dispatch(showToast({ title: `Dev OTP: ${res.devOtp}`, tone: 'neutral', duration: 5000 }));
+        dispatch(
+          showToast({
+            title: `Your code: ${res.devOtp}`,
+            message: 'Test number — no message is sent to it',
+            tone: 'neutral',
+            duration: 5000,
+          }),
+        );
       else dispatch(showToast({ title: 'Code sent again', tone: 'success' }));
     } catch (e) {
       dispatch(showToast({ title: e?.message || 'Could not resend', tone: 'error' }));

@@ -9,21 +9,40 @@ if (!url || !key) {
   process.exit(1);
 }
 
-const BUCKET = 'product-images';
 const supabase = createClient(url, key, { auth: { persistSession: false } });
+const MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 
-const { data: existing } = await supabase.storage.getBucket(BUCKET);
-if (existing) {
-  console.log(`Bucket "${BUCKET}" already exists ✓`);
-} else {
-  const { error } = await supabase.storage.createBucket(BUCKET, {
-    public: true, // product photos are public — they show in the app + website
-    fileSizeLimit: '5MB',
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
-  });
+const BUCKETS = [
+  // Product photos are public — they show in the app and on the website.
+  { name: 'product-images', public: true, fileSizeLimit: '5MB', allowedMimeTypes: MIME },
+  // Complaint photographs are NOT. They are taken inside someone's home or at their door and are
+  // attached to a named order with an address on it, so they are reachable only through a
+  // short-lived signed link the API issues (see lib/storage.js). This bucket used to be created
+  // implicitly at first upload, public and with no limits at all.
+  { name: 'order-issues', public: false, fileSizeLimit: '6MB', allowedMimeTypes: MIME },
+];
+
+for (const { name, ...opts } of BUCKETS) {
+  const { data: existing } = await supabase.storage.getBucket(name);
+  if (existing) {
+    // Already there: make sure it matches what it is supposed to be. A bucket created by the old
+    // implicit path is PUBLIC, and leaving it that way would quietly keep every photo world-readable.
+    if (existing.public !== opts.public) {
+      const { error } = await supabase.storage.updateBucket(name, opts);
+      if (error) {
+        console.error(`Could not update bucket "${name}":`, error.message);
+        process.exit(1);
+      }
+      console.log(`Bucket "${name}" → ${opts.public ? 'public' : 'PRIVATE'} ✓`);
+    } else {
+      console.log(`Bucket "${name}" already correct (${opts.public ? 'public' : 'private'}) ✓`);
+    }
+    continue;
+  }
+  const { error } = await supabase.storage.createBucket(name, opts);
   if (error) {
-    console.error('Could not create bucket:', error.message);
+    console.error(`Could not create bucket "${name}":`, error.message);
     process.exit(1);
   }
-  console.log(`Created public bucket "${BUCKET}" ✓`);
+  console.log(`Created ${opts.public ? 'public' : 'PRIVATE'} bucket "${name}" ✓`);
 }
