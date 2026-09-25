@@ -16,7 +16,13 @@ import pinoHttp from 'pino-http';
 
 import { ApiError } from './http.js';
 import { requireAuth } from './routes/require-auth.js';
-import { disablePersistence, loadAll, loadTransactional, persistEnabled } from './persistence.js';
+import {
+  disablePersistence,
+  isPersistenceEnabled,
+  loadAll,
+  loadTransactional,
+  persistEnabled,
+} from './persistence.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
@@ -94,7 +100,37 @@ if (process.env.NODE_ENV !== 'test')
     }),
   );
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'f2f-api', ts: Date.now() }));
+/**
+ * Liveness AND data-source check — the platform's health probe points here.
+ *
+ * Answering a plain "ok" was how a broken deploy went unnoticed. When boot hydration fails the API
+ * deliberately still starts, serving the in-memory DEMO SEED with persistence switched off, so that
+ * a database blip does not take the app down entirely. The cost of that choice is that the failure
+ * is invisible: the process boots, answers every route, and returns demo products and communities
+ * as if they were real. One unmigrated column did exactly this in production and nothing flagged it.
+ *
+ * So a process that was GIVEN a database and is not using it reports 503. Render then refuses to
+ * promote that deploy and keeps the last good one serving, which is the outcome we want: a schema
+ * change that outruns its migration fails loudly at the door instead of quietly swapping live data
+ * for demo data.
+ *
+ * A process with no DATABASE_URL at all — local dev, tests — is not degraded. It was never meant to
+ * have a database, and calling it unhealthy would just make the signal meaningless.
+ */
+app.get('/health', (_req, res) => {
+  const degraded = persistEnabled && !isPersistenceEnabled();
+  res.status(degraded ? 503 : 200).json({
+    ok: !degraded,
+    service: 'f2f-api',
+    // Named rather than boolean so the answer is readable straight from a curl or a dashboard.
+    data: !persistEnabled
+      ? 'in-memory'
+      : degraded
+        ? 'in-memory seed (DATABASE UNAVAILABLE)'
+        : 'database',
+    ts: Date.now(),
+  });
+});
 
 const v1 = '/api/v1';
 
