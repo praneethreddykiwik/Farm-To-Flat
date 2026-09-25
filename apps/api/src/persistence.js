@@ -134,12 +134,65 @@ const staffToRow = (s) => ({
   aiAccess: !!s.aiAccess,
 });
 
+/**
+ * Whether the `Community.windows` column exists in the database yet.
+ *
+ * This deploys ahead of its schema. Render's build runs `prisma generate` but NOT a migration —
+ * this project applies schema changes with `prisma db push`, by hand — so between a deploy and that
+ * push the generated client knows a column Postgres does not have. Prisma selects every scalar
+ * field by default, so `community.findMany()` throws, and because that call sits inside `loadAll()`
+ * the throw took down boot hydration entirely: the API fell back to the in-memory DEMO SEED and
+ * disabled persistence, serving three seeded communities in place of the real ones.
+ *
+ * So: try the full read, and on a missing-column error fall back to selecting only the columns that
+ * predate this feature. Communities then come back with no `windows`, which `communityWindows()`
+ * already reads as the MORNING/EVENING pair described by the two cut-off columns — the same
+ * fallback a pre-windows row gets. The API serves real data throughout; the only thing that waits
+ * for `db push` is the ability to EDIT the windows.
+ */
+let hasWindowsColumn = true;
+
+/** Every Community column that existed before `windows`. Explicit, so Prisma cannot select it. */
+const LEGACY_COMMUNITY_SELECT = {
+  id: true,
+  name: true,
+  area: true,
+  blocks: true,
+  deliveryDays: true,
+  morningCutoff: true,
+  eveningCutoff: true,
+  cutoffWarningMinutes: true,
+  orderLeadDays: true,
+  isActive: true,
+};
+
+/** Postgres 42703 / Prisma P2022 — "column does not exist". */
+const isMissingColumn = (e) =>
+  e?.code === 'P2022' || /column .* does not exist/i.test(e?.message || '');
+
+async function findCommunities() {
+  if (hasWindowsColumn) {
+    try {
+      return await prisma.community.findMany();
+    } catch (e) {
+      if (!isMissingColumn(e)) throw e;
+      hasWindowsColumn = false;
+      // eslint-disable-next-line no-console
+      console.error(
+        '[persist] Community.windows is missing — reading without it, and window edits will not ' +
+          'persist. Run `pnpm --filter api db:push` against the production database to add it.',
+      );
+    }
+  }
+  return prisma.community.findMany({ select: LEGACY_COMMUNITY_SELECT });
+}
+
 /** Read every master-data table and return in-memory-shaped collections + the settings row. */
 export async function loadAll() {
   const [categories, products, communities, coupons, staff, config] = await Promise.all([
     prisma.category.findMany(),
     prisma.product.findMany(),
-    prisma.community.findMany(),
+    findCommunities(),
     prisma.coupon.findMany(),
     prisma.staff.findMany(),
     prisma.appConfig.findUnique({ where: { id: 1 } }),
@@ -324,6 +377,9 @@ export const persist = {
   ),
   communityUpsert: wt('community.upsert', (c) => {
     const row = communityToRow(c);
+    // Same reason as findCommunities(): writing a column the database does not have yet fails the
+    // whole upsert, which would lose the delivery-day and block edits riding along with it.
+    if (!hasWindowsColumn) delete row.windows;
     return prisma.community.upsert({ where: { id: c.id }, create: row, update: row });
   }),
   staffUpsert: wt('staff.upsert', (s) => {
