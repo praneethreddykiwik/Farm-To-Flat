@@ -102,6 +102,14 @@ model Community {
   // Same-day IST cut-off clock times ("HH:MM") — a window closes at this time on its own delivery
   // date; there is no capacity/count limit. cutoffHours/windowCapacity below are unused legacy
   // columns, kept (not dropped) so this migration stays additive and reversible.
+  /// The delivery windows this community runs: [{ key, label, cutoff, start, end }, …], in the
+  /// order of the day. Operator-editable — a community can run one window or six. `key` is what an
+  /// ORDER stores, so it is never rewritten once issued; deleting a window stops it being offered
+  /// but leaves past orders readable. Empty on rows written before windows were a list, which the
+  /// API reads as the MORNING/EVENING pair described by the two columns below.
+  windows              Json    @default("[]")
+  /// Legacy cut-off columns. Nothing reads them once `windows` is populated; they are kept in sync
+  /// for the MORNING/EVENING entries so rolling this deploy back leaves coherent data.
   morningCutoff        String  @default("03:45")
   eveningCutoff        String  @default("15:00")
   cutoffWarningMinutes Int     @default(15)

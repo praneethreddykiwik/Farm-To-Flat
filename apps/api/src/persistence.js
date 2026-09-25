@@ -46,6 +46,9 @@ const rowToCommunity = (r) => ({
   area: r.area,
   blocks: r.blocks || [],
   deliveryDays: r.deliveryDays || [],
+  // Null for a row written before windows became a list; communityWindows() then reads the two
+  // cut-off columns below and presents them as the pair they always described.
+  windows: Array.isArray(r.windows) && r.windows.length ? r.windows : null,
   morningCutoff: r.morningCutoff || '03:45',
   orderLeadDays: r.orderLeadDays ?? 1,
   eveningCutoff: r.eveningCutoff || '15:00',
@@ -116,6 +119,7 @@ const communityToRow = (c) => ({
   area: c.area ?? null,
   blocks: c.blocks || [],
   deliveryDays: c.deliveryDays || [],
+  windows: Array.isArray(c.windows) ? c.windows : [],
   morningCutoff: c.morningCutoff ?? '03:45',
   orderLeadDays: c.orderLeadDays ?? 1,
   eveningCutoff: c.eveningCutoff ?? '15:00',

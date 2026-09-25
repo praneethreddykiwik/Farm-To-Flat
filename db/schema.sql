@@ -14,10 +14,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE delivery_slot AS ENUM ('MORNING', 'EVENING');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
   CREATE TYPE ledger_direction AS ENUM ('CREDIT', 'DEBIT');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -154,7 +150,7 @@ create table if not exists delivery_window (
   id            uuid primary key default gen_random_uuid(),
   community_id  uuid not null references community(id) on delete cascade,
   delivery_date date not null,
-  "window"      delivery_slot not null,
+  "window"      text not null,          -- a community-defined window key, e.g. MORNING
   capacity      int not null,
   booked        int not null default 0,
   created_at    timestamptz not null default now(),
@@ -169,7 +165,7 @@ create table if not exists orders (
   address_id           uuid not null references address(id),
   delivery_window_id   uuid references delivery_window(id),
   delivery_date        date not null,
-  "window"             delivery_slot not null,
+  "window"             text not null,                    -- community-defined window key
   status               order_status not null default 'PENDING_PAYMENT',
   subtotal_paise       bigint not null default 0,
   coupon_id            uuid,

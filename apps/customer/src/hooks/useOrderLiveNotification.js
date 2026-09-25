@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useGetOrdersQuery } from '../api/api';
 import { selectAuth } from '../features/auth/authSlice';
-import { WINDOWS } from '../lib/dates';
+import { windowLabel } from '../lib/dates';
 import { isLiveStatus, presentOrderLive, dismissOrderLive } from '../lib/notifications';
 
 /**
@@ -55,7 +55,7 @@ export function useOrderLiveNotification() {
       orderId: active.id,
       orderNumber: active.orderNumber,
       status: active.status,
-      windowLabel: WINDOWS[active.window]?.label,
+      windowLabel: windowLabel(active.window),
     });
   }, [enabled, data]);
 

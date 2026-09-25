@@ -11,4 +11,12 @@ export default defineConfig({
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
+  // `vite preview` serves the production build, and it needs the same proxy: without it the built
+  // panel calls the API cross-origin, which the dev CORS config (origin "*", no credentials) fails.
+  // Same-origin here means previewing a real build behaves exactly like `vite dev`.
+  preview: {
+    proxy: {
+      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+    },
+  },
 });

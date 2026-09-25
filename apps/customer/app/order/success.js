@@ -16,7 +16,7 @@ import { Check } from 'lucide-react-native';
 import { Button, Glass, Mono, Screen, Small, Text } from '../../src/ui';
 import { useGetOrderQuery } from '../../src/api/api';
 import { colors, fonts, radius } from '../../src/theme';
-import { formatDateShort, WINDOWS } from '../../src/lib/dates';
+import { formatDateShort, windowLabel } from '../../src/lib/dates';
 
 function Burst() {
   const s = useSharedValue(0);
@@ -98,7 +98,7 @@ export default function OrderSuccess() {
                   style={{ flex: 1, textAlign: 'right', marginLeft: 12 }}
                   numberOfLines={1}
                 >
-                  {formatDateShort(order.deliveryDate)} · {WINDOWS[order.window]?.label}
+                  {formatDateShort(order.deliveryDate)} · {windowLabel(order.window)}
                 </Text>
               </View>
               <View style={styles.row}>

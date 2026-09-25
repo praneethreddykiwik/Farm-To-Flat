@@ -21,6 +21,7 @@ import {
   getProcurementSettings,
   getProduct,
   listCategories,
+  listCommunities,
   listOrders,
   listProcurementRecords,
   submitProcurementCost,
@@ -31,6 +32,7 @@ import { notifyBufferExceeded } from '../../lib/staff-notify.js';
 import { money, formatINR } from '../../lib/money.js';
 import { csvEscape } from '../../lib/csv.js';
 import { todayISO } from '../../lib/dates.js';
+import { communityWindows } from '../../lib/windows.js';
 import { CSV_HEADERS, LANGS, YES, categoryName, productName, unitLabel } from '../../lib/i18n.js';
 import { buildWorkbook, rupees, sendWorkbook } from '../../lib/xlsx.js';
 
@@ -162,6 +164,16 @@ adminProcurementRouter.get(
           ]),
       ).values(),
     ].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    // Same idea for the slot filter. Windows are per-community and operator-defined, so there is no
+    // fixed list to offer — the buyer shops across communities that need not run the same ones.
+    // Derived from the unfiltered run so the filter only ever offers a slot that has orders in it,
+    // and labelled from the owning community so it reads "Afternoon", not "AFTERNOON".
+    const labelFor = new Map();
+    for (const c of listCommunities())
+      for (const w of communityWindows(c)) labelFor.set(w.key, w.label);
+    const windows = [...new Set(allOrders.map((o) => o.window).filter(Boolean))]
+      .map((key) => ({ key, label: labelFor.get(key) || key }))
+      .sort((a, b) => String(a.label).localeCompare(String(b.label)));
 
     res.json({
       generatedAt: new Date().toISOString(),
@@ -174,6 +186,7 @@ adminProcurementRouter.get(
       },
       dates,
       communities,
+      windows,
       orderCount: orders.length,
       skuCount: lines.length,
       procuredCount: lines.filter((l) => l.procured).length,
@@ -414,7 +427,7 @@ adminProcurementRouter.get(
           rows: [
             { k: 'Generated', v: new Date().toISOString() },
             { k: 'Delivery day', v: req.query.date || 'All open days' },
-            { k: 'Window', v: req.query.window || 'Both' },
+            { k: 'Window', v: req.query.window || 'All windows' },
             { k: 'Community', v: communityName },
             { k: 'Order statuses', v: statuses.join(', ') },
             { k: 'Buffer override', v: override == null ? 'per-product default' : `${override}%` },

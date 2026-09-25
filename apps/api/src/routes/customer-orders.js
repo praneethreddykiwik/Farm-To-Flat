@@ -53,7 +53,11 @@ const OrderBody = z.object({
   idempotencyKey: z.string().min(8).max(80).optional(),
   addressId: z.string().min(1),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  window: z.enum(['MORNING', 'EVENING']),
+  // Not an enum: windows are per-community and operator-defined, so the set of valid keys is not
+  // knowable here. The lookup against the community's own generated windows a few lines down is the
+  // real check — and a stricter one, since it also rejects a key that is valid for a DIFFERENT
+  // community than the one this address sits in.
+  window: z.string().min(1).max(32),
   couponCode: z.string().nullable().optional(),
   useWallet: z.boolean().optional(),
   deliveryNote: z.string().trim().max(200).optional(), // "leave with the guard", gate code, etc.

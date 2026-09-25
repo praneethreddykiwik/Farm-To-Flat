@@ -271,19 +271,42 @@ function windowsFor(communityId, date) {
   const com = COMMUNITIES.find((c) => c.id === communityId) || COMMUNITIES[0];
   const out = [];
   const warningMs = 15 * 60 * 1000;
+  // Whatever windows this community defines. Falls back to the pair the mock data used to hold in
+  // two fields, so a fixture written before windows were a list keeps working.
+  const defs = com.windows?.length
+    ? com.windows
+    : [
+        {
+          key: 'MORNING',
+          label: 'Morning',
+          cutoff: com.morningCutoff,
+          start: '06:00',
+          end: '12:00',
+        },
+        {
+          key: 'EVENING',
+          label: 'Evening',
+          cutoff: com.eveningCutoff,
+          start: '17:00',
+          end: '21:00',
+        },
+      ];
   for (let i = 0; i < 14; i += 1) {
     const d = addDaysISO(date, i);
     if (!com.deliveryDays.includes(weekdayOf(d))) continue;
-    for (const w of ['MORNING', 'EVENING']) {
-      const booked = state.windows.get(`${com.id}|${d}|${w}`) || 0;
-      const cutoffTime = w === 'MORNING' ? com.morningCutoff : com.eveningCutoff;
-      const cutoffAtMs = istInstantMs(d, cutoffTime);
+    for (const def of defs) {
+      const booked = state.windows.get(`${com.id}|${d}|${def.key}`) || 0;
+      const cutoffAtMs = istInstantMs(d, def.cutoff);
       const msLeft = cutoffAtMs - Date.now();
       const isOpen = msLeft > 0;
       out.push({
-        id: `win_${com.id}_${d}_${w}`,
+        id: `win_${com.id}_${d}_${def.key}`,
         date: d,
-        window: w,
+        window: def.key,
+        label: def.label,
+        hours: def.hours,
+        start: def.start,
+        end: def.end,
         booked,
         isOpen,
         cutoffAt: new Date(cutoffAtMs).toISOString(),

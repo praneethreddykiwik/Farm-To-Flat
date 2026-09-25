@@ -23,7 +23,7 @@ import { dayOrdered, selectScheduled } from '../../src/features/plan/planSlice';
 import { selectCustomer } from '../../src/features/auth/authSlice';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { orderQuantityFor } from '../../src/lib/nutrition';
-import { formatDateShort, WINDOWS } from '../../src/lib/dates';
+import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { idempotencyKey } from '../../src/lib/ids';
 import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
@@ -110,7 +110,7 @@ export default function ConfirmDay() {
     if (plan) dispatch(dayOrdered({ id: plan.id, date: dateISO, orderId: order.id }));
     notifyLocal(
       'Order confirmed',
-      `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${WINDOWS[order.window]?.label.toLowerCase()}.`,
+      `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${windowLabel(order.window).toLowerCase()}.`,
     );
     router.replace({ pathname: '/order/success', params: { id: order.id } });
   };
@@ -284,14 +284,14 @@ export default function ConfirmDay() {
             <View style={{ flex: 1 }}>
               <Text variant="bodyMedium">
                 {slot
-                  ? `${slotIsOnDay ? '' : `${formatDateShort(slot.date)} · `}${WINDOWS[slot.window]?.label}`
+                  ? `${slotIsOnDay ? '' : `${formatDateShort(slot.date)} · `}${windowLabel(slot.window, slot)}`
                   : 'No window available'}
               </Text>
               <Small muted={slotIsOnDay} color={slotIsOnDay ? undefined : colors.amber}>
                 {!slot
                   ? 'No delivery window is open right now'
                   : slotIsOnDay
-                    ? WINDOWS[slot.window]?.hours
+                    ? windowHours(slot.window, slot)
                     : `We don’t deliver on ${formatDateShort(dateISO)} — nearest window shown`}
               </Small>
             </View>

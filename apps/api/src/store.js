@@ -19,6 +19,7 @@ import {
   TOPUP_DENOMINATIONS_PAISE,
 } from './data/seed.js';
 import { addDaysISO, todayISO } from './lib/dates.js';
+import { communityWindows, keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
 import { persist } from './persistence.js';
@@ -474,8 +475,53 @@ export function updateCommunity(cid, patch) {
   const c = db.communities.find((x) => x.id === cid);
   if (!c) return null;
   Object.assign(c, patch);
+  if (patch.windows) c.windows = normalizeWindowList(patch.windows);
+  syncLegacyCutoffs(c);
   persist.communityUpsert(c);
   return clone(c);
+}
+
+/**
+ * Accept the admin's window list and settle each entry's immutable key.
+ *
+ * An entry the admin is EDITING arrives with the key it already had, and keeps it — that key is
+ * written on every order ever placed into the window, so renaming "Evening" to "Sundown" must not
+ * orphan them. An entry being ADDED has no key yet and gets one derived from its label, made unique
+ * against the rest of the list.
+ * @param {any[]} list
+ * @returns {any[]}
+ */
+function normalizeWindowList(list) {
+  /** @type {string[]} */
+  const taken = [];
+  return list.map((/** @type {any} */ w) => {
+    const key = w.key && String(w.key).trim() ? String(w.key).trim() : keyFromLabel(w.label, taken);
+    taken.push(key);
+    return {
+      key,
+      label: String(w.label || key).slice(0, 40),
+      cutoff: w.cutoff,
+      start: w.start,
+      end: w.end,
+    };
+  });
+}
+
+/**
+ * Keep the pre-list `morningCutoff` / `eveningCutoff` columns pointing at the MORNING and EVENING
+ * windows while those still exist.
+ *
+ * Nothing in the API reads them any more — `communityWindows()` prefers the list. They are written
+ * so that rolling this deploy BACK leaves a coherent record rather than a community whose cut-offs
+ * silently revert to whatever they were before the operator last edited them.
+ * @param {any} c
+ */
+function syncLegacyCutoffs(c) {
+  if (!Array.isArray(c.windows)) return;
+  const at = (/** @type {string} */ k) =>
+    c.windows.find((/** @type {any} */ w) => w.key === k)?.cutoff;
+  if (at('MORNING')) c.morningCutoff = at('MORNING');
+  if (at('EVENING')) c.eveningCutoff = at('EVENING');
 }
 export function createCommunity(data) {
   const community = {
@@ -494,6 +540,12 @@ export function createCommunity(data) {
     eveningCutoff: data.eveningCutoff ?? '15:00',
     cutoffWarningMinutes: data.cutoffWarningMinutes ?? 15,
   };
+  // Windows are a list the admin edits freely. A create that names none gets the standard pair, so
+  // a brand-new community is orderable the moment it exists.
+  community.windows = normalizeWindowList(
+    data.windows?.length ? data.windows : communityWindows(community),
+  );
+  syncLegacyCutoffs(community);
   db.communities.push(community);
   persist.communityUpsert(community);
   return clone(community);

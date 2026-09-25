@@ -36,7 +36,7 @@ import { selectCustomer } from '../src/features/auth/authSlice';
 import { showToast } from '../src/features/ui/uiSlice';
 import { colors, radius } from '../src/theme';
 import { env } from '../src/lib/env';
-import { formatDateShort, WINDOWS } from '../src/lib/dates';
+import { formatDateShort, windowHours, windowLabel } from '../src/lib/dates';
 import { idempotencyKey } from '../src/lib/ids';
 import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
 import { haptic } from '../src/lib/haptics';
@@ -128,6 +128,15 @@ export default function Checkout() {
     const first = windows.data?.windows?.find((w) => w.isOpen);
     return first ? { date: first.date, window: first.window } : null;
   }, [slot, mustPick, windows.data]);
+  // The full window object behind that choice — it carries the operator's own name and delivery
+  // hours for the window, which the two-entry table in lib/dates cannot know for a custom one.
+  const chosenWindow = useMemo(
+    () =>
+      (windows.data?.windows || []).find(
+        (w) => w.date === chosenSlot?.date && w.window === chosenSlot?.window,
+      ) || null,
+    [windows.data, chosenSlot],
+  );
   // How many days a week this community actually delivers (distinct weekdays in the 14-day schedule)
   // — the sheet used to hard-code "three days a week", which was wrong for 4-day communities.
   const deliveryDayCount = useMemo(() => {
@@ -151,7 +160,7 @@ export default function Checkout() {
     haptic.success();
     notifyLocal(
       'Order confirmed',
-      `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${WINDOWS[order.window]?.label.toLowerCase()}.`,
+      `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${windowLabel(order.window).toLowerCase()}.`,
     );
     router.replace({ pathname: '/order/success', params: { id: order.id } });
   };
@@ -369,10 +378,14 @@ export default function Checkout() {
           icon={<Calendar size={18} color={colors.ink} />}
           title={
             chosenSlot
-              ? `${formatDateShort(chosenSlot.date)} · ${WINDOWS[chosenSlot.window]?.label}`
+              ? `${formatDateShort(chosenSlot.date)} · ${windowLabel(chosenSlot.window, chosenWindow)}`
               : 'Choose a delivery window'
           }
-          subtitle={chosenSlot ? WINDOWS[chosenSlot.window]?.hours : 'Morning 6–12 or evening 5–9'}
+          subtitle={
+            chosenSlot
+              ? windowHours(chosenSlot.window, chosenWindow)
+              : 'Pick the day and window that suit you'
+          }
           onPress={() => windowSheet.current?.present()}
           right={<Small color={colors.leafDeep}>Change</Small>}
           delay={60}

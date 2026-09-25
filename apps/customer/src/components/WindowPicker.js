@@ -1,10 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
-import { Moon, Sun } from 'lucide-react-native';
+import { Moon, Sun, Sunrise, Sunset } from 'lucide-react-native';
 import { Glass, Mono, Pressy, Skeleton, Small, Text } from '../ui';
 import { colors, fonts, radius, shadow } from '../theme';
-import { WINDOWS, dayNumber, dayShort, monthShort, relativeDayLabel } from '../lib/dates';
+import {
+  dayNumber,
+  dayShort,
+  monthShort,
+  relativeDayLabel,
+  windowHours,
+  windowLabel,
+} from '../lib/dates';
 
 /** "12:45" / "1:02:45" from a whole number of seconds. */
 function hms(totalSeconds) {
@@ -57,7 +64,23 @@ function CutoffCountdown({ windowId, secondsUntilCutoff, urgent }) {
 }
 
 /**
- * Date strip + morning/evening cards with remaining capacity.
+ * The look of a window, chosen from when it DELIVERS rather than from its key.
+ *
+ * A community can now name and time its own windows, so "is this the morning one?" is no longer
+ * answerable from the key — an operator may run one called "Afternoon" starting at 14:00. Reading
+ * the start hour means a new window gets a sensible icon and tint the day it is created, with no
+ * app release. Falls back to the key for a past order whose window no longer exists.
+ */
+function windowLook(w) {
+  const h = w?.start ? Number(String(w.start).slice(0, 2)) : w?.window === 'EVENING' ? 17 : 6;
+  if (h < 8) return { Icon: Sunrise, tint: colors.butter };
+  if (h < 15) return { Icon: Sun, tint: colors.butter };
+  if (h < 19) return { Icon: Sunset, tint: colors.lilac };
+  return { Icon: Moon, tint: colors.lilac };
+}
+
+/**
+ * Date strip + one card per window the community runs that day.
  * @param {{ windows: any[]|undefined, loading?: boolean, value: {date:string, window:string}|null, onChange: (v: {date:string, window:string}) => void }} props
  */
 export function WindowPicker({ windows, loading, value, onChange }) {
@@ -160,9 +183,9 @@ export function WindowPicker({ windows, loading, value, onChange }) {
       </Small>
       <Animated.View layout={LinearTransition.springify().damping(18)} style={{ gap: 10 }}>
         {slots.map((w) => {
-          const meta = WINDOWS[w.window];
           const active = value?.date === w.date && value?.window === w.window;
-          const Icon = w.window === 'MORNING' ? Sun : Moon;
+          const { Icon, tint } = windowLook(w);
+          const hours = windowHours(w.window, w);
           return (
             <Animated.View key={w.id} entering={FadeIn.duration(200)}>
               <Pressy
@@ -180,17 +203,12 @@ export function WindowPicker({ windows, loading, value, onChange }) {
                     !w.isOpen && { opacity: 0.5 },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.slotIcon,
-                      { backgroundColor: w.window === 'MORNING' ? colors.butter : colors.lilac },
-                    ]}
-                  >
+                  <View style={[styles.slotIcon, { backgroundColor: tint }]}>
                     <Icon size={20} color={colors.ink} strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text variant="bodyMedium">{meta.label}</Text>
-                    <Small muted>{meta.hours}</Small>
+                    <Text variant="bodyMedium">{windowLabel(w.window, w)}</Text>
+                    {hours ? <Small muted>{hours}</Small> : null}
                   </View>
                   {w.isOpen && countdownFor(w) > 0 ? (
                     <CutoffCountdown

@@ -152,7 +152,7 @@ adminOrdersRouter.post(
       communityId: community.id,
       block: pick(community.blocks),
       flat: `${1 + Math.floor(Math.random() * 15)}0${1 + Math.floor(Math.random() * 8)}`,
-      window: pick(['MORNING', 'EVENING']),
+      window: pick(['MORNING', 'EVENING']), // demo rows only — real orders carry the community's own keys
       deliveryDate,
       status: 'CONFIRMED',
       lines,

@@ -208,6 +208,17 @@ export default function Welcome() {
   // panel already listed five. Shows the real number once loaded.
   const communities = useGetCommunitiesQuery();
   const communityCount = communities.data?.communities?.length;
+  // Windows are operator-editable and differ per community, so "2 daily windows" stopped being a
+  // fact the moment they became a list. Show the most any community runs — it is the promise the
+  // headline is making ("a window you choose"), and it is true of at least one address.
+  //
+  // Falls back to 2 when no community reports any, which is the case for the whole gap between this
+  // update reaching a phone and the API that sends `windows` being deployed. An over-the-air update
+  // always wins that race, and two is what every community ran before the field existed — so the
+  // old server's answer stays right instead of the headline reading "– daily windows".
+  const windowCount =
+    communities.data?.communities?.reduce((most, c) => Math.max(most, c.windows?.length || 0), 0) ||
+    2;
   return (
     <View style={styles.root}>
       <Field />
@@ -252,7 +263,7 @@ export default function Welcome() {
               {[
                 [communityCount != null ? String(communityCount) : '–', 'communities'],
                 ['40+', 'farm items'],
-                ['2', 'daily windows'],
+                [String(windowCount), `daily window${windowCount === 1 ? '' : 's'}`],
               ].map(([n, l]) => (
                 <View key={l} style={{ flex: 1 }}>
                   <Text style={styles.stat}>{n}</Text>

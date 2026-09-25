@@ -9,6 +9,7 @@
 import { getProduct, listCategories } from './store.js';
 import { money } from './lib/money.js';
 import { categoryName, productName } from './lib/i18n.js';
+import { communityWindows } from './lib/windows.js';
 
 const rupees = (paise) => `₹${Math.round(Number(paise) / 100).toLocaleString('en-IN')}`;
 
@@ -126,7 +127,23 @@ export function categoryPublic(c) {
 }
 
 export function communityPublic(c) {
-  return { id: c.id, name: c.name, area: c.area, blocks: c.blocks, deliveryDays: c.deliveryDays };
+  return {
+    id: c.id,
+    name: c.name,
+    area: c.area,
+    blocks: c.blocks,
+    deliveryDays: c.deliveryDays,
+    // The windows this community actually runs, in the order of the day. Public because the app
+    // names and describes them to the customer; a client that predates this ignores it and falls
+    // back to the two it shipped with.
+    windows: communityWindows(c).map((w) => ({
+      key: w.key,
+      label: w.label,
+      hours: w.hours,
+      start: w.start,
+      end: w.end,
+    })),
+  };
 }
 
 export function communityAdmin(c) {
@@ -134,8 +151,12 @@ export function communityAdmin(c) {
     ...communityPublic(c),
     lat: c.lat,
     lng: c.lng,
-    morningCutoff: c.morningCutoff,
+    // Operator view carries the cut-off too — that is the field the admin edits.
+    windows: communityWindows(c),
     orderLeadDays: c.orderLeadDays ?? 1,
+    // Retained so a client built against the two-column shape keeps rendering. Both mirror the
+    // MORNING / EVENING entries above while those exist.
+    morningCutoff: c.morningCutoff,
     eveningCutoff: c.eveningCutoff,
     cutoffWarningMinutes: c.cutoffWarningMinutes,
     isActive: c.isActive !== false,

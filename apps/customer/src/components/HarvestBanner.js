@@ -5,15 +5,17 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ArrowRight, Sprout } from 'lucide-react-native';
 import { Glass, Pressy, Small, Text } from '../ui';
 import { colors, fonts, radius } from '../theme';
-import { relativeDayLabel } from '../lib/dates';
+import { relativeDayLabel, windowLabel } from '../lib/dates';
 
 /**
  * The "harvest" card: what is being picked tonight and when it lands. Dark glass over a green field.
  * @param {{ nextWindow?: { date: string, window: string }|null, onPress: () => void }} props
  */
 export function HarvestBanner({ nextWindow, onPress }) {
+  // Lower-cased because it reads as part of a sentence ("Tomorrow morning"), and taken from the
+  // window itself so a community that runs an afternoon slot doesn't get called an evening one.
   const when = nextWindow
-    ? `${relativeDayLabel(nextWindow.date)} ${nextWindow.window === 'MORNING' ? 'morning' : 'evening'}`
+    ? `${relativeDayLabel(nextWindow.date)} ${windowLabel(nextWindow.window, nextWindow).toLowerCase()}`
     : 'this week';
   return (
     <Animated.View entering={FadeInDown.duration(420).springify().damping(18)} style={styles.wrap}>

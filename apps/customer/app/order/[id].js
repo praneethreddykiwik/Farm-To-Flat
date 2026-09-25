@@ -31,7 +31,7 @@ import {
 } from '../../src/api/api';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { colors, radius } from '../../src/theme';
-import { formatDateShort, WINDOWS } from '../../src/lib/dates';
+import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
 import { notifyLocal } from '../../src/lib/notifications';
 
@@ -89,7 +89,7 @@ export default function OrderDetail() {
       .join('\n');
     const msg = [
       `Farm to Flat — invoice`,
-      `${order.orderNumber} · ${formatDateShort(order.deliveryDate)} · ${WINDOWS[order.window]?.label}`,
+      `${order.orderNumber} · ${formatDateShort(order.deliveryDate)} · ${windowLabel(order.window)}`,
       `${order.address.block} · ${order.address.flat}, ${order.address.communityName}`,
       '',
       lines,
@@ -213,9 +213,9 @@ export default function OrderDetail() {
             >
               <StatusPill status={order.status} />
               <Title style={{ marginTop: 10 }}>
-                {formatDateShort(order.deliveryDate)} · {WINDOWS[order.window]?.label}
+                {formatDateShort(order.deliveryDate)} · {windowLabel(order.window)}
               </Title>
-              <Small muted>{WINDOWS[order.window]?.hours}</Small>
+              {windowHours(order.window) ? <Small muted>{windowHours(order.window)}</Small> : null}
               <View style={styles.addr}>
                 <MapPin size={14} color={colors.leaf} />
                 <Small color={colors.ink2}>

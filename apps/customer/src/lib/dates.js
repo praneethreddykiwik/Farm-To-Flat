@@ -91,10 +91,50 @@ export function formatDateTime(ts) {
   }).format(d);
 }
 
+/**
+ * The two windows every community ran before they became operator-editable.
+ *
+ * This is now only a FALLBACK. A community defines its own list — it may run one window, or add an
+ * afternoon one — and the API sends each window's `label` and `hours` alongside its key. Use
+ * `windowLabel` / `windowHours` below rather than indexing this directly: they prefer what the
+ * server said, fall back to this map for the two familiar keys, and for anything else derive a
+ * readable name from the key itself ("LATE_NIGHT" → "Late night"), which is what keeps an app
+ * build older than the operator's newest window from rendering a blank.
+ */
 export const WINDOWS = {
   MORNING: { key: 'MORNING', label: 'Morning', hours: '6:00 – 12:00', start: 6, end: 12 },
   EVENING: { key: 'EVENING', label: 'Evening', hours: '5:00 – 9:00 pm', start: 17, end: 21 },
 };
+
+/**
+ * What to call a delivery window.
+ * @param {string} key      the window key stored on the order, e.g. MORNING, AFTERNOON
+ * @param {any} [w]         the window object from the API, when we have one (it carries `label`)
+ */
+export function windowLabel(key, w) {
+  if (w?.label) return w.label;
+  if (WINDOWS[key]) return WINDOWS[key].label;
+  const s = String(key || '')
+    .replace(/_/g, ' ')
+    .trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+}
+
+/**
+ * The delivery hours to show under a window's name, or '' when we don't know them — which is the
+ * case for a past order whose window the operator has since removed. Callers render nothing rather
+ * than guessing, because a wrong time at the door is worse than no time.
+ */
+export function windowHours(key, w) {
+  if (w?.hours) return w.hours;
+  return WINDOWS[key]?.hours || '';
+}
+
+/** An icon bucket for a window, from when it actually starts. '' falls back to the key. */
+export function windowIsEarly(key, w) {
+  const start = w?.start ? Number(String(w.start).slice(0, 2)) : WINDOWS[key]?.start;
+  return start == null ? key === 'MORNING' : start < 15;
+}
 
 /** Greeting by IST hour */
 export function greeting() {

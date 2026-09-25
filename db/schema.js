@@ -31,9 +31,11 @@ export const ENUMS = {
     'CANCELLED',
     'PAYMENT_FAILED',
   ],
-  // Named delivery_slot, not delivery_window: a table `delivery_window` also exists, and Postgres
-  // shares one namespace between tables and types, so the enum must not reuse that name.
-  delivery_slot: ['MORNING', 'EVENING'],
+  // No delivery_slot enum any more. Windows are per-community and operator-editable — a community
+  // may run one, or an afternoon run as well — so the set of valid keys is not fixed at the schema
+  // level and the `window` columns are plain text. (The enum was once named delivery_slot rather
+  // than delivery_window because a `delivery_window` TABLE also exists, and Postgres shares one
+  // namespace between tables and types.)
   ledger_direction: ['CREDIT', 'DEBIT'],
   ledger_source: ['TOPUP', 'ORDER', 'REFUND', 'ADJUSTMENT'],
   coupon_type: ['PERCENT', 'FLAT', 'FREE_ITEM'],
@@ -198,7 +200,7 @@ create table if not exists delivery_window (
   id            uuid primary key default gen_random_uuid(),
   community_id  uuid not null references community(id) on delete cascade,
   delivery_date date not null,
-  "window"      delivery_slot not null,
+  "window"      text not null,          -- a community-defined window key, e.g. MORNING
   capacity      int not null,
   booked        int not null default 0,
   created_at    timestamptz not null default now(),
@@ -213,7 +215,7 @@ create table if not exists orders (
   address_id           uuid not null references address(id),
   delivery_window_id   uuid references delivery_window(id),
   delivery_date        date not null,
-  "window"             delivery_slot not null,
+  "window"             text not null,                    -- community-defined window key
   status               order_status not null default 'PENDING_PAYMENT',
   subtotal_paise       bigint not null default 0,
   coupon_id            uuid,

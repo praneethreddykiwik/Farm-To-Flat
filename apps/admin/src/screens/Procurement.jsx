@@ -10,7 +10,7 @@ import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { CountRupee, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconCheck, IconDownload, IconCopy } from '../components/icons.jsx';
-import { inr, num, shortDate } from '../lib/format.js';
+import { inr, num, shortDate, titleCase } from '../lib/format.js';
 
 const UNIT_SHORT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: 'pack' };
 const qty = (q, unit) =>
@@ -119,6 +119,8 @@ export function Procurement() {
 
   const dates = data?.dates || [];
   const communities = data?.communities || [];
+  // key → the operator's own name for that window, for both the filter and the spreadsheet header.
+  const windowLabels = new Map((data?.windows || []).map((w) => [w.key, w.label]));
 
   async function saveBuffer(productId, rawValue, currentPct) {
     setEditBuf((s) => {
@@ -175,7 +177,7 @@ export function Procurement() {
         : 'All open days';
     const where =
       communityId !== 'all' ? communities.find((c) => c.id === communityId)?.name : null;
-    const slot = win !== 'all' ? (win === 'MORNING' ? 'Morning' : 'Evening') : null;
+    const slot = win !== 'all' ? windowLabels.get(win) || titleCase(win) : null;
 
     const head = ['FARM TO FLAT · Buy list', dayLabel, where, slot].filter(Boolean).join(' · ');
 
@@ -469,7 +471,9 @@ export function Procurement() {
         <span className="spacer" />
         {/* Buying for one apartment complex is a different run from buying for all seven, and the
             slot matters too — the morning bag is picked before the evening one. Both narrow the
-            list AND the spreadsheet, so what the buyer carries to the market is what they see. */}
+            list AND the spreadsheet, so what the buyer carries to the market is what they see.
+            The slot list is the UNION of every community's windows, because the buyer shops across
+            communities that may not run the same ones. */}
         <span className="muted" style={{ fontSize: 12.5 }}>
           Community
         </span>
@@ -495,9 +499,12 @@ export function Procurement() {
           value={win}
           onChange={(e) => setWin(e.target.value)}
         >
-          <option value="all">Both</option>
-          <option value="MORNING">Morning</option>
-          <option value="EVENING">Evening</option>
+          <option value="all">All slots</option>
+          {[...windowLabels].map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
         </select>
         <span className="spacer" />
         <span className="muted" style={{ fontSize: 12.5 }}>

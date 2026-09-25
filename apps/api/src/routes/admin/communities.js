@@ -2,7 +2,7 @@
  * Admin communities + delivery-window config.
  *   GET   /admin/communities            operator view (capacity, cut-off, lat/lng, active flag)
  *   POST  /admin/communities            add a serviceable community
- *   PATCH /admin/communities/:id        edit capacity, delivery days, blocks, active flag
+ *   PATCH /admin/communities/:id        edit delivery days, windows, blocks, active flag
  *   GET   /admin/communities/:id/windows?date=   the generated schedule for one community
  */
 import { Router } from 'express';
@@ -38,6 +38,23 @@ const CreateCommunity = z.object({
   // 0 = same-day ordering allowed; 1 = order today, delivered tomorrow (the default).
   orderLeadDays: z.coerce.number().int().min(0).max(7).optional(),
   eveningCutoff: clockTime.optional(),
+  // The community's delivery windows, sent WHOLE: the admin edits the list and PATCHes all of it,
+  // so adding, renaming, re-timing and removing are one atomic write rather than four endpoints
+  // that can half-apply. An entry with a `key` is being edited and keeps that key (orders point at
+  // it); an entry without one is new and the store derives its key from the label.
+  windows: z
+    .array(
+      z.object({
+        key: z.string().min(1).max(32).optional(),
+        label: z.string().min(1).max(40),
+        cutoff: clockTime,
+        start: clockTime,
+        end: clockTime,
+      }),
+    )
+    .min(1, 'A community needs at least one delivery window.')
+    .max(6, 'Six windows a day is already more than anyone can staff.')
+    .optional(),
   cutoffWarningMinutes: z.number().int().min(1).max(120).optional(),
   blocks: z.array(z.string().max(40)).max(100),
 });

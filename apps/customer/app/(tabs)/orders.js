@@ -20,7 +20,7 @@ import {
 import { CartBar } from '../../src/components/CartBar';
 import { useGetOrdersQuery } from '../../src/api/api';
 import { colors, motion, radius } from '../../src/theme';
-import { formatDateShort, WINDOWS } from '../../src/lib/dates';
+import { formatDateShort, windowLabel } from '../../src/lib/dates';
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
@@ -93,7 +93,7 @@ export default function Orders() {
                     <View style={styles.mid}>
                       <View style={{ flex: 1 }}>
                         <Text variant="h3">
-                          {formatDateShort(o.deliveryDate)} · {WINDOWS[o.window]?.label}
+                          {formatDateShort(o.deliveryDate)} · {windowLabel(o.window)}
                         </Text>
                         <Small muted numberOfLines={1} style={{ marginTop: 2 }}>
                           {o.items.map((it) => it.name).join(', ')}

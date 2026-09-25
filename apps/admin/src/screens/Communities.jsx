@@ -1,11 +1,20 @@
 /**
- * Communities & delivery windows. Left: the serviceable communities with delivery days and their
- * order cut-off times. Right: the selected community's live 14-day window schedule, each window
- * showing whether it's open and (inside the warning period) a live countdown to its cut-off.
+ * Communities & delivery windows. Left: the serviceable communities with delivery days and the
+ * windows they run. Right: the selected community's live 14-day schedule, each window showing
+ * whether it's open and a live countdown to its cut-off.
  *
- * There is no capacity/booking-count limit any more — a window only closes when its cut-off clock
- * time passes for that delivery date. Editing a cut-off PATCHes /admin/communities/:id and the
- * schedule refetches.
+ * WINDOWS ARE EDITABLE. A community is no longer stuck with morning + evening: add an afternoon
+ * run, rename what customers see, re-time a delivery band, or drop a window entirely. The editor
+ * holds a DRAFT of the whole list and PATCHes it in one write, because half-applying a list edit
+ * (window added, removal not yet saved) is the state that would let a customer order into a window
+ * nobody is staffing.
+ *
+ * A window's `key` is its identity and never changes — it is stamped on every order placed into it,
+ * so renaming "Evening" to "Sundown" must not orphan them. Only new windows get a key, derived
+ * server-side from the label. Removing a window stops it being offered; past orders keep reading.
+ *
+ * There is no capacity/booking-count limit — a window only closes when its cut-off clock time
+ * passes for that delivery date.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useResource, toast } from '../lib/useApi.js';
@@ -27,21 +36,6 @@ export function Communities() {
     if (!selId && communities.length) setSelId(communities[0].id);
   }, [communities, selId]);
 
-  // Debounced-by-blur cut-off time edit: the input holds its own draft value and only PATCHes when
-  // it's a complete, valid HH:MM and differs from what's saved — typing "0" then "3" then "3:" etc.
-  // never fires a request for a half-typed time.
-  const CLOCK_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-  async function setCutoff(c, field, value) {
-    if (!CLOCK_RE.test(value) || value === c[field]) return;
-    try {
-      await api.patch(`/admin/communities/${c.id}`, { [field]: value });
-      toast(`${c.name} · ${field === 'morningCutoff' ? 'Morning' : 'Evening'} cut-off → ${value}`);
-      reload();
-    } catch (e) {
-      toast(e.message || 'Could not update', 'err');
-    }
-  }
-
   async function toggleDay(c, dayIndex) {
     const has = c.deliveryDays.includes(dayIndex);
     const deliveryDays = has
@@ -62,9 +56,7 @@ export function Communities() {
       <header className="topbar">
         <div>
           <h1 className="page-title">Communities & windows</h1>
-          <p className="page-sub">
-            {communities.length} serviceable · cut-off times and delivery days
-          </p>
+          <p className="page-sub">{communities.length} serviceable · delivery days and windows</p>
         </div>
         <button className="btn btn--primary" onClick={() => setAdding(true)}>
           <IconPlus size={18} /> New community
@@ -145,23 +137,8 @@ export function Communities() {
                   ))}
                 </div>
 
-                <div
-                  className="hstack"
-                  style={{ gap: 14, marginTop: 12 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <CutoffField
-                    label="Morning closes"
-                    icon="🌅"
-                    value={c.morningCutoff}
-                    onCommit={(v) => setCutoff(c, 'morningCutoff', v)}
-                  />
-                  <CutoffField
-                    label="Evening closes"
-                    icon="🌇"
-                    value={c.eveningCutoff}
-                    onCommit={(v) => setCutoff(c, 'eveningCutoff', v)}
-                  />
+                <div style={{ marginTop: 14 }} onClick={(e) => e.stopPropagation()}>
+                  <WindowEditor community={c} onSaved={reload} />
                 </div>
               </div>
             ))}
@@ -248,12 +225,12 @@ function WindowSchedule({ communityId, community }) {
               <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 7 }}>
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{shortDate(date)}</span>
               </div>
-              <div className="hstack" style={{ gap: 10 }}>
+              <div className="hstack" style={{ gap: 10, flexWrap: 'wrap' }}>
                 {ws.map((w) => (
                   <div
                     key={w.id}
                     style={{
-                      flex: 1,
+                      flex: '1 1 180px',
                       padding: '10px 12px',
                       borderRadius: 12,
                       background: 'rgba(255,255,255,0.6)',
@@ -266,7 +243,7 @@ function WindowSchedule({ communityId, community }) {
                       style={{ justifyContent: 'space-between', marginBottom: 6 }}
                     >
                       <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em' }}>
-                        {w.window === 'MORNING' ? '🌅 Morning' : '🌇 Evening'}
+                        {windowEmoji(w.start)} {w.label || w.window}
                       </span>
                       <WindowStatus w={w} />
                     </div>
@@ -284,33 +261,194 @@ function WindowSchedule({ communityId, community }) {
   );
 }
 
-/** Inline HH:MM cut-off editor. Local draft state so a half-typed time never PATCHes; commits on
- * blur or Enter, only when the value is a valid, changed time. */
-function CutoffField({ label, icon, value, onCommit }) {
-  const [draft, setDraft] = useState(value || '');
-  useEffect(() => setDraft(value || ''), [value]);
+/** An emoji for a window, from when it actually starts — so a 14:00 run doesn't get a sunrise. */
+export function windowEmoji(start) {
+  const h = Number(String(start || '06:00').slice(0, 2));
+  if (h < 11) return '🌅';
+  if (h < 16) return '☀️';
+  if (h < 19) return '🌇';
+  return '🌙';
+}
+
+const CLOCK_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DEFAULT_NEW_WINDOW = { label: 'Afternoon', cutoff: '09:30', start: '14:00', end: '17:00' };
+
+/**
+ * Add / edit / re-time / remove a community's delivery windows.
+ *
+ * Edits accumulate in a local draft and save as ONE PATCH of the whole list. That is deliberate:
+ * per-row saving would let "evening removed" land while "afternoon added" failed, leaving a
+ * community advertising a window nobody is staffing. Save is disabled until the draft is both
+ * different and valid, so the operator cannot write a half-finished list either.
+ */
+function WindowEditor({ community, onSaved }) {
+  const saved = useMemo(() => community.windows || [], [community.windows]);
+  const [draft, setDraft] = useState(saved);
+  const [saving, setSaving] = useState(false);
+  // Re-sync when the community reloads (someone else edited it, or our own save came back).
+  useEffect(() => setDraft(saved), [saved]);
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const invalid =
+    draft.length === 0 ||
+    draft.some(
+      (w) =>
+        !w.label?.trim() ||
+        !CLOCK_RE.test(w.cutoff || '') ||
+        !CLOCK_RE.test(w.start || '') ||
+        !CLOCK_RE.test(w.end || ''),
+    );
+
+  const edit = (i, patch) => setDraft((d) => d.map((w, j) => (j === i ? { ...w, ...patch } : w)));
+  const remove = (i) => setDraft((d) => d.filter((_, j) => j !== i));
+  const add = () => setDraft((d) => [...d, { ...DEFAULT_NEW_WINDOW }]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      // Sent whole. `key` rides along on existing rows so the server keeps them; new rows have
+      // none and the server derives one from the label.
+      await api.patch(`/admin/communities/${community.id}`, { windows: draft });
+      toast(`${community.name} · ${draft.length} window${draft.length === 1 ? '' : 's'} saved`);
+      onSaved();
+    } catch (e) {
+      toast(e.message || 'Could not save windows', 'err');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div>
-      <div className="muted" style={{ fontSize: 10.5, marginBottom: 3 }}>
-        {icon} {label}
+    <div className="vstack" style={{ gap: 8 }}>
+      <div className="muted" style={{ fontSize: 10.5, letterSpacing: '0.04em' }}>
+        DELIVERY WINDOWS
       </div>
-      <input
-        className="field__input cutoff-time-input"
-        style={{
-          padding: '7px 10px',
-          width: '100%',
-          minWidth: 118,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 13.5,
-          letterSpacing: 0.2,
-          borderRadius: 10,
-        }}
-        type="time"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => onCommit(draft)}
-        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-      />
+      {draft.map((w, i) => (
+        <div key={w.key || `new-${i}`} className="vstack" style={WINDOW_ROW}>
+          {/* Name on its own line: three time inputs beside it squeezed it to "Morn". */}
+          <div className="hstack" style={{ gap: 8 }}>
+            <span style={{ fontSize: 16 }}>{windowEmoji(w.start)}</span>
+            <input
+              className="field__input"
+              style={{ ...INPUT, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600 }}
+              value={w.label || ''}
+              maxLength={40}
+              placeholder="Afternoon"
+              aria-label="Window name"
+              onChange={(e) => edit(i, { label: noLead(e.target.value) })}
+            />
+            <button
+              className="btn btn--ghost"
+              title={
+                draft.length === 1
+                  ? 'A community needs at least one window'
+                  : `Remove ${w.label || 'this window'}`
+              }
+              disabled={draft.length === 1}
+              onClick={() => remove(i)}
+              style={{ padding: '5px 9px' }}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="hstack" style={{ gap: 10, alignItems: 'flex-end' }}>
+            <WinField label="Delivers" grow>
+              <div className="hstack" style={{ gap: 4 }}>
+                <input
+                  className="field__input cutoff-time-input"
+                  style={INPUT}
+                  type="time"
+                  aria-label="Delivery starts"
+                  value={w.start || ''}
+                  onChange={(e) => edit(i, { start: e.target.value })}
+                />
+                <input
+                  className="field__input cutoff-time-input"
+                  style={INPUT}
+                  type="time"
+                  aria-label="Delivery ends"
+                  value={w.end || ''}
+                  onChange={(e) => edit(i, { end: e.target.value })}
+                />
+              </div>
+            </WinField>
+            <WinField label="Orders close" grow>
+              <input
+                className="field__input cutoff-time-input"
+                style={INPUT}
+                type="time"
+                aria-label="Orders close at"
+                value={w.cutoff || ''}
+                onChange={(e) => edit(i, { cutoff: e.target.value })}
+              />
+            </WinField>
+          </div>
+        </div>
+      ))}
+      <div className="hstack" style={{ gap: 8 }}>
+        <button
+          className="btn btn--ghost"
+          onClick={add}
+          disabled={draft.length >= 6}
+          title={draft.length >= 6 ? 'Six windows a day is already a lot to staff' : 'Add a window'}
+          style={{ padding: '6px 11px', fontSize: 12.5 }}
+        >
+          <IconPlus size={15} /> Add window
+        </button>
+        {dirty && (
+          <>
+            <button
+              className="btn btn--primary"
+              onClick={save}
+              disabled={saving || invalid}
+              title={invalid ? 'Every window needs a name and three valid times' : 'Save'}
+              style={{ padding: '6px 13px', fontSize: 12.5 }}
+            >
+              {saving ? 'Saving…' : 'Save windows'}
+            </button>
+            <button
+              className="btn btn--ghost"
+              onClick={() => setDraft(saved)}
+              style={{ padding: '6px 11px', fontSize: 12.5 }}
+            >
+              Discard
+            </button>
+          </>
+        )}
+      </div>
+      <p className="field__hint" style={{ margin: 0 }}>
+        Orders for a window stop at its close time on the delivery day itself — no booking limit,
+        only the clock. Renaming a window keeps its past orders; removing one stops it being
+        offered.
+      </p>
+    </div>
+  );
+}
+
+const WINDOW_ROW = {
+  gap: 8,
+  padding: '10px 11px',
+  borderRadius: 12,
+  background: 'rgba(255,255,255,0.55)',
+  border: '1px solid var(--hairline)',
+};
+
+const INPUT = {
+  padding: '6px 9px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12.5,
+  borderRadius: 9,
+  minWidth: 0,
+  width: '100%',
+};
+
+function WinField({ label, grow, children }) {
+  return (
+    <div style={{ flex: grow ? 1 : '0 0 auto', minWidth: 0 }}>
+      <div className="muted" style={{ fontSize: 10, marginBottom: 3 }}>
+        {label}
+      </div>
+      {children}
     </div>
   );
 }
@@ -321,13 +459,19 @@ function CommunityForm({ onClose, onSaved }) {
     name: '',
     area: '',
     blocks: '',
-    morningCutoff: '03:45',
-    eveningCutoff: '15:00',
+    // Seeded with the pair almost every community runs; the operator adds, renames or removes
+    // before saving, exactly as they would afterwards.
+    windows: [
+      { label: 'Morning', cutoff: '03:45', start: '06:00', end: '12:00' },
+      { label: 'Evening', cutoff: '15:00', start: '17:00', end: '21:00' },
+    ],
     // Start a new community delivering every day (admin deselects the days it doesn't serve),
     // so it has full windows immediately instead of only Tue/Thu/Sat.
     deliveryDays: [0, 1, 2, 3, 4, 5, 6],
   });
   const [saving, setSaving] = useState(false);
+  const setWindow = (i, patch) =>
+    setF((s) => ({ ...s, windows: s.windows.map((w, j) => (j === i ? { ...w, ...patch } : w)) }));
   const toggle = (i) =>
     setF((s) => ({
       ...s,
@@ -344,14 +488,16 @@ function CommunityForm({ onClose, onSaved }) {
     if (!f.name.trim() || !f.area.trim()) return toast('Name and area are required.', 'err');
     if (blocks.length === 0) return toast('Add at least one block/tower.', 'err');
     if (f.deliveryDays.length === 0) return toast('Pick at least one delivery day.', 'err');
+    if (f.windows.length === 0) return toast('Add at least one delivery window.', 'err');
+    if (f.windows.some((w) => !w.label.trim()))
+      return toast('Every delivery window needs a name.', 'err');
     setSaving(true);
     try {
       const { community } = await api.post('/admin/communities', {
         name: f.name.trim(),
         area: f.area.trim(),
         blocks,
-        morningCutoff: f.morningCutoff,
-        eveningCutoff: f.eveningCutoff,
+        windows: f.windows,
         deliveryDays: f.deliveryDays,
       });
       toast(`${community.name} added — live in the app`);
@@ -430,30 +576,89 @@ function CommunityForm({ onClose, onSaved }) {
           ))}
         </div>
       </div>
-      <div className="field__row">
-        <div className="field">
-          <label className="field__label">Morning window closes</label>
-          <input
-            className="field__input"
-            type="time"
-            value={f.morningCutoff}
-            onChange={(e) => setF((s) => ({ ...s, morningCutoff: e.target.value }))}
-          />
+      <div className="field">
+        <label className="field__label">Delivery windows</label>
+        <div className="vstack" style={{ gap: 8 }}>
+          {f.windows.map((w, i) => (
+            <div key={i} className="vstack" style={WINDOW_ROW}>
+              <div className="hstack" style={{ gap: 8 }}>
+                <span style={{ fontSize: 16 }}>{windowEmoji(w.start)}</span>
+                <input
+                  className="field__input"
+                  style={{ ...INPUT, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600 }}
+                  value={w.label}
+                  maxLength={40}
+                  aria-label="Window name"
+                  onChange={(e) => setWindow(i, { label: noLead(e.target.value) })}
+                />
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={f.windows.length === 1}
+                  title={
+                    f.windows.length === 1
+                      ? 'A community needs at least one window'
+                      : 'Remove window'
+                  }
+                  onClick={() =>
+                    setF((s) => ({ ...s, windows: s.windows.filter((_, j) => j !== i) }))
+                  }
+                  style={{ padding: '5px 9px' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="hstack" style={{ gap: 10, alignItems: 'flex-end' }}>
+                <WinField label="Delivers" grow>
+                  <div className="hstack" style={{ gap: 4 }}>
+                    <input
+                      className="field__input"
+                      style={INPUT}
+                      type="time"
+                      aria-label="Delivery starts"
+                      value={w.start}
+                      onChange={(e) => setWindow(i, { start: e.target.value })}
+                    />
+                    <input
+                      className="field__input"
+                      style={INPUT}
+                      type="time"
+                      aria-label="Delivery ends"
+                      value={w.end}
+                      onChange={(e) => setWindow(i, { end: e.target.value })}
+                    />
+                  </div>
+                </WinField>
+                <WinField label="Orders close" grow>
+                  <input
+                    className="field__input"
+                    style={INPUT}
+                    type="time"
+                    aria-label="Orders close at"
+                    value={w.cutoff}
+                    onChange={(e) => setWindow(i, { cutoff: e.target.value })}
+                  />
+                </WinField>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={f.windows.length >= 6}
+            onClick={() =>
+              setF((s) => ({ ...s, windows: [...s.windows, { ...DEFAULT_NEW_WINDOW }] }))
+            }
+            style={{ padding: '6px 11px', fontSize: 12.5, alignSelf: 'flex-start' }}
+          >
+            <IconPlus size={15} /> Add window
+          </button>
         </div>
-        <div className="field">
-          <label className="field__label">Evening window closes</label>
-          <input
-            className="field__input"
-            type="time"
-            value={f.eveningCutoff}
-            onChange={(e) => setF((s) => ({ ...s, eveningCutoff: e.target.value }))}
-          />
-        </div>
+        <p className="field__hint">
+          Orders for a window stop at its close time on the delivery day itself — no booking limit,
+          only the clock. Add as many runs a day as you can staff.
+        </p>
       </div>
-      <p className="field__hint">
-        Orders for each window stop being accepted at this time on the delivery day itself — no
-        booking limit, only the clock. Customers see a live countdown in the last 15 minutes.
-      </p>
     </Drawer>
   );
 }
