@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Animated, {
   FadeInDown,
   FadeOut,
@@ -31,17 +31,24 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCart, useCartLine } from '../src/hooks/useCart';
 import {
+  useGetCatalogQuery,
   useGetCouponsQuery,
   useRemoveCartItemMutation,
   useRemoveCouponMutation,
   useSetCartItemMutation,
 } from '../src/api/api';
-import { showToast } from '../src/features/ui/uiSlice';
+import { showToast, selectLanguage } from '../src/features/ui/uiSlice';
+import { productLabel, t } from '../src/lib/i18n';
 import { colors, fonts, motion, radius } from '../src/theme';
 import { haptic } from '../src/lib/haptics';
 
-function Line({ item }) {
+function Line({ item, catalogProduct }) {
   const { quantity, setQuantity } = useCartLine({ id: item.productId, name: item.name });
+  const lang = useSelector(selectLanguage);
+  // The server's cart line carries only the English name — the three-language `names` map lives on
+  // the catalog product. Look it up so the basket reads in the same language as the shelf the item
+  // was picked from; falls back to what the line already says when the catalog has not loaded.
+  const name = productLabel(catalogProduct || item, lang) || item.name;
   const [remove] = useRemoveCartItemMutation();
   const [setCartItem] = useSetCartItemMutation();
   const [noteOpen, setNoteOpen] = useState(false);
@@ -61,14 +68,14 @@ function Line({ item }) {
         uri={item.image}
         blurhash={item.blurhash}
         tint={item.tint}
-        name={item.name}
+        name={name}
         size={64}
         radius={radius.md}
         recyclingKey={item.productId}
       />
       <View style={{ flex: 1 }}>
         <Text variant="bodyMedium" numberOfLines={1}>
-          {item.name}
+          {name}
         </Text>
         <Small muted>
           ₹{Math.round(Number(item.unitPricePaise) / 100)}{' '}
@@ -91,7 +98,7 @@ function Line({ item }) {
             onBlur={saveNote}
             onSubmitEditing={saveNote}
             autoFocus
-            placeholder="e.g. clean and cut into curry pieces"
+            placeholder={t('notePlaceholder', lang)}
             placeholderTextColor={colors.ink3}
             returnKeyType="done"
             style={styles.noteInput}
@@ -101,11 +108,11 @@ function Line({ item }) {
             onPress={() => setNoteOpen(true)}
             haptics="soft"
             style={styles.noteBtn}
-            accessibilityLabel={item.note ? 'Edit note' : 'Add a note'}
+            accessibilityLabel={item.note ? t('editNote', lang) : t('addNote', lang)}
           >
             <NotebookPen size={13} color={colors.leafDeep} />
             <Small color={item.note ? colors.ink2 : colors.leafDeep} numberOfLines={1}>
-              {item.note ? `“${item.note}”` : 'Add a note'}
+              {item.note ? `“${item.note}”` : t('addNote', lang)}
             </Small>
           </Pressy>
         )}
@@ -117,7 +124,7 @@ function Line({ item }) {
         <Pressy
           onPress={() => remove(item.id)}
           haptics="select"
-          accessibilityLabel={`Remove ${item.name}`}
+          accessibilityLabel={`${t('remove', lang)} ${name}`}
           style={styles.trash}
         >
           <Trash2 size={16} color={colors.ink3} />
@@ -158,7 +165,10 @@ function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCou
   // That last distinction is the point. Coupons are opt-in — qualifying for one changes nothing
   // until it is applied — so this line used to read "You've unlocked every offer 🎉" over a total
   // that still charged full price. Now it either names the applied coupon or says one is waiting.
-  const rupeesTo = (t) => Math.ceil((t - sub) / 100);
+  // NOTE: these nudges stay English on purpose. They interpolate the coupon's `discountText`,
+  // which the server sends in English only, and a sentence that is half Telugu and half English
+  // reads worse than one that commits. Translate these once coupons carry localised text.
+  const rupeesTo = (n) => Math.ceil((n - sub) / 100);
   const built = Math.floor(sub / 100);
   let message;
   if (belowMin) {
@@ -211,6 +221,11 @@ export default function Cart() {
   }, [couponData]);
   const items = cart?.items || [];
   const isSheet = Platform.OS === 'ios';
+  const lang = useSelector(selectLanguage);
+  // productId → catalog product, so each basket line can be named in the shopper's language. The
+  // catalog is already cached from the shelf they picked from, so this costs nothing.
+  const { data: catalog } = useGetCatalogQuery();
+  const byId = useMemo(() => new Map((catalog?.products || []).map((p) => [p.id, p])), [catalog]);
 
   const navigating = useRef(false);
   // The basket is a native form sheet pushed from the tab bar; dismiss() is the reliable way out.
@@ -250,14 +265,14 @@ export default function Cart() {
           <Ambient intensity={0.7} />
           <View style={[styles.header, { paddingTop: isSheet ? 18 : insets.top + 12 }]}>
             <View style={{ flex: 1 }}>
-              <Display>Your basket</Display>
+              <Display>{t('yourBasket', lang)}</Display>
               <Small muted style={{ marginTop: 2 }}>
                 {items.length
                   ? `${items.length} ${items.length === 1 ? 'item' : 'items'} · prices lock at checkout`
-                  : 'Nothing here yet'}
+                  : t('nothingYet', lang)}
               </Small>
             </View>
-            <Pressy onPress={close} haptics="select" accessibilityLabel="Close">
+            <Pressy onPress={close} haptics="select" accessibilityLabel={t('close', lang)}>
               <Glass radius={radius.pill} innerStyle={styles.close}>
                 <X size={20} color={colors.ink} />
               </Glass>
@@ -272,9 +287,9 @@ export default function Cart() {
           ) : items.length === 0 ? (
             <EmptyState
               icon={<ShoppingBasket size={30} color={colors.ink2} />}
-              title="An empty basket"
-              message="Add anything from the catalog. Minimum order is ₹500 and delivery is free."
-              action={{ title: 'Browse', onPress: browse }}
+              title={t('emptyBasket', lang)}
+              message={t('emptyBasketSub', lang)}
+              action={{ title: t('browse', lang), onPress: browse }}
             />
           ) : (
             <>
@@ -285,7 +300,7 @@ export default function Cart() {
                 <Animated.View entering={FadeInDown.duration(360).springify().damping(18)}>
                   <Glass radius={radius.lg} innerStyle={{ paddingHorizontal: 14 }}>
                     {items.map((it) => (
-                      <Line key={it.id} item={it} />
+                      <Line key={it.id} item={it} catalogProduct={byId.get(it.productId)} />
                     ))}
                   </Glass>
                 </Animated.View>
@@ -300,12 +315,12 @@ export default function Cart() {
                     onPress={browse}
                     haptics="soft"
                     scale={0.985}
-                    accessibilityLabel="Add more items"
+                    accessibilityLabel={t('addMoreItems', lang)}
                   >
                     <Glass radius={radius.lg} innerStyle={styles.addMore}>
                       <Plus size={17} color={colors.leafDeep} />
                       <Text variant="bodyMedium" color={colors.leafDeep}>
-                        Add more items
+                        {t('addMoreItems', lang)}
                       </Text>
                     </Glass>
                   </Pressy>
@@ -331,12 +346,12 @@ export default function Cart() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text variant="bodyMedium">
-                          {cart.coupon ? cart.coupon.code : 'Add a coupon'}
+                          {cart.coupon ? cart.coupon.code : t('addCoupon', lang)}
                         </Text>
                         <Small muted>
                           {cart.coupon
                             ? `${cart.coupon.label} · tap to remove`
-                            : 'From the brochure or the packet sticker'}
+                            : t('couponSource', lang)}
                         </Small>
                       </View>
                       {cart.coupon ? (
@@ -355,7 +370,7 @@ export default function Cart() {
                   style={{ marginTop: 14 }}
                 >
                   <Glass radius={radius.lg} innerStyle={{ padding: 16 }}>
-                    <Row label="Subtotal" paise={cart.subtotalPaise} />
+                    <Row label={t('subtotal', lang)} paise={cart.subtotalPaise} />
                     {Number(cart.couponDiscountPaise) > 0 ? (
                       <Row
                         label="Coupon"
@@ -363,7 +378,7 @@ export default function Cart() {
                         color={colors.leafDeep}
                       />
                     ) : null}
-                    <Row label="Delivery" paise={cart.deliveryChargePaise} free />
+                    <Row label={t('delivery', lang)} paise={cart.deliveryChargePaise} free />
                     <MinimumBar
                       subtotal={cart.subtotalPaise}
                       minimum={cart.minOrderValuePaise}
@@ -381,11 +396,11 @@ export default function Cart() {
               >
                 <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.footerInner}>
                   <View style={{ flex: 1 }}>
-                    <Small color="rgba(243,245,239,0.65)">Total</Small>
+                    <Small color="rgba(243,245,239,0.65)">{t('total', lang)}</Small>
                     <Money paise={cart.totalPaise} animated color={colors.inkOnDark} variant="h2" />
                   </View>
                   <Button
-                    title="Checkout"
+                    title={t('checkout', lang)}
                     variant="accent"
                     size="md"
                     full={false}

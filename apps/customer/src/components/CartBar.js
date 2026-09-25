@@ -8,6 +8,9 @@ import { Glass, Money, Pressy, Small, Text } from '../ui';
 import { colors, radius } from '../theme';
 import { useCart } from '../hooks/useCart';
 import { useGetCouponsQuery } from '../api/api';
+import { useSelector } from 'react-redux';
+import { selectLanguage } from '../features/ui/uiSlice';
+import { t } from '../lib/i18n';
 
 /**
  * Floating "view basket" bar that slides up above the tab bar the moment the basket has anything in it.
@@ -18,6 +21,7 @@ export function CartBar({ bottom }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { cart, count } = useCart();
+  const lang = useSelector(selectLanguage);
   const subtotal = Number(cart?.subtotalPaise || 0);
   // Coupons + their live "meetsMinimum" for THIS subtotal, so we know the next tier to nudge toward.
   const { data: couponData } = useGetCouponsQuery(subtotal, { skip: !cart || count === 0 });
@@ -44,7 +48,9 @@ export function CartBar({ bottom }) {
 
   const min = Number(cart.minOrderValuePaise);
   const short = min - subtotal;
-  const rupeesTo = (t) => Math.ceil((t - subtotal) / 100);
+  // Same note as the basket's MinimumBar: the coupon nudges interpolate the server's English-only
+  // `discountText`, so they stay English rather than reading half-translated.
+  const rupeesTo = (n) => Math.ceil((n - subtotal) / 100);
   // Live nudge: reach ₹500 (and the first offer it qualifies for), then each higher coupon tier.
   const applied = cart.coupon;
   let nudge;
@@ -63,7 +69,7 @@ export function CartBar({ bottom }) {
     // Eligible but not applied: tell them it is theirs to take, and where to take it.
     nudge = `${availableCoupon.discountText} available — add it in your basket`;
   } else {
-    nudge = 'Ready to check out';
+    nudge = t('readyToCheckout', lang);
     chasing = false;
   }
   return (
@@ -78,7 +84,7 @@ export function CartBar({ bottom }) {
         onPress={() => router.push('/cart')}
         haptics="soft"
         scale={0.98}
-        accessibilityLabel="View basket"
+        accessibilityLabel={t('viewBasket', lang)}
       >
         <Glass tone="dark" radius={radius.lg} innerStyle={styles.inner}>
           <View style={styles.iconWrap}>
@@ -86,7 +92,7 @@ export function CartBar({ bottom }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text variant="bodyMedium" color={colors.inkOnDark}>
-              {count} {count === 1 ? 'item' : 'items'} in your basket
+              {count} {count === 1 ? t('item', lang) : t('items', lang)} {t('inYourBasket', lang)}
             </Text>
             <Small color={chasing ? '#F6D5C8' : 'rgba(243,245,239,0.7)'}>{nudge}</Small>
           </View>

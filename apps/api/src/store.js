@@ -587,7 +587,21 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
         message: 'Send the order out for delivery before completing it.',
       },
     };
-  if (db.constants.deliveryOtp.enabled && o.deliveryOtp) {
+  if (db.constants.deliveryOtp.enabled) {
+    // No code on the order means it was dispatched while codes were switched OFF, and the setting
+    // has been turned on since. The old guard was `enabled && o.deliveryOtp`, so that order sailed
+    // through with no proof at all — the one case where proof is demanded is exactly the case where
+    // it silently was not. Fail closed and say how to fix it: re-dispatching mints a code and sends
+    // it to the customer.
+    if (!o.deliveryOtp)
+      return {
+        error: {
+          status: 409,
+          code: 'DELIVERY_OTP_MISSING',
+          message:
+            'This order went out before door codes were required, so it has none. Send it out for delivery again to issue one.',
+        },
+      };
     if (String(otp || '').trim() !== o.deliveryOtp)
       return {
         error: {

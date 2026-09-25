@@ -37,6 +37,8 @@ import { showToast } from '../src/features/ui/uiSlice';
 import { colors, radius } from '../src/theme';
 import { env } from '../src/lib/env';
 import { formatDateShort, windowHours, windowLabel } from '../src/lib/dates';
+import { selectLanguage } from '../src/features/ui/uiSlice';
+import { t } from '../src/lib/i18n';
 import { idempotencyKey } from '../src/lib/ids';
 import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
 import { haptic } from '../src/lib/haptics';
@@ -80,6 +82,7 @@ export default function Checkout() {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const customer = useSelector(selectCustomer);
+  const lang = useSelector(selectLanguage);
   const { cart } = useCart();
   const addresses = useGetAddressesQuery();
   const wallet = useGetWalletQuery();
@@ -222,7 +225,7 @@ export default function Checkout() {
       haptic.warning();
       dispatch(
         showToast({
-          title: !address ? 'Add a delivery address' : 'Choose a delivery window',
+          title: !address ? t('addDeliveryAddress', lang) : 'Choose a delivery window',
           tone: 'neutral',
         }),
       );
@@ -332,7 +335,7 @@ export default function Checkout() {
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
           </Pressy>
-          <Display>Checkout</Display>
+          <Display>{t('checkout', lang)}</Display>
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Small muted>Loading your basket…</Small>
@@ -359,12 +362,12 @@ export default function Checkout() {
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
           </Pressy>
-          <Display>Checkout</Display>
+          <Display>{t('checkout', lang)}</Display>
         </View>
 
         <Card
           icon={<MapPin size={18} color={colors.ink} />}
-          title={address ? `${address.block} · ${address.flat}` : 'Add a delivery address'}
+          title={address ? `${address.block} · ${address.flat}` : t('addDeliveryAddress', lang)}
           subtitle={
             address ? `${address.communityName}, ${address.area}` : 'Community, block and flat'
           }
@@ -393,8 +396,8 @@ export default function Checkout() {
 
         <Card
           icon={<Ticket size={18} color={colors.ink} />}
-          title={cart.coupon ? cart.coupon.code : 'Add a coupon'}
-          subtitle={cart.coupon ? cart.coupon.label : 'One per order'}
+          title={cart.coupon ? cart.coupon.code : t('addCoupon', lang)}
+          subtitle={cart.coupon ? cart.coupon.label : t('onePerOrder', lang)}
           onPress={() => (cart.coupon ? removeCoupon() : router.push('/coupon'))}
           right={
             cart.coupon ? (
@@ -410,7 +413,7 @@ export default function Checkout() {
 
         <Card
           icon={<Wallet size={18} color={colors.ink} />}
-          title="Pay from wallet first"
+          title={t('payFromWalletFirst', lang)}
           subtitle={
             balance > 0
               ? `Balance ₹${Math.round(balance / 100)} · remainder via Razorpay`
@@ -604,7 +607,7 @@ export default function Checkout() {
 
       <Sheet
         ref={windowSheet}
-        title="Delivery window"
+        title={t('deliveryWindow', lang)}
         subtitle={
           address
             ? deliveryDayCount > 0
@@ -625,7 +628,7 @@ export default function Checkout() {
           }}
         />
         <Button
-          title="Use this window"
+          title={t('useThisWindow', lang)}
           onPress={() => windowSheet.current?.dismiss()}
           style={{ marginTop: 20 }}
         />

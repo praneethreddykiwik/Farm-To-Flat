@@ -93,6 +93,9 @@ export function ReportIssue({ onSubmit, busy = false }) {
                 onPress={() => setPhotos((cur) => cur.filter((_, n) => n !== i))}
                 haptics="select"
                 accessibilityLabel="Remove this photo"
+                // A 20pt circle is below the 44pt minimum touch target; the slop makes it hittable
+                // without making the badge itself bigger.
+                hitSlop={12}
                 style={styles.removeBtn}
               >
                 <X size={12} color={colors.inkOnDark} strokeWidth={3} />
@@ -192,12 +195,16 @@ const styles = StyleSheet.create({
   },
   chipOn: { backgroundColor: colors.leafDeep, borderColor: colors.leafDeep },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 14 },
-  thumbWrap: { width: 66, height: 66 },
+  // The remove button used to sit at top/right -5, i.e. OUTSIDE this box. Android clips children to
+  // their parent's bounds and delivers no touches beyond them, so on Android the X was invisible and
+  // untappable — testers reported having no way to remove a photo they had attached. The wrap now
+  // reserves room so the badge overhangs the thumbnail while staying inside the parent.
+  thumbWrap: { width: 72, height: 72, paddingTop: 6, paddingRight: 6 },
   thumb: { width: 66, height: 66, borderRadius: 11, backgroundColor: 'rgba(14,27,20,0.06)' },
   removeBtn: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: 0,
+    right: 0,
     width: 20,
     height: 20,
     borderRadius: 10,

@@ -67,8 +67,21 @@ const uiSlice = createSlice({
   extraReducers: (builder) => {
     builder.addCase('auth/signedOut', (state) => {
       state.dietPref = initialState.dietPref;
-      // `language` deliberately survives sign-out — the next person to pick up the phone still
-      // reads the same way, and being thrown back to English is jarring.
+      // Language used to survive sign-out, on the reasoning that it is how the DEVICE reads rather
+      // than how an account does. In testing that read as a bug: signing out of a Telugu account and
+      // into a different one left the second person in Telugu with no idea why.
+      //
+      // So it is now cleared with the account. The stored key goes too — leaving it would let
+      // hydrateLanguage() restore the old choice on the next launch and undo this.
+      //
+      // The cost is real and deliberate: someone who reads Telugu and signs out has to pick it
+      // again. Back to null rather than 'en' so they are ASKED instead of silently switched.
+      state.language = initialState.language;
+      try {
+        kv.remove(KV_KEYS.language);
+      } catch {
+        /* nothing persisted is nothing to clear */
+      }
     });
   },
 });

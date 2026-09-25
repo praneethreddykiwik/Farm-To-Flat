@@ -271,6 +271,25 @@ export function windowEmoji(start) {
 }
 
 const CLOCK_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** "06:00" → 360, for ordering a window's three clock times against each other. */
+const mins = (t) =>
+  CLOCK_RE.test(t || '') ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : NaN;
+
+/**
+ * What is wrong with this window, in a sentence the operator can act on — or null.
+ *
+ * Ordering MUST close before the van sets off. A 06:00–12:00 run set to close at 17:17 stayed open
+ * all day, long after the delivery had already happened, and orders were accepted against it. The
+ * server refuses it now too; this catches it at the keyboard instead of as a failed save.
+ */
+function windowProblem(w) {
+  if (!w.label?.trim()) return 'Give this window a name.';
+  if ([w.start, w.end, w.cutoff].some((t) => !CLOCK_RE.test(t || '')))
+    return 'Fill in all three times.';
+  if (mins(w.end) <= mins(w.start)) return 'This window ends before it starts.';
+  if (mins(w.cutoff) >= mins(w.start)) return 'Orders must close before the window begins.';
+  return null;
+}
 const DEFAULT_NEW_WINDOW = { label: 'Afternoon', cutoff: '09:30', start: '14:00', end: '17:00' };
 
 /**
@@ -289,15 +308,8 @@ function WindowEditor({ community, onSaved }) {
   useEffect(() => setDraft(saved), [saved]);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
-  const invalid =
-    draft.length === 0 ||
-    draft.some(
-      (w) =>
-        !w.label?.trim() ||
-        !CLOCK_RE.test(w.cutoff || '') ||
-        !CLOCK_RE.test(w.start || '') ||
-        !CLOCK_RE.test(w.end || ''),
-    );
+  const problems = draft.map(windowProblem);
+  const invalid = draft.length === 0 || problems.some(Boolean);
 
   const edit = (i, patch) => setDraft((d) => d.map((w, j) => (j === i ? { ...w, ...patch } : w)));
   const remove = (i) => setDraft((d) => d.filter((_, j) => j !== i));
@@ -351,6 +363,9 @@ function WindowEditor({ community, onSaved }) {
               ✕
             </button>
           </div>
+          {problems[i] ? (
+            <div style={{ fontSize: 12, color: 'var(--tomato)', marginTop: -2 }}>{problems[i]}</div>
+          ) : null}
           <div className="hstack" style={{ gap: 10, alignItems: 'flex-end' }}>
             <WinField label="Delivers" grow>
               <div className="hstack" style={{ gap: 4 }}>
@@ -401,7 +416,7 @@ function WindowEditor({ community, onSaved }) {
               className="btn btn--primary"
               onClick={save}
               disabled={saving || invalid}
-              title={invalid ? 'Every window needs a name and three valid times' : 'Save'}
+              title={invalid ? problems.find(Boolean) || 'Fix the windows first' : 'Save'}
               style={{ padding: '6px 13px', fontSize: 12.5 }}
             >
               {saving ? 'Saving…' : 'Save windows'}

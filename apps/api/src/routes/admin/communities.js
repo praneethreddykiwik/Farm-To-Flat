@@ -24,6 +24,8 @@ export const adminCommunitiesRouter = Router();
 
 const weekday = z.number().int().min(0).max(6);
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use 24h HH:MM, e.g. 03:45');
+/** "06:00" → 360. Only used to order the three clock times of a window against each other. */
+const minutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const CreateCommunity = z.object({
   name: z.string().min(1).max(80),
   area: z.string().min(1).max(80),
@@ -44,13 +46,26 @@ const CreateCommunity = z.object({
   // it); an entry without one is new and the store derives its key from the label.
   windows: z
     .array(
-      z.object({
-        key: z.string().min(1).max(32).optional(),
-        label: z.string().min(1).max(40),
-        cutoff: clockTime,
-        start: clockTime,
-        end: clockTime,
-      }),
+      z
+        .object({
+          key: z.string().min(1).max(32).optional(),
+          label: z.string().min(1).max(40),
+          cutoff: clockTime,
+          start: clockTime,
+          end: clockTime,
+        })
+        // A window has to end after it begins, and ordering has to close BEFORE the van sets off.
+        // Without this an operator could set a 06:00–12:00 run to close at 17:17, and the window
+        // then stayed open for the whole day — including hours after the delivery had already
+        // happened. That is exactly how an order was accepted "after the delivery time closed".
+        .refine((w) => minutes(w.end) > minutes(w.start), {
+          message: 'A window has to end after it starts.',
+          path: ['end'],
+        })
+        .refine((w) => minutes(w.cutoff) < minutes(w.start), {
+          message: 'Orders must close before the delivery window begins.',
+          path: ['cutoff'],
+        }),
     )
     .min(1, 'A community needs at least one delivery window.')
     .max(6, 'Six windows a day is already more than anyone can staff.')

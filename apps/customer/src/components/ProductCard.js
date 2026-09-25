@@ -122,11 +122,25 @@ export const ProductCard = memo(ProductCardBase);
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   inner: { padding: 10 },
-  imageWrap: { aspectRatio: 1, width: '100%' },
+  // `position: relative` anchors the WEIGHED pill and the sold-out veil to the IMAGE rather than
+  // letting them resolve against an ancestor, and `overflow: hidden` clips both to the image's own
+  // rounded corners. Without either, a long badge or a large accessibility font pushed the pill out
+  // of the 1:1 box and over the product name beneath it, and the veil's square corners sat proud of
+  // the rounded photo.
+  imageWrap: {
+    aspectRatio: 1,
+    width: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: radius.md,
+  },
   tag: {
     position: 'absolute',
     top: 8,
     left: 8,
+    // Never wider than the image it sits on, so a long label wraps inside the photo instead of
+    // spilling across the text below.
+    maxWidth: '90%',
     backgroundColor: colors.glassDark,
     paddingHorizontal: 8,
     paddingVertical: 3,

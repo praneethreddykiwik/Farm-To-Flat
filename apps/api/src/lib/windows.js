@@ -139,6 +139,16 @@ export function communityWindows(community) {
       start: CLOCK_RE.test(w.start || '') ? w.start : '06:00',
       end: CLOCK_RE.test(w.end || '') ? w.end : '12:00',
     }))
+    .map((/** @type {any} */ w) => ({
+      ...w,
+      // A cut-off at or after the run begins is incoherent: it keeps the window orderable while the
+      // van is out, and past the point the bag has been delivered. Rows saved before the editor
+      // validated this exist in the wild — one community had a 06:00–12:00 run closing at 17:17,
+      // and orders were accepted against it all day. Clamp to the start rather than dropping the
+      // window: closing EARLIER than configured is the safe direction, and refusing to offer it at
+      // all would stop that community ordering entirely.
+      cutoff: minutesOfClock(w.cutoff) >= minutesOfClock(w.start) ? w.start : w.cutoff,
+    }))
     .map((/** @type {any} */ w) => ({ ...w, hours: hoursLabel(w) }))
     .sort(
       (/** @type {any} */ a, /** @type {any} */ b) =>
