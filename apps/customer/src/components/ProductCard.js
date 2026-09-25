@@ -122,16 +122,23 @@ export const ProductCard = memo(ProductCardBase);
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   inner: { padding: 10 },
-  // `position: relative` anchors the WEIGHED pill and the sold-out veil to the IMAGE rather than
-  // letting them resolve against an ancestor and drift over the name beneath.
+  // Two separate things have to be true, and getting one without the other breaks the card.
   //
-  // Deliberately NOT `overflow: 'hidden'`. That looked like the tidy fix — clip the overlays to the
-  // photo's rounded corners — but on Android a clipped, rounded parent renders its children into a
-  // layer where stacking follows ELEVATION rather than document order, and the image painted over
-  // the sold-out veil: a sold-out product lost its veil and its SOLD OUT pill entirely. The badges
-  // are kept inside the box by their own maxWidth and radius instead, and the overlays are given an
-  // explicit elevation so they sit above the photo on Android as well as iOS.
-  imageWrap: { aspectRatio: 1, width: '100%', position: 'relative' },
+  // CLIPPING: `overflow: hidden` keeps the WEIGHED pill and the sold-out veil inside the photo.
+  // Without it the veil — an absolute fill of a box slightly taller than the image — hangs below the
+  // picture and its centred SOLD OUT pill lands on top of the product name. That is the overlap that
+  // was reported.
+  //
+  // STACKING: on Android, siblings are painted in ELEVATION order, not document order, so the photo
+  // covered the overlays and a sold-out product showed no veil and no pill at all. The overlays
+  // carry an explicit elevation below for that reason.
+  imageWrap: {
+    aspectRatio: 1,
+    width: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: radius.md,
+  },
   tag: {
     position: 'absolute',
     top: 8,
