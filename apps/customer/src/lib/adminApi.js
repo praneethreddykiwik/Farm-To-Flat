@@ -113,6 +113,18 @@ export const adminApi = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }),
+  /**
+   * The complaints queue — every problem reported about a delivery, newest first. `status=OPEN` is
+   * the only one anyone is waiting on, which is what the staff screen asks for by default.
+   */
+  issues: (qs = '') => j(`${ADMIN}/issues${qs}`),
+  /** Answer one. RESOLVED = put right, DECLINED = looked at and not upheld. Never rewrites it. */
+  answerIssue: (orderId, issueId, body) =>
+    j(`${ADMIN}/orders/${orderId}/issues/${issueId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
   setStatus: (id, status) =>
     j(`${ADMIN}/orders/${id}/status`, {
       method: 'PATCH',

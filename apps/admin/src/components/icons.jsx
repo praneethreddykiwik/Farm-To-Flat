@@ -165,6 +165,15 @@ export const IconTicket = (p) => (
     <path d="M14 6v12" strokeDasharray="2 2" />
   </S>
 );
+// A complaint, not a help desk: the alert triangle reads as "something went wrong with a delivery",
+// which is what separates this from Support contact in the nav.
+export const IconAlert = (p) => (
+  <S {...p}>
+    <path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    <path d="M12 9v4" />
+    <path d="M12 17h.01" />
+  </S>
+);
 export const IconLifeBuoy = (p) => (
   <S {...p}>
     <circle cx="12" cy="12" r="9" />

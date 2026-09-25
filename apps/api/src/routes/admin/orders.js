@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
-import { codDuePaise, orderAdmin } from '../../serialize.js';
+import { codDuePaise, issueAdmin, orderAdmin } from '../../serialize.js';
 import {
   createOrder,
   getOrder,
@@ -21,6 +21,8 @@ import {
   patchOrder,
   updateOrderStatus,
   completeDelivery,
+  listOrderIssues,
+  openIssueCount,
   resolveOrderIssue,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
@@ -342,6 +344,24 @@ adminOrdersRouter.post(
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
     notifyOrderStatus(r.order, getDevices);
     res.json({ order: orderAdmin(r.order) });
+  }),
+);
+
+/**
+ * The complaints queue — every reported problem across every order, newest first.
+ *
+ * This exists because the only way to reach a complaint used to be the order drawer: an operator had
+ * to already know which order it was on, or catch the push as it arrived. `?status=OPEN` is what the
+ * panel and the staff app both ask for — the ones still waiting on an answer.
+ */
+adminOrdersRouter.get(
+  '/issues',
+  asyncHandler(async (req, res) => {
+    const status = ['OPEN', 'RESOLVED', 'DECLINED'].includes(String(req.query.status))
+      ? String(req.query.status)
+      : undefined;
+    const issues = listOrderIssues({ status, limit: Number(req.query.limit) || 200 });
+    res.json({ issues: issues.map(issueAdmin), openCount: openIssueCount() });
   }),
 );
 

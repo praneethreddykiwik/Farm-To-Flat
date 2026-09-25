@@ -653,6 +653,52 @@ export function addOrderIssue(oid, { reason, note, photos }) {
   return clone(issue);
 }
 
+/**
+ * Every complaint across every order, newest first, with the delivery it is about.
+ *
+ * Complaints used to be reachable only from inside the order they sit on, which meant an operator
+ * could only find one by already knowing which order to open, or by catching the push the moment it
+ * arrived. A complaint nobody can find is a complaint nobody answers, so this flattens them into a
+ * queue and carries just enough of the order to act on it — who, where, which delivery, how much.
+ *
+ * @param {{ status?: 'OPEN'|'RESOLVED'|'DECLINED', limit?: number }} [q]
+ */
+export function listOrderIssues({ status, limit = 200 } = {}) {
+  const out = [];
+  for (const o of db.orders) {
+    for (const issue of o.issues || []) {
+      if (status && issue.status !== status) continue;
+      out.push({
+        ...clone(issue),
+        order: {
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName || null,
+          mobile: o.mobile || null,
+          totalPaise: o.totalPaise,
+          deliveredAt: o.deliveredAt || null,
+          deliveryDate: o.deliveryDate || null,
+          window: o.window || null,
+          community: o.address?.community || o.address?.communityName || null,
+          block: o.address?.block || null,
+          flat: o.address?.flat || null,
+        },
+      });
+    }
+  }
+  // Newest first. An OPEN complaint is the only kind anyone is waiting on, so the caller filters
+  // rather than this sorting by status and hiding the ordering it actually wants.
+  out.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  return out.slice(0, Math.max(1, Math.min(500, Number(limit) || 200)));
+}
+
+/** How many complaints are still unanswered — for the badge on the operator's nav. */
+export function openIssueCount() {
+  let n = 0;
+  for (const o of db.orders) for (const i of o.issues || []) if (i.status === 'OPEN') n += 1;
+  return n;
+}
+
 /** The operator's answer. Also append-only in spirit: the report itself is never rewritten. */
 export function resolveOrderIssue(oid, issueId, { status, resolution }) {
   const o = db.orders.find((x) => x.id === oid);

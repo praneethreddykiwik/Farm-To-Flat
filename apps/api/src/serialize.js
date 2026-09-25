@@ -298,6 +298,28 @@ export function orderAdmin(o) {
     // digits would defeat the point: it is proof the CUSTOMER was at the door.
     deliveryOtpPending: !!(o.status === 'OUT_FOR_DELIVERY' && o.deliveryOtp),
     deliveredAt: o.deliveredAt || null,
-    issues: o.issues || [],
+    issues: (o.issues || []).map(issueAdmin),
+  };
+}
+
+/**
+ * One complaint as the operator sees it.
+ *
+ * Whitelisted rather than passed through: the raw issue object used to go out verbatim, so every
+ * field ever added to a complaint — including anything internal a later change puts there — shipped
+ * to the panel by default. Listing the fields means adding one is a decision.
+ */
+export function issueAdmin(i) {
+  return {
+    id: i.id,
+    reason: i.reason,
+    note: i.note || null,
+    photos: i.photos || [],
+    status: i.status,
+    createdAt: i.createdAt,
+    resolvedAt: i.resolvedAt || null,
+    resolution: i.resolution || null,
+    // Present only on the cross-order queue, which attaches the delivery it is about.
+    ...(i.order ? { order: i.order } : {}),
   };
 }

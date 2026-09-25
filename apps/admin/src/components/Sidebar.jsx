@@ -8,6 +8,7 @@
  */
 import { NavLink } from 'react-router-dom';
 import {
+  IconAlert,
   IconBasket,
   IconCatalog,
   IconChart,
@@ -37,6 +38,7 @@ const NAV = [
   { to: '/orders', label: 'Orders', icon: IconReceipt },
   { to: '/procurement', label: 'Procurement', icon: IconBasket },
   { to: '/fulfilment', label: 'Fulfilment', icon: IconTruck },
+  { to: '/complaints', label: 'Complaints', icon: IconAlert },
   { to: '/stats', label: 'Statistics', icon: IconChart },
   { section: 'Admin' },
   { to: '/access', label: 'Access & roles', icon: IconShield },

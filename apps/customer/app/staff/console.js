@@ -47,10 +47,16 @@ export default function StaffConsole() {
   const router = useRouter();
   const [m, setM] = useState(null);
   const [approvalCount, setApprovalCount] = useState(0);
+  // Complaints waiting on a decision. Shown as a count on the card so an unanswered one is visible
+  // from the console instead of only reaching whoever happened to catch the push.
+  const [openIssues, setOpenIssues] = useState(0);
 
   // Super admin AND admin can open the shopping app + the full web admin panel, and are the ones who
   // accept/reject procurement costs that broke the buffer.
   const canApprove = role.role === 'SUPER_ADMIN' || role.role === 'ADMIN';
+  // Complaints are about delivered orders, so they belong to whoever already has the orders desk —
+  // not the packing or buying teams.
+  const canSeeIssues = !!role.sections?.includes('orders');
 
   const load = useCallback(() => {
     // Both together, so pull-to-refresh only stops once the slower of the two has landed.
@@ -65,8 +71,16 @@ export default function StaffConsole() {
             .then((d) => setApprovalCount(d.count || 0))
             .catch(() => {})
         : null,
+      canSeeIssues
+        ? adminApi
+            .issues('?status=OPEN')
+            .then((d) => setOpenIssues(d.openCount || 0))
+            // An older API has no /admin/issues; the card simply shows no count rather than the
+            // console failing to load around it.
+            .catch(() => {})
+        : null,
     ]);
-  }, [canApprove]);
+  }, [canApprove, canSeeIssues]);
   const { refreshing, onRefresh } = useStaffRefresh(load);
 
   // Super admin AND admin can open the shopping app + the full web admin panel.
@@ -124,6 +138,30 @@ export default function StaffConsole() {
             {approvalCount > 0 ? (
               <View style={styles.countPill}>
                 <Text style={styles.countPillText}>{approvalCount}</Text>
+              </View>
+            ) : (
+              <Text style={styles.chev}>›</Text>
+            )}
+          </Pressable>
+        ) : null}
+
+        {canSeeIssues ? (
+          <Pressable
+            style={[styles.card, openIssues > 0 && styles.cardAlert]}
+            onPress={() => router.push('/staff/complaints')}
+          >
+            <Text style={styles.cardIcon}>📮</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Complaints</Text>
+              <Text style={styles.cardSub}>
+                {openIssues > 0
+                  ? `${openIssues} report${openIssues > 1 ? 's' : ''} waiting — photos + decide`
+                  : 'What customers sent back · photos + decide'}
+              </Text>
+            </View>
+            {openIssues > 0 ? (
+              <View style={styles.countPill}>
+                <Text style={styles.countPillText}>{openIssues}</Text>
               </View>
             ) : (
               <Text style={styles.chev}>›</Text>

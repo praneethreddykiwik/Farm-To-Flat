@@ -14,6 +14,7 @@ import { Pricing } from './screens/Pricing.jsx';
 import { Communities } from './screens/Communities.jsx';
 import { Orders } from './screens/Orders.jsx';
 import { Fulfilment } from './screens/Fulfilment.jsx';
+import { Complaints } from './screens/Complaints.jsx';
 import { Statistics } from './screens/Statistics.jsx';
 import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
@@ -74,6 +75,7 @@ function AdminShell() {
             <Route path="/orders" element={<Orders />} />
             <Route path="/procurement" element={<Procurement />} />
             <Route path="/fulfilment" element={<Fulfilment />} />
+            <Route path="/complaints" element={<Complaints />} />
             <Route path="/stats" element={<Statistics />} />
             <Route path="/access" element={<Access />} />
             <Route path="/settings" element={<Settings />} />
