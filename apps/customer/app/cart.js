@@ -268,7 +268,7 @@ export default function Cart() {
               <Display>{t('yourBasket', lang)}</Display>
               <Small muted style={{ marginTop: 2 }}>
                 {items.length
-                  ? `${items.length} ${items.length === 1 ? 'item' : 'items'} · prices lock at checkout`
+                  ? `${items.length} ${items.length === 1 ? t('item', lang) : t('items', lang)} · ${t('pricesLock', lang)}`
                   : t('nothingYet', lang)}
               </Small>
             </View>
