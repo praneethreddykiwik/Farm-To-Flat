@@ -91,7 +91,7 @@ function ProductCardBase({ product, index = 0, width }) {
         <View style={styles.footer}>
           <View style={styles.priceRow}>
             <Money paise={product.pricePaise} variant="price" />
-            <Small muted style={{ marginLeft: 2, marginBottom: 2 }}>
+            <Small muted style={styles.priceUnit}>
               {UNIT_SUFFIX[product.unit] || ''}
             </Small>
           </View>
@@ -123,24 +123,24 @@ const styles = StyleSheet.create({
   wrap: { flex: 1 },
   inner: { padding: 10 },
   // `position: relative` anchors the WEIGHED pill and the sold-out veil to the IMAGE rather than
-  // letting them resolve against an ancestor, and `overflow: hidden` clips both to the image's own
-  // rounded corners. Without either, a long badge or a large accessibility font pushed the pill out
-  // of the 1:1 box and over the product name beneath it, and the veil's square corners sat proud of
-  // the rounded photo.
-  imageWrap: {
-    aspectRatio: 1,
-    width: '100%',
-    position: 'relative',
-    overflow: 'hidden',
-    borderRadius: radius.md,
-  },
+  // letting them resolve against an ancestor and drift over the name beneath.
+  //
+  // Deliberately NOT `overflow: 'hidden'`. That looked like the tidy fix — clip the overlays to the
+  // photo's rounded corners — but on Android a clipped, rounded parent renders its children into a
+  // layer where stacking follows ELEVATION rather than document order, and the image painted over
+  // the sold-out veil: a sold-out product lost its veil and its SOLD OUT pill entirely. The badges
+  // are kept inside the box by their own maxWidth and radius instead, and the overlays are given an
+  // explicit elevation so they sit above the photo on Android as well as iOS.
+  imageWrap: { aspectRatio: 1, width: '100%', position: 'relative' },
   tag: {
     position: 'absolute',
     top: 8,
     left: 8,
-    // Never wider than the image it sits on, so a long label wraps inside the photo instead of
+    // Never wider than the image it sits on, so a long label stays on the photo instead of
     // spilling across the text below.
     maxWidth: '90%',
+    zIndex: 2,
+    elevation: 2,
     backgroundColor: colors.glassDark,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -151,7 +151,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(243,245,239,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
+    // Matches the photo's own corners, so the wash does not sit square over a rounded image.
     borderRadius: radius.md,
+    // Android orders overlapping siblings by elevation, not by which is written last.
+    zIndex: 2,
+    elevation: 2,
   },
   soldOutPill: {
     backgroundColor: colors.glassDark,
@@ -162,6 +166,11 @@ const styles = StyleSheet.create({
   soldOutNote: { paddingVertical: 6 },
   meta: { paddingTop: 10, paddingHorizontal: 2 },
   footer: { paddingTop: 10, paddingHorizontal: 2, gap: 8 },
-  priceRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  // The card is given a fixed width by the grid, so a wide price ("₹160") could squeeze the unit
+  // beside it until only the slash survived — "₹160 /" with the "kg" clipped away. The price keeps
+  // its size, the unit is allowed to wrap onto its own line rather than be cut, and neither is
+  // shrunk to fit.
+  priceRow: { flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap' },
+  priceUnit: { flexShrink: 0, marginLeft: 2, marginBottom: 2 },
   stepperRow: { alignSelf: 'flex-start' },
 });
