@@ -74,6 +74,8 @@ const STRINGS = {
     coupon: 'Coupon',
     delivery: 'Delivery',
     free: 'Free',
+    reachMinimum: "You're at ₹{built} — add ₹{more} more to reach the ₹500 minimum",
+    overMinimum: 'Your basket is over the minimum',
     total: 'Total',
     checkout: 'Checkout',
     viewBasket: 'View basket',
@@ -125,6 +127,8 @@ const STRINGS = {
     coupon: 'कूपन',
     delivery: 'डिलीवरी',
     free: 'मुफ़्त',
+    reachMinimum: 'आप ₹{built} पर हैं — ₹500 की न्यूनतम राशि तक ₹{more} और जोड़ें',
+    overMinimum: 'आपकी टोकरी न्यूनतम राशि से ऊपर है',
     total: 'कुल',
     checkout: 'आगे बढ़ें',
     viewBasket: 'टोकरी देखें',
@@ -176,6 +180,8 @@ const STRINGS = {
     coupon: 'కూపన్',
     delivery: 'డెలివరీ',
     free: 'ఉచితం',
+    reachMinimum: 'మీరు ₹{built} వద్ద ఉన్నారు — ₹500 కనిష్ఠానికి ఇంకా ₹{more} జోడించండి',
+    overMinimum: 'మీ బుట్ట కనిష్ఠాన్ని దాటింది',
     total: 'మొత్తం',
     checkout: 'చెక్‌అవుట్',
     viewBasket: 'బుట్ట చూడండి',
@@ -197,7 +203,16 @@ const STRINGS = {
 };
 
 /** Interface string in the chosen language, falling back to English. */
-export const t = (key, lang) => STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
+/**
+ * A string in the chosen language, falling back to English then to the key itself. `params` fills
+ * {placeholders} — added for the basket's minimum-order line, which has to carry live rupee amounts
+ * and so cannot be a fixed sentence.
+ */
+export const t = (key, lang, params) => {
+  const s = STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
+  if (!params) return s;
+  return s.replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
+};
 
 /**
  * Words for the greeting rail that cycles through the languages we serve. Deliberately the same
@@ -206,7 +221,7 @@ export const t = (key, lang) => STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
  */
 export const RAIL_WORDS = [
   { en: 'Fresh today', hi: 'आज ताज़ा', te: 'ఈరోజు తాజా' },
-  { en: 'From the farm', hi: 'खेत సे', te: 'పొలం నుండి' },
-  { en: 'Picked this morning', hi: 'आज సुबह तोड़ा', te: 'ఈ ఉదయం కోసినవి' },
+  { en: 'From the farm', hi: 'खेत से', te: 'పొలం నుండి' },
+  { en: 'Picked this morning', hi: 'आज सुबह तोड़ा', te: 'ఈ ఉదయం కోసినవి' },
   { en: 'At your door', hi: 'आपके दरवाज़े पर', te: 'మీ ఇంటి వద్దకు' },
 ];

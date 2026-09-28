@@ -140,6 +140,7 @@ function Line({ item, catalogProduct }) {
  * grows, and at the top tier says plainly whether an offer is applied or merely available.
  */
 function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCoupon }) {
+  const lang = useSelector(selectLanguage);
   const sub = Number(subtotal);
   const min = Number(minimum);
   const belowMin = sub < min;
@@ -176,7 +177,7 @@ function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCou
     const firstReward = nextCoupon && Number(nextCoupon.minOrderPaise) <= min ? nextCoupon : null;
     message = firstReward
       ? `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach ₹500 and qualify for ${firstReward.discountText}`
-      : `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach the ₹500 minimum`;
+      : t('reachMinimum', lang, { built, more: rupeesTo(min) });
   } else if (nextCoupon) {
     message = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to qualify for ${nextCoupon.discountText}`;
   } else if (appliedCoupon) {
@@ -184,7 +185,7 @@ function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCou
   } else if (availableCoupon) {
     message = `You qualify for ${availableCoupon.discountText} — add a coupon below to use it`;
   } else {
-    message = 'Your basket is over the minimum';
+    message = t('overMinimum', lang);
   }
   const fillColor = belowMin ? colors.amber : colors.leaf;
 
@@ -418,12 +419,13 @@ export default function Cart() {
 
 /** @param {any} props */
 function Row({ label, paise, color = undefined, free = false }) {
+  const lang = useSelector(selectLanguage);
   return (
     <View style={styles.row}>
       <Small muted>{label}</Small>
       {free && Number(paise) === 0 ? (
         <Text variant="smallMedium" color={colors.leafDeep}>
-          Free
+          {t('free', lang)}
         </Text>
       ) : (
         <Money paise={paise} variant="bodyMedium" color={color} />
