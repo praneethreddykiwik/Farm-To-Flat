@@ -164,7 +164,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   soldOutVeil: {
-    ...StyleSheet.absoluteFillObject,
+    // Spelled out rather than spread from StyleSheet.absoluteFillObject: the veil was laying out in
+    // flow, below the photo, which is what pushed its centred pill down onto the product name.
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: 'rgba(243,245,239,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
