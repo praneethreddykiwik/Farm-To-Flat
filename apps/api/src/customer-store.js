@@ -569,6 +569,11 @@ export function couponDiscount(c, subtotal) {
   return 0;
 }
 
+/** Codes this customer has already redeemed. */
+export function redeemedCodes(cid) {
+  return new Set(redemptions(cid));
+}
+
 /** @returns {{ coupon:any } | { error:{status,code,message,details?} }} */
 export function validateCoupon(cid, code, subtotal) {
   const c = listCoupons().find((x) => x.code.toLowerCase() === String(code).trim().toLowerCase());

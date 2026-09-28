@@ -44,6 +44,9 @@ export default function Coupon() {
   const applyCode = async (raw) => {
     const c = String(raw).trim().toUpperCase();
     if (!c) return;
+    // Tapping an offer row left the code field empty, so the big "Apply coupon" button below it
+    // stayed greyed out and looked broken. Mirror the choice into the field.
+    setCode(c);
     try {
       const res = await apply(c).unwrap();
       haptic.success();
@@ -53,7 +56,11 @@ export default function Coupon() {
       router.back();
     } catch (e) {
       haptic.error();
-      setError(e?.message || 'Could not apply that code');
+      const message = e?.message || 'Could not apply that code';
+      setError(message);
+      // The offer rows sit well below the code field, so setError alone put the reason somewhere
+      // the tester could not see — the Apply pill looked dead. Say it where the tap happened.
+      dispatch(showToast({ title: 'Coupon not applied', message, tone: 'error' }));
     }
   };
 
@@ -137,7 +144,8 @@ export default function Coupon() {
 }
 
 function CouponCard({ coupon, onApply }) {
-  const locked = !coupon.meetsMinimum;
+  const used = !!coupon.alreadyUsed;
+  const locked = used || !coupon.meetsMinimum;
   return (
     <Pressable
       onPress={locked ? undefined : onApply}
@@ -164,7 +172,7 @@ function CouponCard({ coupon, onApply }) {
           <Small style={{ color: locked ? colors.amber : colors.leaf }}>
             {/* An offer the basket already clears said "Spend ₹500 to unlock" next to a live Apply
                 button — the terms of a lock that is already open. Say it's ready instead. */}
-            {locked ? coupon.unlockText : 'Ready to apply'}
+            {used ? 'Already used on your account' : locked ? coupon.unlockText : 'Ready to apply'}
           </Small>
         </View>
       </View>

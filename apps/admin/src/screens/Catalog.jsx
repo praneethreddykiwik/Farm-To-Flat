@@ -105,109 +105,114 @@ export function Catalog() {
         ) : filtered.length === 0 ? (
           <div className="empty">No products match.</div>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Category</th>
-                  <th>Unit</th>
-                  <th style={{ textAlign: 'right' }}>Price</th>
-                  <th style={{ textAlign: 'right' }}>Daily cap</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {pager.slice.map((p) => (
-                  <tr key={p.id} onClick={() => setEditing(p)} style={{ cursor: 'pointer' }}>
-                    <td>
-                      <div className="prodcell">
-                        <Thumb name={p.name} image={p.image} tint={p.tint} />
-                        <div>
-                          <div className="prodcell__name">{p.name}</div>
-                          {p.aliases?.length > 0 && (
-                            <div className="prodcell__alias">
-                              {p.aliases.slice(0, 3).join(' · ')}
-                            </div>
+          <>
+            {/* The pager must sit OUTSIDE .table-wrap: inside a horizontal scroller it is laid out at
+              the viewport width, so its rule and background stopped short of the table's right edge,
+              and scrolling the table sideways on a phone carried the whole footer off-screen. */}
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>Unit</th>
+                    <th style={{ textAlign: 'right' }}>Price</th>
+                    <th style={{ textAlign: 'right' }}>Daily cap</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pager.slice.map((p) => (
+                    <tr key={p.id} onClick={() => setEditing(p)} style={{ cursor: 'pointer' }}>
+                      <td>
+                        <div className="prodcell">
+                          <Thumb name={p.name} image={p.image} tint={p.tint} />
+                          <div>
+                            <div className="prodcell__name">{p.name}</div>
+                            {p.aliases?.length > 0 && (
+                              <div className="prodcell__alias">
+                                {p.aliases.slice(0, 3).join(' · ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="muted">{p.categoryName}</td>
+                      <td className="muted">
+                        {p.unit}
+                        {p.variableWeight ? ' ·wt' : ''}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="rupee">{inr(p.pricePaise)}</span>
+                        <span className="muted" style={{ fontSize: 11 }}>
+                          {UNIT_LABEL[p.unit]}
+                        </span>
+                      </td>
+                      <td className="num" style={{ textAlign: 'right' }}>
+                        {p.dailyCap}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div className="dropdown">
+                          <button
+                            className={`badge avail ${AVAIL[availOf(p)].cls}`}
+                            onClick={() => setAvailFor(availFor === p.id ? null : p.id)}
+                            title="Change availability"
+                            aria-haspopup="menu"
+                            aria-expanded={availFor === p.id}
+                          >
+                            <span className="badge__dot" />
+                            {AVAIL[availOf(p)].label}
+                            <span className="avail__caret" aria-hidden>
+                              ▾
+                            </span>
+                          </button>
+                          {availFor === p.id && (
+                            <>
+                              <div className="dropdown__scrim" onClick={() => setAvailFor(null)} />
+                              <div className="dropdown__menu" role="menu" style={{ minWidth: 230 }}>
+                                <div className="dropdown__label">Set availability</div>
+                                {Object.entries(AVAIL).map(([code, a]) => (
+                                  <button
+                                    key={code}
+                                    role="menuitemradio"
+                                    aria-checked={availOf(p) === code}
+                                    className="dropdown__item"
+                                    onClick={() => setAvailability(p, code)}
+                                  >
+                                    <span className={`badge ${a.cls}`} style={{ marginRight: 8 }}>
+                                      <span className="badge__dot" />
+                                      {a.label}
+                                    </span>
+                                    <span className="muted" style={{ fontSize: 12 }}>
+                                      {a.hint}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
                           )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="muted">{p.categoryName}</td>
-                    <td className="muted">
-                      {p.unit}
-                      {p.variableWeight ? ' ·wt' : ''}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="rupee">{inr(p.pricePaise)}</span>
-                      <span className="muted" style={{ fontSize: 11 }}>
-                        {UNIT_LABEL[p.unit]}
-                      </span>
-                    </td>
-                    <td className="num" style={{ textAlign: 'right' }}>
-                      {p.dailyCap}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <div className="dropdown">
+                      </td>
+                      <td>
                         <button
-                          className={`badge avail ${AVAIL[availOf(p)].cls}`}
-                          onClick={() => setAvailFor(availFor === p.id ? null : p.id)}
-                          title="Change availability"
-                          aria-haspopup="menu"
-                          aria-expanded={availFor === p.id}
+                          className="btn btn--ghost btn--icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditing(p);
+                          }}
+                          aria-label="Edit"
                         >
-                          <span className="badge__dot" />
-                          {AVAIL[availOf(p)].label}
-                          <span className="avail__caret" aria-hidden>
-                            ▾
-                          </span>
+                          <IconEdit size={16} />
                         </button>
-                        {availFor === p.id && (
-                          <>
-                            <div className="dropdown__scrim" onClick={() => setAvailFor(null)} />
-                            <div className="dropdown__menu" role="menu" style={{ minWidth: 230 }}>
-                              <div className="dropdown__label">Set availability</div>
-                              {Object.entries(AVAIL).map(([code, a]) => (
-                                <button
-                                  key={code}
-                                  role="menuitemradio"
-                                  aria-checked={availOf(p) === code}
-                                  className="dropdown__item"
-                                  onClick={() => setAvailability(p, code)}
-                                >
-                                  <span className={`badge ${a.cls}`} style={{ marginRight: 8 }}>
-                                    <span className="badge__dot" />
-                                    {a.label}
-                                  </span>
-                                  <span className="muted" style={{ fontSize: 12 }}>
-                                    {a.hint}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn--ghost btn--icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditing(p);
-                        }}
-                        aria-label="Edit"
-                      >
-                        <IconEdit size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pager {...pager} onPage={pager.setPage} />
-          </div>
+          </>
         )}
       </div>
 
@@ -522,6 +527,18 @@ function ProductForm({ product, categories, onClose, onSaved }) {
                 style={{ display: 'none' }}
               />
             </label>
+            {f.image ? (
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                style={{ marginTop: 8, marginLeft: 8 }}
+                disabled={uploading}
+                aria-label="Remove image"
+                onClick={() => setF((s) => ({ ...s, image: '' }))}
+              >
+                ✕ Remove image
+              </button>
+            ) : null}
           </div>
         </div>
         <p className="field__hint">

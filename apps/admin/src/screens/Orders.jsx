@@ -128,67 +128,72 @@ export function Orders() {
         ) : orders.length === 0 ? (
           <div className="empty">No orders match this filter.</div>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Delivery</th>
-                  <th style={{ textAlign: 'right' }}>Items</th>
-                  <th style={{ textAlign: 'right' }}>Total</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pager.slice.map((o) => (
-                  <tr key={o.id} onClick={() => setOpenId(o.id)} style={{ cursor: 'pointer' }}>
-                    <td className="mono" style={{ fontWeight: 600 }}>
-                      {o.orderNumber}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{o.customerName}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {o.address?.communityName} · {o.address?.block} {o.address?.flat}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 13 }}>{shortDate(o.deliveryDate)}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {titleCase(o.window)}
-                      </div>
-                    </td>
-                    <td className="num" style={{ textAlign: 'right' }}>
-                      {o.itemCount}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="rupee">{inr(o.totalPaise)}</span>
-                    </td>
-                    <td>
-                      {/* A pending cancellation is the state that needs a decision, so it reads as
+          <>
+            {/* The pager must sit OUTSIDE .table-wrap: inside a horizontal scroller it is laid out at
+              the viewport width, so its rule and background stopped short of the table's right edge,
+              and scrolling the table sideways on a phone carried the whole footer off-screen. */}
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Delivery</th>
+                    <th style={{ textAlign: 'right' }}>Items</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pager.slice.map((o) => (
+                    <tr key={o.id} onClick={() => setOpenId(o.id)} style={{ cursor: 'pointer' }}>
+                      <td className="mono" style={{ fontWeight: 600 }}>
+                        {o.orderNumber}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{o.customerName}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {o.address?.communityName} · {o.address?.block} {o.address?.flat}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: 13 }}>{shortDate(o.deliveryDate)}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {titleCase(o.window)}
+                        </div>
+                      </td>
+                      <td className="num" style={{ textAlign: 'right' }}>
+                        {o.itemCount}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="rupee">{inr(o.totalPaise)}</span>
+                      </td>
+                      <td>
+                        {/* A pending cancellation is the state that needs a decision, so it reads as
                           ONE state with the fulfilment status behind it. Showing both as equal
                           badges made an order look like it was "Confirmed" and "Cancellation
                           requested" at the same time, which reads as a contradiction. */}
-                      {isCancelRequest(o) ? (
-                        <div className="hstack" style={{ gap: 6, flexWrap: 'wrap' }}>
-                          <span className="badge st-CANCELLED" title="Customer asked to cancel">
-                            <span className="badge__dot" />
-                            Cancellation requested
-                          </span>
-                          <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
-                            was {String(o.status).replace(/_/g, ' ').toLowerCase()}
-                          </span>
-                        </div>
-                      ) : (
-                        <StatusBadge status={o.status} />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {isCancelRequest(o) ? (
+                          <div className="hstack" style={{ gap: 6, flexWrap: 'wrap' }}>
+                            <span className="badge st-CANCELLED" title="Customer asked to cancel">
+                              <span className="badge__dot" />
+                              Cancellation requested
+                            </span>
+                            <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+                              was {String(o.status).replace(/_/g, ' ').toLowerCase()}
+                            </span>
+                          </div>
+                        ) : (
+                          <StatusBadge status={o.status} />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pager {...pager} onPage={pager.setPage} />
-          </div>
+          </>
         )}
       </div>
 
@@ -314,7 +319,11 @@ export function OrderDrawer({ id, onClose, onChanged }) {
             <span className="muted" style={{ fontSize: 12 }}>
               {needsCode
                 ? 'Ask the customer for the four-digit code in their app.'
-                : 'No code required — the operator turned that off.'}
+                : o?.paymentMethod === 'COD'
+                  ? // A cash order dispatched before codes were required has none, and cannot be
+                    // settled without one. Say what to do rather than leaving a dead field.
+                    'This cash order went out before door codes were required. Send it out for delivery again to issue one.'
+                  : 'No code required for a prepaid order — the operator turned that off.'}
             </span>
           </div>
         ) : nexts.length > 0 ? (

@@ -1547,6 +1547,13 @@ table.data tbody tr:last-child td {
   table.data td {
     padding: 10px 12px;
   }
+  /* space-between pushed the range line and the wrapped page buttons to opposite edges on a
+     narrow screen. Stack them instead. */
+  .pager {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
   .drawer {
     width: 100vw;
   }

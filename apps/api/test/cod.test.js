@@ -216,17 +216,50 @@ describe('cash on delivery', () => {
     expect(Number(done.body.order.codCollectedPaise)).toBe(0);
   });
 
-  it('skips the code entirely when the operator turns that off', async () => {
+  it('still demands the code on a CASH order even when the operator turns codes off', async () => {
+    // Switching door codes off is a fair call for prepaid: the money is already in, and the code is
+    // only proof of hand-over. Cash is different — something of value moves in both directions at
+    // the door. A tester marked a ₹700 cash order delivered without entering anything, which is the
+    // reconciliation hole this closes. The global setting does not apply to cash.
     updatePaymentSettings({ deliveryOtpEnabled: false });
     const ctx = await basket();
     const { body } = await placeCod(ctx);
     const id = body.order.id;
     await advance(id, 'PACKING');
     await advance(id, 'OUT_FOR_DELIVERY');
-    expect(getOrder(id).deliveryOtp).toBeNull();
-    const done = await request(app)
+    const code = getOrder(id).deliveryOtp;
+    expect(code).toMatch(/^\d{4}$/);
+
+    const noCode = await request(app)
       .post(`/api/v1/admin/orders/${id}/deliver`)
       .send({ collectedPaise: Number(body.order.totalPaise) });
+    expect(noCode.status).toBe(422);
+    expect(noCode.body.error.code).toBe('DELIVERY_OTP_INVALID');
+
+    const done = await request(app)
+      .post(`/api/v1/admin/orders/${id}/deliver`)
+      .send({ otp: code, collectedPaise: Number(body.order.totalPaise) });
+    expect(done.status).toBe(200);
+    expect(done.body.order.status).toBe('DELIVERED');
+  });
+
+  it('does skip the code on a PREPAID order when the operator turns codes off', async () => {
+    updatePaymentSettings({ deliveryOtpEnabled: false });
+    const ctx = await basket();
+    const r = await request(app)
+      .post('/api/v1/orders')
+      .set(auth(ctx.token))
+      .send({ addressId: ctx.addressId, deliveryDate: ctx.win.date, window: ctx.win.window });
+    const id = r.body.order.id;
+    if (r.body.paymentIntent)
+      await request(app)
+        .post('/api/v1/payments/verify')
+        .set(auth(ctx.token))
+        .send({ paymentId: r.body.paymentIntent.paymentId, success: true });
+    await advance(id, 'PACKING');
+    await advance(id, 'OUT_FOR_DELIVERY');
+    expect(getOrder(id).deliveryOtp).toBeNull();
+    const done = await request(app).post(`/api/v1/admin/orders/${id}/deliver`).send({});
     expect(done.status).toBe(200);
     expect(done.body.order.status).toBe('DELIVERED');
   });

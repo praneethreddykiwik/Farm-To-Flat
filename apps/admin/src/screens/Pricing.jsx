@@ -124,96 +124,101 @@ export function Pricing() {
         ) : loading ? (
           <TableSkeleton />
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th style={{ width: 130 }}>Cost (₹)</th>
-                  <th style={{ width: 130 }}>Price (₹)</th>
-                  <th style={{ textAlign: 'right' }}>Margin</th>
-                  <th style={{ width: 90 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {pager.slice.map((p) => {
-                  const e = edits[p.id];
-                  const priceR = e ? e.priceR : toRupees(p.pricePaise);
-                  const costR = e ? e.costR : toRupees(p.costPaise);
-                  const price = toPaise(priceR || 0);
-                  const cost = toPaise(costR || 0);
-                  const marginPct =
-                    price > 0 ? Math.round(((price - cost) / price) * 1000) / 10 : 0;
-                  const dirty =
-                    !!e &&
-                    (toPaise(e.priceR) !== Number(p.pricePaise) ||
-                      toPaise(e.costR) !== Number(p.costPaise));
-                  return (
-                    <tr key={p.id}>
-                      <td>
-                        <div className="prodcell">
-                          <Thumb name={p.name} image={p.image} tint={p.tint} />
-                          <div>
-                            <div className="prodcell__name">{p.name}</div>
-                            <div className="prodcell__alias">
-                              {p.categoryName} · {p.unit}
+          <>
+            {/* The pager must sit OUTSIDE .table-wrap: inside a horizontal scroller it is laid out at
+              the viewport width, so its rule and background stopped short of the table's right edge,
+              and scrolling the table sideways on a phone carried the whole footer off-screen. */}
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th style={{ width: 130 }}>Cost (₹)</th>
+                    <th style={{ width: 130 }}>Price (₹)</th>
+                    <th style={{ textAlign: 'right' }}>Margin</th>
+                    <th style={{ width: 90 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pager.slice.map((p) => {
+                    const e = edits[p.id];
+                    const priceR = e ? e.priceR : toRupees(p.pricePaise);
+                    const costR = e ? e.costR : toRupees(p.costPaise);
+                    const price = toPaise(priceR || 0);
+                    const cost = toPaise(costR || 0);
+                    const marginPct =
+                      price > 0 ? Math.round(((price - cost) / price) * 1000) / 10 : 0;
+                    const dirty =
+                      !!e &&
+                      (toPaise(e.priceR) !== Number(p.pricePaise) ||
+                        toPaise(e.costR) !== Number(p.costPaise));
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <div className="prodcell">
+                            <Thumb name={p.name} image={p.image} tint={p.tint} />
+                            <div>
+                              <div className="prodcell__name">{p.name}</div>
+                              <div className="prodcell__alias">
+                                {p.categoryName} · {p.unit}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <input
-                          className="field__input"
-                          style={{ padding: '7px 10px', width: 84, minWidth: 84 }}
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={costR}
-                          onChange={(ev) =>
-                            edit(p.id, 'costR', num(ev.target.value, { max: 100000 }), p)
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="field__input"
-                          style={{ padding: '7px 10px', width: 84, minWidth: 84 }}
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={priceR}
-                          onChange={(ev) =>
-                            edit(p.id, 'priceR', num(ev.target.value, { max: 100000 }), p)
-                          }
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <span
-                          className={`badge ${marginPct >= 20 ? 'st-CONFIRMED' : 'st-PENDING_PAYMENT'}`}
-                        >
-                          {marginPct}%
-                        </span>
-                        <div className="muted mono" style={{ fontSize: 11, marginTop: 3 }}>
-                          {inr(price - cost)}
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn--accent btn--sm"
-                          disabled={!dirty}
-                          onClick={() => save(p)}
-                          style={{ opacity: dirty ? 1 : 0.4 }}
-                        >
-                          <IconCheck size={15} /> Save
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td>
+                          <input
+                            className="field__input"
+                            style={{ padding: '7px 10px', width: 84, minWidth: 84 }}
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            value={costR}
+                            onChange={(ev) =>
+                              edit(p.id, 'costR', num(ev.target.value, { max: 100000 }), p)
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="field__input"
+                            style={{ padding: '7px 10px', width: 84, minWidth: 84 }}
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            value={priceR}
+                            onChange={(ev) =>
+                              edit(p.id, 'priceR', num(ev.target.value, { max: 100000 }), p)
+                            }
+                          />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <span
+                            className={`badge ${marginPct >= 20 ? 'st-CONFIRMED' : 'st-PENDING_PAYMENT'}`}
+                          >
+                            {marginPct}%
+                          </span>
+                          <div className="muted mono" style={{ fontSize: 11, marginTop: 3 }}>
+                            {inr(price - cost)}
+                          </div>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn--accent btn--sm"
+                            disabled={!dirty}
+                            onClick={() => save(p)}
+                            style={{ opacity: dirty ? 1 : 0.4 }}
+                          >
+                            <IconCheck size={15} /> Save
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <Pager {...pager} onPage={pager.setPage} />
-          </div>
+          </>
         )}
       </div>
     </>

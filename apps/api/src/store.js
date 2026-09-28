@@ -552,6 +552,21 @@ export function createCommunity(data) {
 }
 
 // ── order writes (admin) ────────────────────────────────────────────────────
+/**
+ * Does this order need a code read out at the door?
+ *
+ * The operator can switch door codes off for the whole shop, and that is a reasonable call for
+ * prepaid orders: the money is already collected and the code is only proof of hand-over.
+ *
+ * It is NOT a reasonable call for cash. A COD order is the one case where something of value moves
+ * at the door in both directions, and "delivered, ₹700 collected" with no proof is the reconciliation
+ * problem the code exists to prevent — a tester marked one delivered without entering anything and
+ * rightly called it a big issue. So cash always requires a code, whatever the global setting says.
+ */
+function doorCodeRequired(o) {
+  return db.constants.deliveryOtp.enabled || o.paymentMethod === 'COD';
+}
+
 export function updateOrderStatus(oid, status) {
   const o = db.orders.find((x) => x.id === oid);
   if (!o) return null;
@@ -560,7 +575,7 @@ export function updateOrderStatus(oid, status) {
   // Going out for delivery mints the code the customer reads to the person at the door. Issued
   // here rather than at the door so it reaches them over push/WhatsApp while the rider is still
   // travelling, and re-issued on every dispatch so a code from a failed first attempt is dead.
-  if (status === 'OUT_FOR_DELIVERY' && db.constants.deliveryOtp.enabled) {
+  if (status === 'OUT_FOR_DELIVERY' && doorCodeRequired(o)) {
     o.deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
     o.deliveryOtpIssuedAt = new Date().toISOString();
   }
@@ -587,7 +602,7 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
         message: 'Send the order out for delivery before completing it.',
       },
     };
-  if (db.constants.deliveryOtp.enabled) {
+  if (doorCodeRequired(o)) {
     // No code on the order means it was dispatched while codes were switched OFF, and the setting
     // has been turned on since. The old guard was `enabled && o.deliveryOtp`, so that order sailed
     // through with no proof at all — the one case where proof is demanded is exactly the case where
