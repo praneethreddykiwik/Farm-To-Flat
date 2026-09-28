@@ -57,14 +57,16 @@ function ProductCardBase({ product, index = 0, width }) {
           accessibilityLabel={`${label}, ${alias || ''}`}
         >
           <View style={styles.imageWrap}>
-            <ProductImage
-              uri={product.image}
-              blurhash={product.blurhash}
-              tint={product.tint}
-              name={label}
-              radius={radius.md}
-              recyclingKey={product.id}
-            />
+            <View style={styles.imageClip}>
+              <ProductImage
+                uri={product.image}
+                blurhash={product.blurhash}
+                tint={product.tint}
+                name={label}
+                radius={radius.md}
+                recyclingKey={product.id}
+              />
+            </View>
             {product.variableWeight && !soldOut ? (
               <View style={styles.tag}>
                 <Small style={{ fontSize: 10, color: colors.inkOnDark }}>WEIGHED</Small>
@@ -127,13 +129,19 @@ const styles = StyleSheet.create({
   // picture and its centred SOLD OUT pill lands on top of the product name. That is the overlap that
   // was reported.
   //
-  // STACKING: on Android, siblings are painted in ELEVATION order, not document order, so the photo
-  // covered the overlays and a sold-out product showed no veil and no pill at all. The overlays
-  // carry an explicit elevation below for that reason.
+  // STACKING, and it takes both halves. On Android siblings are painted in ELEVATION order, not
+  // document order, so the photo covered the overlays and a sold-out product showed no veil and no
+  // pill — hence the explicit elevation on each overlay below. But an elevated child of a view with
+  // overflow:hidden is dropped by the parent's clip, so putting the clip HERE made the veil vanish
+  // all over again. The clip therefore wraps the photo alone; the overlays sit outside it, in a
+  // parent that never clips, and round their own corners to match.
   imageWrap: {
     aspectRatio: 1,
     width: '100%',
     position: 'relative',
+  },
+  imageClip: {
+    ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
     borderRadius: radius.md,
   },
