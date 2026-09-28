@@ -89,12 +89,10 @@ function ProductCardBase({ product, index = 0, width }) {
           </View>
         </Pressy>
         <View style={styles.footer}>
-          <View style={styles.priceRow}>
+          <Text numberOfLines={1}>
             <Money paise={product.pricePaise} variant="price" />
-            <Small muted style={styles.priceUnit}>
-              {UNIT_SUFFIX[product.unit] || ''}
-            </Small>
-          </View>
+            <Small muted>{` ${UNIT_SUFFIX[product.unit] || ''}`}</Small>
+          </Text>
           <View style={styles.stepperRow}>
             {soldOut ? (
               <View style={styles.soldOutNote}>
@@ -173,11 +171,10 @@ const styles = StyleSheet.create({
   soldOutNote: { paddingVertical: 6 },
   meta: { paddingTop: 10, paddingHorizontal: 2 },
   footer: { paddingTop: 10, paddingHorizontal: 2, gap: 8 },
-  // The card is given a fixed width by the grid, so a wide price ("₹160") could squeeze the unit
-  // beside it until only the slash survived — "₹160 /" with the "kg" clipped away. The price keeps
-  // its size, the unit is allowed to wrap onto its own line rather than be cut, and neither is
-  // shrunk to fit.
-  priceRow: { flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap' },
-  priceUnit: { flexShrink: 0, marginLeft: 2, marginBottom: 2 },
+  // "₹160 /" with the "kg" gone. The row used to be a flex View holding the price and the unit as
+  // two children; on Android, when the card's fixed width left the second child short of room, the
+  // Text was truncated at the glyph rather than the flex item wrapping — so flexWrap never helped,
+  // and the tester kept seeing a bare slash. Nesting both in ONE Text makes it a single text run:
+  // one measurement, no negotiation between siblings, and the unit cannot be cut off mid-word.
   stepperRow: { alignSelf: 'flex-start' },
 });
