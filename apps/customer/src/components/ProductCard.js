@@ -140,8 +140,12 @@ const styles = StyleSheet.create({
     width: '100%',
     position: 'relative',
   },
+  // In flow, filling the wrapper — not an absolute fill. Absolute takes it out of flow, which left
+  // imageWrap with no in-flow child to size against, and the veil then filled a box that no longer
+  // matched the picture.
   imageClip: {
-    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
     overflow: 'hidden',
     borderRadius: radius.md,
   },
