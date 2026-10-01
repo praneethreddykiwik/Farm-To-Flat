@@ -67,9 +67,17 @@ export async function uploadIssuePhoto({ buffer, contentType, orderId }) {
   return name;
 }
 
-/** How long a complaint-photo link lives. Long enough to look at it, short enough to be useless if
- *  it leaks out of the panel into a chat or a screenshot. */
-const ISSUE_URL_TTL_SECONDS = 60 * 60;
+/**
+ * How long a complaint-photo link lives. Long enough to look at it, short enough to be useless if
+ * it leaks out of the panel into a chat or a screenshot.
+ *
+ * An hour was too short for the way the panel is actually used. The complaints queue is a screen an
+ * operator leaves open while working through the day, and every photograph on it broke silently
+ * once the signatures aged out — the rows still listed photos, so the page showed broken thumbnails
+ * rather than anything that explained itself. A working day covers a shift without making a leaked
+ * link useful tomorrow; the panel also refetches on a broken image, so an aged link repairs itself.
+ */
+const ISSUE_URL_TTL_SECONDS = 8 * 60 * 60;
 
 /**
  * An already-stored photo reference → the object path inside the issues bucket.

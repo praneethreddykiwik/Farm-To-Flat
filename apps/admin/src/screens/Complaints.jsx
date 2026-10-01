@@ -10,7 +10,7 @@
  * Answered ones stay reachable rather than disappearing — "what did we decide about that bag?" is a
  * question that gets asked days later.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote } from '../components/ui.jsx';
@@ -43,6 +43,17 @@ export function Complaints() {
   const issues = useMemo(() => data?.issues || [], [data]);
   const openCount = data?.openCount ?? 0;
   const [busy, setBusy] = useState(/** @type {string|null} */ (null));
+  // Photo links are signed and expire, so a queue left open long enough shows broken thumbnails.
+  // One refetch mints fresh ones; the ref stops a genuinely missing object from looping the panel.
+  const photoRefetched = useRef(false);
+  const refreshPhotos = useCallback(() => {
+    if (photoRefetched.current) return;
+    photoRefetched.current = true;
+    reload();
+  }, [reload]);
+  useEffect(() => {
+    photoRefetched.current = false;
+  }, [tab]);
 
   /** Answer a report. The customer's own words and photos are never rewritten — only added to. */
   async function answer(iss, status) {
@@ -115,6 +126,7 @@ export function Complaints() {
             <ComplaintCard
               key={iss.id}
               iss={iss}
+              onPhotoError={refreshPhotos}
               busy={busy === iss.id}
               onAnswer={(status) => answer(iss, status)}
             />
@@ -125,7 +137,7 @@ export function Complaints() {
   );
 }
 
-function ComplaintCard({ iss, busy, onAnswer }) {
+function ComplaintCard({ iss, busy, onAnswer, onPhotoError }) {
   const o = iss.order || {};
   const open = iss.status === 'OPEN';
   return (
@@ -180,6 +192,10 @@ function ComplaintCard({ iss, busy, onAnswer }) {
                 src={u}
                 alt="Reported problem"
                 loading="lazy"
+                // Photo links are signed and expire. A queue left open past the signature's life
+                // showed broken thumbnails and said nothing; one refetch mints new links. Guarded
+                // so a genuinely missing object cannot loop the panel.
+                onError={onPhotoError}
                 style={{
                   width: 104,
                   height: 104,
