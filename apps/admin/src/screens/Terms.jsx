@@ -1,3 +1,4 @@
+import { useState } from 'react';
 /**
  * Public terms & conditions for Farm to Flat. Reached at /terms with NO login and NO admin chrome —
  * mirrors Privacy.jsx (self-contained styles, same structure) so it renders correctly on its own and
@@ -6,125 +7,44 @@
  * (Consumer Protection (E-Commerce) Rules, 2020; IT Act, 2000 s.79 safe-harbour requires one too).
  */
 import { useSupportEmail } from '../lib/publicSupport.js';
+import { CHROME, SECTIONS, UPDATED } from './terms-content.js';
 
-const UPDATED = '18 September 2026';
-
-const SECTIONS = (CONTACT) => [
-  {
-    h: 'Who we are',
-    p: [
-      'Farm to Flat ("we", "us") operates a mobile app that lets residents of participating gated communities in Hyderabad, India pre-order fresh vegetables, greens and meat for delivery in a chosen morning or evening window. By creating an account or placing an order, you agree to these terms.',
-    ],
-  },
-  {
-    h: 'Eligibility & account',
-    list: [
-      [
-        'Who can order',
-        'you must be at least 18 years old, able to enter a binding contract under Indian law, and reside in or have delivery access to a serviceable community.',
-      ],
-      [
-        'Sign-in',
-        'accounts are verified by a one-time password (OTP) sent to your mobile number. You are responsible for keeping access to that number secure.',
-      ],
-      [
-        'Accuracy',
-        'you agree the address, contact and order details you provide are accurate — we deliver to exactly what you enter.',
-      ],
-    ],
-  },
-  {
-    h: 'Orders, pricing & payment',
-    list: [
-      [
-        'Pricing',
-        'prices shown at checkout are inclusive of applicable taxes (GST) unless stated otherwise, and are the price in effect at the time you place the order.',
-      ],
-      [
-        'Order cut-off',
-        'each delivery window closes for new orders at a fixed time shown in the app, so items can be procured in time — orders cannot be placed or guaranteed after that cut-off.',
-      ],
-      [
-        'Availability',
-        'items are sourced after ordering closes; an item may occasionally be substituted or refunded if unavailable, and we will tell you which.',
-      ],
-      [
-        'Payment',
-        'payments are processed by Razorpay, a RBI-authorised payment aggregator. We do not receive or store your card, UPI PIN or bank credentials.',
-      ],
-    ],
-  },
-  {
-    h: 'Delivery',
-    p: [
-      'We deliver to the flat, block and community you select, within the delivery window you choose at checkout. Delivery windows and serviceable communities may change; we will show current options in the app before you order. Please ensure someone is available to receive the order, or provide delivery instructions for the gate/guard.',
-    ],
-  },
-  {
-    h: 'Cancellation & refunds',
-    list: [
-      [
-        'Before the cut-off',
-        'you may cancel an order from the app for a full refund to your original payment method, credited within the usual banking timelines.',
-      ],
-      [
-        'After the cut-off',
-        'once procurement has started for your window, cancellation may not be possible since the produce has already been sourced on your behalf; contact us and we will do what we reasonably can.',
-      ],
-      [
-        'Quality issues',
-        'if an item arrives damaged, spoiled or materially different from what you ordered, contact us within 24 hours of delivery with details — we will refund or credit the affected item.',
-      ],
-      [
-        'How refunds are made',
-        'refunds go back to the original payment method via Razorpay. We do not hold customer funds beyond what is needed to process a refund.',
-      ],
-    ],
-  },
-  {
-    h: 'Your responsibilities',
-    p: [
-      'Please use the app lawfully and in good faith: provide a real, accessible delivery address; do not place orders you do not intend to honour; and treat our delivery staff with courtesy. We may decline or cancel orders that appear fraudulent or abusive, or restrict an account that repeatedly does this.',
-    ],
-  },
-  {
-    h: 'Our liability',
-    p: [
-      'We work to source and deliver fresh, good-quality produce, but fresh produce naturally varies. Our liability for any order is limited to the amount you paid for that order. We are not liable for delays or failures caused by events beyond our reasonable control (severe weather, community access restrictions, and similar).',
-    ],
-  },
-  {
-    h: 'Changes to these terms',
-    p: [
-      'We may update these terms as the service grows. We will change the "Last updated" date above, and material changes will be highlighted in the app before they take effect.',
-    ],
-  },
-  {
-    h: 'Governing law & jurisdiction',
-    p: [
-      'These terms are governed by the laws of India. Any dispute arising from these terms or your use of the app will be subject to the exclusive jurisdiction of the courts in Hyderabad, Telangana.',
-    ],
-  },
-  {
-    h: 'Grievance officer',
-    p: [
-      `In accordance with the Information Technology Act, 2000 and the Consumer Protection (E-Commerce) Rules, 2020, the name and contact details of the Grievance Officer are provided below. If you have a complaint about an order, a privacy concern, or content on the app, please write to us and we will acknowledge it within 48 hours and resolve it within 30 days.`,
-    ],
-    list: [
-      ['Grievance Officer', 'Farm to Flat Operations'],
-      ['Email', CONTACT],
-      ['Address', 'Farm to Flat, Hyderabad, Telangana, India'],
-    ],
-  },
-  {
-    h: 'Contact us',
-    p: [`Questions about these terms? Email ${CONTACT}. Farm to Flat, Hyderabad, India.`],
-  },
+const LANGS = [
+  { code: 'en', native: 'English' },
+  { code: 'hi', native: 'हिंदी' },
+  { code: 'te', native: 'తెలుగు' },
 ];
+
+/**
+ * Which language to render. `?lang=` wins so the app can link straight to the reader's own
+ * language; otherwise the browser's preference, which is a better guess than English for someone
+ * who got here from a Hindi phone.
+ */
+function pickLang() {
+  const asked = new URLSearchParams(window.location.search).get('lang');
+  if (SECTIONS[asked]) return asked;
+  for (const tag of navigator.languages || [navigator.language || '']) {
+    const code = String(tag).slice(0, 2).toLowerCase();
+    if (SECTIONS[code]) return code;
+  }
+  return 'en';
+}
 
 export function Terms() {
   const contact = useSupportEmail();
-  const sections = SECTIONS(contact);
+  const [lang, setLang] = useState(pickLang);
+  const chrome = CHROME[lang];
+  const sections = SECTIONS[lang](contact);
+
+  // Keep the URL in step, so the page can be shared or reloaded in the language being read.
+  function choose(code) {
+    setLang(code);
+    const url = new URL(window.location.href);
+    url.searchParams.set('lang', code);
+    window.history.replaceState({}, '', url);
+    document.documentElement.lang = code;
+  }
+
   return (
     <div style={s.page}>
       <style>{CSS}</style>
@@ -136,14 +56,27 @@ export function Terms() {
             </span>
             <span>Farm to Flat</span>
           </div>
-          <h1 className="pp-title">Terms & Conditions</h1>
-          <p className="pp-updated">Last updated {UPDATED}</p>
+          <h1 className="pp-title">{chrome.title}</h1>
+          <p className="pp-updated">
+            {chrome.updated} {UPDATED[lang]}
+          </p>
+          <nav className="pp-langs" aria-label={chrome.languageLabel}>
+            {LANGS.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                className={`pp-lang${l.code === lang ? ' pp-lang--on' : ''}`}
+                aria-current={l.code === lang ? 'true' : undefined}
+                onClick={() => choose(l.code)}
+              >
+                {l.native}
+              </button>
+            ))}
+          </nav>
         </header>
 
-        <p className="pp-lede">
-          These terms explain how ordering, delivery, cancellation and refunds work on Farm to Flat,
-          and what to expect from us and from you as a customer — in plain language.
-        </p>
+        <p className="pp-lede">{chrome.lede}</p>
+        {chrome.governingNote ? <p className="pp-note">{chrome.governingNote}</p> : null}
 
         {sections.map((sec) => (
           <section className="pp-sec" key={sec.h}>
@@ -200,6 +133,13 @@ const CSS = `
   font-size:clamp(30px,6vw,42px);line-height:1.1;letter-spacing:-0.02em;margin:16px 0 8px;color:#0e1b14;}
 .pp-updated{font-size:13px;color:#5c6b62;margin:0;}
 .pp-lede{font-size:16.5px;color:#33453b;margin:0 0 34px;}
+.pp-langs{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+.pp-lang{font:inherit;font-size:13.5px;padding:6px 14px;border-radius:999px;cursor:pointer;
+  border:1px solid #dde5df;background:#fff;color:#33453b;}
+.pp-lang:hover{border-color:#1e7a4c;}
+.pp-lang--on{background:#1e7a4c;border-color:#1e7a4c;color:#fff;font-weight:600;}
+.pp-note{font-size:13.5px;color:#5c6b62;background:#eef3ef;border:1px solid #dde5df;
+  border-radius:10px;padding:12px 14px;margin:0 0 30px;}
 .pp-sec{margin-bottom:30px;}
 .pp-h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:21px;line-height:1.25;
   letter-spacing:-0.01em;color:#12201a;margin:0 0 10px;}

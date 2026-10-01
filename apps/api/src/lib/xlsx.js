@@ -40,7 +40,18 @@ export async function buildWorkbook(sheets, meta = {}) {
     head.alignment = { vertical: 'middle' };
     head.height = 22;
     ws.views = [{ state: 'frozen', ySplit: 1 }];
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns.length } };
+    // The range has to reach the LAST DATA ROW. It used to be row 1 → row 1, so Excel drew the
+    // dropdown buttons — they come from the header row — over a filter with no rows in scope, and
+    // picking a value filtered nothing. That is the "filters not working" report.
+    //
+    // `filter` is opt-in per sheet: a two-column meta sheet gets buttons that do nothing useful,
+    // and a sheet with no data rows cannot have a valid range at all.
+    if (sheet.filter !== false && sheet.rows.length > 0) {
+      ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1 + sheet.rows.length, column: sheet.columns.length },
+      };
+    }
 
     sheet.columns.forEach((c, i) => {
       const col = ws.getColumn(i + 1);

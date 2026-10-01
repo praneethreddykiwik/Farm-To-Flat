@@ -70,7 +70,7 @@ describe('a window must close before it delivers', () => {
 });
 
 describe('a window already saved with a nonsense cut-off', () => {
-  it('closes when the run begins rather than staying open all day', async () => {
+  it('closes an hour before the run begins rather than staying open all day', async () => {
     const { communityWindows } = await import('../src/lib/windows.js');
     // Exactly the shape found in production: morning run, cut-off in the late afternoon.
     const defs = communityWindows({
@@ -79,7 +79,27 @@ describe('a window already saved with a nonsense cut-off', () => {
         { key: 'MORNING', label: 'Morning', cutoff: '17:17', start: '06:00', end: '12:00' },
       ],
     });
-    expect(defs[0].cutoff).toBe('06:00');
+    // An hour's packing room, not the start itself. Clamping to the start produced a row that both
+    // the editor and the server reject — a cut-off at the start is already too late to pack — so
+    // the operator found Save disabled for the whole community and could not correct it at all.
+    // Closing EARLIER than configured is still the safe direction.
+    expect(defs[0].cutoff).toBe('05:00');
+  });
+
+  it('clamps to a value the operator can actually save', async () => {
+    const { communityWindows, minutesOfClock } = await import('../src/lib/windows.js');
+    for (const [cutoff, start, end] of [
+      ['17:17', '06:00', '12:00'],
+      ['23:59', '00:30', '04:00'], // start inside the first hour — must not wrap past midnight
+      ['12:00', '12:00', '15:00'], // cut-off exactly at the start
+    ]) {
+      const [w] = communityWindows({
+        deliveryDays: [1],
+        windows: [{ key: 'W', label: 'W', cutoff, start, end }],
+      });
+      expect(minutesOfClock(w.cutoff)).toBeLessThan(minutesOfClock(w.start));
+      expect(w.cutoff).toMatch(/^\d{2}:\d{2}$/);
+    }
   });
 
   it('leaves a sane cut-off exactly as the operator set it', async () => {

@@ -163,7 +163,7 @@ export default function Checkout() {
     haptic.success();
     notifyLocal(
       'Order confirmed',
-      `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${windowLabel(order.window).toLowerCase()}.`,
+      `${order.orderNumber} arrives ${formatDateShort(order.deliveryDate)}, ${windowLabel(order.window, null, lang).toLowerCase()}.`,
     );
     router.replace({ pathname: '/order/success', params: { id: order.id } });
   };
@@ -391,12 +391,12 @@ export default function Checkout() {
           icon={<Calendar size={18} color={colors.ink} />}
           title={
             chosenSlot
-              ? `${formatDateShort(chosenSlot.date)} · ${windowLabel(chosenSlot.window, chosenWindow)}`
+              ? `${formatDateShort(chosenSlot.date)} · ${windowLabel(chosenSlot.window, chosenWindow, lang)}`
               : 'Choose a delivery window'
           }
           subtitle={
             chosenSlot
-              ? windowHours(chosenSlot.window, chosenWindow)
+              ? windowHours(chosenSlot.window, chosenWindow, lang)
               : t('chooseDeliveryWindowSub', lang)
           }
           onPress={() => windowSheet.current?.present()}

@@ -10,6 +10,59 @@ const { app } = await import('../src/index.js');
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
+describe('the workbook opens correctly', () => {
+  const open = async (q = '') => {
+    const r = await request(app)
+      .get(`/api/v1/admin/procurement/export.xlsx${q}`)
+      .responseType('blob');
+    expect(r.status).toBe(200);
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(r.body));
+    return wb;
+  };
+
+  // The filter range used to be row 1 → row 1. Excel still drew the dropdown buttons, so the sheet
+  // LOOKED filterable and filtered nothing — which is how it was reported.
+  it('covers every data row with the filter, not just the header', async () => {
+    const wb = await open();
+    const ws = wb.worksheets[0];
+    // exceljs reads the range back as an "A1:J19" string
+    expect(ws.autoFilter).toBe(`A1:J${ws.rowCount}`);
+    expect(ws.rowCount).toBeGreaterThan(1);
+  });
+
+  it('leaves the two-column run-details sheet unfiltered', async () => {
+    const wb = await open();
+    expect(wb.worksheets[1].autoFilter).toBeFalsy();
+  });
+
+  it('translates both sheet names, both sheets of headers, and the run details', async () => {
+    const wb = await open('?lang=hi');
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['खरीद सूची', 'रन विवरण']);
+
+    const head = wb.worksheets[0].getRow(1).values.slice(1);
+    expect(head[0]).toBe('श्रेणी');
+    expect(head[9]).toBe('खरीदा');
+    for (const h of head) expect(h).not.toMatch(/[A-Za-z]{3}/);
+
+    const run = wb.worksheets[1];
+    expect(run.getRow(1).values.slice(1)).toEqual(['विवरण', 'मान']);
+    const labels = [];
+    run.eachRow((row, n) => {
+      if (n > 1) labels.push(row.getCell(1).value);
+    });
+    expect(labels).toContain('अनुमानित लागत');
+    for (const l of labels) expect(l).not.toMatch(/[A-Za-z]{3}/);
+  });
+
+  it('still reads English when no language is asked for', async () => {
+    const wb = await open();
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Purchase list', 'Run details']);
+    expect(wb.worksheets[1].getRow(1).values.slice(1)).toEqual(['Field', 'Value']);
+  });
+});
+
 describe('purchase list export', () => {
   it('returns a real .xlsx workbook, not a CSV', async () => {
     const r = await request(app).get('/api/v1/admin/procurement/export.xlsx').responseType('blob');

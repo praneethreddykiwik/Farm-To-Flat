@@ -33,7 +33,16 @@ import { money, formatINR } from '../../lib/money.js';
 import { csvEscape } from '../../lib/csv.js';
 import { todayISO } from '../../lib/dates.js';
 import { communityWindows } from '../../lib/windows.js';
-import { CSV_HEADERS, LANGS, YES, categoryName, productName, unitLabel } from '../../lib/i18n.js';
+import {
+  CSV_HEADERS,
+  LANGS,
+  RUN_DETAILS,
+  SHEET_NAMES,
+  YES,
+  categoryName,
+  productName,
+  unitLabel,
+} from '../../lib/i18n.js';
 import { buildWorkbook, rupees, sendWorkbook } from '../../lib/xlsx.js';
 
 export const adminProcurementRouter = Router();
@@ -401,15 +410,16 @@ adminProcurementRouter.get(
       };
     });
 
+    const R = RUN_DETAILS[lang];
     const communityName =
       orders.find((o) => o.address?.communityId === req.query.communityId)?.address?.community ||
       req.query.communityId ||
-      'All communities';
+      R.allCommunities;
 
     const buf = await buildWorkbook(
       [
         {
-          name: 'Purchase list',
+          name: SHEET_NAMES[lang].list,
           columns: [
             { header: H[0], key: 'category', width: 18 },
             { header: H[1], key: 'product', width: 26 },
@@ -419,31 +429,33 @@ adminProcurementRouter.get(
             { header: H[5], key: 'unit', width: 10 },
             { header: H[6], key: 'buffer', width: 10 },
             { header: H[7], key: 'procure', width: 13, qty: true },
-            { header: H[8], key: 'cost', width: 14, money: true },
+            { header: H[8], key: 'cost', width: 18, money: true },
             { header: H[9], key: 'bought', width: 10 },
           ],
           rows,
         },
         {
-          name: 'Run details',
+          name: SHEET_NAMES[lang].run,
+          // Two columns of metadata — a filter here offers buttons that do nothing worth doing.
+          filter: false,
           columns: [
-            { header: 'Field', key: 'k', width: 24 },
-            { header: 'Value', key: 'v', width: 40 },
+            { header: R.field, key: 'k', width: 24 },
+            { header: R.value, key: 'v', width: 40 },
           ],
           rows: [
-            { k: 'Generated', v: new Date().toISOString() },
-            { k: 'Delivery day', v: req.query.date || 'All open days' },
-            { k: 'Window', v: req.query.window || 'All windows' },
-            { k: 'Community', v: communityName },
-            { k: 'Order statuses', v: statuses.join(', ') },
-            { k: 'Buffer override', v: override == null ? 'per-product default' : `${override}%` },
-            { k: 'Orders covered', v: orders.length },
-            { k: 'Distinct products', v: lines.length },
-            { k: 'Estimated cost', v: rupees(lines.reduce((t, l) => t + l._procureCost, 0)) },
+            { k: R.generated, v: new Date().toISOString() },
+            { k: R.deliveryDay, v: req.query.date || R.allDays },
+            { k: R.window, v: req.query.window || R.allWindows },
+            { k: R.community, v: communityName },
+            { k: R.statuses, v: statuses.join(', ') },
+            { k: R.bufferOverride, v: override == null ? R.perProduct : `${override}%` },
+            { k: R.ordersCovered, v: orders.length },
+            { k: R.distinctProducts, v: lines.length },
+            { k: R.estimatedCost, v: rupees(lines.reduce((t, l) => t + l._procureCost, 0)) },
           ],
         },
       ],
-      { title: 'Farm to Flat purchase list' },
+      { title: R.title },
     );
 
     const stamp = req.query.date || todayISO();

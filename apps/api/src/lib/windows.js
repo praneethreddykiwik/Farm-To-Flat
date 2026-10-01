@@ -69,6 +69,15 @@ export const minutesOfClock = (t) => {
 };
 
 /**
+ * 300 → "05:00". The inverse of `minutesOfClock`, for clamping a stored time to a coherent one.
+ * @param {number} mins
+ */
+const clockOfMinutes = (mins) => {
+  const m = Math.max(0, Math.min(24 * 60 - 1, Math.round(mins)));
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+/**
  * "17:00" → "5:00 pm". The display form the app shows under a window's name.
  * @param {string} t
  */
@@ -147,7 +156,15 @@ export function communityWindows(community) {
       // and orders were accepted against it all day. Clamp to the start rather than dropping the
       // window: closing EARLIER than configured is the safe direction, and refusing to offer it at
       // all would stop that community ordering entirely.
-      cutoff: minutesOfClock(w.cutoff) >= minutesOfClock(w.start) ? w.start : w.cutoff,
+      // Clamp to a WHOLE HOUR BEFORE the start, not to the start itself. Clamping to the start
+      // produced a value the editor and the server both reject (a cut-off at the start is already
+      // too late to pack), so the operator opened Communities, saw the row flagged, and found Save
+      // disabled for every window in that community — there was no way to correct the closing time
+      // at all. An hour's packing room is the smallest coherent thing to fall back to.
+      cutoff:
+        minutesOfClock(w.cutoff) >= minutesOfClock(w.start)
+          ? clockOfMinutes(Math.max(0, minutesOfClock(w.start) - 60))
+          : w.cutoff,
     }))
     .map((/** @type {any} */ w) => ({ ...w, hours: hoursLabel(w) }))
     .sort(

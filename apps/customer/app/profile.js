@@ -427,22 +427,27 @@ export default function Profile() {
         <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>
           <Small muted>Farm to Flat · v{env.appVersion}</Small>
+          {/* Carry the reader's language to the web page, which renders in all three. */}
           <Pressy
             onPress={() =>
-              Linking.openURL('https://farm-to-flat.vercel.app/privacy').catch(() => {})
+              Linking.openURL(`https://farm-to-flat.vercel.app/privacy?lang=${lang}`).catch(
+                () => {},
+              )
             }
             haptics="select"
           >
             <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
-              Privacy policy
+              {t('privacyPolicy', lang)}
             </Small>
           </Pressy>
           <Pressy
-            onPress={() => Linking.openURL('https://farm-to-flat.vercel.app/terms').catch(() => {})}
+            onPress={() =>
+              Linking.openURL(`https://farm-to-flat.vercel.app/terms?lang=${lang}`).catch(() => {})
+            }
             haptics="select"
           >
             <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
-              Terms & conditions
+              {t('termsAndConditions', lang)}
             </Small>
           </Pressy>
         </Glass>

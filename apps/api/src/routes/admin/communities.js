@@ -19,6 +19,7 @@ import {
 } from '../../store.js';
 import { generateWindows } from '../../lib/windows.js';
 import { todayISO } from '../../lib/dates.js';
+import { canPersistWindows } from '../../persistence.js';
 
 export const adminCommunitiesRouter = Router();
 
@@ -96,6 +97,15 @@ adminCommunitiesRouter.patch(
   validateBody(UpdateCommunity),
   asyncHandler(async (req, res) => {
     if (!getCommunity(req.params.id)) throw fail(404, 'NOT_FOUND', 'Community not found');
+    // Refuse rather than accept-and-lose. Without the `windows` column the write silently drops the
+    // list, so a deleted slot came back on the next boot with nothing having reported a failure —
+    // which is exactly how it was reported: "removed initially, back after refreshing".
+    if (req.body.windows !== undefined && !canPersistWindows())
+      throw fail(
+        503,
+        'WINDOWS_NOT_PERSISTABLE',
+        'Delivery windows cannot be saved yet: the database is missing the windows column. Run `pnpm --filter api db:push` against it, then try again.',
+      );
     const community = updateCommunity(req.params.id, req.body);
     res.json({ community: communityAdmin(community) });
   }),

@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 /**
  * Dates are always Asia/Kolkata. The device may be anywhere; delivery windows are not.
  * Kept dependency-free: Intl with a fixed timeZone is enough for P1 display needs.
@@ -111,9 +113,18 @@ export const WINDOWS = {
  * @param {string} key      the window key stored on the order, e.g. MORNING, AFTERNOON
  * @param {any} [w]         the window object from the API, when we have one (it carries `label`)
  */
-export function windowLabel(key, w) {
-  if (w?.label) return w.label;
-  if (WINDOWS[key]) return WINDOWS[key].label;
+export function windowLabel(key, w, lang) {
+  // Translate the familiar windows, but never overwrite a name the operator chose themselves.
+  // Keys are immutable once issued, so a MORNING window that now reads "Early run" has been
+  // deliberately renamed — showing "ఉదయం" instead would be rewriting their words. We translate
+  // only when the server's label is still the canonical English for that key.
+  const canonical = WINDOWS[key]?.label;
+  const serverLabel = w?.label;
+  const translated = lang && lang !== 'en' ? t(`window${key}`, lang) : null;
+  if (translated && translated !== `window${key}` && (!serverLabel || serverLabel === canonical))
+    return translated;
+  if (serverLabel) return serverLabel;
+  if (canonical) return canonical;
   const s = String(key || '')
     .replace(/_/g, ' ')
     .trim();
@@ -125,9 +136,11 @@ export function windowLabel(key, w) {
  * case for a past order whose window the operator has since removed. Callers render nothing rather
  * than guessing, because a wrong time at the door is worse than no time.
  */
-export function windowHours(key, w) {
-  if (w?.hours) return w.hours;
-  return WINDOWS[key]?.hours || '';
+export function windowHours(key, w, lang) {
+  const hours = w?.hours || WINDOWS[key]?.hours || '';
+  if (!hours || !lang || lang === 'en') return hours;
+  // Only the am/pm markers are words; the digits and the dash read the same in every script.
+  return hours.replace(/\bam\b/gi, t('amShort', lang)).replace(/\bpm\b/gi, t('pmShort', lang));
 }
 
 /** An icon bucket for a window, from when it actually starts. '' falls back to the key. */

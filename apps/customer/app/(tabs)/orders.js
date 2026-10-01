@@ -21,8 +21,11 @@ import { CartBar } from '../../src/components/CartBar';
 import { useGetOrdersQuery } from '../../src/api/api';
 import { colors, motion, radius } from '../../src/theme';
 import { formatDateShort, windowLabel } from '../../src/lib/dates';
+import { selectLanguage } from '../../src/features/ui/uiSlice';
+import { useSelector } from 'react-redux';
 
 export default function Orders() {
+  const lang = useSelector(selectLanguage);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   // Keep the list live so status changes from the ops board appear without a manual pull-to-refresh.
@@ -93,7 +96,7 @@ export default function Orders() {
                     <View style={styles.mid}>
                       <View style={{ flex: 1 }}>
                         <Text variant="h3">
-                          {formatDateShort(o.deliveryDate)} · {windowLabel(o.window)}
+                          {formatDateShort(o.deliveryDate)} · {windowLabel(o.window, null, lang)}
                         </Text>
                         <Small muted numberOfLines={1} style={{ marginTop: 2 }}>
                           {o.items.map((it) => it.name).join(', ')}

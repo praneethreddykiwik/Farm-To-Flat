@@ -57,10 +57,15 @@ export function Complaints() {
 
   /** Answer a report. The customer's own words and photos are never rewritten — only added to. */
   async function answer(iss, status) {
-    const resolution =
+    // Cancel must cancel. `prompt` returns null on Cancel and '' on OK-with-nothing, and the old
+    // `|| undefined` flattened both to undefined — so a cancelled Decline fell straight through to
+    // the POST and the complaint was declined anyway, with no reason attached.
+    const answered =
       status === 'RESOLVED'
-        ? window.prompt('What did you do about it? (shown to the customer)') || undefined
-        : window.prompt('Why are you declining it? (shown to the customer)') || undefined;
+        ? window.prompt('What did you do about it? (shown to the customer)')
+        : window.prompt('Why are you declining it? (shown to the customer)');
+    if (answered === null) return;
+    const resolution = answered.trim() || undefined;
     setBusy(iss.id);
     try {
       await api.post(`/admin/orders/${iss.order.id}/issues/${iss.id}`, { status, resolution });

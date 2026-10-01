@@ -17,6 +17,8 @@ import { Button, Glass, Mono, Screen, Small, Text } from '../../src/ui';
 import { useGetOrderQuery } from '../../src/api/api';
 import { colors, fonts, radius } from '../../src/theme';
 import { formatDateShort, windowLabel } from '../../src/lib/dates';
+import { selectLanguage } from '../../src/features/ui/uiSlice';
+import { useSelector } from 'react-redux';
 
 function Burst() {
   const s = useSharedValue(0);
@@ -51,6 +53,7 @@ function Burst() {
 }
 
 export default function OrderSuccess() {
+  const lang = useSelector(selectLanguage);
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { data } = useGetOrderQuery(id);
@@ -98,7 +101,7 @@ export default function OrderSuccess() {
                   style={{ flex: 1, textAlign: 'right', marginLeft: 12 }}
                   numberOfLines={1}
                 >
-                  {formatDateShort(order.deliveryDate)} · {windowLabel(order.window)}
+                  {formatDateShort(order.deliveryDate)} · {windowLabel(order.window, null, lang)}
                 </Text>
               </View>
               <View style={styles.row}>

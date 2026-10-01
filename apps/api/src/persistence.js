@@ -318,6 +318,15 @@ export function disablePersistence(reason) {
 export const isPersistenceEnabled = () => enabled;
 
 /**
+ * Whether a window edit will actually reach the database.
+ *
+ * False means `communityUpsert` is stripping `windows` before the write, so a deleted slot comes
+ * straight back on the next boot and the operator is never told. The route refuses the edit rather
+ * than answering 200 and losing it.
+ */
+export const canPersistWindows = () => !enabled || hasWindowsColumn;
+
+/**
  * Serialise async work per key: the next write for the same record starts only after the previous
  * one settled. Writes for different keys still run concurrently. Without this, two rapid upserts of
  * the same order (create → cancel within ms) travelled the pool independently and the EARLIER row

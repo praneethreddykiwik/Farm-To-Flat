@@ -34,6 +34,8 @@ import { colors, radius } from '../../src/theme';
 import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
 import { notifyLocal } from '../../src/lib/notifications';
+import { selectLanguage } from '../../src/features/ui/uiSlice';
+import { useSelector } from 'react-redux';
 
 // In-app banner shown when the ops board advances THIS order while the screen is open. Works with no
 // Firebase (the phone schedules it locally); background push (app closed) is the FCM part, later.
@@ -46,6 +48,7 @@ const STATUS_ALERT = {
 };
 
 export default function OrderDetail() {
+  const lang = useSelector(selectLanguage);
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -89,7 +92,7 @@ export default function OrderDetail() {
       .join('\n');
     const msg = [
       `Farm to Flat — invoice`,
-      `${order.orderNumber} · ${formatDateShort(order.deliveryDate)} · ${windowLabel(order.window)}`,
+      `${order.orderNumber} · ${formatDateShort(order.deliveryDate)} · ${windowLabel(order.window, null, lang)}`,
       `${order.address.block} · ${order.address.flat}, ${order.address.communityName}`,
       '',
       lines,
@@ -213,9 +216,11 @@ export default function OrderDetail() {
             >
               <StatusPill status={order.status} />
               <Title style={{ marginTop: 10 }}>
-                {formatDateShort(order.deliveryDate)} · {windowLabel(order.window)}
+                {formatDateShort(order.deliveryDate)} · {windowLabel(order.window, null, lang)}
               </Title>
-              {windowHours(order.window) ? <Small muted>{windowHours(order.window)}</Small> : null}
+              {windowHours(order.window, null, lang) ? (
+                <Small muted>{windowHours(order.window, null, lang)}</Small>
+              ) : null}
               <View style={styles.addr}>
                 <MapPin size={14} color={colors.leaf} />
                 <Small color={colors.ink2}>

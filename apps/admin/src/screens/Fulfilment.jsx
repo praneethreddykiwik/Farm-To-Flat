@@ -129,6 +129,15 @@ export function Fulfilment() {
 
   const move = useCallback(
     async (order, next) => {
+      // Delivering needs the customer's code, and the code input lives in the order drawer. The
+      // board used to PATCH straight to DELIVERED, the API refused it, and the operator got a red
+      // toast with nowhere to type the digits — "the OTP field is shown only after clicking on the
+      // order". Open the drawer instead; it has the input and calls /deliver properly. Same for a
+      // card dragged into the Delivered column, which comes through here too.
+      if (next === 'DELIVERED' && order.deliveryOtpPending) {
+        setOpenId(order.id);
+        return;
+      }
       setBusy(order.id);
       try {
         await api.patch(`/admin/orders/${order.id}/status`, { status: next });
@@ -167,9 +176,23 @@ export function Fulfilment() {
     setBusy(`grp:${ids[0]}`);
     try {
       const r = await api.post('/admin/orders/advance', { orderIds: ids, status: next });
+      // The server skips what it cannot advance and says why. Shipping a whole community to
+      // Delivered used to report only the ones that went through, so an order still waiting on the
+      // customer's code silently stayed behind with nothing naming it.
+      const needCode = (r.skipped || []).filter((x) => x.reason === 'DELIVERY_PROOF_REQUIRED');
       toast(
         `${r.count} order${r.count !== 1 ? 's' : ''} → ${titleCase(next)} · ${r.notified} notified`,
       );
+      if (needCode.length) {
+        toast(
+          `${needCode.length} still need the customer's code: ${needCode
+            .map((x) => x.orderNumber)
+            .filter(Boolean)
+            .join(', ')}`,
+          'err',
+        );
+        if (needCode[0]?.id) setOpenId(needCode[0].id);
+      }
       reload();
     } catch (e) {
       toast(e.message || 'Could not advance', 'err');

@@ -74,6 +74,74 @@ const UNIT = {
   te: { KG: 'కేజీ', BUNCH: 'కట్ట', PIECE: 'ముక్క', DOZEN: 'డజను', PACK: 'ప్యాక్' },
 };
 
+/**
+ * The export's second sheet, and the sheet names themselves. These were hardcoded English while the
+ * purchase list beside them was fully translated — a buyer reading Hindi got a localised table in a
+ * workbook whose tabs and summary were not.
+ */
+export const SHEET_NAMES = {
+  en: { list: 'Purchase list', run: 'Run details' },
+  hi: { list: 'खरीद सूची', run: 'रन विवरण' },
+  te: { list: 'కొనుగోలు జాబితా', run: 'రన్ వివరాలు' },
+};
+
+export const RUN_DETAILS = {
+  en: {
+    field: 'Field',
+    value: 'Value',
+    generated: 'Generated',
+    deliveryDay: 'Delivery day',
+    window: 'Window',
+    community: 'Community',
+    statuses: 'Order statuses',
+    bufferOverride: 'Buffer override',
+    ordersCovered: 'Orders covered',
+    distinctProducts: 'Distinct products',
+    estimatedCost: 'Estimated cost',
+    allDays: 'All open days',
+    allWindows: 'All windows',
+    allCommunities: 'All communities',
+    perProduct: 'per-product default',
+    title: 'Farm to Flat purchase list',
+  },
+  hi: {
+    field: 'विवरण',
+    value: 'मान',
+    generated: 'बनाया गया',
+    deliveryDay: 'डिलीवरी दिन',
+    window: 'समय',
+    community: 'कम्युनिटी',
+    statuses: 'ऑर्डर स्थिति',
+    bufferOverride: 'बफ़र ओवरराइड',
+    ordersCovered: 'शामिल ऑर्डर',
+    distinctProducts: 'कुल उत्पाद',
+    estimatedCost: 'अनुमानित लागत',
+    allDays: 'सभी खुले दिन',
+    allWindows: 'सभी समय',
+    allCommunities: 'सभी कम्युनिटी',
+    perProduct: 'प्रति-उत्पाद डिफ़ॉल्ट',
+    title: 'फ़ार्म टू फ्लैट खरीद सूची',
+  },
+  te: {
+    field: 'వివరం',
+    value: 'విలువ',
+    generated: 'తయారు చేసినది',
+    deliveryDay: 'డెలివరీ రోజు',
+    window: 'సమయం',
+    community: 'కమ్యూనిటీ',
+    statuses: 'ఆర్డర్ స్థితి',
+    bufferOverride: 'బఫర్ ఓవర్‌రైడ్',
+    ordersCovered: 'కవర్ అయిన ఆర్డర్‌లు',
+    distinctProducts: 'మొత్తం ఉత్పత్తులు',
+    estimatedCost: 'అంచనా ఖర్చు',
+    allDays: 'అన్ని తెరిచిన రోజులు',
+    allWindows: 'అన్ని సమయాలు',
+    allCommunities: 'అన్ని కమ్యూనిటీలు',
+    perProduct: 'ఉత్పత్తి వారీ డిఫాల్ట్',
+    title: 'ఫార్మ్ టు ఫ్లాట్ కొనుగోలు జాబితా',
+  },
+};
+
 export const YES = { en: 'yes', hi: 'हाँ', te: 'అవును' };
 
 /** Hindi (Devanagari) product names. Missing ids fall back to English. */
@@ -147,6 +215,11 @@ const BY_NAME = {
   prawns: { hi: 'झींगा', te: 'రొయ్యలు' },
   chicken: { hi: 'चिकन', te: 'కోడి మాంసం' },
   mutton: { hi: 'मटन', te: 'మటన్' },
+  'mutton keema': { hi: 'मटन कीमा', te: 'మటన్ కీమా' },
+  'mutton curry cut': { hi: 'मटन करी कट', te: 'మటన్ కర్రీ కట్' },
+  'chicken curry cut': { hi: 'चिकन करी कट', te: 'చికెన్ కర్రీ కట్' },
+  keema: { hi: 'कीमा', te: 'కీమా' },
+  'country eggs': { hi: 'देसी अंडे', te: 'నాటు కోడిగుడ్లు' },
   eggs: { hi: 'अंडे', te: 'కోడిగుడ్లు' },
   curd: { hi: 'दही', te: 'పెరుగు' },
   milk: { hi: 'दूध', te: 'పాలు' },
@@ -167,16 +240,27 @@ const TELUGU_FALLBACK = {
   p_capsicum: 'క్యాప్సికం',
 };
 
-const hasTelugu = (s) => /[ఀ-౿]/.test(s);
+const hasTelugu = (s) => /[\u0C00-\u0C7F]/.test(s);
+const hasDevanagari = (s) => /[\u0900-\u097F]/.test(s);
+const SCRIPT = { te: hasTelugu, hi: hasDevanagari };
 
-/** Localised product name; Telugu prefers the catalog's own Telugu alias. */
+/**
+ * Localised product name.
+ *
+ * The aliases field is the operator's way in, for BOTH languages. Telugu already worked this way;
+ * Hindi only had a table keyed by product id, so every product added through the admin form after
+ * this file was written stayed English in Hindi forever — "Mutton Keema" was reported as exactly
+ * that. The admin hint under that field already says "add Telugu / Hindi names", so making Hindi
+ * read it too is what the form already promises.
+ *
+ * Order: the operator's own alias, then the id table, then the name table, then English.
+ */
 export function productName(product, lang) {
-  if (lang === 'te') {
-    const alias = (product.aliases || []).find(hasTelugu);
-    return alias || TELUGU_FALLBACK[product.id] || byName(product, 'te') || product.name;
-  }
-  if (lang === 'hi') return HINDI_NAMES[product.id] || byName(product, 'hi') || product.name;
-  return product.name;
+  if (lang !== 'hi' && lang !== 'te') return product.name;
+  const alias = (product.aliases || []).find((a) => SCRIPT[lang](String(a)));
+  if (alias) return String(alias).trim();
+  if (lang === 'te') return TELUGU_FALLBACK[product.id] || byName(product, 'te') || product.name;
+  return HINDI_NAMES[product.id] || byName(product, 'hi') || product.name;
 }
 
 export const categoryName = (id, english, lang) => CATEGORY[lang]?.[id] || english;
