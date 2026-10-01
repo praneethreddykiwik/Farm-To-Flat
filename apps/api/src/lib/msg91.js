@@ -90,7 +90,10 @@ export function channelStatus() {
 const toE164 = (mobile) => `91${String(mobile).replace(/\D/g, '').slice(-10)}`;
 
 const deliveryError = (message) =>
-  Object.assign(new Error(message || 'OTP delivery failed'), {
+  // Generic on purpose: this builder is shared by the login code and the order/complaint
+  // templates, and "OTP delivery failed" on an order notification sends whoever reads the log
+  // looking at the wrong feature.
+  Object.assign(new Error(message || 'WhatsApp delivery failed'), {
     status: 502,
     code: 'OTP_SEND_FAILED',
   });
