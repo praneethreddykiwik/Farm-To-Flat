@@ -271,7 +271,9 @@ export function Statistics() {
           <div className="card__head">
             <h2 className="card__title">Category mix</h2>
           </div>
-          <div style={{ height: Math.max(220, catRows.length * 42) }}>
+          {/* Height follows the rows, plus a band for the x-axis. The old floor of 220px meant a
+              handful of categories left most of the card blank. */}
+          <div style={{ height: catRows.length * 42 + 44 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 layout="vertical"
@@ -316,7 +318,12 @@ export function Statistics() {
             </ResponsiveContainer>
           </div>
         </div>
+      </section>
 
+      {/* Six columns never fitted the narrow 1fr track of the pair above: the only compressible
+          column was the community name, so every name wrapped mid-word and Margin and AOV were
+          pushed outside the card. Full width gives them the room they need. */}
+      <section>
         <div className="glass card reveal" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="card__head" style={{ padding: '20px 20px 0' }}>
             <h2 className="card__title">The numbers</h2>
@@ -341,7 +348,9 @@ export function Statistics() {
                         <span
                           style={{ width: 9, height: 9, borderRadius: 3, background: color(c.id) }}
                         />
-                        <span style={{ fontWeight: 600 }}>{c.name}</span>
+                        <span className="data__name" style={{ fontWeight: 600 }}>
+                          {c.name}
+                        </span>
                       </span>
                       <div
                         className="muted"

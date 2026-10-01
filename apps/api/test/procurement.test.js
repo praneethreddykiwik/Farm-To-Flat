@@ -50,6 +50,41 @@ describe('procurement buy list', () => {
     expect(line2.bufferPct).toBe(90);
   });
 
+  // The buy list's own filters used to be built from the rows the filters had already narrowed, so
+  // using one destroyed the others: a community with no open orders was missing entirely, and
+  // picking Evening rebuilt the slot list from evening-only rows and lost Morning.
+  describe('the filter options are fixed, not rebuilt from the filtered rows', () => {
+    it('offers every active community, including ones with nothing to buy today', async () => {
+      const { body: cs } = await request(app).get('/api/v1/communities');
+      const r = await request(app).get('/api/v1/admin/procurement');
+      const offered = new Set(r.body.communities.map((c) => c.id));
+      for (const c of cs.communities) expect(offered).toContain(c.id);
+    });
+
+    it('keeps every slot offered after one of them is picked', async () => {
+      const base = await request(app).get('/api/v1/admin/procurement');
+      const slots = base.body.windows.map((w) => w.key);
+      expect(slots.length).toBeGreaterThan(1); // needs at least morning + evening to be meaningful
+
+      for (const pick of slots) {
+        const r = await request(app).get(`/api/v1/admin/procurement?window=${pick}`);
+        expect(r.status).toBe(200);
+        expect(r.body.windows.map((w) => w.key).sort()).toEqual([...slots].sort());
+      }
+    });
+
+    it('keeps every community offered after a slot or a day is picked', async () => {
+      const base = await request(app).get('/api/v1/admin/procurement');
+      const all = base.body.communities.map((c) => c.id).sort();
+      const slot = base.body.windows[0]?.key;
+      const day = base.body.dates?.[0];
+      for (const q of [slot && `window=${slot}`, day && `date=${day}`].filter(Boolean)) {
+        const r = await request(app).get(`/api/v1/admin/procurement?${q}`);
+        expect(r.body.communities.map((c) => c.id).sort()).toEqual(all);
+      }
+    });
+  });
+
   it('exports a purchase CSV', async () => {
     const r = await request(app).get('/api/v1/admin/procurement/export.csv');
     expect(r.status).toBe(200);

@@ -263,6 +263,42 @@ describe('cash on delivery', () => {
     expect(done.status).toBe(200);
     expect(done.body.order.status).toBe('DELIVERED');
   });
+
+  // The hole a tester found: a code that EXISTS must be checked even if the setting that made it
+  // would no longer require one. The app asks for a code whenever the order carries one, so the
+  // driver types four digits either way; if nothing compares them, a wrong code marks it delivered.
+  it('still checks a code the order already carries after the operator turns codes off', async () => {
+    const ctx = await basket();
+    const r = await request(app)
+      .post('/api/v1/orders')
+      .set(auth(ctx.token))
+      .send({ addressId: ctx.addressId, deliveryDate: ctx.win.date, window: ctx.win.window });
+    const id = r.body.order.id;
+    if (r.body.paymentIntent)
+      await request(app)
+        .post('/api/v1/payments/verify')
+        .set(auth(ctx.token))
+        .send({ paymentId: r.body.paymentIntent.paymentId, success: true });
+    await advance(id, 'PACKING');
+    // dispatched while codes were ON, so a code is minted and the app will ask for it
+    await advance(id, 'OUT_FOR_DELIVERY');
+    const code = getOrder(id).deliveryOtp;
+    expect(code).toMatch(/^\d{4}$/);
+
+    // ...and the operator switches codes off afterwards
+    updatePaymentSettings({ deliveryOtpEnabled: false });
+
+    const wrong = await request(app)
+      .post(`/api/v1/admin/orders/${id}/deliver`)
+      .send({ otp: code === '0000' ? '1111' : '0000' });
+    expect(wrong.status).toBe(422);
+    expect(wrong.body.error.code).toBe('DELIVERY_OTP_INVALID');
+    expect(getOrder(id).status).toBe('OUT_FOR_DELIVERY');
+
+    const right = await request(app).post(`/api/v1/admin/orders/${id}/deliver`).send({ otp: code });
+    expect(right.status).toBe(200);
+    expect(right.body.order.status).toBe('DELIVERED');
+  });
 });
 
 describe('bulk advance respects the door proof', () => {

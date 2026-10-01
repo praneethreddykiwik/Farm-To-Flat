@@ -602,6 +602,23 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
         message: 'Send the order out for delivery before completing it.',
       },
     };
+  // A code that EXISTS is always checked, whether or not one would be required today.
+  //
+  // These used to be the same question, and they are not. What makes the app ask for a code is
+  // `deliveryOtpPending` (serialize.js) — "this order carries a code" — while the check here was
+  // gated on `doorCodeRequired`, the global setting. Switch the setting off after an order has gone
+  // out and the two disagree: the driver is still shown the four-digit box, types anything at all,
+  // and the comparison is skipped entirely. A tester entered a wrong code and the order went to
+  // DELIVERED. So the setting now decides only whether a MISSING code is fatal; a present one is
+  // always verified.
+  if (o.deliveryOtp && String(otp || '').trim() !== o.deliveryOtp)
+    return {
+      error: {
+        status: 422,
+        code: 'DELIVERY_OTP_INVALID',
+        message: 'That code does not match. Ask the customer to read it again.',
+      },
+    };
   if (doorCodeRequired(o)) {
     // No code on the order means it was dispatched while codes were switched OFF, and the setting
     // has been turned on since. The old guard was `enabled && o.deliveryOtp`, so that order sailed

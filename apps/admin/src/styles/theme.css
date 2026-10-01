@@ -568,6 +568,11 @@ table.data th {
   backdrop-filter: blur(10px);
   z-index: 1;
 }
+/* The only column with no intrinsic minimum, so auto table layout squeezed it until every name
+   broke across lines ("My Home / Avatar"). The name holds one line; the sub-line may wrap. */
+.data__name {
+  white-space: nowrap;
+}
 table.data td {
   padding: 13px 16px;
   border-bottom: 1px solid var(--hairline);
@@ -827,10 +832,15 @@ table.data tbody tr:last-child td {
 }
 
 /* ---------- misc ------------------------------------------------------------- */
+/* `align-items: start` matters more than it looks. Grid items stretch by default, so the taller
+   card in a pair dragged the shorter one up to its height — and a chart pinned to a fixed pixel
+   height cannot use that extra room, so it became dead space below the bars that grew with every
+   community added. Each card is now its own height. */
 .grid-2 {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
   gap: 20px;
+  align-items: start;
 }
 .grid-2--even {
   grid-template-columns: 1fr 1fr;

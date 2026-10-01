@@ -148,31 +148,37 @@ adminProcurementRouter.get(
 
     const totalCost = lines.reduce((s, l) => s + l._procureCost, 0);
     const dates = [...new Set(orders.map((o) => o.deliveryDate))].sort();
-    // Which communities the UNFILTERED run actually covers, so the filter offers real options and
-    // does not disappear the moment the buyer picks one.
-    const { orders: allOrders } = collect({ ...req.query, communityId: undefined });
-    const communities = [
-      ...new Map(
-        allOrders
-          .filter((o) => o.address?.communityId)
-          .map((o) => [
-            o.address.communityId,
-            {
-              id: o.address.communityId,
-              name: o.address.community || o.address.communityName || o.address.communityId,
-            },
-          ]),
-      ).values(),
-    ].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    // Same idea for the slot filter. Windows are per-community and operator-defined, so there is no
-    // fixed list to offer — the buyer shops across communities that need not run the same ones.
-    // Derived from the unfiltered run so the filter only ever offers a slot that has orders in it,
-    // and labelled from the owning community so it reads "Afternoon", not "AFTERNOON".
+    // The filter options come from the CONFIGURATION, not from the rows the current filters left
+    // behind. Deriving them from the rows meant the lists shrank as you used them: a community with
+    // no open orders was simply absent, and — worse — picking Evening rebuilt the slot list from
+    // evening-only rows, so Morning vanished and there was no way back to it without reloading.
+    // `allOrders` below only ever neutralised `communityId`, so `date` and `window` still narrowed
+    // both lists. Options are now fixed; the counts beside them are what varies.
+    const { orders: allOrders } = collect({
+      ...req.query,
+      communityId: undefined,
+      window: undefined,
+      date: undefined,
+    });
+    const covered = new Set(allOrders.map((o) => o.address?.communityId).filter(Boolean));
+    const all = listCommunities();
+    const communities = all
+      // Retired communities stay listed only while they still have orders to buy for.
+      .filter((c) => c.isActive !== false || covered.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    // Windows are per-community and operator-defined, so the list is the union of every community's
+    // configured windows, labelled from the community that owns them so it reads "Afternoon", not
+    // "AFTERNOON". A slot with no orders today is still offered — picking it says "nothing here",
+    // which is an answer, and keeps the other slots reachable.
     const labelFor = new Map();
-    for (const c of listCommunities())
-      for (const w of communityWindows(c)) labelFor.set(w.key, w.label);
-    const windows = [...new Set(allOrders.map((o) => o.window).filter(Boolean))]
-      .map((key) => ({ key, label: labelFor.get(key) || key }))
+    for (const c of all) for (const w of communityWindows(c)) labelFor.set(w.key, w.label);
+    // A window an order still references but no community configures any more (renamed or removed)
+    // must stay selectable, or that order's items become unbuyable through the filter.
+    for (const o of allOrders)
+      if (o.window && !labelFor.has(o.window)) labelFor.set(o.window, o.window);
+    const windows = [...labelFor.entries()]
+      .map(([key, label]) => ({ key, label }))
       .sort((a, b) => String(a.label).localeCompare(String(b.label)));
 
     res.json({
