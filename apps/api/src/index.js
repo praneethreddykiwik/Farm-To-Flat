@@ -128,6 +128,12 @@ app.get('/health', (_req, res) => {
       : degraded
         ? 'in-memory seed (DATABASE UNAVAILABLE)'
         : 'database',
+    // WHICH COMMIT IS ACTUALLY SERVING. Render sets RENDER_GIT_COMMIT and RENDER_GIT_BRANCH on
+    // every deploy. Without them echoed here there is no way to tell a deployed fix from an
+    // undeployed one from the outside — which is exactly how the API sat 56 commits behind `main`
+    // for ten days while the fixes were being merged and verified against it.
+    commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
+    branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     ts: Date.now(),
   });
 });
