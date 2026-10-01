@@ -65,17 +65,22 @@ const uiSlice = createSlice({
   // next account starts at the default filter instead of inheriting the last user's choice.
   // String action type avoids a circular import with authSlice.
   extraReducers: (builder) => {
-    builder.addCase('auth/signedOut', (state) => {
+    builder.addCase('auth/signedOut', (state, action) => {
       state.dietPref = initialState.dietPref;
       // Language used to survive sign-out, on the reasoning that it is how the DEVICE reads rather
       // than how an account does. In testing that read as a bug: signing out of a Telugu account and
       // into a different one left the second person in Telugu with no idea why.
       //
-      // So it is now cleared with the account. The stored key goes too — leaving it would let
-      // hydrateLanguage() restore the old choice on the next launch and undo this.
+      // So it is cleared when someone actually signs OUT — and only then. The same action is also
+      // dispatched when a refresh token is rejected, and placing an order is the heaviest moment in
+      // the app for that: one tap refetches Cart, Orders, Wallet, Windows and Me at once, so a
+      // single 401 anywhere in that burst used to drop the reader back into English mid-checkout
+      // and delete the stored key, making it permanent. An expired session is not a decision about
+      // what language someone reads.
       //
-      // The cost is real and deliberate: someone who reads Telugu and signs out has to pick it
-      // again. Back to null rather than 'en' so they are ASKED instead of silently switched.
+      // The cost of the real case is deliberate: someone who reads Telugu and signs out has to pick
+      // it again. Back to null rather than 'en' so they are ASKED instead of silently switched.
+      if (action?.payload?.reason !== 'user') return;
       state.language = initialState.language;
       try {
         kv.remove(KV_KEYS.language);

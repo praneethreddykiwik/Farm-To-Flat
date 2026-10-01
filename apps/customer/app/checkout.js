@@ -186,8 +186,8 @@ export default function Checkout() {
         haptic.error();
         dispatch(
           showToast({
-            title: 'Payment cancelled',
-            message: 'Your basket is still here. Try again when ready.',
+            title: t('paymentCancelledTitle', lang),
+            message: t('paymentCancelledBody', lang),
             tone: 'error',
           }),
         );
@@ -200,7 +200,9 @@ export default function Checkout() {
     } catch (e) {
       // The gateway may already have taken the money. Never leave the customer staring at an empty
       // checkout with nothing but a toast — put them on the order so they can see its real state.
-      dispatch(showToast({ title: e?.message || 'Could not confirm payment', tone: 'error' }));
+      dispatch(
+        showToast({ title: e?.message || t('couldNotConfirmPayment', lang), tone: 'error' }),
+      );
       if (order?.id) router.replace({ pathname: '/order/[id]', params: { id: order.id } });
     } finally {
       simSheet.current?.dismiss();
@@ -214,8 +216,8 @@ export default function Checkout() {
       haptic.warning();
       dispatch(
         showToast({
-          title: 'Please read and accept the terms',
-          message: 'They cover cancellations, weighed items and what to do if something is wrong.',
+          title: t('acceptTermsTitle', lang),
+          message: t('acceptTermsBody', lang),
           tone: 'neutral',
         }),
       );
@@ -225,7 +227,7 @@ export default function Checkout() {
       haptic.warning();
       dispatch(
         showToast({
-          title: !address ? t('addDeliveryAddress', lang) : 'Choose a delivery window',
+          title: !address ? t('addDeliveryAddress', lang) : t('chooseDeliveryWindow', lang),
           tone: 'neutral',
         }),
       );
@@ -285,7 +287,7 @@ export default function Checkout() {
         haptic.error();
         dispatch(
           showToast({
-            title: 'Payment unavailable',
+            title: t('paymentUnavailableTitle', lang),
             message: 'We couldn’t start the payment. Your basket is safe — try again shortly.',
             tone: 'error',
           }),
@@ -305,8 +307,8 @@ export default function Checkout() {
         windows.refetch();
         dispatch(
           showToast({
-            title: 'That window just closed',
-            message: 'Please pick another delivery window.',
+            title: t('windowClosedTitle', lang),
+            message: t('windowClosedBody', lang),
             tone: 'neutral',
           }),
         );
@@ -319,7 +321,7 @@ export default function Checkout() {
         removeCoupon();
         dispatch(showToast({ title: 'Coupon removed', message: e.message, tone: 'error' }));
       } else {
-        dispatch(showToast({ title: e?.message || 'Could not place order', tone: 'error' }));
+        dispatch(showToast({ title: e?.message || t('couldNotPlaceOrder', lang), tone: 'error' }));
       }
       idem.current = idempotencyKey();
     }
@@ -330,7 +332,11 @@ export default function Checkout() {
       <View style={styles.root}>
         <Ambient />
         <View style={[styles.header, { paddingTop: insets.top + 8, paddingHorizontal: 20 }]}>
-          <Pressy onPress={() => router.back()} haptics="select" accessibilityLabel="Back">
+          <Pressy
+            onPress={() => router.back()}
+            haptics="select"
+            accessibilityLabel={t('back', lang)}
+          >
             <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
@@ -338,7 +344,7 @@ export default function Checkout() {
           <Display>{t('checkout', lang)}</Display>
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Small muted>Loading your basket…</Small>
+          <Small muted>{t('loadingBasket', lang)}</Small>
         </View>
       </View>
     );
@@ -357,7 +363,11 @@ export default function Checkout() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Pressy onPress={() => router.back()} haptics="select" accessibilityLabel="Back">
+          <Pressy
+            onPress={() => router.back()}
+            haptics="select"
+            accessibilityLabel={t('back', lang)}
+          >
             <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
@@ -369,12 +379,12 @@ export default function Checkout() {
           icon={<MapPin size={18} color={colors.ink} />}
           title={address ? `${address.block} · ${address.flat}` : t('addDeliveryAddress', lang)}
           subtitle={
-            address ? `${address.communityName}, ${address.area}` : 'Community, block and flat'
+            address ? `${address.communityName}, ${address.area}` : t('communityBlockFlat', lang)
           }
           onPress={() =>
             list.length ? addressSheet.current?.present() : router.push('/address/new')
           }
-          right={<Small color={colors.leafDeep}>Change</Small>}
+          right={<Small color={colors.leafDeep}>{t('change', lang)}</Small>}
         />
 
         <Card
@@ -387,10 +397,10 @@ export default function Checkout() {
           subtitle={
             chosenSlot
               ? windowHours(chosenSlot.window, chosenWindow)
-              : 'Pick the day and window that suit you'
+              : t('chooseDeliveryWindowSub', lang)
           }
           onPress={() => windowSheet.current?.present()}
-          right={<Small color={colors.leafDeep}>Change</Small>}
+          right={<Small color={colors.leafDeep}>{t('change', lang)}</Small>}
           delay={60}
         />
 
@@ -416,8 +426,8 @@ export default function Checkout() {
           title={t('payFromWalletFirst', lang)}
           subtitle={
             balance > 0
-              ? `Balance ₹${Math.round(balance / 100)} · remainder via Razorpay`
-              : 'No balance yet. Everything goes via Razorpay.'
+              ? t('walletRemainder', lang, { amount: Math.round(balance / 100) })
+              : t('noWalletBalance', lang)
           }
           right={
             balance === 0 ? (
@@ -460,11 +470,11 @@ export default function Checkout() {
             entering={FadeInDown.delay(195).duration(360).springify().damping(18)}
             style={{ marginTop: 20 }}
           >
-            <Label>How you’ll pay</Label>
+            <Label>{t('howYoullPay', lang)}</Label>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
               {[
-                { cash: false, title: 'Pay now', sub: 'UPI, card or wallet' },
-                { cash: true, title: 'Cash on delivery', sub: 'Pay at your door' },
+                { cash: false, title: t('payNow', lang), sub: t('payNowSub', lang) },
+                { cash: true, title: t('cashOnDelivery', lang), sub: t('cashOnDeliverySub', lang) },
               ].map((opt) => {
                 const active = cash === opt.cash;
                 const blocked = opt.cash && codTooBig;
@@ -503,7 +513,7 @@ export default function Checkout() {
                 customer who used cash last week thinks the app is broken. */}
             {codTooBig ? (
               <Small muted style={{ marginTop: 8 }}>
-                Orders above ₹{Math.round(codMax / 100)} are paid online.
+                {t('paidOnlineAbove', lang, { amount: Math.round(codMax / 100) })}
               </Small>
             ) : null}
           </Animated.View>
@@ -513,12 +523,12 @@ export default function Checkout() {
           entering={FadeInDown.delay(210).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
         >
-          <Label>Delivery instructions (optional)</Label>
+          <Label>{t('deliveryInstructions', lang)}</Label>
           <Glass radius={radius.lg} innerStyle={{ padding: 12, marginTop: 8 }}>
             <Input
               value={deliveryNote}
               onChangeText={(t) => setDeliveryNote(t.slice(0, 200))}
-              placeholder="Leave with the guard, gate code, call on arrival…"
+              placeholder={t('deliveryInstructionsHint', lang)}
               maxLength={200}
               autoCapitalize="sentences"
             />
@@ -529,7 +539,7 @@ export default function Checkout() {
           entering={FadeInDown.delay(225).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
         >
-          <Label style={{ marginBottom: 8 }}>Before you pay</Label>
+          <Label style={{ marginBottom: 8 }}>{t('beforeYouPay', lang)}</Label>
           <OrderTerms accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
         </Animated.View>
 
@@ -537,7 +547,7 @@ export default function Checkout() {
           entering={FadeInDown.delay(240).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
         >
-          <Label>Summary</Label>
+          <Label>{t('summary', lang)}</Label>
           <Glass radius={radius.lg} innerStyle={{ padding: 16, marginTop: 8 }}>
             {cart.items.map((it) => (
               <View key={it.id} style={styles.itemRow}>
@@ -549,27 +559,30 @@ export default function Checkout() {
               </View>
             ))}
             <View style={styles.divider} />
-            <SummaryRow label="Subtotal" paise={cart.subtotalPaise} />
+            <SummaryRow label={t('subtotal', lang)} paise={cart.subtotalPaise} />
             {Number(cart.couponDiscountPaise) > 0 ? (
               <SummaryRow
-                label="Coupon"
+                label={t('coupon', lang)}
                 paise={-Number(cart.couponDiscountPaise)}
                 color={colors.leafDeep}
               />
             ) : null}
-            <SummaryRow label="Delivery" paise={cart.deliveryChargePaise} />
+            <SummaryRow label={t('delivery', lang)} paise={cart.deliveryChargePaise} />
             {walletApplied > 0 ? (
-              <SummaryRow label="Wallet" paise={-walletApplied} color={colors.leafDeep} />
+              <SummaryRow
+                label={t('wallet', lang)}
+                paise={-walletApplied}
+                color={colors.leafDeep}
+              />
             ) : null}
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
-              <Text variant="bodyMedium">To pay now</Text>
+              <Text variant="bodyMedium">{t('toPayNow', lang)}</Text>
               <Money paise={gateway} animated variant="h2" />
             </View>
           </Glass>
           <Small muted style={{ marginTop: 10 }}>
-            Prices lock when you place the order. Variable-weight items are billed on packed weight,
-            within ±10%. Cancel free until the evening before your window.
+            {t('priceLockNote', lang)}
           </Small>
         </Animated.View>
       </ScrollView>
@@ -584,13 +597,21 @@ export default function Checkout() {
                 "pay cash" told the customer the opposite of what they owe at the door. Cash shows
                 the amount to have ready; the wallet label belongs only to a wallet-covered order. */}
             <Small color="rgba(243,245,239,0.65)">
-              {cash ? 'Pay at the door' : gateway > 0 ? 'Pay via Razorpay' : 'Covered by wallet'}
+              {cash
+                ? t('payAtTheDoor', lang)
+                : gateway > 0
+                  ? t('payViaRazorpay', lang)
+                  : t('coveredByWallet', lang)}
             </Small>
             <Money paise={cash ? total : gateway} animated color={colors.inkOnDark} variant="h2" />
           </View>
           <Button
             title={
-              cash ? 'Place order · pay cash' : gateway > 0 ? 'Pay & place order' : 'Place order'
+              cash
+                ? t('placeOrderPayCash', lang)
+                : gateway > 0
+                  ? t('payAndPlaceOrder', lang)
+                  : t('placeOrder', lang)
             }
             variant="accent"
             size="md"
@@ -634,7 +655,7 @@ export default function Checkout() {
         />
       </Sheet>
 
-      <Sheet ref={addressSheet} title="Deliver to">
+      <Sheet ref={addressSheet} title={t('deliverTo', lang)}>
         <View style={{ gap: 10 }}>
           {list.map((a) => (
             <Pressy
@@ -657,12 +678,14 @@ export default function Checkout() {
                   </Text>
                   <Small muted>{a.communityName}</Small>
                 </View>
-                {a.isDefault ? <Small color={colors.leafDeep}>Default</Small> : null}
+                {a.isDefault ? (
+                  <Small color={colors.leafDeep}>{t('defaultAddress', lang)}</Small>
+                ) : null}
               </Glass>
             </Pressy>
           ))}
           <Button
-            title="Add another address"
+            title={t('addAnotherAddress', lang)}
             variant="glass"
             size="md"
             onPress={() => {

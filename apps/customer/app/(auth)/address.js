@@ -22,7 +22,7 @@ export default function AddressCapture() {
   const back = () => {
     logout().catch(() => {});
     clearRefreshToken().catch(() => {});
-    dispatch(signedOut());
+    dispatch(signedOut({ reason: 'user' }));
     dispatch(api.util.resetApiState());
     // Straight back to the number, not to welcome. Someone who reaches this screen and realises
     // they typed the wrong mobile wants to retype it — sending them to the marketing screen makes

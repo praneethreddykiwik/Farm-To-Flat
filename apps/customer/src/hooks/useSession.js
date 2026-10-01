@@ -58,7 +58,7 @@ export function useSignOut() {
       await logout().unwrap();
     } catch {}
     await clearRefreshToken();
-    dispatch(signedOut());
+    dispatch(signedOut({ reason: 'user' }));
     dispatch(api.util.resetApiState());
   };
 }

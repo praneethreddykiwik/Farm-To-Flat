@@ -38,7 +38,14 @@ const authSlice = createSlice({
     customerUpdated(state, action) {
       state.customer = { ...(state.customer || {}), ...action.payload };
     },
-    signedOut(state) {
+    /**
+     * @param {{ payload?: { reason?: 'user'|'expired' } }} action  'user' = they tapped Sign out,
+     * 'expired' = the refresh token was rejected. Only the first is a decision about the account;
+     * the second is the network telling us the session aged out, and device preferences must not be
+     * thrown away over it.
+     */
+    signedOut(state, action) {
+      state.signOutReason = action?.payload?.reason === 'user' ? 'user' : 'expired';
       state.status = 'signedOut';
       state.accessToken = null;
       state.customer = null;
