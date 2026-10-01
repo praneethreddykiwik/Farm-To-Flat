@@ -152,6 +152,16 @@ const staffToRow = (s) => ({
  */
 let hasWindowsColumn = true;
 
+/**
+ * When the column was last found missing. The flag used to be a ONE-WAY LATCH: once a read failed,
+ * the process served legacy columns and refused window edits until someone redeployed — so adding
+ * the column to the database fixed nothing until the API happened to restart, and the operator was
+ * still told to run `db push`. Re-probe instead: after this long, the next read tries the full
+ * select again and recovers on its own.
+ */
+let missingSince = 0;
+const REPROBE_MS = 60 * 1000;
+
 /** Every Community column that existed before `windows`. Explicit, so Prisma cannot select it. */
 const LEGACY_COMMUNITY_SELECT = {
   id: true,
@@ -171,17 +181,28 @@ const isMissingColumn = (e) =>
   e?.code === 'P2022' || /column .* does not exist/i.test(e?.message || '');
 
 async function findCommunities() {
-  if (hasWindowsColumn) {
+  if (hasWindowsColumn || Date.now() - missingSince >= REPROBE_MS) {
     try {
-      return await prisma.community.findMany();
+      const rows = await prisma.community.findMany();
+      if (!hasWindowsColumn) {
+        hasWindowsColumn = true;
+        // eslint-disable-next-line no-console
+        console.error('[persist] Community.windows is present again — window edits will persist.');
+      }
+      return rows;
     } catch (e) {
       if (!isMissingColumn(e)) throw e;
+      const first = hasWindowsColumn;
       hasWindowsColumn = false;
+      missingSince = Date.now();
       // eslint-disable-next-line no-console
-      console.error(
-        '[persist] Community.windows is missing — reading without it, and window edits will not ' +
-          'persist. Run `pnpm --filter api db:push` against the production database to add it.',
-      );
+      if (first)
+        console.error(
+          '[persist] Community.windows is missing — reading without it, and window edits will not ' +
+            'persist. Add it with: ALTER TABLE "Community" ADD COLUMN IF NOT EXISTS "windows" ' +
+            "JSONB NOT NULL DEFAULT '[]'::jsonb;  (not `db push`, which drops columns the schema " +
+            'does not carry).',
+        );
     }
   }
   return prisma.community.findMany({ select: LEGACY_COMMUNITY_SELECT });
@@ -325,6 +346,32 @@ export const isPersistenceEnabled = () => enabled;
  * than answering 200 and losing it.
  */
 export const canPersistWindows = () => !enabled || hasWindowsColumn;
+
+/**
+ * Re-check the column before refusing a window edit.
+ *
+ * Master data is read once, at boot, so a latch set during that read would otherwise stand for the
+ * life of the process: the column could be added to the database and every save would still be
+ * refused until someone redeployed. This probes directly — one row, one column — and is only
+ * reached when the latch is already set, so the happy path costs nothing.
+ *
+ * @returns {Promise<boolean>} whether a window edit will reach the database.
+ */
+export async function recheckWindowsColumn() {
+  if (canPersistWindows()) return true;
+  if (Date.now() - missingSince < REPROBE_MS) return false;
+  try {
+    await prisma.$queryRaw`select "windows" from "Community" limit 1`;
+    hasWindowsColumn = true;
+    // eslint-disable-next-line no-console
+    console.error('[persist] Community.windows is present now — window edits will persist.');
+    return true;
+  } catch (e) {
+    if (!isMissingColumn(e)) throw e;
+    missingSince = Date.now();
+    return false;
+  }
+}
 
 /**
  * Serialise async work per key: the next write for the same record starts only after the previous
