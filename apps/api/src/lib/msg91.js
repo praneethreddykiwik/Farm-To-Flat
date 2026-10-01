@@ -29,6 +29,11 @@ const WA_NAMESPACE = process.env.MSG91_WA_TEMPLATE_NAMESPACE;
 // A template without one rejects the extra component, so it is switchable.
 const WA_HAS_BUTTON = process.env.MSG91_WA_TEMPLATE_BUTTON !== '0';
 
+// Order and complaint updates. Each is a separate approved UTILITY template; either may be unset,
+// and that notification is then simply not sent — the feature is dormant, not broken.
+const WA_TEMPLATE_DELIVERY = process.env.MSG91_WA_TEMPLATE_DELIVERY;
+const WA_TEMPLATE_COMPLAINT = process.env.MSG91_WA_TEMPLATE_COMPLAINT;
+
 const SENDER = process.env.MSG91_SENDER_ID;
 const SMS_TEMPLATE = process.env.MSG91_OTP_TEMPLATE_ID;
 const SMS_FALLBACK = process.env.OTP_FALLBACK_SMS === '1';
@@ -71,6 +76,10 @@ export function channelStatus() {
       enabled: SMS_FALLBACK,
       sender: SENDER || null,
       template: SMS_TEMPLATE || null,
+    },
+    notifications: {
+      delivery: WA_TEMPLATE_DELIVERY || null,
+      complaint: WA_TEMPLATE_COMPLAINT || null,
     },
     // Off in the test env on purpose, so the suite never reaches the network.
     suppressedByTestEnv: IS_TEST,
@@ -119,6 +128,67 @@ export async function sendOtpWhatsApp({ mobile, otp }) {
   const data = await r.json().catch(() => ({}));
   // MSG91 answers 200 with an error envelope on template/number problems, so the status alone is
   // not enough to call it delivered.
+  if (!r.ok || data?.type === 'error' || data?.status === 'error')
+    throw deliveryError(data?.message);
+  return data;
+}
+
+/** Which notification templates are configured. */
+export const deliveryTemplate = WA_TEMPLATE_DELIVERY || null;
+export const complaintTemplate = WA_TEMPLATE_COMPLAINT || null;
+
+/**
+ * Meta rejects a template parameter containing a newline, a tab, or more than four consecutive
+ * spaces — the whole send fails with a validation error, not a stripped character. Operators type
+ * complaint resolutions by hand into a textarea, so multi-line text arriving here is the normal
+ * case rather than the exotic one; flattening it is what keeps the message sendable.
+ *
+ * The length cap is Meta's own 1024-character ceiling for a body parameter, left some room.
+ * @param {unknown} v
+ */
+export const templateParam = (v) => {
+  const flat = String(v ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+  return flat.length > 900 ? `${flat.slice(0, 897)}…` : flat;
+};
+
+/**
+ * Send any approved template, filling body_1…body_N in order.
+ *
+ * Separate from sendOtpWhatsApp because an authentication template is a different shape: it repeats
+ * the code into a copy-code button, which a utility template has no equivalent of.
+ *
+ * @param {{ mobile: string, template: string, lang?: string, params?: unknown[] }} args
+ */
+export async function sendTemplate({ mobile, template, lang, params = [] }) {
+  const components = {};
+  params.forEach((v, i) => {
+    components[`body_${i + 1}`] = { type: 'text', value: templateParam(v) };
+  });
+
+  const body = {
+    integrated_number: WA_NUMBER,
+    content_type: 'template',
+    payload: {
+      messaging_product: 'whatsapp',
+      type: 'template',
+      template: {
+        name: template,
+        language: { code: lang || WA_LANG, policy: 'deterministic' },
+        ...(WA_NAMESPACE ? { namespace: WA_NAMESPACE } : {}),
+        to_and_components: [{ to: [toE164(mobile)], components }],
+      },
+    },
+  };
+
+  const r = await fetch('https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/', {
+    method: 'POST',
+    headers: { authkey: AUTH_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
   if (!r.ok || data?.type === 'error' || data?.status === 'error')
     throw deliveryError(data?.message);
   return data;

@@ -29,6 +29,8 @@ import {
 import { listCommunities } from '../../store.js';
 import { getDevices, getCustomer } from '../../customer-store.js';
 import { notifyOrderStatus } from '../../lib/push.js';
+import { notifyComplaintResolved, notifyOrderOnTheWay } from '../../lib/notify-whatsapp.js';
+import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
 import { IS_PROD } from '../../lib/env.js';
 
@@ -343,7 +345,7 @@ adminOrdersRouter.post(
   asyncHandler(async (req, res) => {
     const r = completeDelivery(req.params.id, req.body);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
-    notifyOrderStatus(r.order, getDevices);
+    notifyCustomer(r.order);
     res.json({ order: await signOrderIssuePhotos(orderAdmin(r.order)) });
   }),
 );
@@ -386,9 +388,33 @@ adminOrdersRouter.post(
   asyncHandler(async (req, res) => {
     const issue = resolveOrderIssue(req.params.id, req.params.issueId, req.body);
     if (!issue) throw fail(404, 'NOT_FOUND', 'No such report on that order.');
+    // The customer gets the operator's own words. Both outcomes are worth sending: a decline that
+    // explains itself is the difference between an answer and silence.
+    const resolved = getOrder(req.params.id);
+    notifyComplaintResolved(resolved, issue, getCustomer(resolved?.customerId));
     res.json({ issue, order: await signOrderIssuePhotos(orderAdmin(getOrder(req.params.id))) });
   }),
 );
+
+/** "Morning, 6:00 am – 12:00 pm" for the order's own window, or nothing if it cannot be resolved. */
+function whenOf(order) {
+  const c = listCommunities().find((x) => x.id === order?.address?.communityId);
+  const w = c && communityWindows(c).find((x) => x.key === order.window);
+  return w ? `${w.label}, ${w.hours}` : undefined;
+}
+
+/**
+ * Tell the customer their order moved — every channel, from one place.
+ *
+ * Status changes land in four different routes (single, bulk, delivery hand-over, cancellation) and
+ * each one used to call push directly. Adding a second channel to four call sites is how a channel
+ * ends up firing on three of them, so they all come through here instead.
+ */
+function notifyCustomer(order) {
+  notifyOrderStatus(order, getDevices);
+  if (order?.status === 'OUT_FOR_DELIVERY')
+    notifyOrderOnTheWay(order, getCustomer(order.customerId), whenOf(order));
+}
 
 const StatusBody = z.object({ status: z.enum(STATUSES) });
 adminOrdersRouter.patch(
@@ -419,7 +445,7 @@ adminOrdersRouter.patch(
       });
     }
     const updated = transition(req.params.id, req.body.status);
-    notifyOrderStatus(updated, getDevices); // push the customer their new status
+    notifyCustomer(updated);
     res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
   }),
 );
@@ -463,7 +489,7 @@ adminOrdersRouter.post(
         continue;
       }
       const row = transition(id, status);
-      notifyOrderStatus(row, getDevices); // push each customer their new status
+      notifyCustomer(row);
       updated.push(orderAdmin(row));
     }
     res.json({ updated, count: updated.length, skipped, notified: updated.length });
@@ -495,7 +521,7 @@ adminOrdersRouter.post(
 
     if (req.body.decision === 'APPROVE') {
       const { order: updated } = cancelOrder(req.params.id);
-      notifyOrderStatus(updated, getDevices);
+      notifyCustomer(updated);
       return res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
     }
 

@@ -77,6 +77,13 @@ services:
       # WhatsApp codes immediately, so set it before trusting a live sign-in.
       - key: DEV_OTP_ALLOWLIST
         sync: false
+      # Order and complaint updates (UTILITY templates). Optional and independent: leave either
+      # unset and that notification is simply not sent. WhatsApp carries these because Expo push
+      # needs FCM/APNs credentials that do not exist yet, so push is accepted and goes nowhere.
+      - key: MSG91_WA_TEMPLATE_DELIVERY # e.g. ftf_order_on_the_way
+        sync: false
+      - key: MSG91_WA_TEMPLATE_COMPLAINT # e.g. ftf_complaint_update
+        sync: false
       # optional: MSG91_WA_TEMPLATE_NAMESPACE (only if the WABA demands one),
       # MSG91_WA_TEMPLATE_BUTTON=0 (template has no copy-code button),
       # OTP_FALLBACK_SMS=1 + MSG91_SENDER_ID + MSG91_OTP_TEMPLATE_ID (SMS fallback — needs DLT),
