@@ -7,6 +7,11 @@ services:
     runtime: node
     plan: free # cold-starts after ~15 min idle; fine for testing. Upgrade to Starter for always-on.
     rootDir: . # build from the repo root (pnpm workspace)
+    # Deploy from `main`. The service was originally connected to `platform/api-and-admin`, which
+    # stopped receiving API work on 2026-09-21 while `main` went 56 commits ahead — so fixes were
+    # merged, verified and never deployed. Vercel already builds the admin site from `main`; the API
+    # follows it here so the two halves cannot drift apart again.
+    branch: main
     # pnpm is provided automatically via the root package.json "packageManager" field — do NOT run
     # `corepack enable` (it fails on Render's read-only /usr/bin).
     buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
