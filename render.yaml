@@ -23,7 +23,12 @@ services:
         value: "22"
       - key: NODE_ENV
         value: production
-      - key: ALLOW_DEV_OTP # keep the 123456 test code (no SMS) until DLT/MSG91 is live. Remove for launch.
+      # The fixed 123456 code. WhatsApp OTP is now live (template ftf_login_code, approved
+      # 2026-10-01), so this is the LAST thing standing between testers and real delivery: while it
+      # is "1" with no DEV_OTP_ALLOWLIST, every number gets 123456 and NOTHING is sent, however well
+      # MSG91 is configured. Confine it with DEV_OTP_ALLOWLIST first, prove a real send, then DELETE
+      # this key. `GET /admin/otp-status` reports which of those states the API is actually in.
+      - key: ALLOW_DEV_OTP
         value: "1"
       - key: HOST
         value: 0.0.0.0
@@ -56,5 +61,23 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      # optional (leave unset until configured): MSG91_AUTH_KEY, MSG91_SENDER_ID,
-      # MSG91_OTP_TEMPLATE_ID, REDIS_URL, SENTRY_DSN
+      # ── login codes over WhatsApp (MSG91) ──
+      # Required together: without all three, whatsappEnabled is false and sign-in answers
+      # OTP_CHANNEL_UNCONFIGURED rather than pretending a code was sent.
+      - key: MSG91_AUTH_KEY # MSG91 dashboard → Settings → API → Auth Key
+        sync: false
+      - key: MSG91_WA_NUMBER # the integrated WhatsApp Business number, 91-prefixed: 918688210456
+        sync: false
+      - key: MSG91_WA_TEMPLATE_NAME # approved AUTHENTICATION template: ftf_login_code
+        sync: false
+      - key: MSG91_WA_TEMPLATE_LANG # the template's language code, exactly as MSG91 lists it
+        value: en_US
+      # Numbers that keep the fixed 123456 — testers and staff, comma-separated, 10 digits each.
+      # Setting this is what confines ALLOW_DEV_OTP: everyone NOT named here starts getting real
+      # WhatsApp codes immediately, so set it before trusting a live sign-in.
+      - key: DEV_OTP_ALLOWLIST
+        sync: false
+      # optional: MSG91_WA_TEMPLATE_NAMESPACE (only if the WABA demands one),
+      # MSG91_WA_TEMPLATE_BUTTON=0 (template has no copy-code button),
+      # OTP_FALLBACK_SMS=1 + MSG91_SENDER_ID + MSG91_OTP_TEMPLATE_ID (SMS fallback — needs DLT),
+      # REDIS_URL, SENTRY_DSN
