@@ -42,6 +42,41 @@ export const smsFallbackEnabled = !IS_TEST && SMS_FALLBACK && !!(AUTH_KEY && SMS
 /** Any channel at all can deliver a code. */
 export const msg91Enabled = whatsappEnabled || smsFallbackEnabled;
 
+/**
+ * What is configured, for the operator — names and booleans only, NEVER the auth key.
+ *
+ * Readiness is the AND of three separate things, and the difference matters: an account can hold a
+ * valid auth key for weeks while the WhatsApp number is still being verified by Meta and the
+ * authentication template is still awaiting approval. `whatsappEnabled` collapses all three into
+ * one false, which says nothing about which one to go and fix.
+ */
+export function channelStatus() {
+  const missing = [];
+  if (!AUTH_KEY) missing.push('MSG91_AUTH_KEY');
+  if (!WA_NUMBER) missing.push('MSG91_WA_NUMBER');
+  if (!WA_TEMPLATE) missing.push('MSG91_WA_TEMPLATE_NAME');
+  return {
+    whatsapp: {
+      ready: whatsappEnabled,
+      authKey: !!AUTH_KEY,
+      number: WA_NUMBER || null,
+      template: WA_TEMPLATE || null,
+      language: WA_LANG,
+      namespace: WA_NAMESPACE || null,
+      copyCodeButton: WA_HAS_BUTTON,
+      missing,
+    },
+    smsFallback: {
+      ready: smsFallbackEnabled,
+      enabled: SMS_FALLBACK,
+      sender: SENDER || null,
+      template: SMS_TEMPLATE || null,
+    },
+    // Off in the test env on purpose, so the suite never reaches the network.
+    suppressedByTestEnv: IS_TEST,
+  };
+}
+
 /** 10-digit Indian number → the 91-prefixed form both MSG91 APIs expect. */
 const toE164 = (mobile) => `91${String(mobile).replace(/\D/g, '').slice(-10)}`;
 

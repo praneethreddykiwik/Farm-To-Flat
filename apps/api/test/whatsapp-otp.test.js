@@ -121,3 +121,36 @@ describe('WhatsApp OTP delivery', () => {
     expect(calls[1].url).toContain('otp=424242');
   });
 });
+
+/**
+ * The operator-facing status. Its whole job is to tell the three failure modes apart, so each one
+ * is pinned: a valid key with no number is NOT "misconfigured key", and a dev code that overrides a
+ * working channel is NOT "WhatsApp is live".
+ */
+describe('channelStatus', () => {
+  it('names the missing pieces rather than reporting one flat false', async () => {
+    const { channelStatus } = await loadWith({
+      MSG91_WA_NUMBER: '',
+      MSG91_WA_TEMPLATE_NAME: '',
+    });
+    const s = channelStatus();
+    expect(s.whatsapp.ready).toBe(false);
+    // The key being valid is the part that misleads: it is set, so the account "works".
+    expect(s.whatsapp.authKey).toBe(true);
+    expect(s.whatsapp.missing).toEqual(['MSG91_WA_NUMBER', 'MSG91_WA_TEMPLATE_NAME']);
+  });
+
+  it('is ready, with nothing missing, once the number and template are set', async () => {
+    const { channelStatus } = await loadWith({});
+    const s = channelStatus();
+    expect(s.whatsapp.ready).toBe(true);
+    expect(s.whatsapp.missing).toEqual([]);
+    expect(s.whatsapp.number).toBe('919876543210');
+    expect(s.whatsapp.template).toBe('f2f_login_otp');
+  });
+
+  it('never returns the auth key itself', async () => {
+    const { channelStatus } = await loadWith({});
+    expect(JSON.stringify(channelStatus())).not.toContain('test-authkey');
+  });
+});

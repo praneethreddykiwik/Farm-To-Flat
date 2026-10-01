@@ -12,7 +12,7 @@ import {
   listCoupons,
 } from './store.js';
 import { id, shortId } from './lib/ids.js';
-import { deliverOtp, msg91Enabled } from './lib/msg91.js';
+import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist } from './persistence.js';
@@ -190,6 +190,45 @@ if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
   console.warn(
     '[otp] ALLOW_DEV_OTP=1 in production with no DEV_OTP_ALLOWLIST: EVERY number accepts 123456, including staff — anyone who guesses a staff number signs in as that role. Set DEV_OTP_ALLOWLIST to confine it, and remove ALLOW_DEV_OTP before launch.',
   );
+
+/**
+ * How sign-in codes are actually reaching people right now, for the operator panel.
+ *
+ * Three things can each silently defeat the other two, and the logs that say so scroll away at
+ * boot: an unconfigured channel, a dev code that overrides a perfectly good channel, and an
+ * allowlist that is either confining the dev code or wide open. `effective` is the one answer —
+ * what a real customer's number gets today.
+ */
+export function otpStatus() {
+  const channels = channelStatus();
+  const open = ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0;
+  const effective = !IS_PROD
+    ? 'fixed dev code (not production)'
+    : open
+      ? 'fixed dev code for EVERY number — nothing is delivered'
+      : msg91Enabled
+        ? channels.whatsapp.ready
+          ? 'WhatsApp'
+          : 'SMS fallback'
+        : 'nothing — sign-in returns OTP_CHANNEL_UNCONFIGURED';
+  return {
+    effective,
+    production: IS_PROD,
+    devCode: {
+      allowed: ALLOW_DEV,
+      // The numbers are the operator's own testers and they are already typing them into this
+      // panel, so the count is what matters; the list itself stays out of the response.
+      allowlistSize: DEV_OTP_ALLOWLIST.size,
+      everyNumber: open,
+    },
+    channels,
+    // Ordered, so the panel can show "do this next" rather than a pile of booleans.
+    blockers: [
+      ...(open ? ['ALLOW_DEV_OTP=1 with no DEV_OTP_ALLOWLIST overrides every channel'] : []),
+      ...channels.whatsapp.missing.map((k) => `${k} is not set`),
+    ],
+  };
+}
 
 /**
  * Request a login OTP. Security:
