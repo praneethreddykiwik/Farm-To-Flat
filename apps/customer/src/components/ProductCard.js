@@ -84,9 +84,11 @@ function ProductCardBase({ product, index = 0, width }) {
             <Text variant="bodyMedium" numberOfLines={1}>
               {label}
             </Text>
+            {/* Join only the parts that exist. Concatenating "alias · " + farm left a dangling
+                separator on every product with no farm recorded ("chepalu ·"), and an empty line
+                when neither is set. */}
             <Small muted numberOfLines={1} style={{ marginTop: 1 }}>
-              {alias ? `${alias} · ` : ''}
-              {product.farm}
+              {[alias, product.farm].filter(Boolean).join(' · ')}
             </Small>
           </View>
         </Pressy>

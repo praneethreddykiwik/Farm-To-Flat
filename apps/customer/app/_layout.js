@@ -24,6 +24,7 @@ import * as Notifications from 'expo-notifications';
 import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
+import { StatusScrim } from '../src/components/StatusScrim';
 import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
 import { useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
@@ -171,6 +172,8 @@ function AuthGate({ ready }) {
 }
 
 function Root() {
+  // Scoped to this component: AuthGate has its own `segments`, which is not in scope here.
+  const rootSegments = /** @type {any} */ (useSegments());
   useSessionBootstrap();
   useReducedMotionSync();
   useOrderLiveNotification(); // Android: keep the live order card in sync (iOS Live Activities later)
@@ -254,6 +257,11 @@ function Root() {
           <Text style={styles.signingInText}>Signing you in…</Text>
         </View>
       ) : null}
+      {/* Every scrolling screen starts its content at the top safe-area inset, so without this the
+          content travels up through the transparent status bar and collides with the clock and
+          battery icons. Mounted once here rather than on each screen. Skipped for (auth), whose
+          onboarding is a full-bleed dark scene that scrolls under the status bar on purpose. */}
+      {rootSegments[0] !== '(auth)' ? <StatusScrim /> : null}
       <ToastHost />
       <KeyboardDoneBar />
     </View>

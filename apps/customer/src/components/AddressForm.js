@@ -304,7 +304,7 @@ export function AddressForm({ onSaved, defaultName, mobile }) {
                 <View style={{ flex: 1 }}>
                   <Text variant="bodyMedium">{c.name}</Text>
                   <Small muted>
-                    {c.area} · {c.blocks.length} blocks
+                    {c.area} · {c.blocks.length} {c.blocks.length === 1 ? 'block' : 'blocks'}
                   </Small>
                 </View>
                 {communityId === c.id ? <View style={styles.dot} /> : null}

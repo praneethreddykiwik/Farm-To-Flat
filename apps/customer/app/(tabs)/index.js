@@ -16,6 +16,7 @@ import { useSelector } from 'react-redux';
 import { Ambient, Glass, Skeleton, Small } from '../../src/ui';
 import { HomeHeader } from '../../src/components/HomeHeader';
 import { SearchBar } from '../../src/components/SearchBar';
+import { StatusScrim } from '../../src/components/StatusScrim';
 import { CategoryChips } from '../../src/components/CategoryChips';
 import { HarvestBanner } from '../../src/components/HarvestBanner';
 import { ConfirmBanner } from '../../src/components/ConfirmBanner';
@@ -196,6 +197,7 @@ export default function Home() {
           extraData={`${category}|${dietPref}`}
         />
       )}
+      <StatusScrim />
       <Animated.View
         pointerEvents={stickyVisible ? 'box-none' : 'none'}
         style={[styles.sticky, { top: insets.top + 6 }, stickyStyle]}
