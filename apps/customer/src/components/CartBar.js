@@ -58,16 +58,22 @@ export function CartBar({ bottom }) {
   if (short > 0) {
     const firstReward = nextCoupon && Number(nextCoupon.minOrderPaise) <= min ? nextCoupon : null;
     nudge = firstReward
-      ? `Add ₹${rupeesTo(min)} more to qualify for ${firstReward.discountText}`
-      : `Add ₹${rupeesTo(min)} more to reach ₹500`;
+      ? t('addMoreForOffer', lang, {
+          more: rupeesTo(min),
+          discount: firstReward.discountText,
+        })
+      : t('addMoreToReachMin', lang, { more: rupeesTo(min) });
   } else if (nextCoupon) {
-    nudge = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to qualify for ${nextCoupon.discountText}`;
+    nudge = t('addMoreForOffer', lang, {
+      more: rupeesTo(Number(nextCoupon.minOrderPaise)),
+      discount: nextCoupon.discountText,
+    });
   } else if (applied) {
-    nudge = `${applied.label || 'Coupon'} applied`;
+    nudge = t('couponAppliedShort', lang, { label: applied.label || t('coupon', lang) });
     chasing = false;
   } else if (availableCoupon) {
     // Eligible but not applied: tell them it is theirs to take, and where to take it.
-    nudge = `${availableCoupon.discountText} available — add it in your basket`;
+    nudge = t('offerAvailableNudge', lang, { discount: availableCoupon.discountText });
   } else {
     nudge = t('readyToCheckout', lang);
     chasing = false;
