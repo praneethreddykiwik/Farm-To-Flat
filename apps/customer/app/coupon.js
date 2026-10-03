@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -37,6 +37,21 @@ export default function Coupon() {
   const subtotal = Number(cart.data?.cart?.subtotalPaise || 0);
   const { data: couponData } = useGetCouponsQuery(subtotal);
   const coupons = couponData?.coupons || [];
+
+  // The paste button used to sit in the field permanently, so opening the screen showed a control
+  // on the right that did nothing for anyone whose clipboard was empty — it read as stray content
+  // appearing by itself. Only offer it when there is genuinely something to paste, and drop it once
+  // the customer has started typing their own code.
+  const [canPaste, setCanPaste] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    Clipboard.hasStringAsync()
+      .then((has) => alive && setCanPaste(!!has))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const paste = async () => {
     const s = (await Clipboard.getStringAsync())?.trim();
@@ -117,9 +132,11 @@ export default function Coupon() {
             error={error}
             leading={<Ticket size={18} color={colors.ink3} />}
             trailing={
-              <Pressy onPress={paste} haptics="select" accessibilityLabel={t('pasteCode', lang)}>
-                <ClipboardPaste size={18} color={colors.leaf} />
-              </Pressy>
+              canPaste && !code ? (
+                <Pressy onPress={paste} haptics="select" accessibilityLabel={t('pasteCode', lang)}>
+                  <ClipboardPaste size={18} color={colors.leaf} />
+                </Pressy>
+              ) : null
             }
             onSubmitEditing={() => applyCode(code)}
             returnKeyType="done"

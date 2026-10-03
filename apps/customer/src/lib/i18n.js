@@ -158,6 +158,11 @@ const STRINGS = {
     term5Body:
       'We call from downstairs. If nobody answers we leave the bag with your security desk and mark it delivered.',
     reachMinimum: "You're at ₹{built} — add ₹{more} more to reach the ₹500 minimum",
+    firstRewardHint:
+      "You're at ₹{built} — add ₹{more} more to reach ₹500 and qualify for {discount}",
+    addMoreForOffer: 'Add ₹{more} more to qualify for {discount}',
+    couponAppliedBanner: '{label} applied 🎉',
+    qualifyForOffer: 'You qualify for {discount} — add a coupon below to use it',
     overMinimum: 'Your basket is over the minimum',
     total: 'Total',
     checkout: 'Checkout',
@@ -293,6 +298,10 @@ const STRINGS = {
     term5Body:
       'हम नीचे से कॉल करते हैं। कोई न उठाए तो बैग सिक्योरिटी डेस्क पर छोड़कर डिलीवर मान लेते हैं।',
     reachMinimum: 'आप ₹{built} पर हैं — ₹500 की न्यूनतम राशि तक ₹{more} और जोड़ें',
+    firstRewardHint: 'आप ₹{built} पर हैं — ₹500 तक ₹{more} और जोड़ें और {discount} पाएँ',
+    addMoreForOffer: '{discount} पाने के लिए ₹{more} और जोड़ें',
+    couponAppliedBanner: '{label} लग गया 🎉',
+    qualifyForOffer: 'आपको {discount} मिल सकता है — नीचे कूपन जोड़ें',
     overMinimum: 'आपकी टोकरी न्यूनतम राशि से ऊपर है',
     total: 'कुल',
     checkout: 'आगे बढ़ें',
@@ -427,6 +436,11 @@ const STRINGS = {
     term5Body:
       'మేము కింద నుండి కాల్ చేస్తాం. ఎవరూ తీయకపోతే బ్యాగ్ సెక్యూరిటీ వద్ద ఇచ్చి డెలివరీ అయినట్టు గుర్తిస్తాం.',
     reachMinimum: 'మీరు ₹{built} వద్ద ఉన్నారు — ₹500 కనిష్ఠానికి ఇంకా ₹{more} జోడించండి',
+    firstRewardHint:
+      'మీరు ₹{built} వద్ద ఉన్నారు — ₹500 చేరడానికి ఇంకా ₹{more} జోడిస్తే {discount} వస్తుంది',
+    addMoreForOffer: '{discount} పొందడానికి ఇంకా ₹{more} జోడించండి',
+    couponAppliedBanner: '{label} వేయబడింది 🎉',
+    qualifyForOffer: 'మీకు {discount} వర్తిస్తుంది — కింద కూపన్ జోడించండి',
     overMinimum: 'మీ బుట్ట కనిష్ఠాన్ని దాటింది',
     total: 'మొత్తం',
     checkout: 'చెక్‌అవుట్',

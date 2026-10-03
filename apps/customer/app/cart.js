@@ -176,14 +176,21 @@ function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCou
     // A coupon whose threshold is at/below the ₹500 minimum is the first reward you get at ₹500.
     const firstReward = nextCoupon && Number(nextCoupon.minOrderPaise) <= min ? nextCoupon : null;
     message = firstReward
-      ? `You're at ₹${built} — add ₹${rupeesTo(min)} more to reach ₹500 and qualify for ${firstReward.discountText}`
+      ? t('firstRewardHint', lang, {
+          built,
+          more: rupeesTo(min),
+          discount: firstReward.discountText,
+        })
       : t('reachMinimum', lang, { built, more: rupeesTo(min) });
   } else if (nextCoupon) {
-    message = `Add ₹${rupeesTo(Number(nextCoupon.minOrderPaise))} more to qualify for ${nextCoupon.discountText}`;
+    message = t('addMoreForOffer', lang, {
+      more: rupeesTo(Number(nextCoupon.minOrderPaise)),
+      discount: nextCoupon.discountText,
+    });
   } else if (appliedCoupon) {
-    message = `${appliedCoupon.label || 'Coupon'} applied 🎉`;
+    message = t('couponAppliedBanner', lang, { label: appliedCoupon.label || t('coupon', lang) });
   } else if (availableCoupon) {
-    message = `You qualify for ${availableCoupon.discountText} — add a coupon below to use it`;
+    message = t('qualifyForOffer', lang, { discount: availableCoupon.discountText });
   } else {
     message = t('overMinimum', lang);
   }
