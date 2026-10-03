@@ -31,9 +31,12 @@ export default function AddressCapture() {
   };
   return (
     <Screen edges={['top']}>
-      {/* The form below is its own ScrollView, and this heading sits above it rather than inside
-          it. Without an opaque ground the scrolled fields showed THROUGH the heading — which is
-          what reads as "Where do we deliver? is overlapped". */}
+      {/* The form below is its own ScrollView and is a SIBLING of this heading, inside its own
+          flex:1 box — so its content is clipped to that box and can never ride up over the
+          heading. The opaque ground this block used to carry was therefore protecting against
+          nothing, and it cost the screen its background: a flat canvas rectangle painted straight
+          over the ambient gradient, with hard edges at the 20px gutter and a horizontal seam that
+          sliced the mint blob in half. It read as a screenshot pasted onto the page. */}
       {/* Pinned above the form, not below it. This used to sit under a flex:1 scroll area, so on a
           short screen — or any screen with the keyboard up — it was pushed out of sight and the
           step read as a dead end with no way back to change the number. */}
@@ -58,7 +61,6 @@ export default function AddressCapture() {
         style={{
           marginTop: 12,
           marginBottom: 20,
-          backgroundColor: colors.canvas,
           zIndex: 2,
         }}
       >
