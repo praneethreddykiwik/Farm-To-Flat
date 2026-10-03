@@ -20,11 +20,15 @@ const NEXT = {
   CANCELLED: [],
   PAYMENT_FAILED: ['CONFIRMED', 'CANCELLED'],
 };
+// PAYMENT_FAILED belongs here with the rest. Leaving it out meant those orders showed up only
+// under "All", so the tab counts never summed to the total and a failed payment was something you
+// could find only by scrolling — with nothing to filter on when chasing them up.
 const FILTERS = [
   'CONFIRMED',
   'PACKING',
   'OUT_FOR_DELIVERY',
   'PENDING_PAYMENT',
+  'PAYMENT_FAILED',
   'DELIVERED',
   'CANCELLED',
 ];

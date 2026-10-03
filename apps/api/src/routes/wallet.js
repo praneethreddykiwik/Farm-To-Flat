@@ -115,7 +115,11 @@ paymentsRouter.post(
 
     // With real Razorpay, the checkout returns a signature we MUST verify with the key secret before
     // capturing — never trust the client's "success" alone. (Production also confirms via webhook.)
-    if (razorpayEnabled && (razorpayPaymentId || req.body.razorpaySignature)) {
+    // Gate on the PAYMENT, not on what the caller chose to send. Keying this off
+    // `razorpayPaymentId || razorpaySignature` meant a request carrying neither — just
+    // `{ paymentId, success: true }` — skipped verification completely and captured the order
+    // without a rupee moving. Once the gateway has issued an order id, a signature is mandatory.
+    if (razorpayEnabled && pay.razorpayOrderId) {
       const ok = verifyRazorpaySignature({
         orderId: req.body.razorpayOrderId || pay.razorpayOrderId,
         paymentId: razorpayPaymentId,

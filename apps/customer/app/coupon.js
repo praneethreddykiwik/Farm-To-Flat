@@ -10,12 +10,13 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { ClipboardPaste, Lock, Ticket, X } from 'lucide-react-native';
 import { Ambient, Button, Display, Glass, Input, Label, Pressy, Small, Text } from '../src/ui';
 import { useApplyCouponMutation, useGetCartQuery, useGetCouponsQuery } from '../src/api/api';
-import { showToast } from '../src/features/ui/uiSlice';
+import { selectLanguage, showToast } from '../src/features/ui/uiSlice';
 import { haptic } from '../src/lib/haptics';
+import { t } from '../src/lib/i18n';
 import { colors, fonts, radius } from '../src/theme';
 
 /**
@@ -27,6 +28,7 @@ export default function Coupon() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const lang = useSelector(selectLanguage);
   const [code, setCode] = useState('');
   const [error, setError] = useState(null);
   const [apply, { isLoading }] = useApplyCouponMutation();
@@ -51,16 +53,20 @@ export default function Coupon() {
       const res = await apply(c).unwrap();
       haptic.success();
       dispatch(
-        showToast({ title: 'Coupon applied', message: res?.cart?.coupon?.label, tone: 'success' }),
+        showToast({
+          title: t('couponApplied', lang),
+          message: res?.cart?.coupon?.label,
+          tone: 'success',
+        }),
       );
       router.back();
     } catch (e) {
       haptic.error();
-      const message = e?.message || 'Could not apply that code';
+      const message = e?.message || t('couponFailed', lang);
       setError(message);
       // The offer rows sit well below the code field, so setError alone put the reason somewhere
       // the tester could not see — the Apply pill looked dead. Say it where the tap happened.
-      dispatch(showToast({ title: 'Coupon not applied', message, tone: 'error' }));
+      dispatch(showToast({ title: t('couponNotApplied', lang), message, tone: 'error' }));
     }
   };
 
@@ -73,9 +79,9 @@ export default function Coupon() {
       >
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={{ flex: 1 }}>
-            <Display>Have a coupon?</Display>
+            <Display>{t('haveACoupon', lang)}</Display>
             <Small muted style={{ marginTop: 4 }}>
-              Tap an offer below, or type a code from the brochure
+              {t('couponIntro', lang)}
             </Small>
           </View>
           <Pressy onPress={() => router.back()} haptics="select" accessibilityLabel="Close">
@@ -92,7 +98,7 @@ export default function Coupon() {
           showsVerticalScrollIndicator={false}
         >
           <Input
-            label="Coupon code"
+            label={t('couponCodeLabel', lang)}
             value={code}
             onChangeText={(t) => {
               setCode(
@@ -111,7 +117,7 @@ export default function Coupon() {
             error={error}
             leading={<Ticket size={18} color={colors.ink3} />}
             trailing={
-              <Pressy onPress={paste} haptics="select" accessibilityLabel="Paste code">
+              <Pressy onPress={paste} haptics="select" accessibilityLabel={t('pasteCode', lang)}>
                 <ClipboardPaste size={18} color={colors.leaf} />
               </Pressy>
             }
@@ -119,7 +125,7 @@ export default function Coupon() {
             returnKeyType="done"
           />
           <Button
-            title="Apply coupon"
+            title={t('applyCoupon', lang)}
             onPress={() => applyCode(code)}
             loading={isLoading}
             disabled={!code.trim()}
@@ -128,12 +134,12 @@ export default function Coupon() {
 
           {coupons.length > 0 ? (
             <>
-              <Label style={{ marginTop: 28, marginBottom: 4 }}>Available offers</Label>
+              <Label style={{ marginTop: 28, marginBottom: 4 }}>{t('availableOffers', lang)}</Label>
               {coupons.map((c) => (
                 <CouponCard key={c.code} coupon={c} onApply={() => applyCode(c.code)} />
               ))}
               <Small muted center style={{ marginTop: 12 }}>
-                One coupon per order.
+                {t('oneCouponPerOrder', lang)}
               </Small>
             </>
           ) : null}
@@ -144,6 +150,7 @@ export default function Coupon() {
 }
 
 function CouponCard({ coupon, onApply }) {
+  const lang = useSelector(selectLanguage);
   const used = !!coupon.alreadyUsed;
   const locked = used || !coupon.meetsMinimum;
   return (
@@ -172,13 +179,13 @@ function CouponCard({ coupon, onApply }) {
           <Small style={{ color: locked ? colors.amber : colors.leaf }}>
             {/* An offer the basket already clears said "Spend ₹500 to unlock" next to a live Apply
                 button — the terms of a lock that is already open. Say it's ready instead. */}
-            {used ? 'Already used on your account' : locked ? coupon.unlockText : 'Ready to apply'}
+            {used ? t('alreadyUsed', lang) : locked ? coupon.unlockText : t('readyToApply', lang)}
           </Small>
         </View>
       </View>
       {!locked ? (
         <View style={styles.applyPill}>
-          <Text style={styles.applyText}>Apply</Text>
+          <Text style={styles.applyText}>{t('apply', lang)}</Text>
         </View>
       ) : null}
     </Pressable>

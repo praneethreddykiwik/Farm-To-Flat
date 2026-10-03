@@ -287,7 +287,12 @@ function windowProblem(w) {
   if ([w.start, w.end, w.cutoff].some((t) => !CLOCK_RE.test(t || '')))
     return 'Fill in all three times.';
   if (mins(w.end) <= mins(w.start)) return 'This window ends before it starts.';
-  if (mins(w.cutoff) >= mins(w.start)) return 'Orders must close before the window begins.';
+  // Name the boundary. "Orders must close before the window begins" told the operator they were
+  // wrong but not what to type, so a 06:00 run set to close at 16:04 just looked like a dead Save
+  // button. The cut-off is a clock time on the DELIVERY DAY (the server reads it the same way), so
+  // the usable range is always "earlier than the start".
+  if (mins(w.cutoff) >= mins(w.start))
+    return `Orders must close before ${w.start}, when this window begins — pick any earlier time (the default morning cut-off is 03:45).`;
   return null;
 }
 const DEFAULT_NEW_WINDOW = { label: 'Afternoon', cutoff: '09:30', start: '14:00', end: '17:00' };

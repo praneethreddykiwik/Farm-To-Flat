@@ -4,27 +4,33 @@ import Animated, { FadeInLeft } from 'react-native-reanimated';
 import { Check } from 'lucide-react-native';
 import { Small, Text } from '../ui';
 import { colors, motion } from '../theme';
+import { useSelector } from 'react-redux';
 import { formatDateTime } from '../lib/dates';
+import { t } from '../lib/i18n';
+import { selectLanguage } from '../features/ui/uiSlice';
 
+// Labels resolve per render against the chosen language — the strings used to be baked into this
+// array, so the whole track order screen stayed English even with the app set to Telugu.
 const STEPS = [
-  { key: 'CONFIRMED', label: 'Confirmed', hint: 'Locked in for your window' },
-  { key: 'PACKING', label: 'Packed', hint: 'Weighed and bagged this morning' },
-  { key: 'OUT_FOR_DELIVERY', label: 'On its way', hint: 'Heading to your block' },
-  { key: 'DELIVERED', label: 'Delivered', hint: 'At your door' },
+  { key: 'CONFIRMED', label: 'stepConfirmed', hint: 'stepConfirmedHint' },
+  { key: 'PACKING', label: 'stepPacked', hint: 'stepPackedHint' },
+  { key: 'OUT_FOR_DELIVERY', label: 'stepOnItsWay', hint: 'stepOnItsWayHint' },
+  { key: 'DELIVERED', label: 'stepDelivered', hint: 'stepDeliveredHint' },
 ];
 
 /** @param {{ status: string, timeline?: {status:string, at:string}[] }} props */
 export function OrderStatusTimeline({ status, timeline = [] }) {
+  const lang = useSelector(selectLanguage);
   if (status === 'CANCELLED' || status === 'PAYMENT_FAILED' || status === 'PENDING_PAYMENT') {
     const at = timeline.find((t) => t.status === status)?.at;
     return (
       <View style={styles.single}>
         <Text variant="bodyMedium">
           {status === 'CANCELLED'
-            ? 'This order was cancelled'
+            ? t('orderCancelled', lang)
             : status === 'PAYMENT_FAILED'
-              ? 'Payment did not go through'
-              : 'Waiting for payment'}
+              ? t('paymentDidNotGoThrough', lang)
+              : t('waitingForPayment', lang)}
         </Text>
         {at ? <Small muted>{formatDateTime(at)}</Small> : null}
       </View>
@@ -59,9 +65,9 @@ export function OrderStatusTimeline({ status, timeline = [] }) {
             </View>
             <View style={styles.body}>
               <Text variant="bodyMedium" color={done ? colors.ink : colors.ink3}>
-                {s.label}
+                {t(s.label, lang)}
               </Text>
-              <Small muted>{at ? formatDateTime(at) : s.hint}</Small>
+              <Small muted>{at ? formatDateTime(at) : t(s.hint, lang)}</Small>
             </View>
           </Animated.View>
         );
