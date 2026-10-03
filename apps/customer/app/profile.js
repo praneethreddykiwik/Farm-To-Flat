@@ -55,6 +55,8 @@ function Row({
   right = undefined,
   last = false,
 }) {
+  // Its own subscription: Row is a sibling component, not a child of Profile's scope.
+  const lang = useSelector(selectLanguage);
   return (
     <Pressy onPress={onPress} haptics="select" scale={0.995} disabled={!onPress}>
       <View style={[styles.row, !last && styles.rowDivider]}>
@@ -62,7 +64,7 @@ function Row({
         <View style={{ flex: 1 }}>
           <Small muted>{label}</Small>
           <Text variant="bodyMedium" numberOfLines={1} color={value ? colors.ink : colors.ink3}>
-            {value || hint || 'Not set'}
+            {value || hint || t('notSet', lang)}
           </Text>
         </View>
         {right ?? (onPress ? <ChevronRight size={18} color={colors.ink3} /> : null)}
@@ -130,10 +132,10 @@ export default function Profile() {
         await updateMe({ [key]: value }).unwrap();
         dispatch(customerUpdated({ [key]: value }));
       }
-      dispatch(showToast({ title: 'Saved', tone: 'success' }));
+      dispatch(showToast({ title: t('savedToast', lang), tone: 'success' }));
       editSheet.current?.dismiss();
     } catch (e) {
-      dispatch(showToast({ title: e?.message || 'Could not save', tone: 'error' }));
+      dispatch(showToast({ title: e?.message || t('couldNotSave', lang), tone: 'error' }));
     }
   };
 
@@ -206,68 +208,68 @@ export default function Profile() {
               {(customer?.name || 'F').charAt(0).toUpperCase()}
             </Text>
           </View>
-          <Display>{customer?.name || 'Your account'}</Display>
+          <Display>{customer?.name || t('yourAccount', lang)}</Display>
           <Small muted style={{ marginTop: 4 }}>
-            Personal details, addresses and preferences
+            {t('profileSubtitle', lang)}
           </Small>
         </Animated.View>
 
-        <Label style={{ marginTop: 26, marginBottom: 8 }}>Personal details</Label>
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('personalDetails', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
           <Row
             icon={<UserRound size={18} color={colors.ink} />}
-            label="Full name"
+            label={t('fullName', lang)}
             value={customer?.name}
-            hint="Add your name"
+            hint={t('addYourName', lang)}
             onPress={() =>
               edit({
                 key: 'name',
-                label: 'Full name',
+                label: t('fullName', lang),
                 value: customer?.name || '',
                 placeholder: 'Vivek Goud',
                 autoCapitalize: 'words',
                 maxLength: 40,
-                hint: 'The delivery team asks for this at your door.',
+                hint: t('nameAtDoor', lang),
                 validate: checkName,
               })
             }
           />
           <Row
             icon={<Phone size={18} color={colors.ink} />}
-            label="Mobile number"
+            label={t('mobileNumber', lang)}
             value={customer?.mobile ? `+91 ${customer.mobile}` : null}
             onPress={changeMobile}
             right={
               <View style={styles.verified}>
                 <ShieldCheck size={14} color={colors.leafDeep} />
                 <Small color={colors.leafDeep} style={{ fontSize: 11 }}>
-                  Verified
+                  {t('verifiedBadge', lang)}
                 </Small>
               </View>
             }
           />
           <Row
             icon={<Mail size={18} color={colors.ink} />}
-            label="Email (optional)"
+            label={t('emailOptional', lang)}
             value={customer?.email}
-            hint="For invoices and receipts"
+            hint={t('forInvoices', lang)}
             onPress={() =>
               edit({
                 key: 'email',
-                label: 'Email',
+                label: t('emailLabel', lang),
                 value: customer?.email || '',
                 placeholder: 'you@example.com',
                 keyboardType: 'email-address',
                 autoCapitalize: 'none',
                 maxLength: 120,
-                hint: 'We send invoices here. Optional.',
+                hint: t('invoicesHere', lang),
                 validate: checkEmail,
               })
             }
           />
           <Row
             icon={<Leaf size={18} color={colors.ink} />}
-            label="Food preference"
+            label={t('foodPreference', lang)}
             value={dietProfile.diet}
             onPress={() => {
               const i = DIETS.indexOf(dietProfile.diet);
@@ -280,8 +282,8 @@ export default function Profile() {
         </Glass>
 
         <View style={styles.sectionHead}>
-          <Label>Delivery addresses</Label>
-          <Small muted>{addresses.length} saved</Small>
+          <Label>{t('deliveryAddresses', lang)}</Label>
+          <Small muted>{t('savedCount', lang, { n: addresses.length })}</Small>
         </View>
         <View style={{ gap: 10 }}>
           {addresses.map((a, i) => (
@@ -316,18 +318,18 @@ export default function Profile() {
                     <View style={styles.defaultTag}>
                       <Star size={12} color={colors.leafDeep} fill={colors.leafDeep} />
                       <Small color={colors.leafDeep} style={{ fontSize: 11 }}>
-                        Default
+                        {t('defaultBadge', lang)}
                       </Small>
                     </View>
                   ) : (
-                    <Small color={colors.ink3}>Set default</Small>
+                    <Small color={colors.ink3}>{t('setDefault', lang)}</Small>
                   )}
                 </Glass>
               </Pressy>
             </Animated.View>
           ))}
           <Button
-            title="Add another address"
+            title={t('addAnotherAddress', lang)}
             variant="glass"
             size="md"
             onPress={() => router.push('/address/new')}
@@ -335,12 +337,12 @@ export default function Profile() {
           />
         </View>
 
-        <Label style={{ marginTop: 26, marginBottom: 8 }}>Preferences</Label>
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('preferencesLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
           <Row
             icon={<Bell size={18} color={colors.ink} />}
-            label="Order and wallet updates"
-            value="Packed, out for delivery, wallet credited"
+            label={t('orderWalletUpdates', lang)}
+            value={t('orderWalletUpdatesHint', lang)}
             right={
               <Switch
                 value={push}
@@ -355,13 +357,13 @@ export default function Profile() {
           {aiVisible ? (
             <Row
               icon={<Sparkles size={18} color={colors.ink} />}
-              label="Dietitian profile"
+              label={t('dietitianProfile', lang)}
               value={
                 dietProfile.age
                   ? `${dietProfile.age} y · ${dietProfile.goal} · ${dietProfile.mealsPerDay} meals a day`
                   : null
               }
-              hint="Age, goal, standing instructions"
+              hint={t('dietitianProfileHint', lang)}
               onPress={() => router.push('/(tabs)/plan')}
               last
             />
@@ -370,12 +372,12 @@ export default function Profile() {
 
         {aiVisible ? (
           <>
-            <Label style={{ marginTop: 26, marginBottom: 8 }}>Super admin</Label>
+            <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('superAdmin', lang)}</Label>
             <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
               <Row
                 icon={<ShieldCheck size={18} color={colors.ink} />}
-                label="Operations console"
-                hint="Procurement, fulfilment, dashboard"
+                label={t('operationsConsole', lang)}
+                hint={t('operationsConsoleHint', lang)}
                 onPress={() => router.push('/staff/console')}
                 last
               />
@@ -385,12 +387,12 @@ export default function Profile() {
 
         {support && (support.email || support.phone) ? (
           <>
-            <Label style={{ marginTop: 26, marginBottom: 8 }}>Help &amp; support</Label>
+            <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('helpAndSupport', lang)}</Label>
             <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
               {support.email ? (
                 <Row
                   icon={<Mail size={18} color={colors.ink} />}
-                  label="Email us"
+                  label={t('emailUs', lang)}
                   value={support.email}
                   onPress={() => Linking.openURL(`mailto:${support.email}`).catch(() => {})}
                   last={!support.phone}
@@ -399,7 +401,7 @@ export default function Profile() {
               {support.phone ? (
                 <Row
                   icon={<Phone size={18} color={colors.ink} />}
-                  label="Call us"
+                  label={t('callUs', lang)}
                   value={support.phone}
                   onPress={() =>
                     Linking.openURL(`tel:${support.phone.replace(/\s/g, '')}`).catch(() => {})
@@ -419,12 +421,11 @@ export default function Profile() {
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 14 }}>
           <LanguagePicker />
           <Small muted style={{ marginTop: 10 }}>
-            Product names appear in the language you choose. Prices and your order history stay the
-            same.
+            {t('languageNote', lang)}
           </Small>
         </Glass>
 
-        <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('aboutLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>
           <Small muted>Fooducia · v{env.appVersion}</Small>
           {/* Carry the reader's language to the web page, which renders in all three. */}
@@ -454,7 +455,7 @@ export default function Profile() {
 
         <View style={{ marginTop: 26 }}>
           <Button
-            title="Sign out"
+            title={t('signOut', lang)}
             variant="danger"
             onPress={signOut}
             icon={<LogOut size={18} color={colors.tomato} />}
