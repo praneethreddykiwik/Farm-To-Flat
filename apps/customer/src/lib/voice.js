@@ -81,7 +81,7 @@ export function useVoiceSearch({ onResult, onFinal, lang = 'en-IN' } = {}) {
     // The simulator has no usable audio input; starting capture there crashes natively. Refuse it
     // and tell the user to use their phone, rather than taking the app down.
     if (!voiceCaptureAvailable) {
-      setError('Voice search works on your phone — open Farm to Flat on your device to speak.');
+      setError('Voice search works on your phone — open Fooducia on your device to speak.');
       return;
     }
     setError(null);

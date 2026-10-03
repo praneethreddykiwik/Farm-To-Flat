@@ -248,7 +248,7 @@ adminOrdersRouter.get(
             ),
           };
 
-    const buf = await buildWorkbook([sheet], { title: `Farm to Flat ${type}` });
+    const buf = await buildWorkbook([sheet], { title: `Fooducia ${type}` });
     sendWorkbook(res, buf, `f2f-${type}-${req.query.date || todayISO()}.xlsx`);
   }),
 );

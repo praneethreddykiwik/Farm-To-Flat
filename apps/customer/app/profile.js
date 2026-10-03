@@ -426,7 +426,7 @@ export default function Profile() {
 
         <Label style={{ marginTop: 26, marginBottom: 8 }}>About</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>
-          <Small muted>Farm to Flat · v{env.appVersion}</Small>
+          <Small muted>Fooducia · v{env.appVersion}</Small>
           {/* Carry the reader's language to the web page, which renders in all three. */}
           <Pressy
             onPress={() =>

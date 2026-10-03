@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Farm to Flat",
+    "name": "Fooducia",
     "slug": "farm-to-flat",
     "scheme": "f2f",
     "version": "0.2.0",
@@ -14,10 +14,10 @@
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["tez", "phonepe", "paytmmp"],
         "NSLocationWhenInUseUsageDescription": "We use your location once to check whether your community is serviceable.",
-        "NSSpeechRecognitionUsageDescription": "Farm to Flat converts your speech to text to search the catalog.",
-        "NSMicrophoneUsageDescription": "Farm to Flat uses the microphone so you can search the catalog by voice.",
-        "NSCameraUsageDescription": "Farm to Flat uses the camera so you can photograph anything wrong with your delivery.",
-        "NSPhotoLibraryUsageDescription": "Farm to Flat lets you attach a photo of anything wrong with your delivery."
+        "NSSpeechRecognitionUsageDescription": "Fooducia converts your speech to text to search the catalog.",
+        "NSMicrophoneUsageDescription": "Fooducia uses the microphone so you can search the catalog by voice.",
+        "NSCameraUsageDescription": "Fooducia uses the camera so you can photograph anything wrong with your delivery.",
+        "NSPhotoLibraryUsageDescription": "Fooducia lets you attach a photo of anything wrong with your delivery."
       }
     },
     "android": {
@@ -72,8 +72,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Farm to Flat uses the microphone so you can search the catalog by voice.",
-          "speechRecognitionPermission": "Farm to Flat converts your speech to text to search the catalog.",
+          "microphonePermission": "Fooducia uses the microphone so you can search the catalog by voice.",
+          "speechRecognitionPermission": "Fooducia converts your speech to text to search the catalog.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
       ],
@@ -81,8 +81,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Farm to Flat lets you attach a photo of anything wrong with your delivery.",
-          "cameraPermission": "Farm to Flat uses the camera so you can photograph anything wrong with your delivery."
+          "photosPermission": "Fooducia lets you attach a photo of anything wrong with your delivery.",
+          "cameraPermission": "Fooducia uses the camera so you can photograph anything wrong with your delivery."
         }
       ]
     ],

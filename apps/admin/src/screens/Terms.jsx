@@ -1,6 +1,6 @@
 import { useState } from 'react';
 /**
- * Public terms & conditions for Farm to Flat. Reached at /terms with NO login and NO admin chrome —
+ * Public terms & conditions for Fooducia. Reached at /terms with NO login and NO admin chrome —
  * mirrors Privacy.jsx (self-contained styles, same structure) so it renders correctly on its own and
  * matches the linked page visually. Covers what Indian e-commerce rules require a seller to disclose:
  * seller identity, pricing/GST, delivery, cancellation/refund, and a named grievance officer
@@ -54,7 +54,7 @@ export function Terms() {
             <span className="pp-leaf" aria-hidden>
               🌿
             </span>
-            <span>Farm to Flat</span>
+            <span>Fooducia</span>
           </div>
           <h1 className="pp-title">{chrome.title}</h1>
           <p className="pp-updated">
@@ -105,7 +105,7 @@ export function Terms() {
           <span className="pp-dot" aria-hidden>
             ·
           </span>
-          <span>© {new Date().getFullYear()} Farm to Flat</span>
+          <span>© {new Date().getFullYear()} Fooducia</span>
         </footer>
       </main>
     </div>

@@ -5,6 +5,7 @@
  *   PATCH  /admin/products/:id            edit any field incl. pricePaise / costPaise
  *   DELETE /admin/products/:id            remove
  *   GET    /admin/categories              category list
+ *   POST   /admin/products/suggest-names   Hindi + Telugu name suggestions for an English name
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -20,6 +21,7 @@ import {
   updateProduct,
 } from '../../store.js';
 import { allowedImageTypes, storageEnabled, uploadProductImage } from '../../lib/storage.js';
+import { examplesFromCatalog, suggestProductNames } from '../../lib/suggest-names.js';
 
 export const adminProductsRouter = Router();
 
@@ -104,6 +106,23 @@ adminProductsRouter.delete(
  * base64; the URL then goes into the product's `image` field (create/edit). Server-side upload keeps
  * the storage key off the browser.
  */
+// Suggestions only: this never touches the product. The operator clicks what they want and it
+// lands in the aliases field, which is what productName() reads for Hindi and Telugu.
+const SuggestNames = z.object({
+  name: z.string().min(1).max(80),
+  category: z.string().max(60).optional(),
+});
+
+adminProductsRouter.post(
+  '/products/suggest-names',
+  validateBody(SuggestNames),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await suggestProductNames({ ...req.body, examples: examplesFromCatalog(listProducts()) }),
+    );
+  }),
+);
+
 const UploadImage = z.object({
   contentType: z.enum(/** @type {any} */ (allowedImageTypes)),
   dataBase64: z.string().min(1),

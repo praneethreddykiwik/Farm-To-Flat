@@ -57,7 +57,7 @@ export function Sidebar({ open = false, onClose }) {
           <IconLeaf size={22} style={{ color: '#eaffc2' }} />
         </div>
         <div style={{ flex: 1 }}>
-          <div className="brand__name">Farm to Flat</div>
+          <div className="brand__name">Fooducia</div>
           <div className="brand__sub">Operations</div>
         </div>
         {onClose && (

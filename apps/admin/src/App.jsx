@@ -60,7 +60,7 @@ function AdminShell() {
           </button>
           <div className="mobilebar__brand">
             <IconLeaf size={18} style={{ color: 'var(--sprout)' }} />
-            <span>Farm to Flat</span>
+            <span>Fooducia</span>
           </div>
         </header>
         {navOpen && <div className="rail-scrim" onClick={() => setNavOpen(false)} />}

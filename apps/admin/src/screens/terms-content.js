@@ -22,7 +22,7 @@ export const CHROME = {
   en: {
     title: 'Terms & Conditions',
     updated: 'Last updated',
-    lede: 'These terms explain how ordering, delivery, cancellation and refunds work on Farm to Flat, and what to expect from us and from you as a customer — in plain language.',
+    lede: 'These terms explain how ordering, delivery, cancellation and refunds work on Fooducia, and what to expect from us and from you as a customer — in plain language.',
     governingNote: null,
     languageLabel: 'Language',
   },
@@ -37,7 +37,7 @@ export const CHROME = {
   te: {
     title: 'నిబంధనలు మరియు షరతులు',
     updated: 'చివరిగా నవీకరించినది',
-    lede: 'ఫార్మ్ టు ఫ్లాట్‌లో ఆర్డర్, డెలివరీ, రద్దు మరియు రీఫండ్ ఎలా పని చేస్తాయో, అలాగే కస్టమర్‌గా మీరు మా నుండి మరియు మేము మీ నుండి ఏమి ఆశించవచ్చో ఈ నిబంధనలు సరళమైన భాషలో వివరిస్తాయి.',
+    lede: 'Fooducia‌లో ఆర్డర్, డెలివరీ, రద్దు మరియు రీఫండ్ ఎలా పని చేస్తాయో, అలాగే కస్టమర్‌గా మీరు మా నుండి మరియు మేము మీ నుండి ఏమి ఆశించవచ్చో ఈ నిబంధనలు సరళమైన భాషలో వివరిస్తాయి.',
     governingNote:
       'ఇది ఆంగ్ల నిబంధనల అనువాదం, మీ సౌలభ్యం కోసం అందించబడింది. ఏదైనా తేడా ఉంటే ఆంగ్ల ప్రతియే చెల్లుబాటు అవుతుంది.',
     languageLabel: 'భాష',
@@ -48,7 +48,7 @@ const EN = (CONTACT) => [
   {
     h: 'Who we are',
     p: [
-      'Farm to Flat ("we", "us") operates a mobile app that lets residents of participating gated communities in Hyderabad, India pre-order fresh vegetables, greens and meat for delivery in a chosen morning or evening window. By creating an account or placing an order, you agree to these terms.',
+      'Fooducia ("we", "us") operates a mobile app that lets residents of participating gated communities in Hyderabad, India pre-order fresh vegetables, greens and meat for delivery in a chosen morning or evening window. By creating an account or placing an order, you agree to these terms.',
     ],
   },
   {
@@ -146,14 +146,14 @@ const EN = (CONTACT) => [
       'In accordance with the Information Technology Act, 2000 and the Consumer Protection (E-Commerce) Rules, 2020, the name and contact details of the Grievance Officer are provided below. If you have a complaint about an order, a privacy concern, or content on the app, please write to us and we will acknowledge it within 48 hours and resolve it within 30 days.',
     ],
     list: [
-      ['Grievance Officer', 'Farm to Flat Operations'],
+      ['Grievance Officer', 'Fooducia Operations'],
       ['Email', CONTACT],
-      ['Address', 'Farm to Flat, Hyderabad, Telangana, India'],
+      ['Address', 'Fooducia, Hyderabad, Telangana, India'],
     ],
   },
   {
     h: 'Contact us',
-    p: [`Questions about these terms? Email ${CONTACT}. Farm to Flat, Hyderabad, India.`],
+    p: [`Questions about these terms? Email ${CONTACT}. Fooducia, Hyderabad, India.`],
   },
 ];
 
@@ -274,7 +274,7 @@ const TE = (CONTACT) => [
   {
     h: 'మేము ఎవరం',
     p: [
-      'ఫార్మ్ టు ఫ్లాట్ ("మేము", "మా") ఒక మొబైల్ యాప్‌ను నడుపుతుంది. దీని ద్వారా భారతదేశంలోని హైదరాబాద్‌లో భాగస్వామ్య గేటెడ్ కమ్యూనిటీల నివాసితులు తాజా కూరగాయలు, ఆకుకూరలు మరియు మాంసాన్ని ముందుగానే ఆర్డర్ చేసి, తాము ఎంచుకున్న ఉదయం లేదా సాయంత్రం డెలివరీ సమయంలో పొందవచ్చు. ఖాతా సృష్టించడం ద్వారా లేదా ఆర్డర్ చేయడం ద్వారా మీరు ఈ నిబంధనలకు అంగీకరిస్తున్నారు.',
+      'Fooducia ("మేము", "మా") ఒక మొబైల్ యాప్‌ను నడుపుతుంది. దీని ద్వారా భారతదేశంలోని హైదరాబాద్‌లో భాగస్వామ్య గేటెడ్ కమ్యూనిటీల నివాసితులు తాజా కూరగాయలు, ఆకుకూరలు మరియు మాంసాన్ని ముందుగానే ఆర్డర్ చేసి, తాము ఎంచుకున్న ఉదయం లేదా సాయంత్రం డెలివరీ సమయంలో పొందవచ్చు. ఖాతా సృష్టించడం ద్వారా లేదా ఆర్డర్ చేయడం ద్వారా మీరు ఈ నిబంధనలకు అంగీకరిస్తున్నారు.',
     ],
   },
   {
@@ -372,16 +372,14 @@ const TE = (CONTACT) => [
       'సమాచార సాంకేతిక చట్టం, 2000 మరియు వినియోగదారుల రక్షణ (ఈ-కామర్స్) నియమాలు, 2020 ప్రకారం, ఫిర్యాదుల అధికారి పేరు మరియు సంప్రదింపు వివరాలు క్రింద ఇవ్వబడ్డాయి. ఆర్డర్ గురించి ఫిర్యాదు, గోప్యతా సంబంధిత ఆందోళన, లేదా యాప్‌లోని ఏదైనా విషయంపై అభ్యంతరం ఉంటే, దయచేసి మాకు రాయండి — 48 గంటలలోపు స్వీకరించినట్టు తెలియజేసి, 30 రోజులలోపు పరిష్కరిస్తాము.',
     ],
     list: [
-      ['ఫిర్యాదుల అధికారి', 'ఫార్మ్ టు ఫ్లాట్ ఆపరేషన్స్'],
+      ['ఫిర్యాదుల అధికారి', 'Fooducia ఆపరేషన్స్'],
       ['ఇమెయిల్', CONTACT],
-      ['చిరునామా', 'ఫార్మ్ టు ఫ్లాట్, హైదరాబాద్, తెలంగాణ, భారతదేశం'],
+      ['చిరునామా', 'Fooducia, హైదరాబాద్, తెలంగాణ, భారతదేశం'],
     ],
   },
   {
     h: 'మమ్మల్ని సంప్రదించండి',
-    p: [
-      `ఈ నిబంధనల గురించి ప్రశ్నలా? ${CONTACT} కు ఇమెయిల్ చేయండి. ఫార్మ్ టు ఫ్లాట్, హైదరాబాద్, భారతదేశం.`,
-    ],
+    p: [`ఈ నిబంధనల గురించి ప్రశ్నలా? ${CONTACT} కు ఇమెయిల్ చేయండి. Fooducia, హైదరాబాద్, భారతదేశం.`],
   },
 ];
 

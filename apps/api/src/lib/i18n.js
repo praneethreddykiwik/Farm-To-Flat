@@ -102,7 +102,7 @@ export const RUN_DETAILS = {
     allWindows: 'All windows',
     allCommunities: 'All communities',
     perProduct: 'per-product default',
-    title: 'Farm to Flat purchase list',
+    title: 'Fooducia purchase list',
   },
   hi: {
     field: 'विवरण',
@@ -138,14 +138,14 @@ export const RUN_DETAILS = {
     allWindows: 'అన్ని సమయాలు',
     allCommunities: 'అన్ని కమ్యూనిటీలు',
     perProduct: 'ఉత్పత్తి వారీ డిఫాల్ట్',
-    title: 'ఫార్మ్ టు ఫ్లాట్ కొనుగోలు జాబితా',
+    title: 'Fooducia కొనుగోలు జాబితా',
   },
 };
 
 export const YES = { en: 'yes', hi: 'हाँ', te: 'అవును' };
 
 /** Hindi (Devanagari) product names. Missing ids fall back to English. */
-const HINDI_NAMES = {
+export const HINDI_NAMES = {
   p_palak: 'पालक',
   p_menthi: 'मेथी',
   p_thota: 'चौलाई',

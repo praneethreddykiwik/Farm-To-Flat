@@ -5,7 +5,7 @@ import { kv } from './kv';
 
 // Remembers that we have already shown the OS notification prompt once and been turned down, so a
 // cold start doesn't ask again. Android only stops offering the dialog after two refusals, which
-// meant a declined tester saw "Allow Farm to Flat to send you notifications?" on EVERY launch.
+// meant a declined tester saw "Allow Fooducia to send you notifications?" on EVERY launch.
 const ASKED_KEY = 'notifications.prompted';
 
 let configured = false;

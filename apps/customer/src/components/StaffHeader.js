@@ -23,7 +23,7 @@ export function StaffHeader({ title, subtitle, roleLabel, tabs, active }) {
           <Text style={styles.brandLeaf}>🌿</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.brand}>Farm to Flat</Text>
+          <Text style={styles.brand}>Fooducia</Text>
           {roleLabel ? <Text style={styles.role}>{roleLabel}</Text> : null}
         </View>
         <Pressable

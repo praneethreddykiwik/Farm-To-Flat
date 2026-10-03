@@ -232,7 +232,7 @@ export default function Welcome() {
           <GlassPill tone="dark">
             <Leaf size={14} color={colors.sprout} />
             <Small color={colors.sprout} style={{ fontFamily: fonts.bodyMedium }}>
-              Farm to Flat · Hyderabad
+              Fooducia · Hyderabad
             </Small>
           </GlassPill>
         </Animated.View>

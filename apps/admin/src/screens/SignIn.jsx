@@ -46,7 +46,7 @@ export function SignIn() {
       <form style={S.card} onSubmit={submit}>
         <div style={S.brand}>
           <IconLeaf size={20} style={{ color: 'var(--sprout, #A4C506)' }} />
-          <span style={S.brandText}>Farm to Flat</span>
+          <span style={S.brandText}>Fooducia</span>
         </div>
         <h1 style={S.title}>Operations sign-in</h1>
         <p style={S.sub}>

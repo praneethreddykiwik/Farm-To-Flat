@@ -1,5 +1,5 @@
 /**
- * Public privacy policy for Farm to Flat. Reached at /privacy with NO login and NO admin chrome —
+ * Public privacy policy for Fooducia. Reached at /privacy with NO login and NO admin chrome —
  * the customer app's Profile → "Privacy policy" link opens it, and app-store / Razorpay reviews
  * expect a reachable policy URL. Self-contained (its own styles) so it renders correctly whether or
  * not the admin theme has loaded. Plain-language, and specific to what this app actually collects.
@@ -12,7 +12,7 @@ const SECTIONS = (CONTACT) => [
   {
     h: 'Who we are',
     p: [
-      'Farm to Flat is a demand-aggregation grocery service that delivers fresh produce to gated communities in Hyderabad, India. This policy explains what the Farm to Flat mobile app collects, why, and the choices you have. It applies to the app and to orders placed through it.',
+      'Fooducia is a demand-aggregation grocery service that delivers fresh produce to gated communities in Hyderabad, India. This policy explains what the Fooducia mobile app collects, why, and the choices you have. It applies to the app and to orders placed through it.',
     ],
   },
   {
@@ -103,7 +103,7 @@ const SECTIONS = (CONTACT) => [
   {
     h: 'Children',
     p: [
-      'Farm to Flat is intended for adults who can place grocery orders. It is not directed at children under 13, and we do not knowingly collect their information.',
+      'Fooducia is intended for adults who can place grocery orders. It is not directed at children under 13, and we do not knowingly collect their information.',
     ],
   },
   {
@@ -114,9 +114,7 @@ const SECTIONS = (CONTACT) => [
   },
   {
     h: 'Contact us',
-    p: [
-      `Questions about this policy or your data? Email ${CONTACT}. Farm to Flat, Hyderabad, India.`,
-    ],
+    p: [`Questions about this policy or your data? Email ${CONTACT}. Fooducia, Hyderabad, India.`],
   },
 ];
 
@@ -132,7 +130,7 @@ export function Privacy() {
             <span className="pp-leaf" aria-hidden>
               🌿
             </span>
-            <span>Farm to Flat</span>
+            <span>Fooducia</span>
           </div>
           <h1 className="pp-title">Privacy Policy</h1>
           <p className="pp-updated">Last updated {UPDATED}</p>
@@ -140,7 +138,7 @@ export function Privacy() {
 
         <p className="pp-lede">
           Your trust matters. This policy is written in plain language so you know exactly what the
-          Farm to Flat app collects and why — no jargon, no surprises.
+          Fooducia app collects and why — no jargon, no surprises.
         </p>
 
         {sections.map((sec) => (
@@ -175,7 +173,7 @@ export function Privacy() {
           <span className="pp-dot" aria-hidden>
             ·
           </span>
-          <span>© {new Date().getFullYear()} Farm to Flat</span>
+          <span>© {new Date().getFullYear()} Fooducia</span>
         </footer>
       </main>
     </div>

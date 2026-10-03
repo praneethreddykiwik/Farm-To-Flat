@@ -39,7 +39,7 @@ export function openRazorpay(intent) {
     order_id: intent.razorpayOrderId,
     amount: String(intent.amountPaise),
     currency: 'INR',
-    name: 'Farm to Flat',
+    name: 'Fooducia',
     description: intent.description,
     prefill: { contact: intent.contact, name: intent.name },
     theme: { color: '#1E7A4C' },

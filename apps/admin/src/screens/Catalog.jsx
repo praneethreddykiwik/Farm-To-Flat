@@ -3,7 +3,7 @@
  * drawer. Talks to GET/POST/PATCH/DELETE /admin/products. Prices are shown and edited in rupees but
  * always cross the wire as integer paise.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Pager, TableSkeleton, Thumb } from '../components/ui.jsx';
@@ -250,6 +250,55 @@ function ProductForm({ product, categories, onClose, onSaved }) {
   }));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Hindi + Telugu name suggestions for the English name, from the server's Groq endpoint.
+  // They are SUGGESTIONS: nothing is written until the operator clicks one, and clicking adds it to
+  // the aliases field — which is what the app reads for localised names (lib/i18n.js productName).
+  // The model is good on everyday produce and fallible on the long tail, so the operator stays the
+  // one who decides.
+  const [sugg, setSugg] = useState(null); // { hi, te } | null
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggErr, setSuggErr] = useState(null);
+  const typed = f.name.trim();
+  useEffect(() => {
+    // Only for a real English name; re-asking on every keystroke would bill a call per character.
+    if (typed.length < 3 || !/[a-zA-Z]/.test(typed)) {
+      setSugg(null);
+      setSuggErr(null);
+      return;
+    }
+    let alive = true;
+    setSuggesting(true);
+    setSuggErr(null);
+    const id = setTimeout(async () => {
+      try {
+        const r = await api.post('/admin/products/suggest-names', {
+          name: typed,
+          category: categories.find((c) => c.id === f.category)?.name,
+        });
+        if (alive) setSugg(r && (r.hi || r.te) ? r : null);
+      } catch (err) {
+        if (alive) {
+          setSugg(null);
+          setSuggErr(err.message || 'Could not get suggestions');
+        }
+      } finally {
+        if (alive) setSuggesting(false);
+      }
+    }, 700);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [typed, f.category, categories]);
+
+  const aliasList = f.aliases
+    .split(',')
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const addAlias = (value) => {
+    if (!value || aliasList.includes(value)) return;
+    setF((st) => ({ ...st, aliases: [...aliasList, value].join(', ') }));
+  };
   const set = (k) => (e) =>
     setF((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
@@ -501,6 +550,27 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           maxLength={200}
         />
         <p className="field__hint">Powers alias search in the app — add Telugu / Hindi names.</p>
+        {suggesting && <p className="field__hint">Suggesting Hindi and Telugu names…</p>}
+        {suggErr && <p className="field__hint">{suggErr}</p>}
+        {sugg && (
+          <div className="hstack" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {['hi', 'te'].map((k) =>
+              sugg[k] ? (
+                <button
+                  key={k}
+                  type="button"
+                  className="chip"
+                  onClick={() => addAlias(sugg[k])}
+                  disabled={aliasList.includes(sugg[k])}
+                  title={`Add ${k === 'hi' ? 'Hindi' : 'Telugu'} name to aliases`}
+                >
+                  {k === 'hi' ? 'हिंदी' : 'తెలుగు'} · {sugg[k]}
+                  {aliasList.includes(sugg[k]) ? ' ✓' : ' +'}
+                </button>
+              ) : null,
+            )}
+          </div>
+        )}
       </div>
       <div className="field">
         <label className="field__label">Image</label>

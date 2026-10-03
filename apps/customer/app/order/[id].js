@@ -91,7 +91,7 @@ export default function OrderDetail() {
       )
       .join('\n');
     const msg = [
-      `Farm to Flat — invoice`,
+      `Fooducia — invoice`,
       `${order.orderNumber} · ${formatDateShort(order.deliveryDate)} · ${windowLabel(order.window, null, lang)}`,
       `${order.address.block} · ${order.address.flat}, ${order.address.communityName}`,
       '',

@@ -179,7 +179,7 @@ export function Procurement() {
       communityId !== 'all' ? communities.find((c) => c.id === communityId)?.name : null;
     const slot = win !== 'all' ? windowLabels.get(win) || titleCase(win) : null;
 
-    const head = ['FARM TO FLAT · Buy list', dayLabel, where, slot].filter(Boolean).join(' · ');
+    const head = ['FOODUCIA · Buy list', dayLabel, where, slot].filter(Boolean).join(' · ');
 
     // Widest quantity in the whole list, so every column lines up rather than each category
     // finding its own width.

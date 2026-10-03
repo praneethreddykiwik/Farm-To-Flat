@@ -21,7 +21,7 @@ const HEADER_FONT = 'FFF3F5EF';
  */
 export async function buildWorkbook(sheets, meta = {}) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Farm to Flat';
+  wb.creator = 'Fooducia';
   wb.created = new Date();
   if (meta.title) wb.title = meta.title;
 
