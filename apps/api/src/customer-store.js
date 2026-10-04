@@ -843,6 +843,21 @@ export function createPayment(cid, { purpose, orderId, amountPaise }) {
   return payment;
 }
 export const getPayment = (paymentId) => cs.payments.get(paymentId) || null;
+/** Find a payment from Razorpay's order id — the only handle the webhook has. */
+export function paymentByRazorpayOrderId(razorpayOrderId) {
+  if (!razorpayOrderId) return null;
+  for (const p of cs.payments.values()) if (p.razorpayOrderId === razorpayOrderId) return p;
+  return null;
+}
+/**
+ * The captured gateway payment for an order, if there is one — what a refund has to act on.
+ */
+export function capturedPaymentForOrder(orderId) {
+  if (!orderId) return null;
+  for (const p of cs.payments.values())
+    if (p.orderId === orderId && p.status === 'CAPTURED' && p.purpose === 'ORDER') return p;
+  return null;
+}
 /** Persist a payment after a route mutates it (e.g. status -> CAPTURED on verify). */
 export const savePayment = (payment) => persist.paymentUpsert(payment);
 

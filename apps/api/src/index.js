@@ -38,6 +38,7 @@ import { meRouter, addressesRouter } from './routes/me.js';
 import { cartRouter } from './routes/cart.js';
 import { customerOrdersRouter } from './routes/customer-orders.js';
 import { walletRouter, paymentsRouter } from './routes/wallet.js';
+import { razorpayWebhookRouter } from './routes/razorpay-webhook.js';
 import { devicesRouter } from './routes/devices.js';
 import { aiRouter } from './routes/ai.js';
 // admin (operator)
@@ -83,6 +84,12 @@ app.use(
         : {}, // dev → reflect any origin
   ),
 );
+const v1 = '/api/v1';
+
+// BEFORE express.json, and deliberately so: the Razorpay webhook authenticates by HMAC over the
+// exact bytes it sent, and a parsed-then-reserialised body hashes differently. It also sits outside
+// requireAuth below — Razorpay holds no bearer token, the signature is the credential.
+app.use(`${v1}/webhooks`, razorpayWebhookRouter);
 app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
 // Request logging. Credentials are REDACTED: pino-http logs every request header by default, so
 // customer Bearer tokens and the admin token were being written into the host's log retention.
@@ -138,8 +145,6 @@ app.get('/health', (_req, res) => {
     ts: Date.now(),
   });
 });
-
-const v1 = '/api/v1';
 
 // ── public ──────────────────────────────────────────────────────────────────
 // A ceiling on everything, so one host cannot simply flood the service. Set well above real use:

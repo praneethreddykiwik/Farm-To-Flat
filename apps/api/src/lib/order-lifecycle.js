@@ -10,7 +10,16 @@
  * request, or a restart between two attempts) returns nothing.
  */
 import { getOrder, patchOrder, rawOrders } from '../store.js';
-import { getWallet, ledgerPush, releaseCoupon, restoreCartFromOrder } from '../customer-store.js';
+import {
+  capturedPaymentForOrder,
+  getWallet,
+  ledgerPush,
+  releaseCoupon,
+  restoreCartFromOrder,
+  savePayment,
+} from '../customer-store.js';
+import { createRazorpayRefund, razorpayEnabled } from './razorpay.js';
+import { notifyAdmins } from './staff-notify.js';
 import { IS_TEST } from './env.js';
 
 const TERMINAL = new Set(['CANCELLED', 'DELIVERED']);
@@ -45,6 +54,61 @@ export function refundOrderWallet(order, note) {
 }
 
 /**
+ * Send the GATEWAY portion of a cancelled order back to the card or UPI handle it came from.
+ *
+ * The wallet refund above only ever covered `walletAppliedPaise`, so a fully prepaid order — the
+ * normal case once prepaid is the default — returned exactly nothing: the order went to CANCELLED,
+ * the goods were released, and the money stayed with Razorpay. Verified end to end before this
+ * existed: paid ₹1320, cancelled, got back ₹0.
+ *
+ * This money does NOT go to the wallet. It returns to the original instrument, so it is recorded on
+ * the payment rather than the wallet ledger — a CREDIT there would hand the customer the value a
+ * second time.
+ *
+ * Fire-and-forget by design: a cancellation must not fail because a gateway call timed out, and the
+ * idempotency key makes the retry safe. A refund we could not place is flagged on the payment and
+ * pushed to the operators, because the one thing worse than a slow refund is a silent one.
+ * @returns {Promise<number>} paise the gateway accepted for refund
+ */
+export async function refundOrderGateway(order, note) {
+  if (!razorpayEnabled || !order?.id) return 0;
+  const pay = capturedPaymentForOrder(order.id);
+  if (!pay?.razorpayPaymentId) return 0;
+  const already = Number(pay.refundedPaise || 0);
+  const outstanding = Number(pay.amountPaise || 0) - already;
+  if (outstanding <= 0) return 0;
+  try {
+    const refund = await createRazorpayRefund({
+      paymentId: pay.razorpayPaymentId,
+      amountPaise: outstanding,
+      // Stable per order+payment, so a retry returns the first refund instead of making another.
+      idempotencyKey: `refund:${order.orderNumber}:${pay.id}`,
+      notes: { order: order.orderNumber, reason: note || 'Order cancelled' },
+    });
+    pay.refundedPaise = already + outstanding;
+    pay.refundId = refund?.id || null;
+    pay.refundedAt = new Date().toISOString();
+    pay.refundFailed = null;
+    savePayment(pay);
+    return outstanding;
+  } catch (e) {
+    pay.refundFailed = e?.message || 'Refund failed';
+    pay.refundFailedAt = new Date().toISOString();
+    savePayment(pay);
+    // eslint-disable-next-line no-console
+    console.error(
+      `[refund] ${order.orderNumber}: gateway refund of ${outstanding} paise FAILED — ${pay.refundFailed}. Refund it by hand in the Razorpay dashboard.`,
+    );
+    notifyAdmins({
+      title: 'Refund needs a human',
+      body: `${order.orderNumber} · ₹${Math.round(outstanding / 100)} could not be refunded automatically.`,
+      data: { type: 'REFUND_FAILED', orderId: order.id },
+    });
+    return 0;
+  }
+}
+
+/**
  * Cancel an order: status → CANCELLED, request flag cleared, wallet refunded (idempotently), coupon
  * released. Idempotent: cancelling an already-cancelled order returns it unchanged. Never cancels a
  * DELIVERED order (callers decide what to do about that; this refuses).
@@ -67,6 +131,11 @@ export function cancelOrder(orderId, { timelineStatus = 'CANCELLED' } = {}) {
     }
   });
   const refundedPaise = refundOrderWallet(order);
+  // The gateway leg is async and must not hold up the cancellation, which is already decided.
+  if (changed)
+    refundOrderGateway(order, 'Order cancelled').catch(() => {
+      /* refundOrderGateway already flagged and reported this */
+    });
   if (order.customerId && order.couponCode) releaseCoupon(order.customerId, order.couponCode);
   // An order that never got paid for is an abandoned checkout, not a completed purchase: give the
   // basket back so "try again" is one tap, not a re-shop. Only ever fills an EMPTY cart

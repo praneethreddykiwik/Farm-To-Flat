@@ -20,6 +20,7 @@ import {
   restoreCartFromOrder,
 } from '../customer-store.js';
 import { refundOrderWallet } from '../lib/order-lifecycle.js';
+import { capturePayment } from '../lib/capture.js';
 import {
   createRazorpayOrder,
   razorpayEnabled,
@@ -128,46 +129,22 @@ paymentsRouter.post(
       if (!ok) throw fail(400, 'SIGNATURE_INVALID', 'Payment could not be verified.');
     }
 
-    pay.status = 'CAPTURED';
-    pay.razorpayPaymentId = razorpayPaymentId || `pay_rzp_${Date.now()}`;
-    if (pay.purpose === 'TOPUP') {
-      savePayment(pay);
-      ledgerPush(cid, 'CREDIT', pay.amountPaise, 'TOPUP', pay.razorpayPaymentId, 'Wallet top-up');
+    // Shared with the Razorpay webhook so the two can never disagree about what a capture means;
+    // whichever arrives second is a no-op. See lib/capture.js.
+    const r = await capturePayment({ paymentId, razorpayPaymentId, source: 'client' });
+    if (r.outcome === 'already') return res.json({ status: 'CAPTURED', duplicate: true });
+    if (pay.purpose === 'TOPUP')
       return res.json({
         status: 'CAPTURED',
         walletBalancePaise: money(getWallet(cid).balancePaise),
       });
-    }
-    const current = getOrder(pay.orderId);
-    if (current && current.status !== 'PENDING_PAYMENT') {
-      // The gateway captured money for an order that is no longer awaiting payment (the customer
-      // cancelled it, or the payment was already marked failed, while the checkout was open). Never
-      // swallow that money silently: record the capture as orphaned and return the full gateway
-      // amount to the customer's wallet, visibly, so nothing is lost and ops can see it.
-      pay.orphan = true;
-      savePayment(pay);
-      ledgerPush(
-        cid,
-        'CREDIT',
-        pay.amountPaise,
-        'REFUND',
-        `${current.orderNumber}:gateway`,
-        `Payment received after ${current.orderNumber} was ${current.status.toLowerCase().replace('_', ' ')} — returned to wallet`,
-      );
+    if (r.outcome === 'orphaned')
       return res.json({
         status: 'CAPTURED',
         orphaned: true,
-        order: orderCustomer(current),
+        order: orderCustomer(r.order),
         walletBalancePaise: money(getWallet(cid).balancePaise),
       });
-    }
-    savePayment(pay);
-    const updated = patchOrder(pay.orderId, (ord) => {
-      if (ord.status === 'PENDING_PAYMENT') {
-        ord.status = 'CONFIRMED';
-        ord.timeline.push({ status: 'CONFIRMED', at: new Date().toISOString() });
-      }
-    });
-    res.json({ status: 'CAPTURED', order: updated ? orderCustomer(updated) : null });
+    res.json({ status: 'CAPTURED', order: r.order ? orderCustomer(r.order) : null });
   }),
 );
