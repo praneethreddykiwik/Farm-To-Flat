@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Image, Dimensions, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,7 +20,7 @@ import Svg, {
   RadialGradient,
   Stop,
 } from 'react-native-svg';
-import { ArrowRight, Leaf } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import { Button, Glass, GlassPill, Small, Text } from '../../src/ui';
 import {
   GROUND_AMP,
@@ -30,6 +30,9 @@ import {
 } from '../../src/components/VillageRidge';
 import { useGetCommunitiesQuery } from '../../src/api/api';
 import { colors, fonts, radius } from '../../src/theme';
+
+/** The brand mark, shared with the app icon. */
+const MARK = require('../../assets/fooducia-mark.png');
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -230,7 +233,7 @@ export default function Welcome() {
           style={styles.brand}
         >
           <GlassPill tone="dark">
-            <Leaf size={14} color={colors.sprout} />
+            <Image source={MARK} style={{ width: 16, height: 16 }} resizeMode="contain" />
             <Small color={colors.sprout} style={{ fontFamily: fonts.bodyMedium }}>
               Fooducia · Hyderabad
             </Small>

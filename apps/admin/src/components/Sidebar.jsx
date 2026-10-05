@@ -13,7 +13,6 @@ import {
   IconCatalog,
   IconChart,
   IconDash,
-  IconLeaf,
   IconLifeBuoy,
   IconMap,
   IconReceipt,
@@ -25,6 +24,7 @@ import {
   IconX,
 } from './icons.jsx';
 import { clearToken } from '../lib/auth.js';
+import mark from '../assets/fooducia-mark.png';
 
 const NAV = [
   { section: 'Overview' },
@@ -54,7 +54,13 @@ export function Sidebar({ open = false, onClose }) {
     <nav className={`rail${open ? ' rail--open' : ''}`} aria-label="Main">
       <div className="brand">
         <div className="brand__mark">
-          <IconLeaf size={22} style={{ color: '#eaffc2' }} />
+          <img
+            src={mark}
+            alt=""
+            width={26}
+            height={26}
+            style={{ display: 'block', objectFit: 'contain' }}
+          />
         </div>
         <div style={{ flex: 1 }}>
           <div className="brand__name">Fooducia</div>

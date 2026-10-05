@@ -1,11 +1,14 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../theme';
 import { roleCleared } from '../features/role/roleSlice';
 import { useSignOut } from '../hooks/useSession';
+
+/** The brand mark, shared with the app icon. */
+const MARK = require('../../assets/fooducia-mark.png');
 
 /** Header for every staff screen: title, role chip, and sign-out (returns to the login). */
 /**
@@ -20,7 +23,7 @@ export function StaffHeader({ title, subtitle, roleLabel, tabs, active }) {
     <View style={[styles.wrap, { paddingTop: insets.top + 10 }]}>
       <View style={styles.rail}>
         <View style={styles.brandMark}>
-          <Text style={styles.brandLeaf}>🌿</Text>
+          <Image source={MARK} style={styles.brandLogo} resizeMode="contain" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.brand}>Fooducia</Text>
@@ -74,7 +77,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandLeaf: { fontSize: 20 },
+  brandLogo: { width: 24, height: 24 },
   brand: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink },
   role: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.leaf, marginTop: 1 },
   tabs: { flexDirection: 'row', gap: 8, marginTop: 12 },
