@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { BackHandler, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useKeyboardHeight } from '../src/hooks/useKeyboardHeight';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -96,6 +96,18 @@ export default function Checkout() {
   // basket is left on the stack: router.back() walked straight past it to whatever was behind,
   // which is the dashboard. Go to the basket explicitly.
   const toBasket = useCallback(() => router.replace('/cart'), [router]);
+  // Android's hardware back has its own path: it walks the navigation stack, which no longer holds
+  // the basket, so it landed on the dashboard even once the on-screen arrow was fixed. Most people
+  // on Android press this one, so it has to agree with the arrow.
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        toBasket();
+        return true; // handled — do not let the stack pop past the basket
+      });
+      return () => sub.remove();
+    }, [toBasket]),
+  );
   const { cart } = useCart();
   const addresses = useGetAddressesQuery();
   const wallet = useGetWalletQuery();

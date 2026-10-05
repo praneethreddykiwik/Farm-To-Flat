@@ -358,7 +358,7 @@ export default function Cart() {
                         </Text>
                         <Small muted>
                           {cart.coupon
-                            ? `${cart.coupon.label} · tap to remove`
+                            ? `${cart.coupon.label} · ${t('tapToRemove', lang)}`
                             : t('couponSource', lang)}
                         </Small>
                       </View>
@@ -381,7 +381,7 @@ export default function Cart() {
                     <Row label={t('subtotal', lang)} paise={cart.subtotalPaise} />
                     {Number(cart.couponDiscountPaise) > 0 ? (
                       <Row
-                        label="Coupon"
+                        label={t('coupon', lang)}
                         paise={-Number(cart.couponDiscountPaise)}
                         color={colors.leafDeep}
                       />

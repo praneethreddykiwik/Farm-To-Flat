@@ -141,8 +141,11 @@ export default function Coupon() {
             onSubmitEditing={() => applyCode(code)}
             returnKeyType="done"
           />
+          {/* A big primary button that is simply dead reads as broken — it was reported as "the
+              coupon button is not working". It is disabled because there is nothing to apply yet,
+              so let it say so rather than leaving the shopper to infer it. */}
           <Button
-            title={t('applyCoupon', lang)}
+            title={code.trim() ? t('applyCoupon', lang) : t('enterOrPickCoupon', lang)}
             onPress={() => applyCode(code)}
             loading={isLoading}
             disabled={!code.trim()}
