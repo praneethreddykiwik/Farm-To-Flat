@@ -287,14 +287,24 @@ function windowProblem(w) {
   if ([w.start, w.end, w.cutoff].some((t) => !CLOCK_RE.test(t || '')))
     return 'Fill in all three times.';
   if (mins(w.end) <= mins(w.start)) return 'This window ends before it starts.';
-  // Name the boundary. "Orders must close before the window begins" told the operator they were
-  // wrong but not what to type, so a 06:00 run set to close at 16:04 just looked like a dead Save
-  // button. The cut-off is a clock time on the DELIVERY DAY (the server reads it the same way), so
-  // the usable range is always "earlier than the start".
-  if (mins(w.cutoff) >= mins(w.start))
-    return `Orders must close before ${w.start}, when this window begins — pick any earlier time (the default morning cut-off is 03:45).`;
+  // No rule on the cut-off any more. It is the last occurrence of that clock time before the run
+  // begins, so a time later than `start` simply means the day before — which is how a dawn delivery
+  // is actually scheduled. Every time is valid; cutoffMeaning() below says which day it lands on so
+  // the operator can see it rather than having to know it.
   return null;
 }
+/**
+ * What the typed cut-off actually means, in words. The day it lands on is inferred rather than
+ * chosen, so it has to be visible — "16:00" silently meaning *yesterday* 4pm would be worse than
+ * the rule it replaced.
+ */
+function cutoffMeaning(w) {
+  if (!CLOCK_RE.test(w.cutoff || '') || !CLOCK_RE.test(w.start || '')) return null;
+  return mins(w.cutoff) < mins(w.start)
+    ? `Orders close at ${w.cutoff} on the delivery day.`
+    : `Orders close at ${w.cutoff} the day before — ${w.start} is when the run starts.`;
+}
+
 const DEFAULT_NEW_WINDOW = { label: 'Afternoon', cutoff: '09:30', start: '14:00', end: '17:00' };
 
 /**
@@ -370,7 +380,12 @@ function WindowEditor({ community, onSaved }) {
           </div>
           {problems[i] ? (
             <div style={{ fontSize: 12, color: 'var(--tomato)', marginTop: -2 }}>{problems[i]}</div>
-          ) : null}
+          ) : (
+            // Not an error — the cut-off's day is inferred, so show which day it lands on.
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: -2 }}>
+              {cutoffMeaning(w)}
+            </div>
+          )}
           <div className="hstack" style={{ gap: 10, alignItems: 'flex-end' }}>
             <WinField label="Delivers" grow>
               <div className="hstack" style={{ gap: 4 }}>

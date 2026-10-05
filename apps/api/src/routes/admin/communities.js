@@ -62,11 +62,12 @@ const CreateCommunity = z.object({
         .refine((w) => minutes(w.end) > minutes(w.start), {
           message: 'A window has to end after it starts.',
           path: ['end'],
-        })
-        .refine((w) => minutes(w.cutoff) < minutes(w.start), {
-          message: 'Orders must close before the delivery window begins.',
-          path: ['cutoff'],
         }),
+      // No rule tying the cut-off to `start` any more. It reads as the last occurrence of that
+      // clock time before the run begins (lib/windows.js), so a time later than `start` simply
+      // means the day before — "orders close 4pm" for a dawn delivery, which is how these runs
+      // are actually scheduled. Ordering still always closes before the van leaves; that
+      // invariant now lives in the time maths rather than in a rule the operator has to satisfy.
     )
     .min(1, 'A community needs at least one delivery window.')
     .max(6, 'Six windows a day is already more than anyone can staff.')

@@ -1,13 +1,14 @@
 /**
  * A delivery window has to make sense as a window.
  *
- * An operator set a 06:00–12:00 morning run to close orders at 17:17. Because the cut-off belongs to
- * the DELIVERY day, that window then stayed orderable all day — including the hours after the van
- * had already been and gone — and an order was accepted against a run that had finished. The
- * countdown was not wrong either; it was faithfully counting toward a deadline that came after the
- * delivery.
+ * The invariant is that ordering closes BEFORE the van sets off — an order was once accepted
+ * against a 06:00–12:00 run that had already finished, because the cut-off was read as a time on
+ * the delivery day and "17:17" kept the window open all day.
  *
- * So: a window ends after it starts, and ordering closes before it starts.
+ * That invariant now lives in the time maths rather than in a rule the operator has to satisfy: a
+ * cut-off is the last occurrence of its clock time before `start`, so "17:17" means 5:17pm the day
+ * BEFORE — which is how a dawn delivery is really scheduled. Any clock time is therefore valid, and
+ * the thing to test is that the resulting deadline still lands before the run begins.
  */
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
@@ -39,16 +40,17 @@ describe('a window must close before it delivers', () => {
     const r = await admin(request(app).patch(`/api/v1/admin/communities/${id}`)).send({
       windows: [win({ cutoff: '17:17' })], // delivers 06:00–12:00
     });
-    expect(r.status).toBe(422);
-    expect(JSON.stringify(r.body)).toMatch(/close before/i);
+    // Accepted now, and stored verbatim: it means 5:17pm the day before the run.
+    expect(r.status).toBe(200);
+    expect(r.body.community.windows[0].cutoff).toBe('17:17');
   });
 
-  it('refuses a cut-off exactly at the start — that is already too late to pack', async () => {
+  it('accepts a cut-off exactly at the start, meaning the same time the day before', async () => {
     const id = await community('Cutoff At Start Towers');
     const r = await admin(request(app).patch(`/api/v1/admin/communities/${id}`)).send({
       windows: [win({ cutoff: '06:00' })],
     });
-    expect(r.status).toBe(422);
+    expect(r.status).toBe(200);
   });
 
   it('refuses a window that ends before it begins', async () => {
@@ -69,36 +71,42 @@ describe('a window must close before it delivers', () => {
   });
 });
 
-describe('a window already saved with a nonsense cut-off', () => {
-  it('closes an hour before the run begins rather than staying open all day', async () => {
+describe('a cut-off later in the day than the run', () => {
+  it('is kept exactly as the operator typed it, not rewritten behind their back', async () => {
     const { communityWindows } = await import('../src/lib/windows.js');
-    // Exactly the shape found in production: morning run, cut-off in the late afternoon.
     const defs = communityWindows({
       deliveryDays: [0, 1, 2, 3, 4, 5, 6],
       windows: [
         { key: 'MORNING', label: 'Morning', cutoff: '17:17', start: '06:00', end: '12:00' },
       ],
     });
-    // An hour's packing room, not the start itself. Clamping to the start produced a row that both
-    // the editor and the server reject — a cut-off at the start is already too late to pack — so
-    // the operator found Save disabled for the whole community and could not correct it at all.
-    // Closing EARLIER than configured is still the safe direction.
-    expect(defs[0].cutoff).toBe('05:00');
+    expect(defs[0].cutoff).toBe('17:17');
   });
 
-  it('clamps to a value the operator can actually save', async () => {
-    const { communityWindows, minutesOfClock } = await import('../src/lib/windows.js');
+  it('still closes ordering BEFORE the run starts — the invariant that matters', async () => {
+    const { generateWindows } = await import('../src/lib/windows.js');
+    const { istInstantMs } = await import('../src/lib/dates.js');
     for (const [cutoff, start, end] of [
-      ['17:17', '06:00', '12:00'],
-      ['23:59', '00:30', '04:00'], // start inside the first hour — must not wrap past midnight
+      ['17:17', '06:00', '12:00'], // closes the previous afternoon
+      ['23:59', '00:30', '04:00'], // start just after midnight
       ['12:00', '12:00', '15:00'], // cut-off exactly at the start
+      ['03:45', '06:00', '12:00'], // the ordinary same-day case
     ]) {
-      const [w] = communityWindows({
-        deliveryDays: [1],
-        windows: [{ key: 'W', label: 'W', cutoff, start, end }],
-      });
-      expect(minutesOfClock(w.cutoff)).toBeLessThan(minutesOfClock(w.start));
-      expect(w.cutoff).toMatch(/^\d{2}:\d{2}$/);
+      const rows = generateWindows(
+        {
+          id: 'c1',
+          deliveryDays: [0, 1, 2, 3, 4, 5, 6],
+          orderLeadDays: 0,
+          windows: [{ key: 'W', label: 'W', cutoff, start, end }],
+        },
+        '2026-01-05',
+        () => 0,
+        istInstantMs('2026-01-01', '00:00'),
+      );
+      for (const r of rows) {
+        // The deadline must fall strictly before that day's run begins.
+        expect(new Date(r.cutoffAt).getTime()).toBeLessThan(istInstantMs(r.date, start));
+      }
     }
   });
 

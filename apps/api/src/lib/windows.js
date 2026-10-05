@@ -44,7 +44,11 @@ import { addDaysISO, istInstantMs, todayISO, weekdayOf } from './dates.js';
  * @typedef {object} WindowDef
  * @property {string} key      immutable identity; what an order stores
  * @property {string} label    what the customer is shown
- * @property {string} cutoff   "HH:MM" IST — orders close at this time on the delivery day
+ * @property {string} cutoff   "HH:MM" IST — orders close at the LAST occurrence of this clock
+ *   time before the run starts: the delivery day itself when it is earlier than `start`, otherwise
+ *   the day before. "16:00" on a 06:00 run therefore means 4pm the previous afternoon, which is how
+ *   a morning delivery is actually scheduled — close in the afternoon, harvest overnight, deliver
+ *   at dawn.
  * @property {string} start    "HH:MM" IST — when the delivery run begins
  * @property {string} end      "HH:MM" IST — when it ends
  */
@@ -139,38 +143,27 @@ export function communityWindows(community) {
           cutoff:
             (w.key === 'MORNING' ? community?.morningCutoff : community?.eveningCutoff) || w.cutoff,
         }));
-  return list
-    .filter((/** @type {any} */ w) => w && w.key)
-    .map((/** @type {any} */ w) => ({
-      key: String(w.key),
-      label: w.label || String(w.key),
-      cutoff: CLOCK_RE.test(w.cutoff || '') ? w.cutoff : '03:45',
-      start: CLOCK_RE.test(w.start || '') ? w.start : '06:00',
-      end: CLOCK_RE.test(w.end || '') ? w.end : '12:00',
-    }))
-    .map((/** @type {any} */ w) => ({
-      ...w,
-      // A cut-off at or after the run begins is incoherent: it keeps the window orderable while the
-      // van is out, and past the point the bag has been delivered. Rows saved before the editor
-      // validated this exist in the wild — one community had a 06:00–12:00 run closing at 17:17,
-      // and orders were accepted against it all day. Clamp to the start rather than dropping the
-      // window: closing EARLIER than configured is the safe direction, and refusing to offer it at
-      // all would stop that community ordering entirely.
-      // Clamp to a WHOLE HOUR BEFORE the start, not to the start itself. Clamping to the start
-      // produced a value the editor and the server both reject (a cut-off at the start is already
-      // too late to pack), so the operator opened Communities, saw the row flagged, and found Save
-      // disabled for every window in that community — there was no way to correct the closing time
-      // at all. An hour's packing room is the smallest coherent thing to fall back to.
-      cutoff:
-        minutesOfClock(w.cutoff) >= minutesOfClock(w.start)
-          ? clockOfMinutes(Math.max(0, minutesOfClock(w.start) - 60))
-          : w.cutoff,
-    }))
-    .map((/** @type {any} */ w) => ({ ...w, hours: hoursLabel(w) }))
-    .sort(
-      (/** @type {any} */ a, /** @type {any} */ b) =>
-        minutesOfClock(a.start) - minutesOfClock(b.start),
-    );
+  return (
+    list
+      .filter((/** @type {any} */ w) => w && w.key)
+      .map((/** @type {any} */ w) => ({
+        key: String(w.key),
+        label: w.label || String(w.key),
+        cutoff: CLOCK_RE.test(w.cutoff || '') ? w.cutoff : '03:45',
+        start: CLOCK_RE.test(w.start || '') ? w.start : '06:00',
+        end: CLOCK_RE.test(w.end || '') ? w.end : '12:00',
+      }))
+      // No clamping any more. A cut-off at or after `start` used to be incoherent, because the cut-off
+      // was read as a time on the delivery day — so "17:17" on a 06:00 run kept the window orderable
+      // while the van was out. It is now read as the previous day (see the typedef), which is exactly
+      // what an operator means by "orders close at 4pm" for a dawn delivery. Every value is coherent,
+      // so nothing needs rewriting behind their back.
+      .map((/** @type {any} */ w) => ({ ...w, hours: hoursLabel(w) }))
+      .sort(
+        (/** @type {any} */ a, /** @type {any} */ b) =>
+          minutesOfClock(a.start) - minutesOfClock(b.start),
+      )
+  );
 }
 
 /**
@@ -192,9 +185,16 @@ export function generateWindows(community, fromDate, bookedFor, now = Date.now()
     if (d < earliest) continue;
     if (!community.deliveryDays.includes(weekdayOf(d))) continue;
     for (const def of defs) {
-      // The last instant an order may be placed for this window: its own configured cut-off clock
-      // time, on the delivery day itself.
-      const closesAt = istInstantMs(d, def.cutoff);
+      // The last instant an order may be placed for this window. The cut-off is the most recent
+      // occurrence of its clock time STRICTLY BEFORE the run starts, so a time earlier than `start`
+      // lands on the delivery day and anything else lands the day before. Ordering therefore always
+      // closes before the van sets off, whatever the operator types — which is the invariant that
+      // matters; the incident this protects against is an order accepted for a bag already
+      // delivered.
+      const closesAt = istInstantMs(
+        minutesOfClock(def.cutoff) < minutesOfClock(def.start) ? d : addDaysISO(d, -1),
+        def.cutoff,
+      );
       const msLeft = closesAt - now;
       const isOpen = msLeft > 0;
       out.push({
