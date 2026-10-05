@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useKeyboardHeight } from '../src/hooks/useKeyboardHeight';
 import { useRouter } from 'expo-router';
@@ -31,6 +31,7 @@ import {
   usePlaceOrderMutation,
   useRemoveCouponMutation,
   useVerifyPaymentMutation,
+  useGetCatalogQuery,
 } from '../src/api/api';
 import { selectCustomer } from '../src/features/auth/authSlice';
 import { showToast } from '../src/features/ui/uiSlice';
@@ -38,7 +39,7 @@ import { colors, radius } from '../src/theme';
 import { env } from '../src/lib/env';
 import { formatDateShort, windowHours, windowLabel } from '../src/lib/dates';
 import { selectLanguage } from '../src/features/ui/uiSlice';
-import { t } from '../src/lib/i18n';
+import { productLabel, t } from '../src/lib/i18n';
 import { idempotencyKey } from '../src/lib/ids';
 import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
 import { haptic } from '../src/lib/haptics';
@@ -83,6 +84,18 @@ export default function Checkout() {
   const dispatch = useDispatch();
   const customer = useSelector(selectCustomer);
   const lang = useSelector(selectLanguage);
+  // productId → catalog product, so each summary line can be named in the shopper's language.
+  // priceCart() returns only the English `name`; the localised pair lives on the catalog product,
+  // which is already cached from the shelf they picked from. Same lookup the basket does.
+  const { data: catalogData } = useGetCatalogQuery();
+  const byId = useMemo(
+    () => new Map((catalogData?.products || []).map((p) => [p.id, p])),
+    [catalogData],
+  );
+  // The basket REPLACED itself with this screen (cart.js does router.replace('/checkout')), so no
+  // basket is left on the stack: router.back() walked straight past it to whatever was behind,
+  // which is the dashboard. Go to the basket explicitly.
+  const toBasket = useCallback(() => router.replace('/cart'), [router]);
   const { cart } = useCart();
   const addresses = useGetAddressesQuery();
   const wallet = useGetWalletQuery();
@@ -332,11 +345,7 @@ export default function Checkout() {
       <View style={styles.root}>
         <Ambient />
         <View style={[styles.header, { paddingTop: insets.top + 8, paddingHorizontal: 20 }]}>
-          <Pressy
-            onPress={() => router.back()}
-            haptics="select"
-            accessibilityLabel={t('back', lang)}
-          >
+          <Pressy onPress={toBasket} haptics="select" accessibilityLabel={t('back', lang)}>
             <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
@@ -363,11 +372,7 @@ export default function Checkout() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Pressy
-            onPress={() => router.back()}
-            haptics="select"
-            accessibilityLabel={t('back', lang)}
-          >
+          <Pressy onPress={toBasket} haptics="select" accessibilityLabel={t('back', lang)}>
             <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
@@ -552,7 +557,11 @@ export default function Checkout() {
             {cart.items.map((it) => (
               <View key={it.id} style={styles.itemRow}>
                 <Small muted style={{ flex: 1 }} numberOfLines={1}>
-                  {it.name} × {Number(it.quantity)}
+                  {/* priceCart() returns only the English `name` — the localised pair lives on the
+                      catalog product — so printing it.name left the final screen before paying in
+                      English while the basket behind it read in Telugu. Same lookup the basket
+                      already does. */}
+                  {productLabel(byId.get(it.productId) || it, lang)} × {Number(it.quantity)}
                   {it.unit === 'KG' ? ' kg' : ''}
                 </Small>
                 <Money paise={it.lineTotalPaise} variant="small" />

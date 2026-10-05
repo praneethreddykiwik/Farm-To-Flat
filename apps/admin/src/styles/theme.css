@@ -693,8 +693,17 @@ table.data tbody tr:last-child td {
 }
 .chip__count {
   font-size: 11px;
-  opacity: 0.7;
   font-variant-numeric: tabular-nums;
+  /* line-height 1 is the fix: at 11px the span was inheriting the chip's 13px line box, so
+     align-items:center centred that taller BOX and left the digits sitting high against the
+     label's glyphs. Pinning the line box to the glyphs lets the two actually line up. */
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  /* Stops a 3-digit count from making one chip taller than its neighbours. */
+  min-width: 1ch;
+  text-align: center;
 }
 
 /* ---------- drawer ----------------------------------------------------------- */
