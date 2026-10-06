@@ -22,6 +22,9 @@ import mark from '../assets/fooducia-mark.png';
 const APP_STORE_URL = '';
 const PLAY_STORE_URL = '';
 
+/** The device shell. Its screen aperture is transparent, so the screenshot shows through it. */
+const FRAME = '/iphone-frame.webp';
+
 const SHOT = {
   home: '/shots/home.webp',
   catalog: '/shots/catalog.webp',
@@ -141,18 +144,23 @@ const IcCamera = (p) => (
 );
 
 /* ── the device ───────────────────────────────────────────────────────────── */
+/**
+ * A real device, not a drawn one.
+ *
+ * The shell is a photographed iPhone with a genuinely transparent screen aperture, so the screen
+ * sits BEHIND it and the metal, the buttons, the bezel curve and the Dynamic Island are all real
+ * rather than approximated in CSS. The aperture's position was measured out of the asset's alpha
+ * channel (see the percentages in landing.css), which is why the screen lines up with it exactly.
+ */
 function Phone({ src, alt, small, float, children, className = '' }) {
   return (
     <div
       className={`lp-phone${small ? ' lp-phone--sm' : ''}${float ? ' lp-phone__float' : ''} ${className}`}
     >
-      {/* Only for screens we draw ourselves. A capture from the simulator already has the real
-          island and status bar in the pixels; a second drawn pill on top of it is what made the
-          device read as broken. */}
-      {!src && <div className="lp-phone__island" />}
       <div className="lp-phone__screen">
         {src ? <img src={src} alt={alt} loading="lazy" decoding="async" /> : children}
       </div>
+      <img className="lp-phone__shell" src={FRAME} alt="" aria-hidden="true" />
     </div>
   );
 }
