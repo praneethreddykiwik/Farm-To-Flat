@@ -28,7 +28,7 @@ import mark from '../assets/fooducia-mark.png';
 
 const NAV = [
   { section: 'Overview' },
-  { to: '/', label: 'Dashboard', icon: IconDash, end: true },
+  { to: '/admin', label: 'Dashboard', icon: IconDash, end: true },
   { section: 'Catalog' },
   { to: '/catalog', label: 'Products', icon: IconCatalog },
   { to: '/pricing', label: 'Pricing & margins', icon: IconTag },

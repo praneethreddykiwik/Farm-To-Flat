@@ -24,6 +24,7 @@ import Payments from './screens/Payments.jsx';
 import { Privacy } from './screens/Privacy.jsx';
 import { Terms } from './screens/Terms.jsx';
 import { SignIn } from './screens/SignIn.jsx';
+import { Landing } from './screens/Landing.jsx';
 import { getToken, onAuthChange } from './lib/auth.js';
 
 /** The operator app: sidebar + the admin screens. Everything except the public privacy page. */
@@ -67,7 +68,7 @@ function AdminShell() {
         <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
         <main className="main">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/admin" element={<Dashboard />} />
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/coupons" element={<Coupons />} />
@@ -97,6 +98,18 @@ function Root() {
   const [token, setTokenState] = useState(getToken);
   useEffect(() => onAuthChange(() => setTokenState(getToken())), []);
 
+  // The tab title is the customer site's by default (it is what `/` serves). An operator on the
+  // console should not be looking at a marketing headline in their tab strip.
+  useEffect(() => {
+    const operator = pathname !== '/' && pathname !== '/privacy' && pathname !== '/terms';
+    document.title = operator
+      ? 'Fooducia · Operations'
+      : 'Fooducia — vegetables harvested after you order';
+  }, [pathname]);
+
+  // The customer-facing site is what `/` is for now. The operator panel lives at /admin and the
+  // screens below it; operators type that address, it is not linked from the public page.
+  if (pathname === '/') return <Landing />;
   if (pathname === '/privacy') return <Privacy />;
   if (pathname === '/terms') return <Terms />;
   if (!token) return <SignIn />;
