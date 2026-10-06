@@ -194,7 +194,9 @@ function ComplaintCard({ iss, busy, onAnswer, onPhotoError }) {
             // Opens full size: a bruise or a short weight is often invisible in a thumbnail.
             <a key={u} href={u} target="_blank" rel="noreferrer">
               <img
-                src={u}
+                // A 104px square does not need a 1080x2400 photograph; the API resizes on the way
+                // out. The anchor above still opens the full-size original.
+                src={`${u}${u.includes('?') ? '&' : '?'}w=240`}
                 alt="Reported problem"
                 loading="lazy"
                 // Photo links are signed and expire. A queue left open past the signature's life

@@ -33,7 +33,12 @@ mediaRouter.get(
     // One answer for forged, edited and expired alike: a 404 tells a prober nothing about which.
     if (!path) return res.status(404).end();
 
-    const file = await downloadIssuePhoto(path);
+    // Width is a rendering hint, not a permission, so it rides in the query rather than the token.
+    // Whitelisted so nobody can ask the resizer for a 30000px render.
+    const asked = Number(req.query.w);
+    const width = [120, 240, 480, 960].includes(asked) ? asked : undefined;
+
+    const file = await downloadIssuePhoto(path, width);
     if (!file) return res.status(404).end();
 
     res.set({
@@ -41,7 +46,7 @@ mediaRouter.get(
       'Content-Length': String(file.buffer.length),
       // Private: it is a photograph of someone's kitchen attached to their address. A shared cache
       // must never hold it. The browser may, for less time than the token lives.
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'private, max-age=28800, immutable',
       'Cross-Origin-Resource-Policy': 'cross-origin',
       'X-Content-Type-Options': 'nosniff',
     });

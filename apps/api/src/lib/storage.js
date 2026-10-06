@@ -124,10 +124,31 @@ export function issuePhotoPath(ref) {
  *
  * @returns {Promise<{ buffer: Buffer, contentType: string } | null>}
  */
-export async function downloadIssuePhoto(path) {
+export async function downloadIssuePhoto(path, width) {
   if (!path) return null;
   if (useS3()) return s3Get(`${ISSUE_BUCKET}/${path}`);
   if (!supabase) return null;
+
+  // Thumbnails. These are photographs straight off a phone — the queue was pulling 1080x2400
+  // originals, about 100 KB each and thirteen of them, to paint 104px squares. Storage can resize
+  // on the way out, so ask it to. Falls through to the original if the transform is unavailable
+  // (it is a plan feature), because a slow photograph beats a missing one.
+  if (width) {
+    try {
+      const res = await fetch(
+        `${URL}/storage/v1/render/image/authenticated/${ISSUE_BUCKET}/${path}?width=${width}&quality=70&resize=contain`,
+        { headers: { Authorization: `Bearer ${KEY}`, apikey: KEY } },
+      );
+      if (res.ok)
+        return {
+          buffer: Buffer.from(await res.arrayBuffer()),
+          contentType: res.headers.get('content-type') || 'image/jpeg',
+        };
+    } catch {
+      /* fall through to the original */
+    }
+  }
+
   const { data, error } = await supabase.storage.from(ISSUE_BUCKET).download(path);
   if (error || !data) {
     // eslint-disable-next-line no-console
