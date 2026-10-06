@@ -618,33 +618,6 @@ export function Landing() {
             <div className="lp-stage lp-hero__stage">
               <div style={{ position: 'relative' }}>
                 <Phone src={SHOT.home} alt="The Fooducia home screen on an iPhone" float />
-                {/* the notification, drawn the way iOS draws it */}
-                <div
-                  className="lp-note"
-                  role="img"
-                  aria-label="A delivery notification asking you to accept or decline a substitution"
-                >
-                  <div className="lp-note__top">
-                    <span className="lp-note__icon">
-                      <IcLeaf size={19} style={{ color: '#CDF56A' }} />
-                    </span>
-                    <span>
-                      <span className="lp-note__title">Fooducia</span>
-                      <span className="lp-note__body">
-                        Gongura is short today. Swap for palakura at the same price?
-                      </span>
-                    </span>
-                  </div>
-                  <div className="lp-note__acts">
-                    <button type="button" className="lp-note__decline" tabIndex={-1}>
-                      Decline
-                    </button>
-                    <button type="button" className="lp-note__accept" tabIndex={-1}>
-                      Accept
-                    </button>
-                  </div>
-                </div>
-
                 <div className="lp-pin lp-pin--tl">
                   <span className="lp-pin__dot" style={{ background: 'var(--lp-leaf-soft)' }}>
                     <IcTruck size={18} style={{ color: 'var(--lp-leaf-deep)' }} />
