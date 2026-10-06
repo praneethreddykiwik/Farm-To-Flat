@@ -433,6 +433,22 @@ const STEPS = [
   },
 ];
 
+/** Real names from the catalog, in the three languages the app ships. */
+const TICKER = [
+  ['గోంగూర', 'Sorrel leaves'],
+  ['पालक', 'Spinach'],
+  ['కరివేపాకు', 'Curry leaves'],
+  ['मेथी', 'Fenugreek'],
+  ['పచ్చిమిర్చి', 'Green chilli'],
+  ['बैंगन', 'Brinjal'],
+  ['బీట్‌రూట్', 'Beetroot'],
+  ['टमाटर', 'Tomato'],
+  ['వెల్లుల్లి', 'Garlic'],
+  ['अदरक', 'Ginger'],
+  ['ఉల్లికాడలు', 'Spring onion'],
+  ['नींबू', 'Lemon'],
+];
+
 const DOCS = [
   {
     h: 'Delivery',
@@ -508,7 +524,13 @@ export function Landing() {
   // not equal heights, so a global fraction put the green line in the gap between two of them.
   useEffect(() => {
     const onScroll = () => {
-      setStuck(window.scrollY > 8);
+      const y = window.scrollY;
+      setStuck(y > 8);
+      // The hero device drifts a little slower than the page. Written straight to a custom property
+      // rather than through React state, because this runs on every scroll frame and a re-render
+      // per frame would cost far more than the effect is worth.
+      const stage = document.querySelector('.lp-hero__stage');
+      if (stage) stage.style.setProperty('--lp-par', `${Math.min(y, 900) * 0.07}px`);
       const rail = railRef.current;
       if (!rail) return;
       const line = window.innerHeight * 0.55;
@@ -564,21 +586,23 @@ export function Landing() {
         <section className="lp-hero" id="top">
           <div className="lp-wrap lp-hero__grid">
             <div className="lp-hero__copy">
-              <span className="lp-eyebrow">Hyderabad · harvested to order</span>
-              <h1>
+              <span className="lp-eyebrow" style={{ '--i': 0 }}>
+                Hyderabad · harvested to order
+              </span>
+              <h1 style={{ '--i': 1 }}>
                 Order tonight.
                 <br />
                 It is <em>picked in the morning</em>.
               </h1>
-              <p className="lp-lede">
+              <p className="lp-lede" style={{ '--i': 2 }}>
                 Most vegetables reach your kitchen four days after they left the soil. Fooducia was
                 built to close that gap: your order goes to the farm overnight, it is cut at dawn,
                 and it is at your door before breakfast.
               </p>
-              <div className="lp-hero__cta">
+              <div className="lp-hero__cta" style={{ '--i': 3 }}>
                 <StoreBadges />
               </div>
-              <div className="lp-hero__proof">
+              <div className="lp-hero__proof" style={{ '--i': 4 }}>
                 <span>
                   <IcLeaf size={17} /> Never from a cold room
                 </span>
@@ -657,6 +681,17 @@ export function Landing() {
                 <div className="lp-band__n">{n}</div>
                 <div className="lp-band__l">{l}</div>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── what is in the catalog today, rolling past ─────────────────── */}
+        <div className="lp-ticker" aria-hidden="true">
+          <div className="lp-ticker__track">
+            {[...TICKER, ...TICKER].map((t, i) => (
+              <span className="lp-ticker__item" key={`${t[0]}-${i}`}>
+                {t[0]} <span>{t[1]}</span>
+              </span>
             ))}
           </div>
         </div>
@@ -941,7 +976,7 @@ export function Landing() {
                   <img src={mark} alt="" width={30} height={30} />
                   Fooducia
                 </span>
-                <p style={{ color: 'var(--lp-ink-2)', fontSize: 14.5 }}>
+                <p className="lp-foot__blurb">
                   Vegetables harvested after you order them, delivered to Hyderabad apartments the
                   same morning.
                 </p>

@@ -1359,9 +1359,26 @@
 }
 
 /* ── footer ───────────────────────────────────────────────────────────────── */
+/* The page closes on black. Everything above it is cloudy white, so the switch is what makes the
+   bottom read as an ending rather than as the page simply running out. */
 .lp-foot {
-  border-top: 1px solid var(--lp-hairline);
-  padding: 44px 0 36px;
+  position: relative;
+  background: #080e0a;
+  color: var(--lp-canvas);
+  padding: 72px 0 40px;
+  overflow: hidden;
+}
+/* one slow wash of brand colour across the top edge, so the black is not flat */
+.lp-foot::before {
+  content: '';
+  position: absolute;
+  inset: -60% 0 auto 0;
+  height: 160%;
+  background: radial-gradient(60% 50% at 50% 0%, rgba(30, 122, 76, 0.4), transparent 70%);
+  pointer-events: none;
+}
+.lp-foot > * {
+  position: relative;
 }
 .lp-foot__top {
   display: flex;
@@ -1383,6 +1400,11 @@
   height: 30px;
   border-radius: 8px;
 }
+.lp-foot__blurb {
+  color: rgba(243, 245, 239, 0.58);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
 .lp-foot__cols {
   display: flex;
   flex-wrap: wrap;
@@ -1397,21 +1419,28 @@
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--lp-ink-3);
+  color: rgba(243, 245, 239, 0.42);
   font-weight: 600;
 }
 .lp-foot__col a {
-  color: var(--lp-ink-2);
+  color: rgba(243, 245, 239, 0.74);
   text-decoration: none;
   font-size: 14.5px;
+  width: fit-content;
+  transition: color 180ms ease;
 }
 .lp-foot__col a:hover {
-  color: var(--lp-leaf);
+  color: var(--lp-sprout);
 }
 .lp-foot__rule {
   height: 1px;
-  background: var(--lp-hairline);
-  margin: 34px 0 22px;
+  background: linear-gradient(
+    90deg,
+    rgba(243, 245, 239, 0.02),
+    rgba(243, 245, 239, 0.18),
+    rgba(243, 245, 239, 0.02)
+  );
+  margin: 40px 0 24px;
 }
 .lp-foot__bot {
   display: flex;
@@ -1420,7 +1449,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 13.5px;
-  color: var(--lp-ink-3);
+  color: rgba(243, 245, 239, 0.45);
 }
 .lp-powered {
   display: inline-flex;
@@ -1474,5 +1503,170 @@
   .lp-rv {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ── a ticker of what is actually in the catalog ──────────────────────────────
+   Two identical tracks sliding as one: when the first has travelled its own width
+   the second is exactly where it started, so the loop has no seam. */
+.lp-ticker {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 0;
+  border-top: 1px solid var(--lp-hairline);
+  border-bottom: 1px solid var(--lp-hairline);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(6px);
+  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+}
+.lp-ticker__track {
+  display: flex;
+  width: max-content;
+  animation: lp-ticker 46s linear infinite;
+}
+.lp-ticker:hover .lp-ticker__track {
+  animation-play-state: paused;
+}
+@keyframes lp-ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.lp-ticker__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 0 26px;
+  white-space: nowrap;
+  font-size: 17px;
+  color: var(--lp-ink);
+}
+.lp-ticker__item span {
+  font-size: 13.5px;
+  color: var(--lp-ink-3);
+}
+.lp-ticker__item::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lp-sprout-deep);
+  margin-left: 26px;
+  align-self: center;
+}
+
+/* ── hero entrance ────────────────────────────────────────────────────────────
+   Runs once on load, from a visible resting state, so a reader who arrives
+   mid-animation never sees a blank hero. */
+.lp-hero__copy > * {
+  animation: lp-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+@keyframes lp-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(6px);
+  }
+}
+.lp-hero__stage {
+  animation: lp-in-stage 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 160ms;
+}
+@keyframes lp-in-stage {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.97);
+  }
+}
+
+/* The device drifts a little slower than the page — enough to feel like depth,
+   not enough to notice as an effect. Driven by the scroll handler. */
+.lp-hero__stage .lp-phone {
+  will-change: transform;
+  transform: translateY(var(--lp-par, 0px));
+}
+
+/* ── a sheen across the store badges on hover ─────────────────────────────── */
+.lp-store {
+  position: relative;
+  overflow: hidden;
+}
+.lp-store::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.34) 50%,
+    transparent 62%
+  );
+  transform: translateX(-120%);
+}
+.lp-store:hover::after {
+  animation: lp-sheen 820ms ease;
+}
+@keyframes lp-sheen {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+/* ── a rule that draws itself under each section heading ──────────────────── */
+.lp-sec__head h2 {
+  position: relative;
+  padding-bottom: 14px;
+}
+.lp-sec__head h2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 64px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--lp-sprout), var(--lp-leaf));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1) 160ms;
+}
+.lp-sec__head[data-rv='in'] h2::after,
+[data-rv='in'] .lp-sec__head h2::after {
+  transform: scaleX(1);
+}
+
+/* ── cards pick up a little light on hover ────────────────────────────────── */
+.lp-card {
+  position: relative;
+  overflow: hidden;
+}
+.lp-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70% 60% at 50% 0%, rgba(205, 245, 106, 0.22), transparent 70%);
+  opacity: 0;
+  transition: opacity 320ms ease;
+  pointer-events: none;
+}
+.lp-card:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-ticker__track {
+    animation: none !important;
+  }
+  .lp-hero__copy > *,
+  .lp-hero__stage {
+    animation: none !important;
+  }
+  .lp-hero__stage .lp-phone {
+    transform: none !important;
+  }
+  .lp-sec__head h2::after {
+    transform: scaleX(1) !important;
   }
 }
