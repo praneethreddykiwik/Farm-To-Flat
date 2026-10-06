@@ -51,6 +51,7 @@ import { adminAnalyticsRouter } from './routes/admin/analytics.js';
 import { adminPaymentsRouter } from './routes/admin/payments.js';
 import { adminProcurementRouter } from './routes/admin/procurement.js';
 import { adminAccessRouter } from './routes/admin/access.js';
+import { adminAuthPublicRouter } from './routes/admin/auth-public.js';
 import { adminOtpRouter } from './routes/admin/otp.js';
 import { adminCouponsRouter } from './routes/admin/coupons.js';
 import { supportRouter, adminSupportRouter } from './routes/support.js';
@@ -100,6 +101,7 @@ if (process.env.NODE_ENV !== 'test')
         paths: [
           'req.headers.authorization',
           'req.headers["x-admin-token"]',
+          'req.headers["x-admin-session"]',
           'req.headers.cookie',
           'res.headers["set-cookie"]',
         ],
@@ -180,6 +182,11 @@ app.use(`${v1}/devices`, requireAuth, devicesRouter);
 app.use(`${v1}/ai`, requireAuth, aiRouter);
 
 // ── admin (operator panel) ─────────────────────────────────────────────────
+// Sign-in FIRST, and deliberately outside the authenticated router below: these are the routes you
+// call when you do not yet have a credential. Mounted on the more specific path, so Express reaches
+// them before /admin's adminAuth ever runs.
+app.use(`${v1}/admin/auth`, adminAuthPublicRouter);
+
 const admin = express.Router();
 admin.use(adminAuth);
 admin.use(adminAuthorize); // per-route role check — any staff is NOT full admin

@@ -8,11 +8,12 @@
 // VITE_API_URL (e.g. https://api.farmtoflat.in) so the built site calls the live API directly.
 const BASE = `${import.meta.env.VITE_API_URL || ''}/api/v1`;
 
-// The admin token comes from the signed-in operator's browser, never from the build. It used to be
+// The credential comes from the signed-in operator's browser, never from the build. It used to be
 // `import.meta.env.VITE_ADMIN_TOKEN`, which Vite inlines as a literal — so the token shipped inside
-// the public bundle and anyone with the URL had full admin access. Read it per request (not once at
-// module load) so signing in or out takes effect immediately.
-import { clearToken, getToken } from './auth.js';
+// the public bundle and anyone with the URL had full admin access. `authHeader()` is read per
+// request (not once at module load), so signing in or out takes effect immediately, and so that
+// a Google session and the shared token each send the header the API expects.
+import { authHeader, clearToken } from './auth.js';
 
 export class ApiError extends Error {
   constructor(status, code, message, details) {
@@ -33,10 +34,8 @@ function signOutIfRejected(status) {
 }
 
 async function request(method, path, body) {
-  const headers = {};
+  const headers = { ...authHeader() };
   if (body) headers['Content-Type'] = 'application/json';
-  const token = getToken();
-  if (token) headers['x-admin-token'] = token;
   const res = await fetch(BASE + path, {
     method,
     headers: Object.keys(headers).length ? headers : undefined,
@@ -61,9 +60,7 @@ async function request(method, path, body) {
  * @param {string} filename  name for the saved file
  */
 async function download(path, filename) {
-  const headers = {};
-  const token = getToken();
-  if (token) headers['x-admin-token'] = token;
+  const headers = { ...authHeader() };
   const res = await fetch(BASE + path, { headers });
   if (!res.ok) {
     const isJson = (res.headers.get('content-type') || '').includes('application/json');

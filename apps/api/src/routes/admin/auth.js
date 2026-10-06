@@ -1,21 +1,42 @@
 import { resolveAccess, getCustomer } from '../../customer-store.js';
+import { verifyAdminSession } from '../../lib/admin-session.js';
+import { roleForEmail } from '../../lib/admin-directory.js';
 import { findStaffByMobile } from '../../access-store.js';
 import { ROLE_META } from '../../lib/roles.js';
 import { IS_PROD } from '../../lib/env.js';
 import { fail } from '../../http.js';
 
 /**
- * Admin auth. Two ways in:
- *   1) A logged-in STAFF member (the app's ops console AND the web panel) — their own Bearer session
+ * Admin auth. Three ways in:
+ *   1) A Google-signed-in operator via `x-admin-session` — issued by POST /admin/auth/google after
+ *      Google's own ID token verified AND the address was found on ADMIN_GOOGLE_EMAILS.
+ *   2) A logged-in STAFF member (the app's ops console AND the web panel) — their own Bearer session
  *      resolves to a staff role. No shared secret involved.
- *   2) The shared operator token via `x-admin-token: <ADMIN_TOKEN>` — for scripts/tools. Treated as
+ *   3) The shared operator token via `x-admin-token: <ADMIN_TOKEN>` — for scripts/tools. Treated as
  *      SUPER_ADMIN. With no ADMIN_TOKEN set it stays open in dev (also SUPER_ADMIN) but fails CLOSED
  *      in production.
  * Sets `req.staff = { role, ... }` for adminAuthorize below.
  * @type {import('express').RequestHandler}
  */
 export function adminAuth(req, res, next) {
-  // 1) a signed-in staff member
+  // 1) a Google-signed-in operator.
+  // The role is re-read from the allowlist on EVERY request rather than trusted from the token.
+  // The token is valid for twelve hours, so a role carried inside it would keep working for twelve
+  // hours after someone was removed from ADMIN_GOOGLE_EMAILS — which is the whole point of removing
+  // them. Re-reading makes revocation take effect on the next request.
+  const sessionToken = req.header('x-admin-session');
+  if (sessionToken) {
+    const session = verifyAdminSession(sessionToken);
+    const role = session ? roleForEmail(session.email) : null;
+    if (!role)
+      return res.status(401).json({
+        error: { code: 'UNAUTHENTICATED', message: 'That sign-in has expired. Sign in again.' },
+      });
+    req.staff = { role, email: session.email, name: session.name, viaGoogle: true };
+    return next();
+  }
+
+  // 2) a signed-in staff member
   const authz = req.headers.authorization || '';
   const bearer = authz.startsWith('Bearer ') ? authz.slice(7) : null;
   if (bearer) {
@@ -33,7 +54,7 @@ export function adminAuth(req, res, next) {
       .json({ error: { code: 'UNAUTHENTICATED', message: 'Admin sign-in required.' } });
   }
 
-  // 2) the shared operator token
+  // 3) the shared operator token
   const required = process.env.ADMIN_TOKEN;
   if (!required) {
     if (IS_PROD) {

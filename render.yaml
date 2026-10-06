@@ -53,8 +53,15 @@ services:
         sync: false
       - key: ADMIN_TOKEN # any long random string; the admin site sends it as x-admin-token
         sync: false
-      - key: CORS_ORIGIN # your Vercel admin URL, e.g. https://farm-to-flat.vercel.app
+      - key: CORS_ORIGIN # EVERY admin origin, comma-separated — www and bare, each domain
         sync: false
+      # Operator sign-in with Google. Both are required before the button appears; see .env.example.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: ADMIN_GOOGLE_EMAILS
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
       # AI meal planner: the server calls the provider so the key never ships in the app bundle.
       # At least ONE of these is required for the "Build my plan" feature (else the route returns 501).
       - key: GROQ_API_KEY
