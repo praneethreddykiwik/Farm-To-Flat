@@ -1,0 +1,25 @@
+<!--
+  Fooducia app icon / favicon. The mark is grown 1.14x and nudged (6, -4) so it sits optically
+  centred in the squircle rather than mathematically centred, which always reads low and left.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Fooducia">
+  <defs>
+    <linearGradient id="fdBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e7a4c"/>
+      <stop offset=".55" stop-color="#135a37"/>
+      <stop offset="1" stop-color="#0b1510"/>
+    </linearGradient>
+    <linearGradient id="fdLeafL" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#9fd12c"/>
+      <stop offset="1" stop-color="#cdf56a"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#fdBg)"/>
+  <g transform="translate(-11.08 -22.48) scale(1.14)" fill="none">
+    <path d="M104 90 C128 52 164 36 198 44 C176 80 138 96 104 90 Z" fill="url(#fdLeafL)"/>
+    <path d="M100 152 C120 124 148 110 172 116 C156 144 128 158 100 152 Z" fill="url(#fdLeafL)"/>
+    <path d="M110 88 C136 70 168 56 190 48" stroke="#135a37" stroke-width="4" stroke-linecap="round" opacity=".35"/>
+    <path d="M106 150 C126 138 150 127 166 120" stroke="#135a37" stroke-width="3.6" stroke-linecap="round" opacity=".35"/>
+    <path d="M100 204 C100 158 96 112 102 56" stroke="#cdf56a" stroke-width="24" stroke-linecap="round"/>
+  </g>
+</svg>

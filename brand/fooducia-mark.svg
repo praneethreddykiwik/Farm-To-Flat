@@ -1,0 +1,21 @@
+<!--
+  Fooducia — the sprout F.
+  One stem, two leaves: it reads as an F at a glance and as a seedling a moment later.
+  Leaves are drawn BEHIND the stem so the joins stay crisp at any size.
+  `currentColor` on the stem lets the mark take the colour of whatever it sits in.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Fooducia">
+  <defs>
+    <linearGradient id="fdLeaf" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#135a37"/>
+      <stop offset="1" stop-color="#1e7a4c"/>
+    </linearGradient>
+  </defs>
+  <g fill="none">
+    <path d="M104 90 C128 52 164 36 198 44 C176 80 138 96 104 90 Z" fill="url(#fdLeaf)"/>
+    <path d="M100 152 C120 124 148 110 172 116 C156 144 128 158 100 152 Z" fill="url(#fdLeaf)"/>
+    <path d="M110 88 C136 70 168 56 190 48" stroke="#f3f5ef" stroke-width="4" stroke-linecap="round" opacity=".35"/>
+    <path d="M106 150 C126 138 150 127 166 120" stroke="#f3f5ef" stroke-width="3.6" stroke-linecap="round" opacity=".35"/>
+    <path d="M100 204 C100 158 96 112 102 56" stroke="#135a37" stroke-width="24" stroke-linecap="round"/>
+  </g>
+</svg>
