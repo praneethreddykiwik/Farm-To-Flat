@@ -44,10 +44,11 @@ import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
 import {
   allowedImageTypes,
-  signOrderIssuePhotos,
+  linkOrderIssuePhotos,
   storageEnabled,
   uploadIssuePhoto,
 } from '../lib/storage.js';
+import { baseUrlOf } from '../lib/media.js';
 import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
@@ -232,7 +233,10 @@ customerOrdersRouter.post(
         description: `Order ${order.orderNumber}`,
       };
     }
-    const body = { order: await signOrderIssuePhotos(orderCustomer(order)), paymentIntent };
+    const body = {
+      order: linkOrderIssuePhotos(orderCustomer(order), baseUrlOf(req)),
+      paymentIntent,
+    };
     idempotencyPut(cid, idempotencyKey, 201, body);
     res.status(201).json(body);
   }),
@@ -253,7 +257,7 @@ customerOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrderForCustomer(req.params.id, req.customerId);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: await signOrderIssuePhotos(orderCustomer(o)) });
+    res.json({ order: linkOrderIssuePhotos(orderCustomer(o), baseUrlOf(req)) });
   }),
 );
 
@@ -287,7 +291,7 @@ customerOrdersRouter.post(
     if (existing.status === 'PACKING' || existing.status === 'OUT_FOR_DELIVERY') {
       if (existing.cancelRequested)
         return res.json({
-          order: await signOrderIssuePhotos(orderCustomer(existing)),
+          order: linkOrderIssuePhotos(orderCustomer(existing), baseUrlOf(req)),
           cancelled: false,
           requested: true,
         });
@@ -305,7 +309,7 @@ customerOrdersRouter.post(
         data: { type: 'CANCEL_REQUEST', orderId: updated.id },
       });
       return res.json({
-        order: await signOrderIssuePhotos(orderCustomer(updated)),
+        order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
         cancelled: false,
         requested: true,
       });
@@ -314,7 +318,7 @@ customerOrdersRouter.post(
     // Everything before the packing bench — cancel outright and refund now.
     const { order: updated } = cancelOrder(req.params.id);
     res.json({
-      order: await signOrderIssuePhotos(orderCustomer(updated)),
+      order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
       cancelled: true,
       requested: false,
     });
@@ -394,7 +398,10 @@ customerOrdersRouter.post(
     });
     res.status(201).json({
       issue,
-      order: await signOrderIssuePhotos(orderCustomer(getOrderForCustomer(order.id, cid))),
+      order: linkOrderIssuePhotos(
+        orderCustomer(getOrderForCustomer(order.id, cid)),
+        baseUrlOf(req),
+      ),
     });
   }),
 );

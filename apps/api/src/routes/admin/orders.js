@@ -13,7 +13,8 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
 import { codDuePaise, issueAdmin, orderAdmin } from '../../serialize.js';
-import { signOrderIssuePhotos } from '../../lib/storage.js';
+import { linkOrderIssuePhotos } from '../../lib/storage.js';
+import { baseUrlOf } from '../../lib/media.js';
 import {
   createOrder,
   getOrder,
@@ -102,7 +103,10 @@ adminOrdersRouter.get(
     for (const s of STATUSES) counts[s] = 0;
     for (const o of all) counts[o.status] = (counts[o.status] || 0) + 1;
     res.json({
-      orders: await signOrderIssuePhotos(filtered.map((o) => orderAdmin(liveName(o)))),
+      orders: linkOrderIssuePhotos(
+        filtered.map((o) => orderAdmin(liveName(o))),
+        baseUrlOf(req),
+      ),
       total: filtered.length,
       counts,
       statuses: STATUSES,
@@ -130,7 +134,7 @@ const NAMES = [
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 adminOrdersRouter.post(
   '/orders/simulate',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     // Demo-only: fabricates an order with a random mobile. In production it would persist fake
     // orders into the real table, so it does not exist there.
     if (IS_PROD) throw fail(404, 'NOT_FOUND', 'Not available in production.');
@@ -162,7 +166,7 @@ adminOrdersRouter.post(
       status: 'CONFIRMED',
       lines,
     });
-    res.status(201).json({ order: await signOrderIssuePhotos(orderAdmin(order)) });
+    res.status(201).json({ order: linkOrderIssuePhotos(orderAdmin(order), baseUrlOf(req)) });
   }),
 );
 
@@ -324,7 +328,7 @@ adminOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: await signOrderIssuePhotos(orderAdmin(liveName(o))) });
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(liveName(o)), baseUrlOf(req)) });
   }),
 );
 
@@ -346,7 +350,7 @@ adminOrdersRouter.post(
     const r = completeDelivery(req.params.id, req.body);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
     notifyCustomer(r.order);
-    res.json({ order: await signOrderIssuePhotos(orderAdmin(r.order)) });
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(r.order), baseUrlOf(req)) });
   }),
 );
 
@@ -367,8 +371,8 @@ adminOrdersRouter.get(
       issueAdmin,
     );
     // The queue is the one place that renders photos without an order around them, so it signs the
-    // same way — `signOrderIssuePhotos` takes anything shaped like { issues }.
-    await signOrderIssuePhotos({ issues });
+    // same way — `linkOrderIssuePhotos` takes anything shaped like { issues }.
+    linkOrderIssuePhotos({ issues }, baseUrlOf(req));
     res.json({ issues, openCount: openIssueCount() });
   }),
 );
@@ -392,7 +396,10 @@ adminOrdersRouter.post(
     // explains itself is the difference between an answer and silence.
     const resolved = getOrder(req.params.id);
     notifyComplaintResolved(resolved, issue, getCustomer(resolved?.customerId));
-    res.json({ issue, order: await signOrderIssuePhotos(orderAdmin(getOrder(req.params.id))) });
+    res.json({
+      issue,
+      order: linkOrderIssuePhotos(orderAdmin(getOrder(req.params.id)), baseUrlOf(req)),
+    });
   }),
 );
 
@@ -446,7 +453,7 @@ adminOrdersRouter.patch(
     }
     const updated = transition(req.params.id, req.body.status);
     notifyCustomer(updated);
-    res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(updated), baseUrlOf(req)) });
   }),
 );
 
@@ -522,7 +529,7 @@ adminOrdersRouter.post(
     if (req.body.decision === 'APPROVE') {
       const { order: updated } = cancelOrder(req.params.id);
       notifyCustomer(updated);
-      return res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
+      return res.json({ order: linkOrderIssuePhotos(orderAdmin(updated), baseUrlOf(req)) });
     }
 
     const updated = patchOrder(req.params.id, (ord) => {
@@ -530,7 +537,7 @@ adminOrdersRouter.post(
       ord.cancelReason = null;
       ord.timeline.push({ status: 'CANCEL_DECLINED', at: new Date().toISOString() });
     });
-    res.json({ order: await signOrderIssuePhotos(orderAdmin(updated)) });
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(updated), baseUrlOf(req)) });
   }),
 );
 

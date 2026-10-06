@@ -39,6 +39,7 @@ import { cartRouter } from './routes/cart.js';
 import { customerOrdersRouter } from './routes/customer-orders.js';
 import { walletRouter, paymentsRouter } from './routes/wallet.js';
 import { razorpayWebhookRouter } from './routes/razorpay-webhook.js';
+import { mediaRouter } from './routes/media.js';
 import { devicesRouter } from './routes/devices.js';
 import { aiRouter } from './routes/ai.js';
 // admin (operator)
@@ -163,6 +164,9 @@ app.use(
   }),
 );
 
+// Private media, authenticated by the token in the path rather than by a header, because an
+// <img> cannot send one. Public by necessity, unguessable by construction. See routes/media.js.
+app.use(`${v1}/media`, mediaRouter);
 app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
