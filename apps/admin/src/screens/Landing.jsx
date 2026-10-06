@@ -342,26 +342,39 @@ function Field() {
  *
  * Reading position is correct however the reader arrived: anything at or above the fold line is
  * shown, whether they scrolled to it, jumped past it, or loaded straight into it.
+ *
+ * AND IT MARKS AN ATTRIBUTE, NOT A CLASS. The timeline steps render their className as a template
+ * string that includes `is-on`, which changes on every scroll — so React rewrote the whole class
+ * attribute and wiped any class added here, on the very next scroll event. With the old observer
+ * that was fatal, because it had already stopped watching the element and never put the class back;
+ * the six steps stayed invisible for the rest of the session. React does not manage `data-rv`,
+ * because nothing renders it, so marking that survives every re-render.
  */
 function useReveal() {
   useEffect(() => {
     const show = () => {
       const line = window.innerHeight * 0.92;
-      document.querySelectorAll('.lp-rv:not(.is-in)').forEach((el) => {
-        if (el.getBoundingClientRect().top < line) el.classList.add('is-in');
+      document.querySelectorAll('.lp-rv:not([data-rv])').forEach((el) => {
+        if (el.getBoundingClientRect().top < line) el.setAttribute('data-rv', 'in');
       });
     };
     show();
-    // The browser's own jump to a #hash lands AFTER this effect, so look again once it has.
     const raf = requestAnimationFrame(show);
-    const settle = setTimeout(show, 400);
     window.addEventListener('scroll', show, { passive: true });
     window.addEventListener('resize', show);
+    window.addEventListener('load', show);
+    // The browser's jump to a #hash does not land until the six lazy-loaded screenshots have
+    // decoded and the page has stopped growing under it — which is well after this effect, and
+    // after any fixed timeout worth writing. Watching the document's own height instead catches
+    // the jump whenever it actually happens: every layout change re-checks what is now on screen.
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(show) : null;
+    ro?.observe(document.documentElement);
     return () => {
       cancelAnimationFrame(raf);
-      clearTimeout(settle);
+      ro?.disconnect();
       window.removeEventListener('scroll', show);
       window.removeEventListener('resize', show);
+      window.removeEventListener('load', show);
     };
   }, []);
 }
