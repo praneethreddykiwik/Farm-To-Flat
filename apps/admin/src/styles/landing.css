@@ -561,12 +561,16 @@
 }
 
 /* ── the notification, as iOS draws it ────────────────────────────────────── */
+/* iOS draws a notification clear of the notch, with the status bar still readable above it, and
+   inset from the screen's edges. Both of those were wrong here: a fixed 56px top left it touching
+   the notch (and did not move when the device was resized), and 92% was WIDER than the screen,
+   which is 90.36% of the shell — so the card lay across the titanium rails on both sides. */
 .lp-note {
   position: absolute;
   z-index: 6;
   left: 50%;
-  top: 56px;
-  width: 92%;
+  top: 14%;
+  width: 78%;
   transform: translateX(-50%);
   border-radius: 22px;
   padding: 14px 15px 13px;
