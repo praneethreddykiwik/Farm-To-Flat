@@ -748,7 +748,7 @@
 /* ── live tracking panel ──────────────────────────────────────────────────── */
 .lp-track {
   display: grid;
-  grid-template-columns: 336px 1fr;
+  grid-template-columns: 320px 1fr;
   gap: clamp(32px, 6vw, 80px);
   align-items: center;
   padding: clamp(32px, 5vw, 56px);
@@ -805,147 +805,13 @@
 /* the recreated in-app tracker — the one thing a still screenshot cannot show */
 /* The surface is the app's cream, NOT the dark panel this phone sits on — so the colour has to be
    reset here. Without it the order number inherits the panel's cream ink and renders invisible. */
-/* `width` stays definite and `max-width` does the capping. `min(336px, 100%)` inside a flexible
-   column fed the column's width back into the device's own width and collapsed it to nothing. */
+/* `width` stays definite and `max-width` does the capping; `min-width: 0` lets a grid item go
+   below its own content size, which it otherwise refuses to do. */
 .lp-track .lp-phone {
-  width: 336px;
+  width: 320px;
   max-width: 100%;
-  /* A grid item's `min-width: auto` is an automatic minimum that refuses to go below the item's
-     own content size, so max-width alone could not shrink the device on a narrow screen. */
   min-width: 0;
 }
-/* The tracker is the one screen we draw ourselves, so unlike a screenshot it does not scale on its
-   own: it kept its full-size content inside a smaller screen on a phone and spilled out of the
-   device. Everything in it is now expressed in `--u`, a unit derived from the screen's own height,
-   so the whole panel scales with whatever device it is given.
-   (`transform: scale(calc(100cqh / 640))` was the obvious move and is invalid CSS — a length
-   divided by a number is a length, not the unitless ratio scale() needs, so it was dropped.) */
-.lp-phone__screen {
-  container-type: size;
-}
-.lp-live {
-  --u: calc(100cqh / 640);
-  width: 100%;
-  height: 100%;
-  background: var(--lp-canvas);
-  color: var(--lp-ink);
-  /* a couple of units of slack, so sub-pixel rounding at small scales cannot overflow */
-  padding: calc(58 * var(--u)) calc(20 * var(--u)) calc(18 * var(--u));
-  display: flex;
-  flex-direction: column;
-  gap: calc(16 * var(--u));
-  overflow: hidden;
-}
-.lp-live__head b {
-  font-family: var(--lp-display);
-  font-size: calc(19 * var(--u));
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  display: block;
-}
-.lp-live__head small {
-  font-size: calc(11.5 * var(--u));
-  color: var(--lp-ink-3);
-}
-.lp-live__card {
-  background: #fff;
-  border-radius: calc(18 * var(--u));
-  padding: calc(15 * var(--u)) calc(14 * var(--u));
-  box-shadow: var(--lp-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: calc(2 * var(--u));
-}
-.lp-live__row {
-  display: flex;
-  gap: calc(11 * var(--u));
-  align-items: flex-start;
-  padding: calc(7 * var(--u)) 0;
-  position: relative;
-}
-.lp-live__bullet {
-  position: relative;
-  width: calc(19 * var(--u));
-  flex: none;
-  display: flex;
-  justify-content: center;
-}
-.lp-live__bullet i {
-  width: calc(11 * var(--u));
-  height: calc(11 * var(--u));
-  border-radius: 50%;
-  background: #fff;
-  border: calc(2 * var(--u)) solid #d4dcd6;
-  margin-top: calc(4 * var(--u));
-  z-index: 2;
-  transition:
-    background 400ms,
-    border-color 400ms,
-    box-shadow 400ms;
-}
-.lp-live__bullet::after {
-  content: '';
-  position: absolute;
-  top: calc(15 * var(--u));
-  bottom: calc(-11 * var(--u));
-  width: calc(2 * var(--u));
-  background: #e2e8e3;
-  z-index: 1;
-}
-.lp-live__row:last-child .lp-live__bullet::after {
-  display: none;
-}
-.lp-live__label b {
-  display: block;
-  font-size: calc(13.5 * var(--u));
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--lp-ink-3);
-  transition: color 400ms;
-}
-.lp-live__label small {
-  font-size: calc(11.5 * var(--u));
-  color: var(--lp-ink-3);
-  opacity: 0.8;
-}
-.lp-live__row.is-done .lp-live__bullet i {
-  background: var(--lp-leaf);
-  border-color: var(--lp-leaf);
-}
-.lp-live__row.is-done .lp-live__label b {
-  color: var(--lp-ink);
-}
-.lp-live__row.is-now .lp-live__bullet i {
-  background: var(--lp-sprout);
-  border-color: var(--lp-leaf);
-  box-shadow: 0 0 0 calc(5 * var(--u)) rgba(30, 122, 76, 0.16);
-}
-.lp-live__row.is-now .lp-live__label b {
-  color: var(--lp-leaf-deep);
-}
-.lp-live__otp {
-  margin-top: auto;
-  background: var(--lp-night);
-  color: var(--lp-canvas);
-  border-radius: calc(18 * var(--u));
-  padding: calc(14 * var(--u));
-  text-align: center;
-}
-.lp-live__otp small {
-  font-size: calc(10.5 * var(--u));
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.6;
-}
-.lp-live__otp b {
-  display: block;
-  font-family: var(--lp-mono);
-  font-size: calc(27 * var(--u));
-  letter-spacing: 0.22em;
-  color: var(--lp-sprout);
-  margin-top: calc(4 * var(--u));
-}
-
 /* ── feature cards ────────────────────────────────────────────────────────── */
 .lp-cards {
   display: grid;

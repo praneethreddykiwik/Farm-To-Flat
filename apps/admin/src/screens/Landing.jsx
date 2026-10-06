@@ -32,6 +32,7 @@ const SHOT = {
   basket: '/shots/basket.webp',
   basketMin: '/shots/basket-min.webp',
   wallet: '/shots/wallet.webp',
+  tracking: '/shots/tracking.webp',
 };
 
 /* ── little icons ─────────────────────────────────────────────────────────── */
@@ -161,54 +162,6 @@ function Phone({ src, alt, small, float, children, className = '' }) {
         {src ? <img src={src} alt={alt} loading="lazy" decoding="async" /> : children}
       </div>
       <img className="lp-phone__shell" src={FRAME} alt="" aria-hidden="true" />
-    </div>
-  );
-}
-
-/* ── the moving order ─────────────────────────────────────────────────────────
-   A still image of a tracker shows you a tracker. The point of this one is that it
-   MOVES, so it is rebuilt here in the app's own styles and cycles on its own. */
-const TRACK = [
-  { t: 'Order placed', s: 'Tonight · 9:12 pm' },
-  { t: 'Confirmed', s: 'Payment received' },
-  { t: 'Harvested & packed', s: 'Chevella · 5:40 am' },
-  { t: 'Out for delivery', s: 'Tower B · 2 stops away' },
-  { t: 'Delivered', s: 'Read out your code' },
-];
-
-function LiveTracker() {
-  const [at, setAt] = useState(1);
-  useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
-    const id = setInterval(() => setAt((n) => (n >= TRACK.length - 1 ? 1 : n + 1)), 1900);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="lp-live">
-      <div className="lp-live__head">
-        <b>F2F-4312</b>
-        <small>Thursday window · 6:00–8:30 am</small>
-      </div>
-      <div className="lp-live__card">
-        {TRACK.map((step, i) => (
-          <div
-            key={step.t}
-            className={`lp-live__row${i < at ? ' is-done' : ''}${i === at ? ' is-now' : ''}`}
-          >
-            <span className="lp-live__bullet">
-              <i />
-            </span>
-            <span className="lp-live__label">
-              <b>{step.t}</b>
-              <small>{i <= at ? step.s : '—'}</small>
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="lp-live__otp">
-        <small>Door code</small>
-        <b>4817</b>
-      </div>
     </div>
   );
 }
@@ -719,9 +672,10 @@ export function Landing() {
           <div className="lp-wrap">
             <div className="lp-track lp-rv">
               <div className="lp-stage lp-track__stage">
-                <Phone>
-                  <LiveTracker />
-                </Phone>
+                <Phone
+                  src={SHOT.tracking}
+                  alt="An order being tracked in the app: confirmed, packed, on its way, delivered, with the items and the total"
+                />
               </div>
               <div className="lp-track__copy">
                 <span className="lp-eyebrow">Live, not a status page</span>
