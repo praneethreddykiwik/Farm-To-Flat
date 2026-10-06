@@ -331,27 +331,38 @@ function Field() {
   );
 }
 
-/* ── reveal on scroll ─────────────────────────────────────────────────────── */
+/* ── reveal on scroll, by POSITION rather than by intersection events ───────────
+ *
+ * This used an IntersectionObserver, and an IntersectionObserver only notifies when an element's
+ * intersection CHANGES. Opening the page on an anchor — /#get is the "Get the app" link, and so the
+ * URL people actually paste — jumps the document straight to the bottom: every element goes from
+ * "below the viewport" to "above the viewport" without ever being sampled as visible, the callback
+ * never runs for it, and it stays at opacity 0 for good. The result was a blank cream page with
+ * nothing on it but the timeline rail.
+ *
+ * Reading position is correct however the reader arrived: anything at or above the fold line is
+ * shown, whether they scrolled to it, jumped past it, or loaded straight into it.
+ */
 function useReveal() {
   useEffect(() => {
-    const items = document.querySelectorAll('.lp-rv');
-    if (!('IntersectionObserver' in window)) {
-      items.forEach((el) => el.classList.add('is-in'));
-      return undefined;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add('is-in');
-            io.unobserve(e.target);
-          }
-        });
-      },
-      { rootMargin: '0px 0px -12% 0px', threshold: 0.08 },
-    );
-    items.forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    const show = () => {
+      const line = window.innerHeight * 0.92;
+      document.querySelectorAll('.lp-rv:not(.is-in)').forEach((el) => {
+        if (el.getBoundingClientRect().top < line) el.classList.add('is-in');
+      });
+    };
+    show();
+    // The browser's own jump to a #hash lands AFTER this effect, so look again once it has.
+    const raf = requestAnimationFrame(show);
+    const settle = setTimeout(show, 400);
+    window.addEventListener('scroll', show, { passive: true });
+    window.addEventListener('resize', show);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(settle);
+      window.removeEventListener('scroll', show);
+      window.removeEventListener('resize', show);
+    };
   }, []);
 }
 
@@ -938,13 +949,13 @@ export function Landing() {
               <span>© {new Date().getFullYear()} Fooducia. Made in Hyderabad.</span>
               <a
                 className="lp-powered"
-                href="https://kiwk.one"
+                href="https://kiwik.one"
                 target="_blank"
                 rel="noreferrer noopener"
               >
-                <img src="/kiwk-mark.png" alt="" />
+                <img src="/kiwik-mark.png" alt="" />
                 <span>
-                  Powered by <b>Kiwk.one</b>
+                  Powered by <b>Kiwik.one</b>
                 </span>
               </a>
             </div>

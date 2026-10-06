@@ -334,6 +334,13 @@
   opacity: 0.82;
   cursor: default;
 }
+/* Centre the badges inside the closing panel. The note below them is `width: 100%`, which
+   stretches this flex row to the full column; with the default flex-start the two badges then sat
+   at the LEFT of that row — measured 149px off the panel's centre line, while the note underneath
+   them stayed centred, so the pair read as misaligned against everything else. */
+.lp-end .lp-stores {
+  justify-content: center;
+}
 .lp-stores__note {
   width: 100%;
   font-size: 13px;
