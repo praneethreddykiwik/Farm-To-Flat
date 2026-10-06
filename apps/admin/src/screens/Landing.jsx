@@ -146,7 +146,10 @@ function Phone({ src, alt, small, float, children, className = '' }) {
     <div
       className={`lp-phone${small ? ' lp-phone--sm' : ''}${float ? ' lp-phone__float' : ''} ${className}`}
     >
-      <div className="lp-phone__island" />
+      {/* Only for screens we draw ourselves. A capture from the simulator already has the real
+          island and status bar in the pixels; a second drawn pill on top of it is what made the
+          device read as broken. */}
+      {!src && <div className="lp-phone__island" />}
       <div className="lp-phone__screen">
         {src ? <img src={src} alt={alt} loading="lazy" decoding="async" /> : children}
       </div>
@@ -463,22 +466,31 @@ const FAQ = [
 export function Landing() {
   useReveal();
   const [stuck, setStuck] = useState(false);
-  const tlRef = useRef(null);
-  const [progress, setProgress] = useState(0);
+  const railRef = useRef(null);
+  const stepRefs = useRef([]);
+  const [fill, setFill] = useState(0);
   const [activeStep, setActiveStep] = useState(-1);
 
-  // The rail fills as the timeline passes the middle of the screen, so the page itself reads as the
-  // journey it is describing.
+  // The rail fills to the badge of the step you are actually reading, so the page reads as the
+  // journey it describes. Measuring each step beats a fraction of the whole block: the steps are
+  // not equal heights, so a global fraction put the green line in the gap between two of them.
   useEffect(() => {
     const onScroll = () => {
       setStuck(window.scrollY > 8);
-      const el = tlRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const mid = window.innerHeight * 0.52;
-      const p = Math.max(0, Math.min(1, (mid - r.top) / Math.max(1, r.height)));
-      setProgress(p * 100);
-      setActiveStep(Math.floor(p * STEPS.length) - (p >= 1 ? 0 : 0));
+      const rail = railRef.current;
+      if (!rail) return;
+      const line = window.innerHeight * 0.55;
+      let last = -1;
+      stepRefs.current.forEach((el, i) => {
+        if (el && el.getBoundingClientRect().top < line) last = i;
+      });
+      setActiveStep(last);
+      if (last < 0) return setFill(0);
+      const badge = stepRefs.current[last]?.querySelector('.lp-step__n');
+      if (!badge) return setFill(0);
+      const b = badge.getBoundingClientRect();
+      const top = rail.getBoundingClientRect().top;
+      setFill(Math.max(0, Math.min(rail.offsetHeight, b.top + b.height / 2 - top)));
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -629,14 +641,17 @@ export function Landing() {
               </p>
             </div>
 
-            <div className="lp-tl" ref={tlRef}>
-              <div className="lp-tl__rail" aria-hidden="true">
-                <i style={{ '--lp-progress': `${progress}%` }} />
+            <div className="lp-tl">
+              <div className="lp-tl__rail" ref={railRef} aria-hidden="true">
+                <i style={{ height: `${fill}px` }} />
               </div>
               {STEPS.map((s, i) => (
                 <article
                   className={`lp-step lp-rv${i % 2 ? ' lp-step--flip' : ''}${i <= activeStep ? ' is-on' : ''}`}
                   key={s.t}
+                  ref={(el) => {
+                    stepRefs.current[i] = el;
+                  }}
                 >
                   <div className="lp-step__n">{String(i + 1).padStart(2, '0')}</div>
                   <div className="lp-step__body">
