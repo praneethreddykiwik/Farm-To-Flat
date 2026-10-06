@@ -242,11 +242,24 @@ customerOrdersRouter.post(
   }),
 );
 
+/**
+ * The customer's own orders.
+ *
+ * PAYMENT_FAILED is left out on purpose. It is not an order that exists: the wallet was returned,
+ * the stock released and the coupon freed the moment the payment failed, and nothing will ever be
+ * delivered against it. Listing it put a card with a date and a total in front of the customer that
+ * looked exactly like a real order, and the app already refuses to send them to it — checkout sends
+ * a failed payment back to the CART, because that is the basket they can still do something with.
+ *
+ * It stays reachable by id, so an old notification or link still opens and explains itself.
+ */
 customerOrdersRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     res.json({
-      orders: listOrdersForCustomer(req.customerId).map(orderCustomer),
+      orders: listOrdersForCustomer(req.customerId)
+        .filter((o) => o.status !== 'PAYMENT_FAILED')
+        .map(orderCustomer),
       nextCursor: null,
     });
   }),

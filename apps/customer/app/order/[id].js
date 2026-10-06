@@ -35,6 +35,7 @@ import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
 import { notifyLocal } from '../../src/lib/notifications';
 import { selectLanguage } from '../../src/features/ui/uiSlice';
+import { productLabel } from '../../src/lib/i18n';
 import { useSelector } from 'react-redux';
 
 // In-app banner shown when the ops board advances THIS order while the screen is open. Works with no
@@ -87,7 +88,8 @@ export default function OrderDetail() {
     if (!order) return;
     const lines = order.items
       .map(
-        (it) => `• ${it.name} — ${formatQty(it.quantity, it.unit)}   ${rupees(it.lineTotalPaise)}`,
+        (it) =>
+          `• ${productLabel(it, lang)} — ${formatQty(it.quantity, it.unit)}   ${rupees(it.lineTotalPaise)}`,
       )
       .join('\n');
     const msg = [
@@ -259,12 +261,12 @@ export default function OrderDetail() {
                       uri={it.image}
                       blurhash={it.blurhash}
                       tint={it.tint}
-                      name={it.name}
+                      name={productLabel(it, lang)}
                       size={44}
                       radius={12}
                     />
                     <View style={{ flex: 1 }}>
-                      <Text variant="bodyMedium">{it.name}</Text>
+                      <Text variant="bodyMedium">{productLabel(it, lang)}</Text>
                       <Small muted>
                         {formatQty(it.quantity, it.unit)}
                         {it.variableWeight ? ' · billed on packed weight' : ''}

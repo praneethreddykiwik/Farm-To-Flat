@@ -184,24 +184,35 @@ export default function StaffFulfilment() {
     }
   }
 
-  // Community filter chips — one per community that actually has orders, with live counts.
+  /**
+   * The orders this board is actually about.
+   *
+   * The chips used to count every order the API returned while the board below rendered only the
+   * DELIVERABLE ones, so the numbers disagreed with what was on screen — a community could read 45
+   * and show nine cards, because cancelled, pending-payment and payment-failed orders were being
+   * counted as deliveries. One filtered list now feeds both.
+   */
+  const deliverable = useMemo(
+    () => (orders || []).filter((o) => DELIVERABLE.has(o.status)),
+    [orders],
+  );
+
+  // Community filter chips — one per community that actually has a delivery, with live counts.
   const communities = useMemo(() => {
     const map = new Map();
-    (orders || []).forEach((o) => {
+    deliverable.forEach((o) => {
       const id = o.address?.communityId || 'unknown';
       if (!map.has(id)) map.set(id, { id, name: o.address?.communityName || 'Unknown', count: 0 });
       map.get(id).count += 1;
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [orders]);
+  }, [deliverable]);
 
   // Group the (filtered) orders by community → block, so a runner delivers building by building.
   // Within a block, active deliveries sort ahead of delivered ones, then by flat.
   const groups = useMemo(() => {
-    const vis = (orders || []).filter(
-      (o) =>
-        DELIVERABLE.has(o.status) &&
-        (community === 'all' || (o.address?.communityId || 'unknown') === community),
+    const vis = deliverable.filter(
+      (o) => community === 'all' || (o.address?.communityId || 'unknown') === community,
     );
     const byComm = new Map();
     vis.forEach((o) => {
@@ -236,7 +247,7 @@ export default function StaffFulfilment() {
             ),
           })),
       }));
-  }, [orders, community]);
+  }, [deliverable, community]);
 
   const totalVisible = groups.reduce((n, g) => n + g.total, 0);
 
@@ -257,7 +268,7 @@ export default function StaffFulfilment() {
         <View style={styles.chips}>
           <Chip
             label="All"
-            count={orders.length}
+            count={deliverable.length}
             active={community === 'all'}
             onPress={() => setCommunity('all')}
           />

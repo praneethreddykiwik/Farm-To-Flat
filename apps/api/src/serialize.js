@@ -189,11 +189,34 @@ export function customerPublic(c, { isNew, hasAddress } = {}) {
 }
 
 /** Customer-facing order line — NEVER emits cost/margin. */
+/**
+ * Order lines snapshot the English name at the time of ordering, which is right for price and
+ * quantity — those must never move after the fact — but wrong for the NAME, which is a label, not a
+ * fact about the order. A shopper in Telugu placed an order and then found every line in the order
+ * screen reading "Chicken curry cut", "Rohu Fish", "Banana" while the header above them was in
+ * Telugu, because the translations only ever travelled with the catalog.
+ *
+ * So the lines carry them too, looked up by product. A product since delisted simply has no
+ * translation to offer and falls back to the stored English, which is the same thing the catalog
+ * does.
+ */
+function lineNames(productId) {
+  const p = productId && getProduct(productId);
+  if (!p) return undefined;
+  const hi = productName(p, 'hi');
+  const te = productName(p, 'te');
+  return {
+    hi: hi === p.name ? undefined : hi,
+    te: te === p.name ? undefined : te,
+  };
+}
+
 function orderItemsCustomer(items) {
   return items.map((it) => ({
     id: it.id,
     productId: it.productId,
     name: it.name,
+    names: lineNames(it.productId),
     unit: it.unit,
     increment: it.increment,
     image: it.image ?? null,

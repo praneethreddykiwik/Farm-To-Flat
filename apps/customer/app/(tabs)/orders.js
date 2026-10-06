@@ -22,6 +22,7 @@ import { useGetOrdersQuery } from '../../src/api/api';
 import { colors, motion, radius } from '../../src/theme';
 import { formatDateShort, windowLabel } from '../../src/lib/dates';
 import { selectLanguage } from '../../src/features/ui/uiSlice';
+import { productLabel } from '../../src/lib/i18n';
 import { useSelector } from 'react-redux';
 
 export default function Orders() {
@@ -99,7 +100,7 @@ export default function Orders() {
                           {formatDateShort(o.deliveryDate)} · {windowLabel(o.window, null, lang)}
                         </Text>
                         <Small muted numberOfLines={1} style={{ marginTop: 2 }}>
-                          {o.items.map((it) => it.name).join(', ')}
+                          {o.items.map((it) => productLabel(it, lang)).join(', ')}
                         </Small>
                       </View>
                       <ChevronRight size={20} color={colors.ink3} />
