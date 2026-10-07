@@ -108,6 +108,7 @@ export default function ProductDetail() {
           name={label}
           radius={0}
           priority="high"
+          renderWidth={960}
           recyclingKey={product.id}
         />
         <LinearGradient

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { PixelRatio, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -12,7 +12,7 @@ import { resolveStorageImage } from '../lib/supabase';
  * (or it fails to load) we render a botanical tile: category tint, a leaf mark and the initial.
  * Never a broken image, never a grey box.
  *
- * @param {{ uri?: string|null, blurhash?: string|null, tint?: string, name?: string, size?: number|'fill', radius?: number, style?: any, recyclingKey?: string, priority?: 'low'|'normal'|'high' }} props
+ * @param {{ uri?: string|null, blurhash?: string|null, tint?: string, name?: string, size?: number|'fill', radius?: number, style?: any, recyclingKey?: string, priority?: 'low'|'normal'|'high', renderWidth?: number }} props
  */
 export function ProductImage({
   uri,
@@ -24,6 +24,10 @@ export function ProductImage({
   style,
   recyclingKey,
   priority = 'normal',
+  // How wide the image is actually drawn, in device pixels, so Storage can send that size instead
+  // of the original. A numeric `size` knows its own width; 'fill' does not, so it takes a default
+  // suited to a card and the few places that draw bigger (the product hero) pass their own.
+  renderWidth,
 }) {
   const [failed, setFailed] = useState(false);
   // Adjust on render when the source changes: a tile that failed once kept showing the fallback for
@@ -35,8 +39,11 @@ export function ProductImage({
   }
   const t = tintOf(tint);
   const dim = size === 'fill' ? { width: '100%', height: '100%' } : { width: size, height: size };
-  // Absolute URLs pass through unchanged; a Supabase Storage path becomes a public URL.
-  const src = resolveStorageImage(uri);
+  // Absolute URLs pass through unchanged; a Supabase Storage path becomes a public URL. Either way
+  // we ask Storage for the width we draw, not the width that was uploaded.
+  const wanted =
+    renderWidth || (size === 'fill' ? 480 : PixelRatio.getPixelSizeForLayoutSize(size));
+  const src = resolveStorageImage(uri, undefined, wanted);
 
   if (!src || failed) {
     const initial = (name || '?').trim().charAt(0).toUpperCase();
