@@ -170,6 +170,9 @@ export const api = createApi({
 
     // ---- ai planner (production path; keeps the provider key server-side) ----
     aiPlan: b.mutation({ query: (body) => ({ url: '/ai/plan', method: 'POST', body }) }),
+
+    // ---- lens: a photograph in, a product from our catalogue out ----
+    aiIdentify: b.mutation({ query: (body) => ({ url: '/ai/identify', method: 'POST', body }) }),
   }),
 });
 
@@ -207,4 +210,5 @@ export const {
   useVerifyPaymentMutation,
   useRegisterDeviceMutation,
   useAiPlanMutation,
+  useAiIdentifyMutation,
 } = api;

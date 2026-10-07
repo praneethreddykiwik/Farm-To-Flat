@@ -14,9 +14,11 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
+import { callVision, parseReply, resolve, systemPrompt as visionPrompt } from '../lib/identify.js';
 import { getCustomer } from '../customer-store.js';
 import { findStaffByMobile } from '../access-store.js';
 import { hasAi } from '../lib/roles.js';
+import { productPublic } from '../serialize.js';
 
 export const aiRouter = Router();
 
@@ -204,5 +206,83 @@ aiRouter.post(
     }
     if (!plan) throw lastErr || fail(502, 'AI_UPSTREAM', 'The planner is unavailable right now.');
     res.json({ plan });
+  }),
+);
+
+/**
+ * POST /ai/identify — point the camera at a vegetable, get the product.
+ *
+ * Unlike /plan this is for CUSTOMERS, so it is not behind requireAiAccess — any signed-in number
+ * can use it. That makes the rate limit the only thing between us and a bill: every call sends a
+ * photograph to a vision model at a flat 2,048 input tokens per image, so a loop left running is
+ * real money. Hence a tighter window than the planner's.
+ */
+const IDENT_WINDOW_MS = 5 * 60 * 1000;
+const IDENT_MAX = 15; // photographs per window per IP
+const identHits = new Map();
+
+function identifyLimiter(req, _res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const recent = (identHits.get(ip) || []).filter((t) => now - t < IDENT_WINDOW_MS);
+  if (recent.length >= IDENT_MAX) {
+    identHits.set(ip, recent);
+    return next(fail(429, 'RATE_LIMITED', 'Too many photos. Please try again in a few minutes.'));
+  }
+  recent.push(now);
+  identHits.set(ip, recent);
+  if (identHits.size > 5000)
+    for (const [k, v] of identHits) {
+      const live = v.filter((t) => now - t < IDENT_WINDOW_MS);
+      if (live.length === 0) identHits.delete(k);
+      else identHits.set(k, live);
+    }
+  next();
+}
+
+// Base64 inflates by about a third, so this is roughly a 3 MB photograph. The app downscales before
+// sending; this is the backstop for anything that does not.
+const MAX_BASE64 = 4 * 1024 * 1024;
+
+const IdentifyBody = z.object({
+  imageBase64: z.string().min(32).max(MAX_BASE64),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']).default('image/jpeg'),
+});
+
+aiRouter.post(
+  '/identify',
+  identifyLimiter,
+  validateBody(IdentifyBody),
+  asyncHandler(async (req, res) => {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) throw fail(501, 'NOT_IMPLEMENTED', 'Photo search needs GROQ_API_KEY on the server.');
+
+    const products = listProducts();
+    const dataUrl = `data:${req.body.contentType};base64,${req.body.imageBase64}`;
+
+    // A customer is holding a phone up to a vegetable. If the model is slow, saying so beats a
+    // spinner that never ends.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20000);
+    let raw;
+    try {
+      raw = await callVision(key, { prompt: visionPrompt(products), dataUrl, signal: ac.signal });
+    } catch (e) {
+      if (e.name === 'AbortError')
+        throw fail(504, 'UPSTREAM_TIMEOUT', 'That took too long. Please try again.');
+      req.log?.error({ err: e }, '[identify] vision call failed');
+      throw fail(502, 'UPSTREAM', 'Could not read that photo. Please try again.');
+    } finally {
+      clearTimeout(timer);
+    }
+
+    const out = resolve(products, parseReply(raw));
+    res.json({
+      label: out.label,
+      confidence: out.confidence,
+      via: out.via,
+      product: out.product ? productPublic(out.product) : null,
+      alternatives: out.alternatives.map(productPublic),
+    });
   }),
 );

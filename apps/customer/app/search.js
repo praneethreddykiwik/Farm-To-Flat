@@ -6,6 +6,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SearchX } from 'lucide-react-native';
 import { useSelector } from 'react-redux';
 import { Ambient, Chip, Display, EmptyState, Label, Small } from '../src/ui';
+import { LensResult } from '../src/components/LensResult';
 import { SearchBar } from '../src/components/SearchBar';
 import { ProductCard } from '../src/components/ProductCard';
 import { CartBar } from '../src/components/CartBar';
@@ -31,6 +32,8 @@ const SUGGESTIONS = [
 export default function Search() {
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
+  // What the lens last saw. Shown as a sheet over the results until dismissed.
+  const [lens, setLens] = useState(null);
   const [trigger, result] = useLazySearchCatalogQuery();
   const catalog = useGetCatalogQuery();
   const dietPref = useSelector(selectDietPref);
@@ -65,6 +68,8 @@ export default function Search() {
           onChangeText={setQ}
           autoFocus
           voice
+          lens
+          onLensResult={setLens}
           style={{ marginTop: 16 }}
           onSubmit={Keyboard.dismiss}
         />
@@ -132,6 +137,14 @@ export default function Search() {
         />
       )}
       <CartBar />
+      <LensResult
+        result={lens}
+        onClose={() => setLens(null)}
+        onSearch={(t) => {
+          setLens(null);
+          setQ(t);
+        }}
+      />
     </View>
   );
 }

@@ -12,6 +12,7 @@ import { Glass, Pressy, Small } from '../ui';
 import { colors, fonts, radius } from '../theme';
 import { useVoiceSearch, voiceUnavailableReason } from '../lib/voice';
 import { haptic } from '../lib/haptics';
+import { LensButton } from './LensButton';
 
 /** Pulsing ring behind the mic while it is listening. */
 function ListeningPulse() {
@@ -34,7 +35,7 @@ function ListeningPulse() {
  * Search field with a voice button. Speaking fills the field live; the final transcript is
  * submitted. The mic is hidden when the native recogniser is unavailable (Expo Go).
  *
- * @param {{ value?: string, onChangeText?: (t: string) => void, onPress?: () => void, autoFocus?: boolean, placeholder?: string, style?: any, editable?: boolean, onSubmit?: () => void, voice?: boolean }} props
+ * @param {{ value?: string, onChangeText?: (t: string) => void, onPress?: () => void, autoFocus?: boolean, placeholder?: string, style?: any, editable?: boolean, onSubmit?: () => void, voice?: boolean, lens?: boolean, onLensResult?: (r: any) => void }} props
  */
 export function SearchBar({
   value = '',
@@ -46,7 +47,10 @@ export function SearchBar({
   editable = true,
   onSubmit,
   voice = false,
+  lens = false,
+  onLensResult,
 }) {
+  const [lensError, setLensError] = React.useState('');
   const { supported, listening, error, start, stop } = useVoiceSearch({
     onResult: (t) => onChangeText?.(t),
     onFinal: (t) => {
@@ -56,6 +60,9 @@ export function SearchBar({
     },
   });
   const showMic = voice && supported && editable && !value?.length;
+  // The lens shares the mic's rule: only on an empty field, so it never competes with a clear
+  // button or a half-typed query.
+  const showLens = lens && editable && !value?.length && !listening;
 
   const inner = (
     <Glass radius={radius.pill} innerStyle={styles.inner}>
@@ -83,6 +90,15 @@ export function SearchBar({
         >
           <X size={16} color={colors.ink2} />
         </Pressy>
+      ) : null}
+      {showLens ? (
+        <LensButton
+          onResult={(r) => {
+            setLensError('');
+            onLensResult?.(r);
+          }}
+          onError={setLensError}
+        />
       ) : null}
       {showMic || listening ? (
         <Pressy
@@ -113,9 +129,9 @@ export function SearchBar({
       ) : (
         inner
       )}
-      {error ? (
+      {error || lensError ? (
         <Small color={colors.tomato} style={styles.error}>
-          {error}
+          {error || lensError}
         </Small>
       ) : voice && !supported && __DEV__ ? (
         <Small muted style={styles.error}>
