@@ -157,3 +157,61 @@ The Spend Cap default and the Pro-vs-Team behaviour are corroborated by the pric
 that spend caps are on by default on Pro, plus third-party write-ups; a dedicated Supabase docs page
 on Spend Cap mechanics could not be reached, so treat the throttling detail as strongly indicated
 rather than confirmed first-hand.
+
+---
+
+## 7. The actual bill, read from the dashboard (7 Oct 2026)
+
+The organisation runs **four projects**, and compute bills per project while the $10 credit applies
+once per organisation:
+
+| Project        | Region                 | Compute |
+| -------------- | ---------------------- | ------- |
+| **F2F**        | ap-northeast-1 (Tokyo) | Micro   |
+| Helm-3d backup | ca-central-1           | Nano    |
+| Helm-events    | ap-southeast-2         | Nano    |
+| Villa-OS       | ap-northeast-1         | Micro   |
+
+Invoices: Sep 5 **$29.50** · Oct 5 **$58.79** · Nov 5 **$25.00 (draft)**.
+
+The November draft opening at the base rate is the tell: $58.79 was one month, not a trend. Three of
+the four projects are unrelated to Farm-to-Flat. **F2F alone on Micro is about $25/month.**
+
+Separately: F2F's database is in **Tokyo** while its customers are in Hyderabad. Every query crosses
+an ocean twice. Moving to `ap-south-1` (Mumbai) is a latency win and likely an egress win.
+
+## 8. Can Supabase carry 100 million customers?
+
+Not on the managed platform as it stands — and neither does anyone else without a different
+architecture.
+
+**The real ceiling is single-writer Postgres.** Supabase scales _vertically_ to 16XL (64 vCPU,
+256 GB RAM) and _horizontally for reads only_ via up to 5 read replicas. There is no managed
+sharding and no multi-writer. Disk goes to 60 TB on Pro/Team, but the **write** ceiling arrives long
+before the storage one.
+
+For scale, Zomato on New Year's Eve 2023 sustained ~16,000 write transactions/second — on _sharded_
+RDS clusters plus DynamoDB, not a single instance
+([source](https://blog.zomato.com/a-tale-of-scale-behind-the-scenes-at-zomato-tech-for-nye-2023)).
+That sharding is work we would do ourselves on Supabase.
+
+What this means in practice: Supabase comfortably covers launch through a few million users. Tens of
+millions on an order path needs a different shape — sharded Aurora, a KV store for the hottest
+writes — regardless of vendor. Supabase Enterprise offers BYOC (Supabase deployed into our own AWS
+account, no project size constraints) as a middle step.
+
+## 9. Who else runs on it, and is the company safe
+
+Publicly documented customers ([supabase.com/customers](https://supabase.com/customers)): **Udio**
+(1M+ users in month one), **Mobbin** (400k users, migrated off Firebase), **Resend** (100M+
+emails/month), **Deriv**, **Brevo**, **eXp Realty** (NASDAQ: EXPI), **Xendit**, **Lovable**.
+
+Honest caveat: no published customer runs Supabase as the transactional _order_ datastore at
+tens-of-millions-of-users consumer scale. Absence of evidence, but worth knowing.
+
+Company health: **Series F, $500M at $10.5B post-money, June 2026**, led by GIC
+([source](https://www.prnewswire.com/news-releases/supabase-raises-500m-at-10-5b-to-accelerate-lead-in-agentic-infrastructure-302791787.html)).
+Over $1B raised total; valuation doubled in ~8 months. Near-term abandonment risk is very low.
+
+And the floor under all of it: **Supabase is Apache 2.0 and self-hostable** — no BSL, no open-core
+trap. Even if the company changed direction, the data is plain Postgres and `pg_dump` into RDS works.
