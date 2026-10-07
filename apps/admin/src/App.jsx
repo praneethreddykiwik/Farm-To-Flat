@@ -23,6 +23,7 @@ import { Settings } from './screens/Settings.jsx';
 import Payments from './screens/Payments.jsx';
 import { Privacy } from './screens/Privacy.jsx';
 import { Terms } from './screens/Terms.jsx';
+import { PolicyPage, PAGES } from './screens/PolicyPage.jsx';
 import { SignIn } from './screens/SignIn.jsx';
 import { Landing } from './screens/Landing.jsx';
 import { getToken, onAuthChange } from './lib/auth.js';
@@ -89,6 +90,9 @@ function AdminShell() {
   );
 }
 
+/** Addresses that are public and chrome-free: no sidebar, no sign-in, customer-facing titles. */
+const PUBLIC = new Set(['/', '/privacy', '/terms', ...Object.keys(PAGES).map((p) => `/${p}`)]);
+
 function Root() {
   // /privacy and /terms are public and chrome-free — customers open them from the app, so no
   // sidebar and no login.
@@ -101,10 +105,12 @@ function Root() {
   // The tab title is the customer site's by default (it is what `/` serves). An operator on the
   // console should not be looking at a marketing headline in their tab strip.
   useEffect(() => {
-    const operator = pathname !== '/' && pathname !== '/privacy' && pathname !== '/terms';
-    document.title = operator
-      ? 'Fooducia · Operations'
-      : 'Fooducia — vegetables harvested after you order';
+    const policy = PAGES[pathname.slice(1)];
+    document.title = policy
+      ? `${policy.title.en} · Fooducia`
+      : !PUBLIC.has(pathname)
+        ? 'Fooducia · Operations'
+        : 'Fooducia — vegetables harvested after you order';
   }, [pathname]);
 
   // The customer-facing site is what `/` is for now. The operator panel lives at /admin and the
@@ -112,6 +118,9 @@ function Root() {
   if (pathname === '/') return <Landing />;
   if (pathname === '/privacy') return <Privacy />;
   if (pathname === '/terms') return <Terms />;
+  // /refunds, /shipping, /contact — views onto the Terms sections. Public, like the two above.
+  const policy = pathname.slice(1);
+  if (PAGES[policy]) return <PolicyPage page={policy} />;
   if (!token) return <SignIn />;
   return <AdminShell />;
 }

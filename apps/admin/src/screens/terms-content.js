@@ -46,12 +46,14 @@ export const CHROME = {
 
 const EN = (CONTACT) => [
   {
+    id: 'who',
     h: 'Who we are',
     p: [
       'Fooducia ("we", "us") operates a mobile app that lets residents of participating gated communities in Hyderabad, India pre-order fresh vegetables, greens and meat for delivery in a chosen morning or evening window. By creating an account or placing an order, you agree to these terms.',
     ],
   },
   {
+    id: 'eligibility',
     h: 'Eligibility & account',
     list: [
       [
@@ -69,6 +71,7 @@ const EN = (CONTACT) => [
     ],
   },
   {
+    id: 'payment',
     h: 'Orders, pricing & payment',
     list: [
       [
@@ -90,12 +93,14 @@ const EN = (CONTACT) => [
     ],
   },
   {
+    id: 'delivery',
     h: 'Delivery',
     p: [
       'We deliver to the flat, block and community you select, within the delivery window you choose at checkout. Delivery windows and serviceable communities may change; we will show current options in the app before you order. Please ensure someone is available to receive the order, or provide delivery instructions for the gate/guard.',
     ],
   },
   {
+    id: 'refunds',
     h: 'Cancellation & refunds',
     list: [
       [
@@ -117,30 +122,35 @@ const EN = (CONTACT) => [
     ],
   },
   {
+    id: 'responsibilities',
     h: 'Your responsibilities',
     p: [
       'Please use the app lawfully and in good faith: provide a real, accessible delivery address; do not place orders you do not intend to honour; and treat our delivery staff with courtesy. We may decline or cancel orders that appear fraudulent or abusive, or restrict an account that repeatedly does this.',
     ],
   },
   {
+    id: 'liability',
     h: 'Our liability',
     p: [
       'We work to source and deliver fresh, good-quality produce, but fresh produce naturally varies. Our liability for any order is limited to the amount you paid for that order. We are not liable for delays or failures caused by events beyond our reasonable control (severe weather, community access restrictions, and similar).',
     ],
   },
   {
+    id: 'changes',
     h: 'Changes to these terms',
     p: [
       'We may update these terms as the service grows. We will change the "Last updated" date above, and material changes will be highlighted in the app before they take effect.',
     ],
   },
   {
+    id: 'law',
     h: 'Governing law & jurisdiction',
     p: [
       'These terms are governed by the laws of India. Any dispute arising from these terms or your use of the app will be subject to the exclusive jurisdiction of the courts in Hyderabad, Telangana.',
     ],
   },
   {
+    id: 'grievance',
     h: 'Grievance officer',
     p: [
       'In accordance with the Information Technology Act, 2000 and the Consumer Protection (E-Commerce) Rules, 2020, the name and contact details of the Grievance Officer are provided below. If you have a complaint about an order, a privacy concern, or content on the app, please write to us and we will acknowledge it within 48 hours and resolve it within 30 days.',
@@ -152,6 +162,7 @@ const EN = (CONTACT) => [
     ],
   },
   {
+    id: 'contact',
     h: 'Contact us',
     p: [`Questions about these terms? Email ${CONTACT}. Fooducia, Hyderabad, India.`],
   },
@@ -159,12 +170,14 @@ const EN = (CONTACT) => [
 
 const HI = (CONTACT) => [
   {
+    id: 'who',
     h: 'हम कौन हैं',
     p: [
       'फ़ार्म टू फ्लैट ("हम", "हमारा") एक मोबाइल ऐप चलाता है, जिससे हैदराबाद, भारत की भाग लेने वाली गेटेड कम्युनिटी के निवासी ताज़ी सब्ज़ियाँ, हरी पत्तेदार सब्ज़ियाँ और मांस पहले से ऑर्डर कर सकते हैं और उन्हें चुनी हुई सुबह या शाम की डिलीवरी अवधि में पा सकते हैं। खाता बनाकर या ऑर्डर देकर आप इन शर्तों से सहमत होते हैं।',
     ],
   },
   {
+    id: 'eligibility',
     h: 'पात्रता और खाता',
     list: [
       [
@@ -182,6 +195,7 @@ const HI = (CONTACT) => [
     ],
   },
   {
+    id: 'payment',
     h: 'ऑर्डर, मूल्य और भुगतान',
     list: [
       [
@@ -203,12 +217,14 @@ const HI = (CONTACT) => [
     ],
   },
   {
+    id: 'delivery',
     h: 'डिलीवरी',
     p: [
       'हम आपके चुने हुए फ्लैट, ब्लॉक और कम्युनिटी में, चेकआउट पर चुनी गई डिलीवरी अवधि के भीतर डिलीवर करते हैं। डिलीवरी अवधियाँ और सेवा-योग्य कम्युनिटी बदल सकती हैं; ऑर्डर देने से पहले हम ऐप में मौजूदा विकल्प दिखाएँगे। कृपया सुनिश्चित करें कि ऑर्डर लेने के लिए कोई उपलब्ध हो, या गेट/गार्ड के लिए डिलीवरी निर्देश दें।',
     ],
   },
   {
+    id: 'refunds',
     h: 'रद्दीकरण और रिफंड',
     list: [
       [
@@ -230,30 +246,35 @@ const HI = (CONTACT) => [
     ],
   },
   {
+    id: 'responsibilities',
     h: 'आपकी ज़िम्मेदारियाँ',
     p: [
       'कृपया ऐप का उपयोग कानूनी रूप से और सद्भावना से करें: वास्तविक, पहुँच-योग्य डिलीवरी पता दें; ऐसे ऑर्डर न दें जिन्हें आप लेने का इरादा नहीं रखते; और हमारे डिलीवरी कर्मचारियों के साथ शिष्टता से पेश आएँ। जो ऑर्डर धोखाधड़ी या दुर्व्यवहार जैसे लगते हैं, उन्हें हम अस्वीकार या रद्द कर सकते हैं, या ऐसा बार-बार करने वाले खाते को सीमित कर सकते हैं।',
     ],
   },
   {
+    id: 'liability',
     h: 'हमारा दायित्व',
     p: [
       'हम ताज़ा, अच्छी गुणवत्ता का सामान खरीदने और पहुँचाने का प्रयास करते हैं, परंतु ताज़े सामान में स्वाभाविक रूप से अंतर होता है। किसी भी ऑर्डर के लिए हमारा दायित्व उस ऑर्डर के लिए आपके द्वारा चुकाई गई राशि तक सीमित है। हमारे उचित नियंत्रण से बाहर की घटनाओं (गंभीर मौसम, कम्युनिटी में प्रवेश प्रतिबंध, और इसी तरह की) से होने वाली देरी या विफलता के लिए हम उत्तरदायी नहीं हैं।',
     ],
   },
   {
+    id: 'changes',
     h: 'इन शर्तों में बदलाव',
     p: [
       'सेवा के विस्तार के साथ हम इन शर्तों को अपडेट कर सकते हैं। हम ऊपर दी गई "अंतिम बार अपडेट किया गया" तिथि बदलेंगे, और महत्वपूर्ण बदलाव लागू होने से पहले ऐप में उजागर किए जाएँगे।',
     ],
   },
   {
+    id: 'law',
     h: 'शासी कानून और क्षेत्राधिकार',
     p: [
       'ये शर्तें भारत के कानूनों द्वारा शासित हैं। इन शर्तों या ऐप के आपके उपयोग से उत्पन्न कोई भी विवाद हैदराबाद, तेलंगाना की अदालतों के विशेष क्षेत्राधिकार के अधीन होगा।',
     ],
   },
   {
+    id: 'grievance',
     h: 'शिकायत अधिकारी',
     p: [
       'सूचना प्रौद्योगिकी अधिनियम, 2000 और उपभोक्ता संरक्षण (ई-कॉमर्स) नियम, 2020 के अनुसार, शिकायत अधिकारी का नाम और संपर्क विवरण नीचे दिया गया है। यदि आपको किसी ऑर्डर के बारे में शिकायत है, निजता संबंधी चिंता है, या ऐप की किसी सामग्री पर आपत्ति है, तो कृपया हमें लिखें — हम 48 घंटे के भीतर उसकी पावती देंगे और 30 दिन के भीतर समाधान करेंगे।',
@@ -265,6 +286,7 @@ const HI = (CONTACT) => [
     ],
   },
   {
+    id: 'contact',
     h: 'हमसे संपर्क करें',
     p: [`इन शर्तों के बारे में प्रश्न? ${CONTACT} पर ईमेल करें। फ़ार्म टू फ्लैट, हैदराबाद, भारत।`],
   },
@@ -272,12 +294,14 @@ const HI = (CONTACT) => [
 
 const TE = (CONTACT) => [
   {
+    id: 'who',
     h: 'మేము ఎవరం',
     p: [
       'Fooducia ("మేము", "మా") ఒక మొబైల్ యాప్‌ను నడుపుతుంది. దీని ద్వారా భారతదేశంలోని హైదరాబాద్‌లో భాగస్వామ్య గేటెడ్ కమ్యూనిటీల నివాసితులు తాజా కూరగాయలు, ఆకుకూరలు మరియు మాంసాన్ని ముందుగానే ఆర్డర్ చేసి, తాము ఎంచుకున్న ఉదయం లేదా సాయంత్రం డెలివరీ సమయంలో పొందవచ్చు. ఖాతా సృష్టించడం ద్వారా లేదా ఆర్డర్ చేయడం ద్వారా మీరు ఈ నిబంధనలకు అంగీకరిస్తున్నారు.',
     ],
   },
   {
+    id: 'eligibility',
     h: 'అర్హత మరియు ఖాతా',
     list: [
       [
@@ -295,6 +319,7 @@ const TE = (CONTACT) => [
     ],
   },
   {
+    id: 'payment',
     h: 'ఆర్డర్‌లు, ధరలు మరియు చెల్లింపు',
     list: [
       [
@@ -316,12 +341,14 @@ const TE = (CONTACT) => [
     ],
   },
   {
+    id: 'delivery',
     h: 'డెలివరీ',
     p: [
       'మీరు ఎంచుకున్న ఫ్లాట్, బ్లాక్ మరియు కమ్యూనిటీకి, చెక్అవుట్‌లో మీరు ఎంచుకున్న డెలివరీ సమయంలోపు మేము డెలివరీ చేస్తాము. డెలివరీ సమయాలు మరియు సేవలందించే కమ్యూనిటీలు మారవచ్చు; మీరు ఆర్డర్ చేసే ముందు ప్రస్తుత ఎంపికలను యాప్‌లో చూపుతాము. ఆర్డర్ అందుకోవడానికి ఎవరైనా అందుబాటులో ఉండేలా చూసుకోండి, లేదా గేటు/సెక్యూరిటీ కోసం డెలివరీ సూచనలు ఇవ్వండి.',
     ],
   },
   {
+    id: 'refunds',
     h: 'రద్దు మరియు రీఫండ్',
     list: [
       [
@@ -343,30 +370,35 @@ const TE = (CONTACT) => [
     ],
   },
   {
+    id: 'responsibilities',
     h: 'మీ బాధ్యతలు',
     p: [
       'దయచేసి యాప్‌ను చట్టబద్ధంగా, సద్భావనతో ఉపయోగించండి: నిజమైన, చేరుకోగలిగే డెలివరీ చిరునామా ఇవ్వండి; తీసుకునే ఉద్దేశం లేని ఆర్డర్‌లు చేయవద్దు; మా డెలివరీ సిబ్బందితో మర్యాదగా వ్యవహరించండి. మోసపూరితంగా లేదా దుర్వినియోగంగా కనిపించే ఆర్డర్‌లను మేము తిరస్కరించవచ్చు లేదా రద్దు చేయవచ్చు, లేదా పదేపదే అలా చేసే ఖాతాను పరిమితం చేయవచ్చు.',
     ],
   },
   {
+    id: 'liability',
     h: 'మా బాధ్యత',
     p: [
       'తాజా, మంచి నాణ్యత గల సరుకును కొనుగోలు చేసి అందించడానికి మేము కృషి చేస్తాము, అయితే తాజా సరుకులో సహజంగానే తేడాలు ఉంటాయి. ఏ ఆర్డర్‌కైనా మా బాధ్యత ఆ ఆర్డర్‌కు మీరు చెల్లించిన మొత్తానికే పరిమితం. మా సహేతుక నియంత్రణకు మించిన సంఘటనల (తీవ్ర వాతావరణం, కమ్యూనిటీ ప్రవేశ ఆంక్షలు, తత్సంబంధిత) వల్ల కలిగే ఆలస్యాలకు లేదా వైఫల్యాలకు మేము బాధ్యులం కాము.',
     ],
   },
   {
+    id: 'changes',
     h: 'ఈ నిబంధనలలో మార్పులు',
     p: [
       'సేవ విస్తరించే కొద్దీ మేము ఈ నిబంధనలను నవీకరించవచ్చు. పైన ఉన్న "చివరిగా నవీకరించినది" తేదీని మారుస్తాము, మరియు ముఖ్యమైన మార్పులు అమలులోకి రాకముందే యాప్‌లో ప్రత్యేకంగా తెలియజేయబడతాయి.',
     ],
   },
   {
+    id: 'law',
     h: 'వర్తించే చట్టం మరియు పరిధి',
     p: [
       'ఈ నిబంధనలు భారతదేశ చట్టాలకు లోబడి ఉంటాయి. ఈ నిబంధనల నుండి లేదా యాప్ వినియోగం నుండి తలెత్తే ఏ వివాదమైనా తెలంగాణలోని హైదరాబాద్ న్యాయస్థానాల ప్రత్యేక పరిధికి లోబడి ఉంటుంది.',
     ],
   },
   {
+    id: 'grievance',
     h: 'ఫిర్యాదుల అధికారి',
     p: [
       'సమాచార సాంకేతిక చట్టం, 2000 మరియు వినియోగదారుల రక్షణ (ఈ-కామర్స్) నియమాలు, 2020 ప్రకారం, ఫిర్యాదుల అధికారి పేరు మరియు సంప్రదింపు వివరాలు క్రింద ఇవ్వబడ్డాయి. ఆర్డర్ గురించి ఫిర్యాదు, గోప్యతా సంబంధిత ఆందోళన, లేదా యాప్‌లోని ఏదైనా విషయంపై అభ్యంతరం ఉంటే, దయచేసి మాకు రాయండి — 48 గంటలలోపు స్వీకరించినట్టు తెలియజేసి, 30 రోజులలోపు పరిష్కరిస్తాము.',
@@ -378,6 +410,7 @@ const TE = (CONTACT) => [
     ],
   },
   {
+    id: 'contact',
     h: 'మమ్మల్ని సంప్రదించండి',
     p: [`ఈ నిబంధనల గురించి ప్రశ్నలా? ${CONTACT} కు ఇమెయిల్ చేయండి. Fooducia, హైదరాబాద్, భారతదేశం.`],
   },

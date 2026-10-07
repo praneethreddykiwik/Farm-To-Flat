@@ -920,9 +920,12 @@ export function Landing() {
                   <b>Legal</b>
                   <a href="/privacy">Privacy</a>
                   <a href="/terms">Terms</a>
+                  <a href="/refunds">Cancellation &amp; refunds</a>
+                  <a href="/shipping">Shipping &amp; delivery</a>
                 </div>
                 <div className="lp-foot__col">
                   <b>Get in touch</b>
+                  <a href="/contact">Contact us</a>
                   <a href="mailto:support@fooducia.in">support@fooducia.in</a>
                 </div>
               </div>

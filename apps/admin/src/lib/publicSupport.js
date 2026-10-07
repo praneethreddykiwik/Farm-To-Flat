@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 // Terms/Privacy pages always matches what the operator has configured, with no separate hardcoded
 // copy to fall out of sync.
 const BASE = `${import.meta.env.VITE_API_URL || ''}/api/v1`;
-const FALLBACK_EMAIL = 'support@farmtoflat.in';
+const FALLBACK_EMAIL = 'support@fooducia.in';
 
 /** The operator-configured support email, for the public (no-login) Terms/Privacy pages. */
 export function useSupportEmail() {

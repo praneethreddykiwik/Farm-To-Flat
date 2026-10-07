@@ -95,7 +95,7 @@ export function Settings() {
               type="email"
               value={f.email}
               onChange={set('email')}
-              placeholder="support@farmtoflat.in"
+              placeholder="support@fooducia.in"
               maxLength={120}
             />
             {emailBad && (
