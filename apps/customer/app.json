@@ -35,7 +35,9 @@
         "VIBRATE",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -81,8 +83,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Fooducia lets you attach a photo of anything wrong with your delivery.",
-          "cameraPermission": "Fooducia uses the camera so you can photograph anything wrong with your delivery."
+          "photosPermission": "Fooducia uses your photos so you can show us a vegetable or attach a photo to a complaint.",
+          "cameraPermission": "Fooducia uses the camera so you can photograph a vegetable to find it, or show us a problem with an order."
         }
       ]
     ],
