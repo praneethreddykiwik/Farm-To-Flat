@@ -10,7 +10,7 @@
  */
 // FIRST, before anything else is imported: Sentry patches http/express at require time, so
 // initialising it after those modules load means its auto-instrumentation never attaches.
-import { initSentry, flushSentry, reportError } from './lib/sentry.js';
+import { initSentry, flushSentry, reportError, sentryEnabled } from './lib/sentry.js';
 
 initSentry();
 
@@ -163,6 +163,10 @@ app.get('/health', (_req, res) => {
     // every deploy. Without them echoed here there is no way to tell a deployed fix from an
     // undeployed one from the outside — which is exactly how the API sat 56 commits behind `main`
     // for ten days while the fixes were being merged and verified against it.
+    // Whether error reporting is actually ON in THIS process. A DSN set in the dashboard but not
+    // yet picked up by the running process looks identical from outside, and "we have Sentry" is
+    // worth nothing if the process that would report never initialised it.
+    sentry: sentryEnabled,
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     ts: Date.now(),

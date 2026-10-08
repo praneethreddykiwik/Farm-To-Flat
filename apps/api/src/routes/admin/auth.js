@@ -109,6 +109,9 @@ const RULES = [
   // SUPER_ADMIN short-circuits roleMayAccess above, so an empty roles list means "super only".
   { when: (p) => p === '/orders/close-stale', roles: [] },
   { when: (p) => p.startsWith('/audit'), roles: [] },
+  // Deliberately throws. Harmless, but there is no reason for anyone but the owner to be able
+  // to put noise in the error tracker.
+  { when: (p) => p === '/sentry-test', roles: [] },
   { when: (p) => p.startsWith('/orders'), sections: ['orders', 'fulfilment'] },
   { when: (p, m) => p === '/procurement/settings' && m !== 'GET', roles: ADMIN_UP },
   { when: (p) => p === '/procurement/approve' || p === '/procurement/approvals', roles: ADMIN_UP },

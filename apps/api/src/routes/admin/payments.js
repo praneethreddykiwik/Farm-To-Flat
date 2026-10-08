@@ -78,3 +78,20 @@ adminPaymentsRouter.get(
     res.json({ exceptions: listReconcileExceptions(), lastPass: await reconcileOnce() });
   }),
 );
+
+/**
+ * GET /admin/sentry-test — throw on purpose.
+ *
+ * An error tracker nobody has watched fire is a hypothesis, the same as an untested backup. This
+ * exists so the whole path can be proved once: throw here, see it in Sentry within a minute,
+ * tagged service:api, with a stack trace that points at this file.
+ *
+ * Deliberately a GET so it can be triggered from a browser, and deliberately behind the admin
+ * gate so it is not a free way for anyone to fill the quota.
+ */
+adminPaymentsRouter.get(
+  '/sentry-test',
+  asyncHandler(async () => {
+    throw new Error('Sentry test error — thrown on purpose from /admin/sentry-test');
+  }),
+);
