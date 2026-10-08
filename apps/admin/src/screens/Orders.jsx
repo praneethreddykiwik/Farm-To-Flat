@@ -8,6 +8,7 @@ import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Pager, StatusBadge, TableSkeleton } from '../components/ui.jsx';
 import { IconDownload, IconSearch } from '../components/icons.jsx';
+import { CloseStaleDialog } from '../components/CloseStaleDialog.jsx';
 import { inr, shortDate, titleCase } from '../lib/format.js';
 
 /** Mirrors the server's fulfilment state machine (routes/admin/orders.js). */
@@ -54,6 +55,7 @@ export function Orders() {
   const qs = query.toString();
   const { data, loading, error, reload } = useResource(`/admin/orders${qs ? `?${qs}` : ''}`);
   const [openId, setOpenId] = useState(null);
+  const [closing, setClosing] = useState(false);
 
   const counts = data?.counts || {};
   const all = useMemo(() => data?.orders || [], [data]);
@@ -221,6 +223,16 @@ export function Orders() {
       </div>
 
       {openId && <OrderDrawer id={openId} onClose={() => setOpenId(null)} onChanged={reload} />}
+      {closing && (
+        <CloseStaleDialog
+          orders={orders}
+          onClose={() => setClosing(false)}
+          onDone={() => {
+            setClosing(false);
+            reload();
+          }}
+        />
+      )}
     </>
   );
 }
