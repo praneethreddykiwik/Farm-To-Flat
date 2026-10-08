@@ -51,6 +51,14 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      # NOT issued by Razorpay — you invent this string and type the SAME value into Razorpay
+      # Dashboard → Settings → Webhooks. It is the shared secret both sides sign with, which is how
+      # we know a callback really came from them. Until it is set, POST /api/v1/webhooks/razorpay
+      # refuses every call: safe, but it means a phone dying mid-checkout leaves the money with
+      # Razorpay and no order, and nothing checks the amount actually captured.
+      # `GET /admin/payments-status` reports whether the RUNNING process sees it.
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
       - key: ADMIN_TOKEN # any long random string; the admin site sends it as x-admin-token
         sync: false
       - key: CORS_ORIGIN # EVERY admin origin, comma-separated — www and bare, each domain
