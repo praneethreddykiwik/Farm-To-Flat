@@ -20,6 +20,7 @@ import {
   savePayment,
   restoreCartFromOrder,
   paymentByRazorpayPaymentId,
+  flushWallet,
 } from '../customer-store.js';
 import { refundOrderWallet } from '../lib/order-lifecycle.js';
 import { capturePayment } from '../lib/capture.js';
@@ -196,6 +197,9 @@ paymentsRouter.post(
       amountPaise: gateway?.amount,
       currency: gateway?.currency,
     });
+    // Do not tell the customer their money arrived until the row that proves it is on disk.
+    // Everything else here is write-behind on purpose; a wallet credit is not everything else.
+    await flushWallet(cid);
     if (r.outcome === 'mismatch')
       throw fail(409, 'AMOUNT_MISMATCH', 'The amount paid does not match this order.', {
         expectedPaise: r.expectedPaise,

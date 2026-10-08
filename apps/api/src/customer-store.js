@@ -15,7 +15,7 @@ import { id, shortId } from './lib/ids.js';
 import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
-import { persist } from './persistence.js';
+import { persist, drainChain } from './persistence.js';
 
 const DEV_OTP = '123456';
 
@@ -815,14 +815,29 @@ export const cartCount = (cid) => cart(cid).items.length;
 
 // ── wallet ────────────────────────────────────────────────────────────────────
 export const getWallet = (cid) => wallet(cid);
-export function ledgerPush(cid, direction, amount, source, ref, note) {
+/**
+ * Move money in or out of a wallet, and record why.
+ *
+ * Deliberately SYNCHRONOUS. The checkout path reads the balance, debits it and clears the cart
+ * with no `await` in between, and that is the only thing making the operation atomic on a
+ * single-threaded event loop. Making this async for durability would open a window between the
+ * read and the write where a second request sees a stale balance — trading one correctness
+ * property for another. So the in-memory mutation stays synchronous, and the durable write is
+ * QUEUED (ordered per customer) for the caller to await before it responds. See flushWallet.
+ *
+ * @param {string} cid
+ * @param {'CREDIT'|'DEBIT'} direction
+ * @param {number} amount positive integer paise; the direction carries the sign
+ * @param {string} source TOPUP | ORDER | REFUND
+ * @param {string} [ref] order number or gateway payment id
+ * @param {string} [note]
+ * @param {{ actor?: string, idempotencyKey?: string }} [opts]
+ */
+export function ledgerPush(cid, direction, amount, source, ref, note, opts = {}) {
   const w = wallet(cid);
-  // The invariants live HERE, not in the callers.
-  //
-  // Today exactly one call site debits, and it clamps with Math.min(balance, payable) — so the
-  // balance cannot go negative. But that is a property of one caller, not of the ledger, and the
-  // next person to add a goodwill-credit or a correction endpoint will not know to re-derive it.
-  // A ledger that cannot refuse an impossible entry is not a ledger.
+  // The invariants live HERE, not in the callers. Today exactly one call site debits and it
+  // clamps with Math.min — but that is a property of that caller, not of the ledger, and the next
+  // person to add a goodwill-credit endpoint will not know to re-derive it.
   if (!Number.isInteger(amount) || amount < 0)
     throw new Error(`ledgerPush: amount must be a non-negative integer of paise, got ${amount}`);
   if (direction !== 'CREDIT' && direction !== 'DEBIT')
@@ -831,20 +846,48 @@ export function ledgerPush(cid, direction, amount, source, ref, note) {
     throw new Error(
       `ledgerPush: refusing to overdraw ${cid} — balance ${w.balancePaise}, debit ${amount}`,
     );
+
   const after = direction === 'CREDIT' ? w.balancePaise + amount : w.balancePaise - amount;
   w.balancePaise = after;
-  w.ledger.unshift({
+  const entry = {
     id: `led_${shortId(10)}`,
+    customerId: cid,
+    direction,
+    amountPaise: amount,
+    balanceAfterPaise: after,
+    source,
+    reference: ref || null,
+    note: note || null,
+    actor: opts.actor || 'system',
+    // Without a caller-supplied key, derive one that is stable for THIS movement: the same
+    // refund attempted twice produces the same key and the unique index refuses the second.
+    idempotencyKey:
+      opts.idempotencyKey || `${cid}:${source}:${direction}:${ref || 'none'}:${amount}`,
+    createdAt: new Date().toISOString(),
+  };
+  // In-memory history keeps the display shape the API already serves.
+  w.ledger.unshift({
+    id: entry.id,
     direction,
     amountPaise: String(amount),
     balanceAfterPaise: String(after),
     source,
-    reference: ref,
-    note,
-    createdAt: new Date().toISOString(),
+    reference: entry.reference,
+    note: entry.note,
+    createdAt: entry.createdAt,
   });
-  persist.walletUpdate(cid, w.balancePaise, w.ledger);
+  persist.ledgerAppend({ ...entry, createdAt: new Date(entry.createdAt) }, cid, after);
+  return entry;
 }
+
+/**
+ * Wait for this customer's queued wallet writes to land.
+ *
+ * Call before responding on any path that moved money. Persistence is write-behind everywhere
+ * else because losing a cached read costs nothing; losing a wallet credit costs a customer their
+ * money, and "the API said CAPTURED" should not be able to outlive the row that proves it.
+ */
+export const flushWallet = (cid) => drainChain(`customer:${cid}`);
 
 // ── payments (intents; the mock's /payments/verify doubles as the webhook) ──────
 export function createPayment(cid, { purpose, orderId, amountPaise }) {
@@ -917,4 +960,37 @@ export const getDevices = (cid) => [...(cs.devices.get(cid) || [])];
 /** test helper */
 export function _reset() {
   for (const k of Object.keys(cs)) cs[k] = cs[k] instanceof Map ? new Map() : cs[k];
+}
+
+/**
+ * Does every cached balance still equal the sum of its ledger entries?
+ *
+ * The balance column is a cache; the entries are the record. Nothing should be able to move one
+ * without the other — they are written in a single transaction — but "should" is why this check
+ * exists. A drift means money was moved by something that did not go through ledgerPush, and the
+ * consequence is specific and bad: refund idempotency reads the ledger, so a balance that is
+ * right while the entries are missing makes `refundedForOrder` see zero and refund a cancelled
+ * order all over again.
+ *
+ * Reported, never auto-corrected. Which side is right is a judgement about real money.
+ *
+ * @param {Array<{id:string, walletBalancePaise:number}>} customers
+ * @param {Array<{customerId:string, direction:string, amountPaise:number}>} entries
+ */
+export function checkWalletIntegrity(customers, entries) {
+  const summed = new Map();
+  for (const e of entries) {
+    const delta = e.direction === 'CREDIT' ? e.amountPaise : -e.amountPaise;
+    summed.set(e.customerId, (summed.get(e.customerId) || 0) + delta);
+  }
+  const drifted = [];
+  for (const c of customers) {
+    const cached = c.walletBalancePaise ?? 0;
+    const fromLedger = summed.get(c.id) || 0;
+    // A customer with a balance but no entries is the pre-backfill state, not drift.
+    if (!summed.has(c.id)) continue;
+    if (cached !== fromLedger)
+      drifted.push({ customerId: c.id, cached, fromLedger, diff: cached - fromLedger });
+  }
+  return drifted;
 }

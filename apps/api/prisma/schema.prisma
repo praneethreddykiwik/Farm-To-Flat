@@ -157,7 +157,11 @@ model Customer {
   name               String?
   email              String?
   walletBalancePaise Int                @default(0)
-  walletLedger       Json               @default("[]") // display history (mirrors in-memory ledger)
+  /// CACHE, not the record. The authoritative history is the WalletLedger table below; this
+  /// column is a derived balance kept for fast reads, and boot asserts it equals the sum of the
+  /// entries. A mismatch means something wrote money without going through the ledger.
+  walletLedger       Json               @default("[]") // legacy blob; retained until backfill is verified
+  walletEntries      WalletLedger[]
   createdAt          DateTime           @default(now())
   addresses          Address[]
   payments           Payment[]
@@ -359,4 +363,43 @@ model AdminAction {
 
   @@index([at])
   @@index([target])
+}
+
+/// Every movement of money in or out of a customer's wallet. Append-only.
+///
+/// This replaces a mutable balance plus a JSON blob rewritten whole on every transaction. That
+/// shape had three problems: append-only was a convention rather than something the database
+/// enforced, each top-up rewrote the entire history (O(n) writes forever), and a single bad write
+/// could replace all of it. A ledger you can overwrite is not a ledger.
+///
+/// The balance is DERIVED from these rows. `balanceAfterPaise` is recorded on each entry so the
+/// running total is auditable without replaying everything, and boot checks the two agree.
+///
+/// Nothing in the codebase updates or deletes a row here. A correction is a new, opposite entry —
+/// which is also how you keep the mistake visible instead of hiding it.
+model WalletLedger {
+  id                String   @id
+  customer          Customer @relation(fields: [customerId], references: [id])
+  customerId        String
+  /// CREDIT or DEBIT. Always a positive amount; the direction carries the sign.
+  direction         String
+  amountPaise       Int
+  /// The balance immediately after this entry. Lets a statement be rendered, and lets a drift
+  /// check find the exact entry where the ledger and the cached balance diverged.
+  balanceAfterPaise Int
+  /// TOPUP | ORDER | REFUND — why the money moved.
+  source            String
+  /// The order number or gateway payment id this relates to. How a refund proves it already ran.
+  reference         String?
+  note              String?
+  /// Who or what caused it: 'customer', 'webhook', 'reconcile', or a staff email. There was no
+  /// way to answer "who changed this balance" before.
+  actor             String   @default("system")
+  /// The same movement must never be applied twice. A retried request, a duplicated webhook and a
+  /// double-tapped button all arrive with the same key, and the unique index refuses the second.
+  idempotencyKey    String   @unique
+  createdAt         DateTime @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([reference])
 }

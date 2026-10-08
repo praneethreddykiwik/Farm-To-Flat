@@ -38,6 +38,7 @@ import {
   redeemCoupon,
   releaseCoupon,
   validateCoupon,
+  flushWallet,
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
@@ -233,6 +234,10 @@ customerOrdersRouter.post(
         description: `Order ${order.orderNumber}`,
       };
     }
+    // The wallet DEBIT for this order must be on disk before the order is acknowledged. The
+    // failure it prevents: order row lands, wallet write does not, process restarts — and the
+    // customer has a deliverable order they were never charged for.
+    if (walletApplied > 0) await flushWallet(cid);
     const body = {
       order: linkOrderIssuePhotos(orderCustomer(order), baseUrlOf(req)),
       paymentIntent,

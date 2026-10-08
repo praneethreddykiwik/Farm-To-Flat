@@ -389,6 +389,20 @@ export async function recheckWindowsColumn() {
  */
 const chains = new Map();
 /**
+ * Wait for ONE record's queued writes to land.
+ *
+ * `serialize` already orders writes per key, so awaiting the current tail of a chain means
+ * everything queued for that record before this call has completed. Used on the money paths,
+ * where responding "captured" before the row exists is the difference between a wallet credit
+ * surviving a restart and vanishing with it.
+ */
+export async function drainChain(key) {
+  const tail = chains.get(key);
+  if (!tail) return;
+  await tail.catch(() => {}); // the caller cares that it finished, not that it succeeded — wt logs
+}
+
+/**
  * Wait for the write-behind queue to empty.
  *
  * Writes are deliberately not awaited by their callers — that is what makes the API fast and what
@@ -506,6 +520,33 @@ export const persist = {
     (c) => c.id,
   ),
   // Same key as customerUpsert on purpose: both write the customer row, so they must not race.
+  /**
+   * Append one immutable ledger row, and refresh the cached balance on the customer.
+   *
+   * Both in ONE transaction: a balance that disagrees with its entries is the exact corruption
+   * this table exists to prevent, and two separate writes can always land one-and-not-the-other.
+   *
+   * The unique index on idempotencyKey is the concurrency guard. A duplicate is not an error
+   * worth surfacing — it means the movement already happened — so P2002 resolves quietly.
+   */
+  ledgerAppend: wt(
+    'customer.ledger',
+    async (entry, cid, balancePaise) => {
+      try {
+        await prisma.$transaction([
+          prisma.walletLedger.create({ data: entry }),
+          prisma.customer.update({
+            where: { id: cid },
+            data: { walletBalancePaise: balancePaise },
+          }),
+        ]);
+      } catch (e) {
+        if (e?.code === 'P2002') return; // already applied; the index did its job
+        throw e;
+      }
+    },
+    (_entry, cid) => cid,
+  ),
   walletUpdate: wt(
     'customer.wallet',
     (cid, balancePaise, ledger) =>
