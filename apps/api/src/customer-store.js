@@ -817,6 +817,20 @@ export const cartCount = (cid) => cart(cid).items.length;
 export const getWallet = (cid) => wallet(cid);
 export function ledgerPush(cid, direction, amount, source, ref, note) {
   const w = wallet(cid);
+  // The invariants live HERE, not in the callers.
+  //
+  // Today exactly one call site debits, and it clamps with Math.min(balance, payable) — so the
+  // balance cannot go negative. But that is a property of one caller, not of the ledger, and the
+  // next person to add a goodwill-credit or a correction endpoint will not know to re-derive it.
+  // A ledger that cannot refuse an impossible entry is not a ledger.
+  if (!Number.isInteger(amount) || amount < 0)
+    throw new Error(`ledgerPush: amount must be a non-negative integer of paise, got ${amount}`);
+  if (direction !== 'CREDIT' && direction !== 'DEBIT')
+    throw new Error(`ledgerPush: unknown direction ${direction}`);
+  if (direction === 'DEBIT' && amount > w.balancePaise)
+    throw new Error(
+      `ledgerPush: refusing to overdraw ${cid} — balance ${w.balancePaise}, debit ${amount}`,
+    );
   const after = direction === 'CREDIT' ? w.balancePaise + amount : w.balancePaise - amount;
   w.balancePaise = after;
   w.ledger.unshift({
