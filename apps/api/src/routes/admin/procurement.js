@@ -51,13 +51,16 @@ const DEFAULT_STATUSES = ['CONFIRMED', 'PACKING'];
 
 /** shared "already bought" checklist: `${dateKey}|${productId}` -> true. Resets on restart. */
 const procured = new Map();
+// The 'already bought' checklist is keyed per run, and 'all' is its own bucket.
 const dateKeyOf = (query) => query.date || 'all';
 
 function collect(query) {
   const statuses = query.status ? String(query.status).split(',') : DEFAULT_STATUSES;
   const orders = listOrders().filter((o) => {
     if (!statuses.includes(o.status)) return false;
-    if (query.date && o.deliveryDate !== query.date) return false;
+    // 'all' is the explicit opt-in to every date at once. See resolveDate below for why that has
+    // to be asked for rather than inherited.
+    if (query.date && query.date !== 'all' && o.deliveryDate !== query.date) return false;
     if (query.window && o.window !== query.window) return false;
     if (query.communityId && o.address?.communityId !== query.communityId) return false;
     return true;
@@ -113,6 +116,27 @@ function toLine(a, { override, dateKey }) {
   };
 }
 
+/**
+ * Which delivery date this buy list is for.
+ *
+ * A buy list is per RUN. Defaulting to every date at once summed orders from every delivery day
+ * that still had an open order — on live data that was 28 orders across 13 dates going back three
+ * weeks, against 3 orders for the actual next run. An operator who trusted the default would have
+ * bought roughly nine times the vegetables needed, and the number looked perfectly plausible.
+ *
+ * So the default is the next run with something to buy for: the earliest delivery date that has
+ * not passed. Every date at once is still available, but it has to be asked for by name.
+ *
+ * @param {any} query
+ * @param {string[]} available every delivery date with open orders, ascending
+ * @param {string} [today] injectable so the test does not depend on the clock
+ */
+export function resolveDate(query, available, today = todayISO()) {
+  if (query.date === 'all') return 'all';
+  if (query.date) return query.date;
+  return available.find((d) => d >= today) || available[available.length - 1] || today;
+}
+
 /** run-level buffer override, 0..100, or null */
 function overrideOf(query) {
   if (query.bufferPct == null || query.bufferPct === '') return null;
@@ -123,9 +147,17 @@ function overrideOf(query) {
 adminProcurementRouter.get(
   '/procurement',
   asyncHandler(async (req, res) => {
-    const { orders, agg, statuses } = collect(req.query);
+    // Every delivery date that has an open order, independent of the filters — both to pick the
+    // default from and to populate the date chips, which otherwise collapse to the one date already
+    // selected (the same trap the communities/windows comment below describes).
+    const everyDate = [
+      ...new Set(collect({ ...req.query, date: 'all' }).orders.map((o) => o.deliveryDate)),
+    ].sort();
+    const date = resolveDate(req.query, everyDate);
+    const query = { ...req.query, date };
+    const { orders, agg, statuses } = collect(query);
     const categories = listCategories();
-    const dateKey = dateKeyOf(req.query);
+    const dateKey = dateKeyOf(query);
     const override = overrideOf(req.query);
     const lines = [...agg.values()].map((a) => toLine(a, { override, dateKey }));
 
@@ -156,7 +188,7 @@ adminProcurementRouter.get(
       .sort((a, b) => Number(b.procureCostPaise) - Number(a.procureCostPaise));
 
     const totalCost = lines.reduce((s, l) => s + l._procureCost, 0);
-    const dates = [...new Set(orders.map((o) => o.deliveryDate))].sort();
+    const dates = everyDate;
     // The filter options come from the CONFIGURATION, not from the rows the current filters left
     // behind. Deriving them from the rows meant the lists shrank as you used them: a community with
     // no open orders was simply absent, and — worse — picking Evening rebuilt the slot list from
@@ -164,10 +196,10 @@ adminProcurementRouter.get(
     // `allOrders` below only ever neutralised `communityId`, so `date` and `window` still narrowed
     // both lists. Options are now fixed; the counts beside them are what varies.
     const { orders: allOrders } = collect({
-      ...req.query,
+      ...query,
       communityId: undefined,
       window: undefined,
-      date: undefined,
+      date: 'all',
     });
     const covered = new Set(allOrders.map((o) => o.address?.communityId).filter(Boolean));
     const all = listCommunities();
@@ -194,7 +226,7 @@ adminProcurementRouter.get(
       generatedAt: new Date().toISOString(),
       filters: {
         statuses,
-        date: req.query.date || null,
+        date: date === 'all' ? 'all' : date,
         window: req.query.window || null,
         communityId: req.query.communityId || null,
         bufferOverride: override,
@@ -334,10 +366,14 @@ adminProcurementRouter.get(
   '/procurement/export.csv',
   asyncHandler(async (req, res) => {
     const lang = LANGS.includes(String(req.query.lang)) ? String(req.query.lang) : 'en';
-    const { agg } = collect(req.query);
+    const everyDate = [
+      ...new Set(collect({ ...req.query, date: 'all' }).orders.map((o) => o.deliveryDate)),
+    ].sort();
+    const query = { ...req.query, date: resolveDate(req.query, everyDate) };
+    const { agg } = collect(query);
     const categories = listCategories();
     const catEnglish = (id) => categories.find((c) => c.id === id)?.name || id;
-    const dateKey = dateKeyOf(req.query);
+    const dateKey = dateKeyOf(query);
     const override = overrideOf(req.query);
     const lines = [...agg.values()]
       .map((a) => toLine(a, { override, dateKey }))
@@ -384,10 +420,14 @@ adminProcurementRouter.get(
   '/procurement/export.xlsx',
   asyncHandler(async (req, res) => {
     const lang = LANGS.includes(String(req.query.lang)) ? String(req.query.lang) : 'en';
-    const { agg, orders, statuses } = collect(req.query);
+    const everyDate = [
+      ...new Set(collect({ ...req.query, date: 'all' }).orders.map((o) => o.deliveryDate)),
+    ].sort();
+    const query = { ...req.query, date: resolveDate(req.query, everyDate) };
+    const { agg, orders, statuses } = collect(query);
     const categories = listCategories();
     const catEnglish = (id) => categories.find((c) => c.id === id)?.name || id;
-    const dateKey = dateKeyOf(req.query);
+    const dateKey = dateKeyOf(query);
     const override = overrideOf(req.query);
     const lines = [...agg.values()]
       .map((a) => toLine(a, { override, dateKey }))

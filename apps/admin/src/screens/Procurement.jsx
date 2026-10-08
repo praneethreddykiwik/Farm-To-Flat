@@ -23,7 +23,9 @@ const LANG_OPTS = [
 ];
 
 export function Procurement() {
-  const [date, setDate] = useState('all');
+  // '' means "whatever the next run is" — the server resolves it and tells us in filters.date.
+  // Defaulting to 'all' here is what summed three weeks of orders into one buy list.
+  const [date, setDate] = useState('');
   const [communityId, setCommunityId] = useState('all');
   const [win, setWin] = useState('all');
   const [override, setOverride] = useState(''); // run-level buffer override %
@@ -31,12 +33,15 @@ export function Procurement() {
   const [langMenu, setLangMenu] = useState(false);
 
   const params = new URLSearchParams();
-  if (date !== 'all') params.set('date', date);
+  if (date) params.set('date', date);
   if (communityId !== 'all') params.set('communityId', communityId);
   if (win !== 'all') params.set('window', win);
   if (override !== '' && Number(override) >= 0) params.set('bufferPct', override);
   const qs = params.toString() ? `?${params.toString()}` : '';
   const { data, loading, error, reload } = useResource(`/admin/procurement${qs}`);
+  // The server resolves an empty date to the next run and reports it back, so the chips can show
+  // which day the list on screen is for instead of leaving nothing selected.
+  const activeDate = data?.filters?.date || date;
 
   // Cost-buffer approval — settings + the flagged buys awaiting a decision.
   const { data: settingsData, reload: reloadSettings } = useResource('/admin/procurement/settings');
@@ -144,7 +149,7 @@ export function Procurement() {
     try {
       await api.post('/admin/procurement/mark', {
         productId,
-        date: date !== 'all' ? date : undefined,
+        date: activeDate && activeDate !== 'all' ? activeDate : undefined,
         procured: next,
       });
       reload();
@@ -168,8 +173,8 @@ export function Procurement() {
   function listAsText() {
     if (!data) return '';
     const dayLabel =
-      date !== 'all'
-        ? new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
+      activeDate && activeDate !== 'all'
+        ? new Date(`${activeDate}T00:00:00`).toLocaleDateString('en-IN', {
             weekday: 'short',
             day: 'numeric',
             month: 'short',
@@ -221,7 +226,8 @@ export function Procurement() {
     setLangMenu(false);
     // Name the file after the run it is FOR, not the day it was pressed — a list forwarded to the
     // market must not be mistakable for another day's or another community's.
-    const day = date !== 'all' ? date : new Date().toISOString().slice(0, 10);
+    const day =
+      activeDate && activeDate !== 'all' ? activeDate : new Date().toISOString().slice(0, 10);
     const scope = communityId !== 'all' ? `-${communityId.replace(/[^a-z0-9]/gi, '')}` : '';
     try {
       await api.download(
@@ -454,7 +460,7 @@ export function Procurement() {
           Delivery day
         </span>
         <button
-          className={`chip${date === 'all' ? ' is-active' : ''}`}
+          className={`chip${activeDate === 'all' ? ' is-active' : ''}`}
           onClick={() => setDate('all')}
         >
           All open
@@ -462,7 +468,7 @@ export function Procurement() {
         {dates.map((d) => (
           <button
             key={d}
-            className={`chip${date === d ? ' is-active' : ''}`}
+            className={`chip${activeDate === d ? ' is-active' : ''}`}
             onClick={() => setDate(d)}
           >
             {shortDate(d)}

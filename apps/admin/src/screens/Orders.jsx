@@ -37,13 +37,19 @@ const FILTERS = [
 // on yet (it keeps its real status until then). Delivered/cancelled orders can't be "requested".
 const isCancelRequest = (o) => o.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(o.status);
 
+// An order still open after its delivery day. The server derives this; the board's job is to make
+// them findable, because nothing retires them on its own and they were being counted into the
+// procurement buy list.
+const isStale = (o) => o.stale === true;
+
 export function Orders() {
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
   const query = new URLSearchParams();
   // "Cancel requests" is a client-side view over ALL orders (the server filters by status only).
   const cancelView = status === 'CANCEL_REQUESTED';
-  if (status !== 'all' && !cancelView) query.set('status', status);
+  const staleView = status === 'STALE';
+  if (status !== 'all' && !cancelView && !staleView) query.set('status', status);
   if (q.trim()) query.set('q', q.trim());
   const qs = query.toString();
   const { data, loading, error, reload } = useResource(`/admin/orders${qs ? `?${qs}` : ''}`);
@@ -51,9 +57,13 @@ export function Orders() {
 
   const counts = data?.counts || {};
   const all = useMemo(() => data?.orders || [], [data]);
-  const orders = useMemo(() => (cancelView ? all.filter(isCancelRequest) : all), [all, cancelView]);
+  const orders = useMemo(
+    () => (cancelView ? all.filter(isCancelRequest) : staleView ? all.filter(isStale) : all),
+    [all, cancelView, staleView],
+  );
   // Count of open cancellation requests — known whenever we're looking at the unfiltered list.
   const cancelCount = status === 'all' || cancelView ? all.filter(isCancelRequest).length : null;
+  const staleCount = status === 'all' || staleView ? all.filter(isStale).length : null;
   const pager = usePager(orders, 25, `${status}|${q}`);
 
   async function download(type) {
@@ -121,6 +131,15 @@ export function Orders() {
         >
           Cancel requests
           {cancelCount != null && <span className="chip__count">{cancelCount}</span>}
+        </button>
+        <button
+          className={`chip${staleView ? ' is-active' : ''}`}
+          onClick={() => setStatus('STALE')}
+          title="Still open after their delivery day — these were being counted into the buy list"
+          style={staleCount ? { borderColor: 'var(--amber)', color: 'var(--amber)' } : undefined}
+        >
+          Past delivery day
+          {staleCount != null && <span className="chip__count">{staleCount}</span>}
         </button>
       </div>
 

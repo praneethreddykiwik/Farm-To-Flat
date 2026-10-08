@@ -289,8 +289,23 @@ export const codDuePaise = (o) =>
     : 0;
 
 /** Operator order — used by the admin order list + fulfilment screens. */
-export function orderAdmin(o) {
+/**
+ * An order whose delivery date has passed while it was still open.
+ *
+ * These accumulate silently: nothing in the lifecycle retires a CONFIRMED or PACKING order the way
+ * expirePendingOrders retires an abandoned checkout. On live data there were PACKING orders three
+ * weeks old, two of them carrying cancellation requests nobody had answered.
+ *
+ * It is DERIVED, never stored, and nothing acts on it automatically. Closing one of these means
+ * deciding whether a real customer was delivered to or owed a refund, and that is a judgement with
+ * money attached — the board's job is to stop them being invisible, not to guess.
+ */
+export const orderIsStale = (o, today) =>
+  ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status) && o.deliveryDate < today;
+
+export function orderAdmin(o, today = new Date().toISOString().slice(0, 10)) {
   return {
+    stale: orderIsStale(o, today),
     id: o.id,
     orderNumber: o.orderNumber,
     status: o.status,
