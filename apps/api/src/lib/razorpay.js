@@ -122,6 +122,32 @@ export async function fetchRazorpayPayment(paymentId) {
   }
 }
 
+/**
+ * Every payment attempt against one of our gateway orders.
+ *
+ * This is the lookup that makes reconciliation actually work. Fetching by payment id only helps
+ * when a leg already told us that id — but the case reconciliation exists for is the one where
+ * nobody told us anything: the app died at the checkout sheet, the webhook was unset, the process
+ * restarted. All we are left holding is our own order id. Razorpay can go the other way.
+ *
+ * @param {string} razorpayOrderId our gateway order id (order_...)
+ * @returns {Promise<any[]|null>} attempts, newest first, or null if unreachable
+ */
+export async function fetchPaymentsForOrder(razorpayOrderId) {
+  if (!razorpayEnabled || !razorpayOrderId) return null;
+  try {
+    const r = await fetch(
+      `https://api.razorpay.com/v1/orders/${encodeURIComponent(razorpayOrderId)}/payments`,
+      { headers: { authorization: AUTH }, signal: AbortSignal.timeout(8000) },
+    );
+    if (!r.ok) return null;
+    const j = await r.json();
+    return Array.isArray(j.items) ? j.items : [];
+  } catch {
+    return null;
+  }
+}
+
 /** Verify a checkout result: HMAC_SHA256(`${orderId}|${paymentId}`, keySecret) === signature. */
 export function verifyRazorpaySignature({ orderId, paymentId, signature }) {
   if (!KEY_SECRET || !signature) return false;

@@ -17,10 +17,10 @@
  * resolved.
  */
 import { capturePayment } from './capture.js';
-import { fetchRazorpayPayment, razorpayEnabled } from './razorpay.js';
+import { fetchPaymentsForOrder, razorpayEnabled } from './razorpay.js';
 import { IS_TEST } from './env.js';
 import { listOrders } from '../store.js';
-import { getPayment, paymentForOrder } from '../customer-store.js';
+import { paymentForOrder } from '../customer-store.js';
 
 /** Orders younger than this are still legitimately in flight; leave them alone. */
 const MIN_AGE_MS = 10 * 60 * 1000;
@@ -58,22 +58,22 @@ export async function reconcileOnce({ now = Date.now() } = {}) {
     if (!intent || !intent.razorpayOrderId) continue;
     if (intent.status === 'CAPTURED') continue;
 
-    // We only know the gateway's payment id if a leg already told us. Without one there is nothing
-    // to fetch by id — that is the case the settlement report covers, and it needs a person.
-    if (!intent.razorpayPaymentId) continue;
+    // Ask from OUR order id, not from a payment id we may never have been told.
+    //
+    // This is the whole point of the pass. The case worth recovering is the one where nothing ever
+    // reported back — the app was killed at the checkout sheet, the webhook secret was unset, the
+    // process restarted mid-capture. In every one of those we hold our gateway order id and
+    // nothing else. Razorpay can list the attempts against it.
+    const attempts = await fetchPaymentsForOrder(intent.razorpayOrderId);
+    if (!attempts) continue; // unreachable now; the next pass will try again
+    if (!attempts.length) continue; // genuinely never paid — correct as it stands
 
-    const gw = await fetchRazorpayPayment(intent.razorpayPaymentId);
-    if (!gw) continue; // unreachable now; the next pass will try again
-
-    if (gw.order_id && gw.order_id !== intent.razorpayOrderId) {
-      flag('payment-belongs-elsewhere', {
-        orderNumber: o.orderNumber,
-        ourOrder: intent.razorpayOrderId,
-        gatewayOrder: gw.order_id,
-      });
-      flagged += 1;
-      continue;
-    }
+    // A gateway order can hold several attempts (a failed card, then a successful UPI). Only a
+    // captured one is money we actually have.
+    const gw =
+      attempts.find((a) => a.status === 'captured') ||
+      attempts.find((a) => a.status === 'authorized');
+    if (!gw) continue;
 
     if (gw.status === 'captured') {
       const r = await capturePayment({

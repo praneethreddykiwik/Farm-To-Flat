@@ -5,7 +5,15 @@ services:
   - type: web
     name: f2f-api
     runtime: node
-    plan: free # cold-starts after ~15 min idle; fine for testing. Upgrade to Starter for always-on.
+    # Starter, not free, and the reason is money rather than speed. The free plan spins down after
+    # ~15 minutes idle, and a spun-down instance does not run its timers — so the 10-minute
+    # reconciliation pass (lib/reconcile.js), which is the only thing that notices when a payment
+    # and an order disagree, simply would not run during exactly the quiet periods where a stuck
+    # order sits unnoticed. The expiry sweeper has the same problem in reverse.
+    #
+    # NOTE: changing this line does not change the plan on its own — Render applies it on a
+    # blueprint sync, and the billing change has to be accepted in the dashboard.
+    plan: starter
     rootDir: . # build from the repo root (pnpm workspace)
     # Deploy from `main`. The service was originally connected to `platform/api-and-admin`, which
     # stopped receiving API work on 2026-09-21 while `main` went 56 commits ahead — so fixes were
