@@ -86,6 +86,13 @@
           "photosPermission": "Fooducia uses your photos so you can show us a vegetable or attach a photo to a complaint.",
           "cameraPermission": "Fooducia uses the camera so you can photograph a vegetable to find it, or show us a problem with an order."
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "SENTRY_ORG_SLUG",
+          "project": "SENTRY_PROJECT_SLUG"
+        }
       ]
     ],
     "experiments": {

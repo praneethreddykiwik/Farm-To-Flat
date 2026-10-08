@@ -91,6 +91,10 @@ services:
       # At least ONE of these is required for the "Build my plan" feature (else the route returns 501).
       - key: GROQ_API_KEY
         sync: false
+      # Error tracking. Unset means Sentry never initialises and nothing is sent — which is the
+      # correct behaviour for a fork or a local run, not a degraded one.
+      - key: SENTRY_DSN
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       # ── login codes over WhatsApp (MSG91) ──

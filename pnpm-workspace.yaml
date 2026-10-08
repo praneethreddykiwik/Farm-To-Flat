@@ -5,6 +5,7 @@ nodeLinker: hoisted
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
+  '@sentry/cli': true
   esbuild: true
   prisma: true
   unrs-resolver: false

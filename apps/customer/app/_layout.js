@@ -1,4 +1,6 @@
 import '../global.css';
+import { initSentry } from '../src/lib/sentry';
+
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -40,6 +42,10 @@ import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
 import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
+
+// ESM imports are hoisted, so this still runs before any component renders — which is the point:
+// a crash during the first render is exactly the one worth catching.
+initSentry();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SplashScreen.setOptions?.({ duration: 320, fade: true });

@@ -29,7 +29,8 @@
       "msgpackr-extract",
       "@prisma/client",
       "@prisma/engines",
-      "prisma"
+      "prisma",
+      "@sentry/cli"
     ]
   }
 }

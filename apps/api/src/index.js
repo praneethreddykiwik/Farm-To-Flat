@@ -8,6 +8,12 @@
  * app at it with EXPO_PUBLIC_USE_MOCKS=0 and EXPO_PUBLIC_API_URL. Prisma/Postgres + Adnan's real
  * auth/payments swap in behind store.js / customer-store.js without route changes.
  */
+// FIRST, before anything else is imported: Sentry patches http/express at require time, so
+// initialising it after those modules load means its auto-instrumentation never attaches.
+import { initSentry, flushSentry, reportError } from './lib/sentry.js';
+
+initSentry();
+
 import './load-env.js'; // load apps/api/.env before anything reads process.env
 import cors from 'cors';
 import express from 'express';
@@ -251,6 +257,10 @@ app.use((err, req, res, _next) => {
       .status(400)
       .json({ error: { code: 'BAD_JSON', message: 'Request body is not valid JSON.' } });
   req.log?.error?.(err);
+  // Everything above is an expected outcome with a contract. Reaching here is not: it is a bug we
+  // did not know about, which is exactly and only what is worth reporting. Tagged with the route
+  // rather than the URL, because a URL carries ids and a route does not.
+  reportError(err, { route: `${req.method} ${req.route?.path || req.path}` });
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Something went wrong' } });
 });
 
@@ -259,13 +269,17 @@ app.use((err, req, res, _next) => {
 // API down and dropped every in-memory session. Log loudly, keep serving; exit only on a genuinely
 // unknown state (uncaught exception), where the host restarts us.
 process.on('unhandledRejection', (reason) => {
+  reportError(reason, { kind: 'unhandledRejection' });
   // eslint-disable-next-line no-console
   console.error('[fatal-avoided] unhandled rejection:', reason?.stack || reason);
 });
 process.on('uncaughtException', (err) => {
+  reportError(err, { kind: 'uncaughtException' });
   // eslint-disable-next-line no-console
   console.error('[fatal] uncaught exception, exiting for a clean restart:', err?.stack || err);
-  setTimeout(() => process.exit(1), 100).unref();
+  // Give the report a moment to leave. This is the one crash you most want to see, and exiting
+  // 100ms later would usually lose it.
+  flushSentry(1500).finally(() => setTimeout(() => process.exit(1), 100).unref());
 });
 
 const PORT = Number(process.env.PORT || 4000);
@@ -322,6 +336,7 @@ async function boot() {
     markShuttingDown();
     server.close(async () => {
       try {
+        await flushSentry(2000);
         await drainPersistence(4000);
       } catch (e) {
         // eslint-disable-next-line no-console

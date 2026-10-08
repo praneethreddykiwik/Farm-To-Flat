@@ -9,6 +9,7 @@
     "@f2f/tokens": "workspace:*",
     "@gorhom/bottom-sheet": "5.2.14",
     "@reduxjs/toolkit": "2.12.0",
+    "@sentry/react-native": "~7.11.0",
     "@shopify/flash-list": "2.0.2",
     "expo": "57.0.22",
     "expo-blur": "57.0.3",
