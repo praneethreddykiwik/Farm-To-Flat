@@ -25,7 +25,16 @@ export const razorpayAvailable =
   !!RazorpayCheckout && !env.isExpoGo && !env.useMocks && keyLooksReal;
 
 /**
- * @param {{ razorpayOrderId: string, amountPaise: string|number, description: string, contact?: string, name?: string }} intent
+ * The key id comes from the PAYMENT INTENT, not from this bundle.
+ *
+ * The server mints the gateway order, so the server is the only thing that knows which Razorpay
+ * account it belongs to. Opening checkout with our own bundled key id meant the two could disagree:
+ * switch the server to live keys and every installed app would present a TEST key against a LIVE
+ * order and fail at the sheet — a release away from being fixable, during the first hour of taking
+ * real money. Taking the id from the intent makes going live a server-side change with nothing to
+ * ship. `env.razorpayKeyId` stays as the fallback for older servers that do not send one.
+ *
+ * @param {{ razorpayOrderId: string, keyId?: string, amountPaise: string|number, description: string, contact?: string, name?: string }} intent
  * @returns {Promise<{ razorpay_payment_id: string, razorpay_order_id: string, razorpay_signature: string }>}
  */
 export function openRazorpay(intent) {
@@ -35,7 +44,7 @@ export function openRazorpay(intent) {
     );
   }
   return RazorpayCheckout.open({
-    key: env.razorpayKeyId,
+    key: intent.keyId || env.razorpayKeyId,
     order_id: intent.razorpayOrderId,
     amount: String(intent.amountPaise),
     currency: 'INR',
