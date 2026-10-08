@@ -31,6 +31,7 @@ export function initSentry() {
     // different JS. This is the only way a stack trace maps back to a commit.
     dist: Constants.expoConfig?.version || undefined,
     sendDefaultPii: false,
+    initialScope: { tags: { service: 'app' } },
     // No Session Replay: it would record a screen showing someone's address and send it onward.
     tracesSampleRate: 0,
     beforeBreadcrumb(crumb) {

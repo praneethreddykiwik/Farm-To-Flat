@@ -90,8 +90,8 @@
       [
         "@sentry/react-native/expo",
         {
-          "organization": "SENTRY_ORG_SLUG",
-          "project": "SENTRY_PROJECT_SLUG"
+          "organization": "kiwikone",
+          "project": "react-native"
         }
       ]
     ],

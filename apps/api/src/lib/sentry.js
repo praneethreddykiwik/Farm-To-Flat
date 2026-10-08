@@ -60,6 +60,9 @@ export function initSentry() {
     release: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || undefined,
     // Never attach the user's IP, cookies or headers automatically.
     sendDefaultPii: false,
+    // One Sentry project serves all three surfaces, so every event says which one it came from.
+    // Filter with `service:api` in the issue search.
+    initialScope: { tags: { service: 'api' } },
     // Performance data is useful but it is the thing that silently costs money at volume. 10% is
     // plenty to see a slow endpoint; turn it up deliberately when chasing something.
     tracesSampleRate: IS_PROD ? 0.1 : 0,

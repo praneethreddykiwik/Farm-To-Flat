@@ -23,6 +23,7 @@ export function initSentry() {
     // bundle that no longer exists.
     release: import.meta.env.VITE_VERCEL_GIT_COMMIT_SHA?.slice(0, 8) || undefined,
     sendDefaultPii: false,
+    initialScope: { tags: { service: 'admin' } },
     // Deliberately NOT enabling Session Replay. It would record a video of a screen full of
     // customers' names, phones and addresses and send it to a third party.
     integrations: [],
