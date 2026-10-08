@@ -64,7 +64,17 @@ razorpayWebhookRouter.post(
           razorpayOrderId: entity.order_id,
           razorpayPaymentId: entity.id,
           source: 'webhook',
+          // The only place the real figure is known. A mismatch leaves the order PENDING_PAYMENT
+          // rather than confirming it, and says so loudly — that is a reconciliation job, not
+          // something to resolve by guessing.
+          amountPaise: entity.amount,
+          currency: entity.currency,
         });
+        if (r.outcome === 'mismatch')
+          // eslint-disable-next-line no-console
+          console.error(
+            `[webhook] AMOUNT MISMATCH on ${entity.id}: gateway says ${r.gotPaise}, we expected ${r.expectedPaise}. Order left unconfirmed.`,
+          );
         // eslint-disable-next-line no-console
         console.error(`[webhook] payment.captured ${entity.id} -> ${r.outcome}`);
       } else if (kind === 'payment.failed' && entity) {

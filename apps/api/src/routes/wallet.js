@@ -5,6 +5,7 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
+import { IS_PROD } from '../lib/env.js';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { orderCustomer } from '../serialize.js';
@@ -120,7 +121,23 @@ paymentsRouter.post(
     // `razorpayPaymentId || razorpaySignature` meant a request carrying neither — just
     // `{ paymentId, success: true }` — skipped verification completely and captured the order
     // without a rupee moving. Once the gateway has issued an order id, a signature is mandatory.
-    if (razorpayEnabled && pay.razorpayOrderId) {
+    //
+    // Gating on `razorpayEnabled` made verification conditional on OUR OWN CONFIGURATION. If the
+    // key is unset, blank, or fails the rzp_ shape test, the whole branch is skipped, no gateway
+    // order is ever created, and `{paymentId, success:true}` captures the order with no money
+    // moving. One truncated paste in the Render dashboard turns a payment system into a mock, and
+    // nothing fails loudly. So in production this is an ASSERTION, not a condition.
+    if (IS_PROD && !razorpayEnabled)
+      throw fail(
+        503,
+        'PAYMENT_UNAVAILABLE',
+        'Payments are not available right now. Nothing has been charged.',
+      );
+    // With the gateway live, every payment has a gateway order. One without is either a mock that
+    // escaped into production or a forged id, and neither may be captured.
+    if (razorpayEnabled && !pay.razorpayOrderId)
+      throw fail(409, 'NO_GATEWAY_ORDER', 'This payment was never started with the gateway.');
+    if (razorpayEnabled) {
       const ok = verifyRazorpaySignature({
         orderId: req.body.razorpayOrderId || pay.razorpayOrderId,
         paymentId: razorpayPaymentId,

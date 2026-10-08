@@ -20,20 +20,42 @@ import {
 
 /**
  * @param {{ paymentId?: string, razorpayOrderId?: string, razorpayPaymentId?: string,
- *           source?: 'client'|'webhook' }} args
- * @returns {Promise<{ outcome: 'already'|'captured'|'orphaned'|'unknown', payment?: any, order?: any }>}
+ *           source?: 'client'|'webhook', amountPaise?: number|string, currency?: string }} args
+ * @returns {Promise<{ outcome: 'already'|'captured'|'orphaned'|'unknown'|'mismatch',
+ *                     payment?: any, order?: any, expectedPaise?: string, gotPaise?: string }>}
  */
 export async function capturePayment({
   paymentId,
   razorpayOrderId,
   razorpayPaymentId,
   source = 'client',
+  amountPaise,
+  currency,
 }) {
   // The webhook never sees our internal payment id — it only knows Razorpay's order id, so the
   // lookup has to work from either end.
   const pay = paymentId ? getPayment(paymentId) : paymentByRazorpayOrderId(razorpayOrderId);
   if (!pay) return { outcome: 'unknown' };
   if (pay.status === 'CAPTURED') return { outcome: 'already', payment: pay };
+
+  // What the gateway says it took must match what we asked for. Nothing compared these before, so a
+  // partial capture, a currency mismatch, or an order created with partial_payment would have
+  // confirmed the order in full and credited a top-up that was never funded. Only the webhook knows
+  // the real figure (the client leg has only a signature), so this runs when a caller supplies one.
+  if (amountPaise != null && Number(amountPaise) !== Number(pay.amountPaise))
+    return {
+      outcome: 'mismatch',
+      payment: pay,
+      expectedPaise: String(pay.amountPaise),
+      gotPaise: String(amountPaise),
+    };
+  if (currency && String(currency).toUpperCase() !== 'INR')
+    return {
+      outcome: 'mismatch',
+      payment: pay,
+      expectedPaise: String(pay.amountPaise),
+      gotPaise: `${currency}`,
+    };
 
   pay.status = 'CAPTURED';
   pay.razorpayPaymentId = razorpayPaymentId || pay.razorpayPaymentId || `pay_rzp_${Date.now()}`;
