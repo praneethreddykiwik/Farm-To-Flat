@@ -11,6 +11,13 @@ export const razorpayEnabled =
   process.env.NODE_ENV !== 'test' && !!(KEY_ID && KEY_SECRET && /^rzp_(test|live)_/.test(KEY_ID));
 export const razorpayKeyId = KEY_ID || null;
 
+/**
+ * 'live', 'test' or 'off'. Derived from the key id's own prefix rather than from any separate
+ * setting, so it cannot disagree with the account actually being charged.
+ */
+export const razorpayMode = () =>
+  !razorpayEnabled ? 'off' : KEY_ID.startsWith('rzp_live_') ? 'live' : 'test';
+
 const AUTH = razorpayEnabled
   ? 'Basic ' + Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64')
   : null;

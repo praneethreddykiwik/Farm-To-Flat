@@ -28,7 +28,7 @@ import {
   resolveOrderIssue,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
-import { getDevices, getCustomer } from '../../customer-store.js';
+import { getDevices, getCustomer, capturedPaymentForOrder } from '../../customer-store.js';
 import { notifyOrderStatus } from '../../lib/push.js';
 import { notifyComplaintResolved, notifyOrderOnTheWay } from '../../lib/notify-whatsapp.js';
 import { communityWindows } from '../../lib/windows.js';
@@ -73,6 +73,23 @@ const NEXT = {
   CANCELLED: [],
   PAYMENT_FAILED: ['CANCELLED'],
 };
+
+/**
+ * Can this order be confirmed by hand?
+ *
+ * PENDING_PAYMENT → CONFIRMED had no payment check, so an operator could confirm an order nobody
+ * had paid for. Worse than free goods: if the gateway capture then landed, capture.js would find
+ * the order no longer PENDING_PAYMENT, treat the money as orphaned and credit the full amount to
+ * the customer's wallet. Goods given away AND store credit issued, from one click.
+ *
+ * COD is legitimately confirmed with nothing captured — the money arrives at the door. Anything
+ * else needs a captured payment, or a wallet-covered order where the gateway leg was zero.
+ */
+function mayConfirmUnpaid(order) {
+  if (order.paymentMethod === 'COD') return true;
+  if (Number(order.gatewayAmountPaise || 0) === 0) return true; // fully covered by wallet
+  return !!capturedPaymentForOrder(order.id);
+}
 
 /** Every transition INTO CANCELLED goes through the shared cancel path (refund + coupon release). */
 function transition(orderId, status) {
@@ -452,6 +469,14 @@ adminOrdersRouter.patch(
         allowed,
       });
     }
+    // Confirming an order nobody paid for gives away the goods and, if the capture lands later,
+    // credits the customer the full amount as an orphan payment on top. See mayConfirmUnpaid.
+    if (o.status === 'PENDING_PAYMENT' && req.body.status === 'CONFIRMED' && !mayConfirmUnpaid(o))
+      throw fail(
+        409,
+        'NOT_PAID',
+        'No payment has been captured for this order. Cancel it, or wait for the payment to land.',
+      );
     const updated = transition(req.params.id, req.body.status);
     notifyCustomer(updated);
     res.json({ order: linkOrderIssuePhotos(orderAdmin(updated), baseUrlOf(req)) });
@@ -483,6 +508,12 @@ adminOrdersRouter.post(
       }
       if (o.status !== status && !(NEXT[o.status] || []).includes(status)) {
         skipped.push({ id, reason: 'INVALID_TRANSITION' });
+        continue;
+      }
+      // Same rule in bulk. Sweeping a community to CONFIRMED must not quietly include the one
+      // order in it that was never paid for.
+      if (o.status === 'PENDING_PAYMENT' && status === 'CONFIRMED' && !mayConfirmUnpaid(o)) {
+        skipped.push({ id, reason: 'NOT_PAID', orderNumber: o.orderNumber });
         continue;
       }
       // Delivery is settled one door at a time. An order still owing cash, or still waiting on the

@@ -11,6 +11,7 @@
 // FIRST, before anything else is imported: Sentry patches http/express at require time, so
 // initialising it after those modules load means its auto-instrumentation never attaches.
 import { initSentry, flushSentry, reportError, sentryEnabled } from './lib/sentry.js';
+import { razorpayMode, webhookEnabled } from './lib/razorpay.js';
 
 initSentry();
 
@@ -167,6 +168,11 @@ app.get('/health', (_req, res) => {
     // yet picked up by the running process looks identical from outside, and "we have Sentry" is
     // worth nothing if the process that would report never initialised it.
     sentry: sentryEnabled,
+    // Which Razorpay account is actually serving, and whether the webhook can verify. The key ID
+    // is public by design (it ships in the app bundle and goes out with every payment intent), so
+    // only the MODE is exposed here — but "are we on live keys?" is the single most important
+    // operational fact once real money is involved, and it should not require a token to answer.
+    payments: { mode: razorpayMode(), webhook: webhookEnabled },
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     ts: Date.now(),
