@@ -39,7 +39,20 @@ async function deliveredOrder(mobile) {
       ).status >= 400
     )
       continue;
-    const { body: cart } = await request(app).get('/api/v1/cart').set(auth(token));
+    const cartRes = await request(app).get('/api/v1/cart').set(auth(token));
+
+    // Was `const { body: cart }` then `cart.cart.meetsMinimum`. When this request failed —
+
+    // which it does occasionally in a full-suite run — the next line threw
+
+    // "Cannot read properties of undefined" and told us nothing about WHY. Surface the
+
+    // status and body instead, so the next failure names its own cause.
+
+    if (!cartRes.body?.cart)
+      throw new Error(`GET /cart failed: ${cartRes.status} ${JSON.stringify(cartRes.body)}`);
+
+    const cart = cartRes.body;
     if (cart.cart.meetsMinimum && cart.cart.items.length >= 4) break;
   }
   // The loop above rotates its starting product each run, and daily caps consumed by earlier

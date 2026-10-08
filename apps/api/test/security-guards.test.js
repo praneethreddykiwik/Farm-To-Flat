@@ -170,18 +170,31 @@ describe('one customer can never reach another customer', () => {
 
 describe('one customer cannot touch another customer', () => {
   const auth = (t) => ({ Authorization: `Bearer ${t}` });
-  async function withAddress(mobile, flatNo) {
+  // Every call gets its OWN customer.
+  //
+  // This used to take a fixed mobile, so each test in this describe logged in as the same two
+  // people — accumulating an address and a session per test. Two consequences, both intermittent:
+  // `addresses[0]` was whichever address that customer created FIRST, not the one this test just
+  // made, and after ten logins the session cap evicted a token a later test was still holding.
+  // Unique per call, so a test can only ever see its own data.
+  let who = 0;
+  async function withAddress(_label, flatNo) {
+    who += 1;
+    const mobile = `92330${String(who).padStart(5, '0')}`;
     await request(app).post('/api/v1/auth/otp/request').send({ mobile });
     const v = await request(app).post('/api/v1/auth/otp/verify').send({ mobile, otp: '123456' });
     const token = v.body.accessToken;
     const { body: c } = await request(app).get('/api/v1/communities');
     const com = c.communities[0];
-    await request(app)
+    const created = await request(app)
       .post('/api/v1/addresses')
       .set(auth(token))
       .send({ communityId: com.id, block: com.blocks[0], flat: flatNo, floor: '3' });
-    const { body: a } = await request(app).get('/api/v1/addresses').set(auth(token));
-    return { token, address: a.addresses[0] };
+    // Use the address this call created, rather than trusting a position in a list.
+    const address = created.body?.address;
+    if (!address)
+      throw new Error(`address not created: ${created.status} ${JSON.stringify(created.body)}`);
+    return { token, address };
   }
 
   it("refuses another customer's address id, and leaves the caller's own default intact", async () => {
