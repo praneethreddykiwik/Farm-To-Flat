@@ -14,16 +14,37 @@
  * Inert without EXPO_PUBLIC_SENTRY_DSN, so Expo Go and anyone building without an account behave
  * exactly as before.
  */
-import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { env } from './env';
 
+/**
+ * LAZY, and that is not a style choice.
+ *
+ * @sentry/react-native is a NATIVE module. An over-the-air update reaches phones running the
+ * binary it was built before — binaries that do not contain it. A top-level import would throw as
+ * the bundle loaded, and a JS error at startup is the one failure an OTA cannot repair, because
+ * the app crashes before it can fetch the next update. The same reasoning as photoPicker.js.
+ *
+ * Returns null on a binary without it, and every function here then does nothing.
+ */
+let native;
+function sentry() {
+  if (native !== undefined) return native;
+  try {
+    native = require('@sentry/react-native');
+  } catch {
+    native = null;
+  }
+  return native;
+}
+
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-export const sentryEnabled = !!DSN && !env.isExpoGo;
+export const sentryEnabled = !!DSN && !env.isExpoGo && !!sentry();
 
 export function initSentry() {
-  if (!sentryEnabled) return;
-  Sentry.init({
+  const S = sentry();
+  if (!sentryEnabled || !S) return;
+  S.init({
     dsn: DSN,
     environment: __DEV__ ? 'development' : 'production',
     // Which BUNDLE is running, not just which binary. With over-the-air updates the installed app
@@ -62,11 +83,13 @@ export function initSentry() {
 
 /** @param {unknown} err @param {Record<string, any>} [tags] */
 export function reportError(err, tags) {
-  if (!sentryEnabled) return;
-  Sentry.withScope((s) => {
-    if (tags) for (const [k, v] of Object.entries(tags)) s.setTag(k, String(v));
-    Sentry.captureException(err);
+  const S = sentry();
+  if (!sentryEnabled || !S) return;
+  S.withScope((scope) => {
+    if (tags) for (const [k, v] of Object.entries(tags)) scope.setTag(k, String(v));
+    S.captureException(err);
   });
 }
 
-export { Sentry };
+/** The native module, or null on a binary built before it existed. */
+export const getSentry = sentry;
