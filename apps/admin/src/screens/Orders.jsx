@@ -90,6 +90,17 @@ export function Orders() {
           </p>
         </div>
         <div className="topbar__actions">
+          {/* Only in the stale view. A bulk-refund control on the default Orders header is
+              asking for an accident. */}
+          {staleView && orders.length > 0 && (
+            <button
+              className="btn btn--ghost"
+              onClick={() => setClosing(true)}
+              style={{ borderColor: 'var(--tomato)', color: 'var(--tomato)' }}
+            >
+              Close {orders.length} and refund
+            </button>
+          )}
           <button className="btn btn--ghost" onClick={() => download('packing')}>
             <IconDownload size={17} /> Packing sheet
           </button>
