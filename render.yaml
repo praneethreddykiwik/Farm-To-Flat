@@ -25,7 +25,16 @@ services:
     buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
     startCommand: node apps/api/src/index.js
     healthCheckPath: /health
-    autoDeploy: true # redeploy on every push to the connected branch
+    # PRODUCTION DOES NOT AUTO-DEPLOY.
+    #
+    # Every commit used to go straight to the thing customers are using, with no step in between
+    # where anyone could look at it. That is why a change could behave one way locally and another
+    # way live with nobody finding out until a customer did.
+    #
+    # Now: a push to main deploys f2f-api-staging automatically; production is a deliberate
+    # "Manual Deploy → Deploy latest commit" once staging looks right. Same commit, same build,
+    # promoted rather than rebuilt.
+    autoDeploy: false
     envVars:
       - key: NODE_VERSION
         value: "22"
@@ -111,3 +120,57 @@ services:
       # MSG91_WA_TEMPLATE_BUTTON=0 (template has no copy-code button),
       # OTP_FALLBACK_SMS=1 + MSG91_SENDER_ID + MSG91_OTP_TEMPLATE_ID (SMS fallback — needs DLT),
       # REDIS_URL, SENTRY_DSN
+
+  # ── Staging ───────────────────────────────────────────────────────────────────
+  # The same code as production, on its own database, deployed automatically on every push to
+  # main. This is where a change is seen working before anyone's customers see it.
+  #
+  # IMPORTANT: DATABASE_URL here MUST point at a SEPARATE Supabase project. A staging service
+  # writing to the production database is worse than having no staging at all — it looks like a
+  # safety net while quietly editing live orders and live wallets.
+  #
+  # Free plan on purpose: staging spinning down after 15 minutes idle costs nothing but a slow
+  # first request, and the reconciliation job it would skip is not doing anything here.
+  - type: web
+    name: f2f-api-staging
+    runtime: node
+    plan: free
+    rootDir: .
+    branch: main
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
+    startCommand: node apps/api/src/index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # NOT production: this keeps IS_PROD false, so the stricter production assertions are still
+      # exercised where it is safe to hit them.
+      - key: NODE_ENV
+        value: staging
+      - key: HOST
+        value: 0.0.0.0
+      # Its own database. See the warning above.
+      - key: DATABASE_URL
+        sync: false
+      # Razorpay TEST keys here, always — staging must never be able to move real money.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        sync: false
+      - key: MEDIA_TOKEN_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

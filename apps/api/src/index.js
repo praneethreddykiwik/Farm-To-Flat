@@ -22,6 +22,7 @@ import {
   loadAll,
   loadTransactional,
   persistEnabled,
+  drainPersistence,
 } from './persistence.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
@@ -131,10 +132,20 @@ if (process.env.NODE_ENV !== 'test')
  * A process with no DATABASE_URL at all — local dev, tests — is not degraded. It was never meant to
  * have a database, and calling it unhealthy would just make the signal meaningless.
  */
+/**
+ * Flipped by the SIGTERM handler. A shutting-down process is not healthy: the load balancer should
+ * stop sending it new work immediately, while it finishes what it already accepted.
+ */
+let shuttingDown = false;
+export const markShuttingDown = () => {
+  shuttingDown = true;
+};
+
 app.get('/health', (_req, res) => {
-  const degraded = persistEnabled && !isPersistenceEnabled();
+  const degraded = (persistEnabled && !isPersistenceEnabled()) || shuttingDown;
   res.status(degraded ? 503 : 200).json({
     ok: !degraded,
+    ...(shuttingDown ? { shuttingDown: true } : {}),
     service: 'f2f-api',
     // Named rather than boolean so the answer is readable straight from a curl or a dashboard.
     data: !persistEnabled
@@ -282,10 +293,53 @@ async function boot() {
       disablePersistence('hydration failed; refusing to write seed data over the live database');
     }
   }
-  app.listen(PORT, HOST, () => {
+  const server = app.listen(PORT, HOST, () => {
     // eslint-disable-next-line no-console
     console.log(`f2f-api listening on http://${HOST}:${PORT}  (data: ${source})`);
   });
+
+  /**
+   * Shut down without dropping anything.
+   *
+   * Render sends SIGTERM on every deploy and waits a short grace period before SIGKILL. Until now
+   * nothing listened, so the process died mid-flight: open requests were cut, and — the part that
+   * actually costs money — writes that had been issued but not awaited went with it. Persistence is
+   * write-behind (see persistence.js), so "the API said CAPTURED" and "the row reached Postgres"
+   * are two different moments, and a deploy landing between them loses a wallet credit.
+   *
+   * So: stop accepting new connections, let the in-flight ones finish, give the write-behind queue
+   * a moment to drain, then exit. Deploys happen many times a day; this is the difference between
+   * that being routine and it being a lottery.
+   */
+  let closing = false;
+  const shutdown = (signal) => {
+    if (closing) return;
+    closing = true;
+    // eslint-disable-next-line no-console
+    console.log(`[shutdown] ${signal} — finishing in-flight requests`);
+    // Fail the health check immediately so the load balancer stops sending new work, even while
+    // we are still serving what we already accepted.
+    markShuttingDown();
+    server.close(async () => {
+      try {
+        await drainPersistence(4000);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[shutdown] drain failed', e?.message || e);
+      }
+      // eslint-disable-next-line no-console
+      console.log('[shutdown] clean');
+      process.exit(0);
+    });
+    // Render's grace period is finite; never hang past it and get SIGKILLed mid-write.
+    setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.error('[shutdown] grace period expired, exiting anyway');
+      process.exit(0);
+    }, 12000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 if (process.env.NODE_ENV !== 'test') boot();

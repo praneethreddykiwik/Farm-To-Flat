@@ -1,5 +1,20 @@
 name: ci
-on: [pull_request]
+
+# Pull requests AND pushes to main.
+#
+# This used to be `on: [pull_request]` only. Everything here is committed straight to main, so the
+# gate existed and never once ran — lint, typecheck and 380 tests sat there while Render deployed
+# whatever was pushed. A check that does not run on the path you actually use is decoration.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push supersedes the first: no point finishing a run for a commit that is already old.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -13,3 +28,16 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  # Does the admin site still build? It is deployed by Vercel on the same push, and a broken build
+  # there is a broken operator console — the place refunds are issued from.
+  build-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter admin exec vite build

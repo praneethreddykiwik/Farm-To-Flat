@@ -388,6 +388,26 @@ export async function recheckWindowsColumn() {
  * could land last, leaving the DB with the pre-cancel status.
  */
 const chains = new Map();
+/**
+ * Wait for the write-behind queue to empty.
+ *
+ * Writes are deliberately not awaited by their callers — that is what makes the API fast and what
+ * makes a deploy dangerous. At shutdown we have one chance to let them land before the process
+ * goes away, so this waits for every in-flight chain, bounded, because Render's grace period is
+ * finite and being SIGKILLed mid-write is the exact outcome we are avoiding.
+ *
+ * @param {number} ms how long to wait at most
+ * @returns {Promise<{drained:boolean, pending:number}>}
+ */
+export async function drainPersistence(ms = 4000) {
+  const pendingAtStart = chains.size;
+  if (!pendingAtStart) return { drained: true, pending: 0 };
+  const all = Promise.allSettled([...chains.values()]);
+  const timeout = new Promise((r) => setTimeout(() => r('timeout'), ms));
+  const outcome = await Promise.race([all.then(() => 'drained'), timeout]);
+  return { drained: outcome === 'drained', pending: chains.size };
+}
+
 export function serialize(key, run) {
   const prev = chains.get(key) || Promise.resolve();
   const next = prev.then(run, run);
