@@ -671,7 +671,13 @@ async function route(method, path, body, headers = {}) {
     return ok({ order: serialiseOrder(order), paymentIntent }, 201);
   }
   if (method === 'GET' && p === '/orders')
-    return ok({ orders: state.orders.map(serialiseOrder), nextCursor: null });
+    // PAYMENT_FAILED is left out, exactly as the real API does (apps/api/src/routes/customer-orders.js).
+    // The mock exists so the app behaves identically offline; a mock that shows an order the server
+    // hides is worse than no mock, because the bug it invents gets reported against the real thing.
+    return ok({
+      orders: state.orders.filter((o) => o.status !== 'PAYMENT_FAILED').map(serialiseOrder),
+      nextCursor: null,
+    });
   if (method === 'GET' && /^\/orders\/[^/]+$/.test(p)) {
     const o = state.orders.find((x) => x.id === p.split('/')[2]);
     if (!o) return err(404, 'NOT_FOUND', 'Order not found');

@@ -694,11 +694,18 @@ table.data tbody tr:last-child td {
 .chip__count {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  /* line-height 1 is the fix: at 11px the span was inheriting the chip's 13px line box, so
-     align-items:center centred that taller BOX and left the digits sitting high against the
-     label's glyphs. Pinning the line box to the glyphs lets the two actually line up. */
+  /* The digits are centred by FLEXBOX, not by a line box.
+     line-height:1 (the previous attempt) still leaves the glyphs where the font's own metrics put
+     them inside the line box — digits never use the descender space, so they ride high by half of
+     it. How high depends on the font, which is why this looked fine on a Mac with IBM Plex Sans
+     loaded and wrong on Windows falling back to something else. A flex box with a fixed height
+     centres the text box itself and does not care which font won. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 17px;
   line-height: 1;
-  padding: 3px 6px;
+  padding: 0 6px;
   border-radius: var(--r-pill);
   background: color-mix(in srgb, currentColor 12%, transparent);
   /* Stops a 3-digit count from making one chip taller than its neighbours. */
