@@ -42,14 +42,34 @@ async function deliveredOrder(mobile) {
     const { body: cart } = await request(app).get('/api/v1/cart').set(auth(token));
     if (cart.cart.meetsMinimum && cart.cart.items.length >= 4) break;
   }
+  // The loop above rotates its starting product each run, and daily caps consumed by earlier
+  // tests change what is available — so some runs ended with a basket under the minimum, the
+  // order POST failed, and the next line threw on `r.body.order.id` with no clue why. Top the
+  // basket up deterministically rather than hoping the rotation lands well.
+  for (let bump = 2; bump <= 20; bump += 2) {
+    const { body: c } = await request(app).get('/api/v1/cart').set(auth(token));
+    if (c.cart.meetsMinimum && c.cart.items.length >= 4) break;
+    const first = c.cart.items[0];
+    if (!first) break;
+    await request(app)
+      .put('/api/v1/cart/items')
+      .set(auth(token))
+      .send({ productId: first.productId, quantity: 4 + bump });
+  }
+  const { body: finalCart } = await request(app).get('/api/v1/cart').set(auth(token));
+  expect(finalCart.cart.meetsMinimum, 'test basket never reached the order minimum').toBe(true);
+
   const w = await request(app)
     .get(`/api/v1/delivery-windows?addressId=${a.body.address.id}`)
     .set(auth(token));
   const slot = w.body.windows.find((x) => x.isOpen);
+  expect(slot, 'no open delivery window for this test').toBeTruthy();
   const r = await request(app)
     .post('/api/v1/orders')
     .set(auth(token))
     .send({ addressId: a.body.address.id, deliveryDate: slot.date, window: slot.window });
+  // Say what went wrong HERE, rather than throwing on `.order.id` of an order that was refused.
+  expect(r.status, `order not created: ${JSON.stringify(r.body?.error || r.body)}`).toBe(201);
   const id = r.body.order.id;
   if (r.body.paymentIntent)
     await request(app)
