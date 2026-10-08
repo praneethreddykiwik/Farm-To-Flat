@@ -319,3 +319,29 @@ model AppConfig {
   deliveryOtpEnabled        Boolean  @default(true)
   updatedAt                 DateTime @updatedAt
 }
+
+/// Who did what, to which order, and when.
+///
+/// Append-only and never updated. Cancellations, refunds and role changes move real money or real
+/// access, and until now `req.staff` was resolved on every admin request and then thrown away — an
+/// order's timeline recorded that it was CANCELLED but never by whom. With the shared ADMIN_TOKEN
+/// in play, some actions had no identity attached at all.
+///
+/// `actor` is the email for a Google sign-in, or the literal 'shared-token' when the shared
+/// ADMIN_TOKEN was used — which is itself worth recording, because it is the case where nobody can
+/// be named afterwards.
+model AdminAction {
+  id        String   @id
+  at        DateTime @default(now())
+  actor     String
+  role      String
+  via       String
+  action    String
+  /// Order number where there is one, so the row stays readable if the order is ever removed.
+  target    String?
+  /// Whatever the action needs to be understood later: amounts refunded, previous status, reason.
+  details   Json     @default("{}")
+
+  @@index([at])
+  @@index([target])
+}

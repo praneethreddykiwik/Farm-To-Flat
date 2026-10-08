@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
-import { codDuePaise, issueAdmin, orderAdmin } from '../../serialize.js';
+import { codDuePaise, issueAdmin, orderAdmin, orderIsStale } from '../../serialize.js';
 import { linkOrderIssuePhotos } from '../../lib/storage.js';
 import { baseUrlOf } from '../../lib/media.js';
 import {
@@ -33,6 +33,7 @@ import { notifyOrderStatus } from '../../lib/push.js';
 import { notifyComplaintResolved, notifyOrderOnTheWay } from '../../lib/notify-whatsapp.js';
 import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
+import { listActions, recordAction } from '../../lib/audit.js';
 import { IS_PROD } from '../../lib/env.js';
 
 // Orders snapshot the customer name at order time; show the customer's CURRENT name in the operator
@@ -609,3 +610,98 @@ function manifestCsv(orders) {
   ]);
   return toCsv(rows, header);
 }
+
+/**
+ * POST /admin/orders/close-stale — cancel, in one action, orders still open after their delivery day.
+ *
+ * These accumulate because nothing retires a CONFIRMED or PACKING order the way expirePendingOrders
+ * retires an abandoned checkout, and they were being summed into the procurement buy list. Closing
+ * them is a REFUND on every order that was paid, which is why this is an operator action with an
+ * explicit confirmation and not a nightly sweep: a cron job would have moved real money on 31 live
+ * orders with nobody deciding.
+ *
+ * Three guards, in order:
+ *  - the caller states how many orders they expect to close, and the request fails if the real
+ *    number differs. The board could have changed between loading it and pressing the button, and a
+ *    bulk refund is not something to discover you did.
+ *  - only orders the SERVER agrees are stale are touched. An id the caller sends that is not stale
+ *    is refused, not quietly skipped, because a caller who names the wrong order should hear so.
+ *  - the audit row is written FIRST and awaited. If we cannot record who did this, we do not do it.
+ */
+const CloseStaleBody = z.object({
+  /** How many the operator was shown. A mismatch means the board moved under them. */
+  expectedCount: z.number().int().min(1).max(500),
+  /** Optional: close only these. Omitted means every stale order. */
+  orderIds: z.array(z.string()).max(500).optional(),
+  reason: z.string().max(300).optional(),
+});
+
+adminOrdersRouter.post(
+  '/orders/close-stale',
+  validateBody(CloseStaleBody),
+  asyncHandler(async (req, res) => {
+    const today = todayISO();
+    const all = listOrders().filter((o) => orderIsStale(o, today));
+    const chosen = req.body.orderIds?.length
+      ? all.filter((o) => req.body.orderIds.includes(o.id))
+      : all;
+
+    // An id that is not stale is a disagreement about the world, not a no-op. Say so.
+    if (req.body.orderIds?.length) {
+      const staleIds = new Set(all.map((o) => o.id));
+      const bad = req.body.orderIds.filter((x) => !staleIds.has(x));
+      if (bad.length)
+        throw fail(409, 'NOT_STALE', `${bad.length} of those are not past their delivery day.`, {
+          orderIds: bad.slice(0, 20),
+        });
+    }
+
+    if (chosen.length !== req.body.expectedCount)
+      throw fail(
+        409,
+        'COUNT_CHANGED',
+        `This would close ${chosen.length} orders, not ${req.body.expectedCount}. Reload and check before confirming.`,
+        { actual: chosen.length, expected: req.body.expectedCount },
+      );
+
+    // Written and awaited BEFORE anything moves. No record, no bulk refund.
+    await recordAction({
+      staff: req.staff,
+      action: 'ORDERS_CLOSE_STALE',
+      target: null,
+      details: {
+        count: chosen.length,
+        reason: req.body.reason || null,
+        orders: chosen.map((o) => ({
+          orderNumber: o.orderNumber,
+          status: o.status,
+          deliveryDate: o.deliveryDate,
+          totalPaise: String(o.totalPaise),
+        })),
+      },
+    });
+
+    const closed = [];
+    let refundedPaise = 0;
+    for (const o of chosen) {
+      const r = cancelOrder(o.id, { timelineStatus: 'CANCELLED' });
+      if (!r?.changed) continue;
+      refundedPaise += Number(r.refundedPaise || 0);
+      closed.push({
+        orderNumber: r.order.orderNumber,
+        refundedPaise: String(r.refundedPaise || 0),
+      });
+    }
+
+    res.json({ closed: closed.length, refundedPaise: String(refundedPaise), orders: closed });
+  }),
+);
+
+/** GET /admin/audit — the trail, newest first. Super admin only (see roleMayAccess). */
+adminOrdersRouter.get(
+  '/audit',
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    res.json({ actions: await listActions({ limit, target: req.query.target || undefined }) });
+  }),
+);

@@ -17,6 +17,23 @@ function picker() {
   return native;
 }
 
+/**
+ * Is there a camera to open at all?
+ *
+ * The iOS Simulator has none, and asking UIImagePickerController for one there raises a native
+ * exception — the app disappears to the home screen with no JS error to catch, which is exactly
+ * what happened the first time the lens was tapped on a simulator. Checking first turns a crash
+ * into the photo library, which the simulator does have.
+ */
+export function hasCamera() {
+  try {
+    // Lazy, like the picker above: an older binary without expo-device must not throw on import.
+    return require('expo-device').isDevice !== false;
+  } catch {
+    return true; // cannot tell — behave as before rather than disabling the camera everywhere
+  }
+}
+
 /** Whether this build can take a photo at all. False on a binary built before this feature. */
 export function canTakePhotos() {
   try {
@@ -40,7 +57,10 @@ const OPTS = {
  */
 export async function pickPhoto(source = 'camera') {
   const p = picker();
-  if (source === 'camera') {
+  // No camera on this device (simulator): the library is the only thing that can work, and
+  // silently using it beats a crash.
+  const from = source === 'camera' && !hasCamera() ? 'library' : source;
+  if (from === 'camera') {
     const perm = await p.requestCameraPermissionsAsync();
     if (!perm.granted) {
       const e = /** @type {Error & { code?: string }} */ (
@@ -51,7 +71,7 @@ export async function pickPhoto(source = 'camera') {
     }
   }
   const res =
-    source === 'camera'
+    from === 'camera'
       ? await p.launchCameraAsync(OPTS)
       : await p.launchImageLibraryAsync({ ...OPTS, mediaTypes: ['images'] });
   if (res.canceled || !res.assets?.length) return null;

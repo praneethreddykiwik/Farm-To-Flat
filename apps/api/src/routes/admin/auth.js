@@ -103,6 +103,12 @@ const RULES = [
     when: (p, m) => p === '/orders/notes' && m === 'GET',
     sections: ['orders', 'fulfilment', 'procurement'],
   },
+  // Both of these sit BEFORE the general /orders rule, which grants the fulfilment and procurement
+  // sections — a delivery driver must not be able to refund 31 orders in one request, and the audit
+  // trail exists to be read by the person everyone else answers to, not by everyone.
+  // SUPER_ADMIN short-circuits roleMayAccess above, so an empty roles list means "super only".
+  { when: (p) => p === '/orders/close-stale', roles: [] },
+  { when: (p) => p.startsWith('/audit'), roles: [] },
   { when: (p) => p.startsWith('/orders'), sections: ['orders', 'fulfilment'] },
   { when: (p, m) => p === '/procurement/settings' && m !== 'GET', roles: ADMIN_UP },
   { when: (p) => p === '/procurement/approve' || p === '/procurement/approvals', roles: ADMIN_UP },
