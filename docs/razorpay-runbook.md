@@ -75,17 +75,85 @@ detected at all.
 
 Everything above is the **test** account — `rzp_test_…`, test cards only, no real money moves.
 
-Real payments need, in order:
+Going live is now a **server-side change only**. Nothing ships to phones: the app opens checkout
+with the key id the server sends in the payment intent, so the moment Render holds live keys, every
+installed app is on live keys too. (Before this it used its own bundled key id, which would have
+presented a TEST key against a LIVE order and failed at the sheet.)
 
-1. Razorpay activation completed (the business-details form, which also needs the policy pages now
-   live at `/refunds`, `/shipping`, `/contact`)
-2. Live keys swapped on Render: `RAZORPAY_KEY_ID` → `rzp_live_…`, plus its secret
-3. A **separate** webhook secret for the live account — the test one does not carry over
-4. `EXPO_PUBLIC_RAZORPAY_KEY_ID` updated in `eas.json` and a new app build, since the key id ships
-   in the bundle
+### 1. Finish activation
 
-Check `/admin/payments-status` after each step. `keyId` tells you which mode is actually running,
-and it is the one number worth reading before trusting a test.
+Live keys do not exist until Razorpay approves the account. Dashboard → **Account & Settings** →
+**Account Activation**: business details, bank account, KYC documents. The policy pages it checks
+are live at `/refunds`, `/shipping`, `/contact`, `/terms` and `/privacy`.
+
+Until it says **Activated**, the mode switch in the dashboard will not offer Live.
+
+### 2. Generate the live keys
+
+Switch the dashboard from **Test** to **Live** (top-left toggle), then **Account & Settings** →
+**API Keys** → **Generate Live Key**.
+
+The live secret is shown **once**. Copy both now.
+
+Test and live are separate worlds: separate keys, separate webhooks, separate payment history.
+Nothing carries over.
+
+### 3. Set them on Render
+
+`f2f-api` → Environment → change these two, then Save:
+
+| Key                   | Value           |
+| --------------------- | --------------- |
+| `RAZORPAY_KEY_ID`     | `rzp_live_…`    |
+| `RAZORPAY_KEY_SECRET` | the live secret |
+
+### 4. A new webhook, for the live mode
+
+Webhooks are per-mode. The test webhook does not fire for live payments.
+
+Still in **Live** mode: Settings → Webhooks → Add New Webhook.
+
+- **URL**: `https://farm-to-flat.onrender.com/api/v1/webhooks/razorpay`
+- **Secret**: invent a new one (`node -e 'console.log(require("crypto").randomBytes(24).toString("base64url"))'`)
+- **Events**: `payment.captured`, `payment.failed`
+
+Then set that same value as `RAZORPAY_WEBHOOK_SECRET` on Render.
+
+One secret serves whichever mode is running, so switching to live means replacing it — the test
+webhook stops verifying at that point, which is correct, because test payments should not be
+confirming live orders.
+
+### 5. Confirm what is actually running
+
+```bash
+curl -s -H "x-admin-token: $ADMIN_TOKEN" https://farm-to-flat.onrender.com/api/v1/admin/payments-status
+```
+
+- `keyId` starts `rzp_live_`
+- `webhookConfigured` is `true`
+- `blockers` is empty
+
+`keyId` is the number worth reading before trusting any test — a variable can be saved in Render
+while the running process has not restarted, and from outside those look identical.
+
+### 6. Take one real payment
+
+Place a small real order from a phone and pay it. Then check, in order:
+
+- the Razorpay dashboard shows the payment as **captured**
+- the order is `CONFIRMED` in the operator panel
+- the webhook delivery shows **200** in Razorpay → Settings → Webhooks
+
+If the order confirms but the webhook shows a failure, the client leg carried it and the webhook is
+misconfigured — fix that before taking more, because the webhook is the only leg that survives a
+phone dying mid-checkout and the only one that checks the amount.
+
+Refund that first order from the panel to prove the refund path too.
+
+### Rolling back
+
+Put the test key id and secret back on Render and restart. Installed apps follow automatically,
+since they take the key id from the server.
 
 ## Testing with test cards
 
