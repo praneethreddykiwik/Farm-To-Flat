@@ -95,6 +95,33 @@ export function verifyWebhookSignature(rawBody, signature) {
   }
 }
 
+/**
+ * Ask the gateway what it actually took.
+ *
+ * The client leg carries a signature but no amount, so on its own it can confirm an order without
+ * ever checking that the money matches. Stripe's guidance for exactly this shape is to re-fetch the
+ * object server-side rather than trust what came back through the browser — the signature proves
+ * authenticity, not value. This is that fetch.
+ *
+ * Returns null when the gateway cannot be reached, so the caller decides whether to proceed; it
+ * never throws into a payment path.
+ *
+ * @param {string} paymentId Razorpay's payment id (pay_...)
+ */
+export async function fetchRazorpayPayment(paymentId) {
+  if (!razorpayEnabled || !paymentId) return null;
+  try {
+    const r = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+      headers: { authorization: AUTH },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
 /** Verify a checkout result: HMAC_SHA256(`${orderId}|${paymentId}`, keySecret) === signature. */
 export function verifyRazorpaySignature({ orderId, paymentId, signature }) {
   if (!KEY_SECRET || !signature) return false;

@@ -298,6 +298,14 @@ const paymentToRow = (p) => ({
   status: p.status,
   razorpayOrderId: p.razorpayOrderId ?? null,
   razorpayPaymentId: p.razorpayPaymentId ?? null,
+  // These used to live only in memory. Every refund guard reads refundedPaise, so a restart reset
+  // it to zero and the next cancel refunded the whole amount again.
+  refundedPaise: Number(p.refundedPaise || 0),
+  refundId: p.refundId ?? null,
+  refundFailed: !!p.refundFailed,
+  refundFailedAt: p.refundFailedAt ? new Date(p.refundFailedAt) : null,
+  orphan: !!p.orphan,
+  capturedVia: p.capturedVia ?? null,
 });
 
 /** Read all transactional tables. Enrichment (address community names) happens in the store. */

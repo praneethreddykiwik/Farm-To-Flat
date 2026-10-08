@@ -64,3 +64,17 @@ adminPaymentsRouter.patch(
   ),
   asyncHandler(async (req, res) => res.json({ settings: updatePaymentSettings(req.body) })),
 );
+
+/**
+ * GET /admin/payment-exceptions — where money and order state disagree.
+ *
+ * Every divergence used to be discoverable only by reading Render's logs, which are ephemeral on
+ * the free plan. These are the ones the reconciler could not resolve on its own.
+ */
+adminPaymentsRouter.get(
+  '/payment-exceptions',
+  asyncHandler(async (_req, res) => {
+    const { listReconcileExceptions, reconcileOnce } = await import('../../lib/reconcile.js');
+    res.json({ exceptions: listReconcileExceptions(), lastPass: await reconcileOnce() });
+  }),
+);

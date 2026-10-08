@@ -19,11 +19,13 @@ import {
   releaseCoupon,
   savePayment,
   restoreCartFromOrder,
+  paymentByRazorpayPaymentId,
 } from '../customer-store.js';
 import { refundOrderWallet } from '../lib/order-lifecycle.js';
 import { capturePayment } from '../lib/capture.js';
 import {
   createRazorpayOrder,
+  fetchRazorpayPayment,
   razorpayEnabled,
   razorpayKeyId,
   verifyRazorpaySignature,
@@ -138,17 +140,67 @@ paymentsRouter.post(
     if (razorpayEnabled && !pay.razorpayOrderId)
       throw fail(409, 'NO_GATEWAY_ORDER', 'This payment was never started with the gateway.');
     if (razorpayEnabled) {
+      // The signature is checked against OUR stored order id, never one the caller supplies.
+      //
+      // A Razorpay signature is an HMAC over `order_id|payment_id`. It proves that pair was really
+      // paid on this merchant account — it says nothing about WHICH of our payment intents is being
+      // settled. Taking the order id from the request let the caller choose what the signature was
+      // compared against, so a genuine ₹100 receipt could be presented to settle a ₹5,000 top-up:
+      // start a large intent, pay a small one, then post the small one's valid triple against the
+      // large one's paymentId. Every check passed, because every check was true — of the other
+      // payment. Binding to pay.razorpayOrderId is what ties the proof to this intent.
       const ok = verifyRazorpaySignature({
-        orderId: req.body.razorpayOrderId || pay.razorpayOrderId,
+        orderId: pay.razorpayOrderId,
         paymentId: razorpayPaymentId,
         signature: req.body.razorpaySignature,
       });
       if (!ok) throw fail(400, 'SIGNATURE_INVALID', 'Payment could not be verified.');
+
+      // And a receipt may only ever be spent once. Binding above stops the substitution; this stops
+      // the same genuine triple being replayed against a fresh intent of the same amount.
+      const already = paymentByRazorpayPaymentId(razorpayPaymentId, pay.id);
+      if (already)
+        throw fail(409, 'PAYMENT_ALREADY_USED', 'That payment has already been applied.');
+    }
+
+    // Ask the gateway what it actually took, rather than inferring it from a signature.
+    //
+    // The signature proves authenticity, not value — it carries no amount at all. So the amount
+    // guard in capturePayment was dead on this path, and the client leg is the one that almost
+    // always wins the race to capture, which meant a partial capture confirmed the order in full.
+    // Re-fetching server-side is the same thing Stripe prescribes for this exact shape: trust the
+    // gateway's record, never the browser's.
+    let gateway = null;
+    if (razorpayEnabled) {
+      gateway = await fetchRazorpayPayment(razorpayPaymentId);
+      // The gateway being unreachable is not proof of payment. Leave the order pending and let the
+      // webhook or the reconciliation sweep settle it — both are idempotent, so nothing is lost.
+      if (!gateway)
+        throw fail(
+          503,
+          'VERIFY_UNAVAILABLE',
+          'We could not confirm that payment yet. If money has left your account it will be applied shortly.',
+        );
+      // A signature is valid for ITS order. Confirm the gateway agrees this payment belongs to the
+      // intent we are settling — belt and braces alongside the signature binding above.
+      if (gateway.order_id && gateway.order_id !== pay.razorpayOrderId)
+        throw fail(409, 'PAYMENT_MISMATCH', 'That payment belongs to a different order.');
     }
 
     // Shared with the Razorpay webhook so the two can never disagree about what a capture means;
     // whichever arrives second is a no-op. See lib/capture.js.
-    const r = await capturePayment({ paymentId, razorpayPaymentId, source: 'client' });
+    const r = await capturePayment({
+      paymentId,
+      razorpayPaymentId,
+      source: 'client',
+      amountPaise: gateway?.amount,
+      currency: gateway?.currency,
+    });
+    if (r.outcome === 'mismatch')
+      throw fail(409, 'AMOUNT_MISMATCH', 'The amount paid does not match this order.', {
+        expectedPaise: r.expectedPaise,
+        gotPaise: r.gotPaise,
+      });
     if (r.outcome === 'already') return res.json({ status: 'CAPTURED', duplicate: true });
     if (pay.purpose === 'TOPUP')
       return res.json({

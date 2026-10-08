@@ -17,6 +17,7 @@ import {
   releaseCoupon,
   restoreCartFromOrder,
   savePayment,
+  paymentForOrder,
 } from '../customer-store.js';
 import { createRazorpayRefund, razorpayEnabled } from './razorpay.js';
 import { notifyAdmins } from './staff-notify.js';
@@ -174,10 +175,22 @@ export function expirePendingOrders({
     });
   }
   for (const o of expired) {
+    // A payment that is no longer CREATED means the gateway has it — authorised, captured, or
+    // being argued over with a bank. Expiring that order would return the wallet leg and restore
+    // the cart while the money is still in flight; the capture then lands on an order that no
+    // longer wants it and becomes an orphan credit. A UPI collect or a 3DS page can easily sit
+    // open past thirty minutes, so this is not a narrow race.
+    const pay = paymentForOrder(o.id);
+    if (pay && pay.status !== 'CREATED') continue;
+    let changed = false;
     const updated = patchOrder(o.id, (ord) => {
+      // Re-assert inside the patch: the order may have been paid between selection and here.
+      if (ord.status !== 'PENDING_PAYMENT') return;
       ord.status = 'PAYMENT_FAILED';
       ord.timeline.push({ status: 'PAYMENT_FAILED', at: new Date(now).toISOString() });
+      changed = true;
     });
+    if (!changed) continue;
     refundOrderWallet(updated, `Checkout timed out for ${o.orderNumber}, wallet returned`);
     if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
     // The customer walked away mid-payment. Put the basket back for when they return.

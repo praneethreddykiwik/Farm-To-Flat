@@ -139,6 +139,12 @@ export function hydrateCustomerData({
       status: p.status,
       razorpayOrderId: p.razorpayOrderId ?? null,
       razorpayPaymentId: p.razorpayPaymentId ?? null,
+      refundedPaise: Number(p.refundedPaise || 0),
+      refundId: p.refundId ?? null,
+      refundFailed: !!p.refundFailed,
+      refundFailedAt: p.refundFailedAt ?? null,
+      orphan: !!p.orphan,
+      capturedVia: p.capturedVia ?? null,
     });
   }
 }
@@ -849,6 +855,28 @@ export function paymentByRazorpayOrderId(razorpayOrderId) {
   for (const p of cs.payments.values()) if (p.razorpayOrderId === razorpayOrderId) return p;
   return null;
 }
+/**
+ * Has this gateway payment already settled one of our intents?
+ *
+ * A Razorpay signature proves "(order, payment) was really paid on this merchant account". It does
+ * NOT say which of OUR payment intents it belongs to, so the same genuine receipt must never be
+ * accepted twice. Without this, one real ₹100 payment settles an unlimited number of intents.
+ */
+export function paymentByRazorpayPaymentId(razorpayPaymentId, exceptId) {
+  if (!razorpayPaymentId) return null;
+  for (const p of cs.payments.values())
+    if (p.razorpayPaymentId === razorpayPaymentId && p.id !== exceptId) return p;
+  return null;
+}
+
+/** Any payment intent for this order, whatever its state — what the expiry sweeper has to respect. */
+export function paymentForOrder(orderId) {
+  if (!orderId) return null;
+  for (const p of cs.payments.values())
+    if (p.orderId === orderId && p.purpose === 'ORDER') return p;
+  return null;
+}
+
 /**
  * The captured gateway payment for an order, if there is one — what a refund has to act on.
  */

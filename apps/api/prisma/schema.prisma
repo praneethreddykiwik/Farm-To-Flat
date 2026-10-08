@@ -258,10 +258,25 @@ model Payment {
   status            String   @default("CREATED")
   razorpayOrderId   String?
   razorpayPaymentId String?
+  /// How much of this payment has gone back through the GATEWAY. Refund idempotency reads this, so
+  /// losing it means a cancelled order is refunded a second time on the next restart — real money
+  /// out, caught only by Razorpay's own idempotency window.
+  refundedPaise     Int      @default(0)
+  refundId          String?
+  /// A gateway refund that failed. The durable copy of a problem that otherwise exists only in a
+  /// log line on an ephemeral host.
+  refundFailed      Boolean  @default(false)
+  refundFailedAt    DateTime?
+  /// Money that arrived for an order no longer waiting for it. Credited to the wallet, but the cash
+  /// is still at the gateway, so it has to be findable for reconciliation.
+  orphan            Boolean  @default(false)
+  capturedVia       String?
   createdAt         DateTime @default(now())
 
   @@index([customerId])
   @@index([orderId])
+  @@index([status])
+  @@index([razorpayPaymentId])
 }
 
 // ─────────────────────────── operations ───────────────────────────

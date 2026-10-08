@@ -42,6 +42,9 @@ import { razorpayWebhookRouter } from './routes/razorpay-webhook.js';
 import { mediaRouter } from './routes/media.js';
 import { devicesRouter } from './routes/devices.js';
 import { aiRouter } from './routes/ai.js';
+// Side-effect import: starts the 10-minute gateway reconciliation pass. The third leg, after the
+// client callback and the webhook — the one that notices when neither of those happened.
+import './lib/reconcile.js';
 // admin (operator)
 import { adminAuth, adminAuthorize } from './routes/admin/auth.js';
 import { adminProductsRouter } from './routes/admin/products.js';
