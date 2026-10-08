@@ -26,6 +26,7 @@ import { CartBar } from '../../src/components/CartBar';
 import { DietToggle } from '../../src/components/DietToggle';
 import { SeasonalRail } from '../../src/components/SeasonalRail';
 import { LanguageRail } from '../../src/components/LanguageRail';
+import { LensResult } from '../../src/components/LensResult';
 import { useSlowHint, WAKING_MESSAGE } from '../../src/hooks/useSlowHint';
 import { useGetCatalogQuery, useGetMeQuery, useGetWindowsQuery } from '../../src/api/api';
 import { selectCustomer } from '../../src/features/auth/authSlice';
@@ -49,6 +50,8 @@ export default function Home() {
   const catalogSlow = useSlowHint(catalog.isLoading);
   const windows = useGetWindowsQuery({}, { refetchOnMountOrArgChange: true, refetchOnFocus: true });
   const [category, setCategory] = useState(null);
+  // What the lens last identified. Shown as a sheet over the home screen until dismissed.
+  const [lens, setLens] = useState(null);
   const dietPref = useSelector(selectDietPref);
   const listRef = useRef(null);
   const catalogY = useRef(600); // content offset where the catalog grid starts; measured below
@@ -116,7 +119,13 @@ export default function Home() {
     <View>
       <Animated.View style={headerStyle}>
         <HomeHeader name={customer?.name} address={me.data?.defaultAddress} />
-        <SearchBar onPress={() => router.push('/search')} editable={false} style={styles.search} />
+        <SearchBar
+          onPress={() => router.push('/search')}
+          editable={false}
+          lens
+          onLensResult={setLens}
+          style={styles.search}
+        />
       </Animated.View>
       {/* The three languages we serve, drifting past. It is the cue that a Telugu or Hindi reader
           can switch — sitting where they are already looking rather than buried in a setting. */}
@@ -203,10 +212,23 @@ export default function Home() {
         style={[styles.sticky, { top: insets.top + 6 }, stickyStyle]}
       >
         <Glass radius={radius.pill} innerStyle={{ padding: 0 }}>
-          <SearchBar onPress={() => router.push('/search')} editable={false} />
+          <SearchBar
+            onPress={() => router.push('/search')}
+            editable={false}
+            lens
+            onLensResult={setLens}
+          />
         </Glass>
       </Animated.View>
       <CartBar />
+      <LensResult
+        result={lens}
+        onClose={() => setLens(null)}
+        onSearch={(t) => {
+          setLens(null);
+          router.push({ pathname: '/search', params: { q: t } });
+        }}
+      />
     </View>
   );
 }

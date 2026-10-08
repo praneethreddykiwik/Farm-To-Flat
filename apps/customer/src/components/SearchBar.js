@@ -62,7 +62,10 @@ export function SearchBar({
   const showMic = voice && supported && editable && !value?.length;
   // The lens shares the mic's rule: only on an empty field, so it never competes with a clear
   // button or a half-typed query.
-  const showLens = lens && editable && !value?.length && !listening;
+  // NOT gated on `editable`, unlike the mic. On the home screen the field is a button that opens
+  // search, but the camera is still the fastest thing on it — you are standing in front of the
+  // vegetable, not typing its name.
+  const showLens = lens && !value?.length && !listening;
 
   const inner = (
     <Glass radius={radius.pill} innerStyle={styles.inner}>
