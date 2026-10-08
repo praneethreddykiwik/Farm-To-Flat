@@ -10,6 +10,7 @@
  * replay, double tap — returns `already` and changes nothing.
  */
 import { getOrder, patchOrder } from '../store.js';
+import { razorpayEnabled } from './razorpay.js';
 import {
   getPayment,
   getWallet,
@@ -58,6 +59,17 @@ export async function capturePayment({
     };
 
   pay.status = 'CAPTURED';
+  // With a live gateway, a capture MUST carry the gateway's own payment id. Inventing one
+  // (`pay_rzp_<timestamp>`) made a mock credit indistinguishable from a real payment in the
+  // permanent record — there are 14 such rows from the test period, and at reconciliation time
+  // they look exactly like money that arrived. The fallback stays for the offline mock only.
+  if (razorpayEnabled && !razorpayPaymentId && !pay.razorpayPaymentId)
+    return {
+      outcome: 'mismatch',
+      payment: pay,
+      expectedPaise: String(pay.amountPaise),
+      gotPaise: 'no-gateway-payment-id',
+    };
   pay.razorpayPaymentId = razorpayPaymentId || pay.razorpayPaymentId || `pay_rzp_${Date.now()}`;
   pay.capturedVia = source;
 
