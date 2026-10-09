@@ -42,7 +42,7 @@ so the first request after a quiet spell takes a few seconds — that is spin-do
 Render → `f2f-api` → **Manual Deploy** → **Deploy latest commit**. Then:
 
 ```bash
-curl -s https://farm-to-flat.onrender.com/health
+curl -s https://api.fooducia.in/health
 ```
 
 The `commit` field is the whole point of that endpoint: it is the only way to tell a deployed fix

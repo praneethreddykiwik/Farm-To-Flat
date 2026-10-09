@@ -153,9 +153,9 @@ automatic — applying one is a decision, not a side effect of pushing.
 ## Checking something is actually live
 
 ```bash
-curl -s https://farm-to-flat.onrender.com/health
-curl -s -H "x-admin-token: $ADMIN_TOKEN" https://farm-to-flat.onrender.com/api/v1/admin/otp-status
-curl -s -H "x-admin-token: $ADMIN_TOKEN" https://farm-to-flat.onrender.com/api/v1/admin/payments-status
+curl -s https://api.fooducia.in/health
+curl -s -H "x-admin-token: $ADMIN_TOKEN" https://api.fooducia.in/api/v1/admin/otp-status
+curl -s -H "x-admin-token: $ADMIN_TOKEN" https://api.fooducia.in/api/v1/admin/payments-status
 ```
 
 `/health` returns 503 if the API booted without its database and is quietly serving demo data —

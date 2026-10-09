@@ -40,7 +40,7 @@
       },
       "env": {
         "EXPO_PUBLIC_USE_MOCKS": "0",
-        "EXPO_PUBLIC_API_URL": "https://farm-to-flat.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://api.fooducia.in",
         "EXPO_PUBLIC_SUPABASE_URL": "https://anphxxszdqkqnbzdsrre.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucGh4eHN6ZHFrcW5iemRzcnJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1OTI4MTYsImV4cCI6MjEwNDE2ODgxNn0.hqRwr2c7wDUjECI4JRdNnMDnV8pOFO5Wn7RgnM7r3_k",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
@@ -57,7 +57,7 @@
       },
       "env": {
         "EXPO_PUBLIC_USE_MOCKS": "0",
-        "EXPO_PUBLIC_API_URL": "https://farm-to-flat.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://api.fooducia.in",
         "EXPO_PUBLIC_SUPABASE_URL": "https://anphxxszdqkqnbzdsrre.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucGh4eHN6ZHFrcW5iemRzcnJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1OTI4MTYsImV4cCI6MjEwNDE2ODgxNn0.hqRwr2c7wDUjECI4JRdNnMDnV8pOFO5Wn7RgnM7r3_k",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"

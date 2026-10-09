@@ -55,14 +55,14 @@ detected at all.
    match what you type into Razorpay below.)
 
 2. **Razorpay Dashboard** → Settings → Webhooks → Add New Webhook:
-   - **URL**: `https://farm-to-flat.onrender.com/api/v1/webhooks/razorpay`
+   - **URL**: `https://api.fooducia.in/api/v1/webhooks/razorpay`
    - **Secret**: the same value
    - **Events**: `payment.captured`, `payment.failed`
 
 3. Wait for Render to restart, then confirm the process actually sees it:
 
    ```bash
-   curl -s -H "x-admin-token: $ADMIN_TOKEN" https://farm-to-flat.onrender.com/api/v1/admin/payments-status
+   curl -s -H "x-admin-token: $ADMIN_TOKEN" https://api.fooducia.in/api/v1/admin/payments-status
    ```
 
    `webhookConfigured` must be `true` and `blockers` empty. The blocker text is deliberate: the
@@ -113,7 +113,7 @@ Webhooks are per-mode. The test webhook does not fire for live payments.
 
 Still in **Live** mode: Settings → Webhooks → Add New Webhook.
 
-- **URL**: `https://farm-to-flat.onrender.com/api/v1/webhooks/razorpay`
+- **URL**: `https://api.fooducia.in/api/v1/webhooks/razorpay`
 - **Secret**: invent a new one (`node -e 'console.log(require("crypto").randomBytes(24).toString("base64url"))'`)
 - **Events**: `payment.captured`, `payment.failed`
 
@@ -126,7 +126,7 @@ confirming live orders.
 ### 5. Confirm what is actually running
 
 ```bash
-curl -s -H "x-admin-token: $ADMIN_TOKEN" https://farm-to-flat.onrender.com/api/v1/admin/payments-status
+curl -s -H "x-admin-token: $ADMIN_TOKEN" https://api.fooducia.in/api/v1/admin/payments-status
 ```
 
 - `keyId` starts `rzp_live_`
