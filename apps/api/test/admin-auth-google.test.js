@@ -181,7 +181,39 @@ describe('admin Google sign-in', () => {
     const without = await request(await app()).get('/api/v1/admin/auth/config');
     expect(without.body.google.enabled).toBe(false);
     expect(without.body.google.clientId).toBe(null);
-    expect(without.body.token.enabled).toBe(true);
+    // With Google off, the shared token must still be offered — otherwise nobody can get in.
+    process.env.ADMIN_TOKEN = 'a-long-random-operator-token';
+    const fallback = await request(await app()).get('/api/v1/admin/auth/config');
+    expect(fallback.body.token.enabled).toBe(true);
+  });
+
+  it('stops advertising the shared token once it has been sunset', async () => {
+    // The last step of the migration: Google is proven, the nameless shared credential goes away.
+    process.env.ADMIN_TOKEN = 'a-long-random-operator-token';
+    process.env.ADMIN_TOKEN_SUNSET = '1';
+    const r = await request(await app()).get('/api/v1/admin/auth/config');
+    expect(r.body.token.enabled).toBe(false);
+    delete process.env.ADMIN_TOKEN_SUNSET;
+  });
+
+  it('REFUSES the shared token once sunset, even though the value is still correct', async () => {
+    process.env.ADMIN_TOKEN = 'a-long-random-operator-token';
+    process.env.ADMIN_TOKEN_SUNSET = '1';
+    const r = await request(await app())
+      .get('/api/v1/admin/orders?limit=1')
+      .set('x-admin-token', 'a-long-random-operator-token');
+    expect(r.status).toBe(401);
+    delete process.env.ADMIN_TOKEN_SUNSET;
+  });
+
+  it('still accepts the shared token while it has NOT been sunset', async () => {
+    // Guards the other direction: the switch must not lock everyone out by default.
+    process.env.ADMIN_TOKEN = 'a-long-random-operator-token';
+    delete process.env.ADMIN_TOKEN_SUNSET;
+    const r = await request(await app())
+      .get('/api/v1/admin/orders?limit=1')
+      .set('x-admin-token', 'a-long-random-operator-token');
+    expect(r.status).toBe(200);
   });
 
   it('refuses every Google sign-in when the server has no client id', async () => {

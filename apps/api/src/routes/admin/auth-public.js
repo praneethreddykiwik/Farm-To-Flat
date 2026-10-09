@@ -14,10 +14,15 @@
  * ordinary shopping traffic, not for a login.
  */
 import { Router } from 'express';
+import { recordAction } from '../../lib/audit.js';
 import { rateLimit, ipOf } from '../../lib/rate-limit.js';
 import { googleEnabled, googleClientId, verifyGoogleIdToken } from '../../lib/google-auth.js';
 import { googleDirectoryEnabled, roleForEmail } from '../../lib/admin-directory.js';
-import { issueAdminSession, revokeAdminSession } from '../../lib/admin-session.js';
+import {
+  issueAdminSession,
+  revokeAdminSession,
+  verifyAdminSession,
+} from '../../lib/admin-session.js';
 import { ROLE_META } from '../../lib/roles.js';
 
 export const adminAuthPublicRouter = Router();
@@ -39,8 +44,9 @@ adminAuthPublicRouter.get('/config', (_req, res) => {
       enabled: google,
       clientId: google ? googleClientId() : null,
     },
-    // The shared operator token stays available while Google access is being rolled out.
-    token: { enabled: true },
+    // Report the truth rather than a constant. The sign-in screen needs to know whether to offer
+    // the token box at all, and "always yes" stops being true the moment the token is sunset.
+    token: { enabled: process.env.ADMIN_TOKEN_SUNSET !== '1' && !!process.env.ADMIN_TOKEN },
   });
 });
 
@@ -80,6 +86,15 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
     name: who.name,
     picture: who.picture,
   });
+  // A sign-in used to leave one console.error on an ephemeral host, which meant the only record
+  // of who had access to the refund console disappeared with the next deploy. Awaited: if we
+  // cannot record that someone signed in, we do not sign them in.
+  await recordAction({
+    staff: { email: who.email, role, viaGoogle: true },
+    action: 'ADMIN_SIGN_IN',
+    target: null,
+    details: { name: who.name || null, ip: req.ip || null },
+  });
   // eslint-disable-next-line no-console
   console.error(`[admin-auth] ${who.email} signed in as ${role}.`);
   return res.json({
@@ -95,8 +110,18 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
   });
 });
 
-adminAuthPublicRouter.post('/signout', (req, res) => {
+adminAuthPublicRouter.post('/signout', async (req, res) => {
+  // Read the session BEFORE revoking it, or there is nobody left to name in the record.
+  const who = verifyAdminSession(req.header('x-admin-session') || '');
   revokeAdminSession(req.header('x-admin-session') || '');
+  // Sign-out matters as much as sign-in: "when did this person stop having access" is half of
+  // any access question. Not awaited-and-refused like sign-in — refusing to sign someone OUT
+  // because the log is down would be the wrong way round.
+  if (who)
+    recordAction({
+      staff: { email: who.email, role: who.role, viaGoogle: true },
+      action: 'ADMIN_SIGN_OUT',
+    }).catch(() => {});
   // Always 200: whether that token was real is not information this endpoint should hand out, and
   // the client's job after signing out is identical either way.
   res.json({ ok: true });

@@ -55,6 +55,21 @@ export function adminAuth(req, res, next) {
   }
 
   // 3) the shared operator token
+  //
+  // It identifies NOBODY. Every action taken with it is attributable only to "someone who had
+  // the token", it bypasses the Google allowlist entirely, and it cannot be revoked for one
+  // person. It exists because it was the only way in before Google sign-in worked.
+  //
+  // ADMIN_TOKEN_SUNSET=1 turns it off. That is the last step of this migration and it is
+  // deliberately a separate switch: turning it off before Google is proven working would lock
+  // everyone out of the console, so it must be a decision taken after, not a side effect.
+  if (process.env.ADMIN_TOKEN_SUNSET === '1')
+    return res.status(401).json({
+      error: {
+        code: 'UNAUTHENTICATED',
+        message: 'Sign in with your Google account.',
+      },
+    });
   const required = process.env.ADMIN_TOKEN;
   if (!required) {
     if (IS_PROD) {

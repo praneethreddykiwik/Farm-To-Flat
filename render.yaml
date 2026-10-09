@@ -95,6 +95,25 @@ services:
       # correct behaviour for a fork or a local run, not a degraded one.
       - key: SENTRY_DSN
         sync: false
+      # Google sign-in for the operator console. All three are needed together: a client id with
+      # no allowlist would sign everyone in and then reject every one of them, which is why the
+      # sign-in screen only offers the button when both are present.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # email[:ROLE] per entry, comma separated. A bare address gets ADMIN, not SUPER_ADMIN — a
+      # typo must not hand someone everything. Roles are re-read on every request, so removing
+      # a line here takes effect on that person's next call, not in twelve hours.
+      - key: ADMIN_GOOGLE_EMAILS
+        sync: false
+      # Signs the operator session cookie. Unset means a random secret per boot, which silently
+      # signs everyone out on each deploy.
+      - key: ADMIN_SESSION_SECRET
+        sync: false
+      # Set to 1 only AFTER Google sign-in is proven working. It turns off the shared ADMIN_TOKEN,
+      # which identifies nobody and cannot be revoked per person. Setting it too early locks
+      # everyone out of the console.
+      - key: ADMIN_TOKEN_SUNSET
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       # ── login codes over WhatsApp (MSG91) ──
