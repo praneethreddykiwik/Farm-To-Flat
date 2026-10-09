@@ -80,11 +80,38 @@ export function Stat({ icon, value, label, delta, tint = 'leaf' }) {
 }
 
 /** Product thumbnail — photo when available, else a tinted initial (mirrors the app). */
-export function Thumb({ name, image, tint }) {
+/**
+ * Ask Storage for a thumbnail instead of the original.
+ *
+ * The catalogue stores whatever was uploaded — currently PNGs over 2 MB each. Painting 54 of them
+ * into 48-pixel squares meant the product list pulled more than 100 MB on every load, which does
+ * not fail cleanly: it just never finishes, and looks exactly like "the images stopped working".
+ *
+ * Only our own Storage URLs are rewritten; a stock photo or a future CDN URL is left alone,
+ * because we cannot assume another host understands these parameters. Same ladder as the app, so
+ * both share CDN cache entries rather than each minting their own.
+ */
+const OBJECT_MARKER = '/storage/v1/object/public/';
+function thumbUrl(url, width = 120) {
+  if (typeof url !== 'string') return url;
+  const i = url.indexOf(OBJECT_MARKER);
+  if (i === -1) return url; // not ours, or already a render URL
+  const origin = url.slice(0, i);
+  const path = url.slice(i + OBJECT_MARKER.length);
+  return `${origin}/storage/v1/render/image/public/${path}?width=${width}&quality=70&resize=contain`;
+}
+
+export function Thumb({ name, image, tint, width = 120 }) {
   const [broke, setBroke] = useState(false);
   if (image && !broke) {
     return (
-      <img className="thumb" src={image} alt="" loading="lazy" onError={() => setBroke(true)} />
+      <img
+        className="thumb"
+        src={thumbUrl(image, width)}
+        alt=""
+        loading="lazy"
+        onError={() => setBroke(true)}
+      />
     );
   }
   return (
