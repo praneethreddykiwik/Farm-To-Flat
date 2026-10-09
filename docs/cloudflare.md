@@ -49,101 +49,170 @@ directly, and failing those checks would take the service down in order to defen
 
 ## Steps
 
-### 1. Move DNS to Cloudflare
+Staged so that nothing which is working today can break at a step you have not reached yet. The
+website and admin console stay on **DNS-only** throughout — Cloudflare is proxying the API, which
+is the thing that needs a WAF, and leaving the Vercel records unproxied takes the live marketing
+site entirely out of the blast radius. Proxying those too is step 8, optional, and separately
+reversible.
 
-Add each domain in the Cloudflare dashboard (Free plan is enough to start). Cloudflare imports the
-existing records; **check the Vercel records came across** before continuing. Then at Hostinger,
-change the nameservers to the two Cloudflare gives you. Propagation is usually under an hour.
+Current records, for reference — all four domains are identical:
 
-Set **SSL/TLS → Overview → Full (strict)**. Not Flexible: Flexible serves HTTPS to the browser and
-then talks plain HTTP to the origin, which is a downgrade dressed up as encryption.
+| Name                 | Type  | Value                                          |
+| -------------------- | ----- | ---------------------------------------------- |
+| `fooducia.in` (apex) | A     | `216.198.79.1` (Vercel)                        |
+| `www`                | CNAME | `c9808e38df3dad37.vercel-dns-017.com` (Vercel) |
 
-### 2. Give the API a hostname
+### 1. Add the domains to Cloudflare — nothing changes yet
 
-In Render → `f2f-api` → Settings → Custom Domain, add `api.fooducia.in`. In Cloudflare DNS:
+Add `fooducia.in`, `fooduciary.in`, `fooducia.health`, `fooduciary.health`. Cloudflare scans the
+existing records and imports them.
 
-```
-CNAME   api   farm-to-flat.onrender.com   Proxied (orange cloud)
-```
+**Before touching the nameservers, check every imported record against the table above, and set the
+cloud icon to grey (DNS only) on all of them.** An import that quietly drops a record is the usual
+way this step goes wrong, and with grey clouds the switchover is a pure nameserver change: same
+answers, different servers.
 
-Wait for Render to show the certificate as issued.
+### 2. Switch nameservers at Hostinger
 
-### 3. Point the clients at it
-
-- `apps/customer/eas.json` — `EXPO_PUBLIC_API_URL` → `https://api.fooducia.in` in both
-  `preview-live` and `production`. Needs a new build.
-- Vercel → admin project → `VITE_API_URL` → `https://api.fooducia.in`.
-- Render → `CORS_ORIGIN` must already list every site origin; the API hostname is not a CORS origin
-  and does not go in it.
-- Razorpay dashboard → Webhooks → change the URL to
-  `https://api.fooducia.in/api/v1/webhooks/razorpay`. **Keep the same webhook secret.**
-
-### 4. Let the webhook through, before anything else
-
-Cloudflare's bot and WAF rules will block Razorpay's server-to-server POST, and the failure is
-quiet: payments stop confirming and nothing in the app looks wrong.
-
-WAF → Custom rules → **Skip**, placed above every other rule:
-
-```
-(http.request.uri.path eq "/api/v1/webhooks/razorpay")
-→ Skip: All remaining custom rules, Rate limiting, Bot Fight Mode, Managed rules
-```
-
-### 5. Rate limiting at the edge
-
-WAF → Rate limiting rules:
-
-| Path                | Limit             | Action            |
-| ------------------- | ----------------- | ----------------- |
-| `/api/v1/auth/otp*` | 5 / 10 min per IP | Block             |
-| `/api/v1/*`         | 600 / min per IP  | Managed Challenge |
-
-The second mirrors `RATE_LIMIT_PER_MIN` in the API, so the edge absorbs a flood before it costs you
-a Render instance, and the in-process limiter stays as the backstop.
-
-### 6. Turn on the origin lock — in this order
-
-**The order matters. Reversed, the API goes down until the rule exists.**
-
-a. Cloudflare → Rules → **Transform Rules → Modify Request Header** → Add:
-
-```
-Header name:  X-Origin-Secret
-Value:        <the generated secret>
-Applies to:   All incoming requests
-```
-
-b. Confirm `https://api.fooducia.in/health` still answers.
-
-c. Render → `f2f-api` → Environment → add `ORIGIN_SHARED_SECRET` = the same value. Save; Render
-redeploys.
-
-d. Verify both sides:
+Hostinger → Domains → each domain → DNS / Nameservers → Change → use Cloudflare's two.
+Usually live within an hour. Confirm with:
 
 ```bash
-curl -s https://api.fooducia.in/health | jq .originLock          # → true
-curl -s -o /dev/null -w '%{http_code}\n' \
-  https://farm-to-flat.onrender.com/api/v1/catalog/search?q=tomato   # → 403
+dig +short NS fooducia.in          # should return the two Cloudflare names
+dig +short www.fooducia.in         # should still be the Vercel target
 ```
 
-The second is the whole point: the Render hostname still resolves, but no longer serves.
+Then SSL/TLS → Overview → **Full (strict)**. Not Flexible — Flexible serves HTTPS to the browser
+and plain HTTP to the origin, which is a downgrade wearing the padlock.
 
-### 7. Caching
+At this point the site behaves exactly as before. If anything looks wrong, point the nameservers
+back at Hostinger and you are where you started.
 
-Caching rules → for `/api/v1/catalog*`, Cache eligible, Edge TTL ~5 minutes. Leave everything under
-`/api/v1/auth`, `/me`, `/cart`, `/orders` and `/wallet` uncached — they are per-customer and
-authenticated.
+### 3. Give the API a hostname
 
-## Order of operations, condensed
+Render → `f2f-api` → Settings → Custom Domains → add `api.fooducia.in`.
 
-1. Domains into Cloudflare, nameservers switched, SSL Full (strict).
-2. `api.fooducia.in` → Render custom domain → certificate issued.
-3. Webhook skip rule.
-4. Razorpay webhook URL moved; clients repointed; verify a real payment confirms.
-5. Rate limiting rules.
-6. Transform Rule, **then** `ORIGIN_SHARED_SECRET`.
-7. Caching.
+Cloudflare → DNS → add, **grey cloud for now**:
 
-Steps 1–2 are reversible in minutes. Step 6 is the one that can take the API down, which is why it
-comes last and in that order.
+```
+CNAME   api   farm-to-flat.onrender.com
+```
+
+Wait for Render to report the certificate as issued — it needs to reach the origin unproxied to
+validate, which is why this starts grey. Then check:
+
+```bash
+curl -s https://api.fooducia.in/health | jq .
+```
+
+Now switch that one record to **orange (Proxied)** and run the same curl again. If it still answers,
+Cloudflare is in the path.
+
+### 4. Let the webhook through — before any other rule
+
+Cloudflare's bot and managed rules will block Razorpay's server-to-server POST, and the failure is
+silent: payments stop confirming and nothing in the app looks wrong. Put this rule in place while
+there is still nothing to block.
+
+WAF → Custom rules → Create, **first in the list**:
+
+```
+Name:        razorpay-webhook-skip
+Expression:  (http.host eq "api.fooducia.in" and
+              http.request.uri.path eq "/api/v1/webhooks/razorpay")
+Action:      Skip  →  tick All remaining custom rules, Rate limiting rules,
+                      Managed rules, Bot Fight Mode
+```
+
+### 5. Move the clients over
+
+- Razorpay dashboard → Webhooks → URL to `https://api.fooducia.in/api/v1/webhooks/razorpay`.
+  **Keep the existing secret** — changing it means updating `RAZORPAY_WEBHOOK_SECRET` on Render too,
+  and a mismatch there is how the last webhook outage happened.
+- Vercel → admin project → `VITE_API_URL` = `https://api.fooducia.in` → redeploy.
+- `apps/customer/eas.json` → `EXPO_PUBLIC_API_URL` = `https://api.fooducia.in` in `preview-live`
+  and `production`. Needs a new build, so it rides along with the next one.
+- `CORS_ORIGIN` on Render does **not** change. It lists the browser origins that call the API; the
+  API's own hostname is not one of them.
+
+Then put a real payment through and confirm the order reaches CONFIRMED. Do this before step 7 —
+you want the payment path proven while it is still trivially reversible.
+
+### 6. Rate limiting
+
+The Free plan allows **one** rate-limiting rule and five WAF custom rules; if you want both of the
+below, that is the Pro plan. With one, spend it here:
+
+```
+Name:       otp-flood
+Expression: (http.host eq "api.fooducia.in" and
+             starts_with(http.request.uri.path, "/api/v1/auth/otp"))
+Characteristic: IP
+Rate:       5 requests / 10 minutes
+Action:     Block
+```
+
+Every request past that limit is an SMS that MSG91 bills you for, which is why this one comes first.
+
+A second, if you have it — matching `RATE_LIMIT_PER_MIN` in the API so the edge absorbs a flood
+before it reaches a $7 instance, with the in-process limiter still behind it as a backstop:
+
+```
+Expression: (http.host eq "api.fooducia.in" and
+             starts_with(http.request.uri.path, "/api/v1/"))
+Rate:       600 requests / minute per IP
+Action:     Managed Challenge
+```
+
+### 7. The origin lock — order matters here
+
+Reversed, the API is down until the rule exists.
+
+**a.** Cloudflare → Rules → Transform Rules → **Modify Request Header** → Create:
+
+```
+Name:   origin-lock
+If:     All incoming requests
+Then:   Set static  →  Header: X-Origin-Secret
+                       Value:  <the secret>
+```
+
+**b.** Confirm the edge is adding it, while the origin still ignores it:
+
+```bash
+curl -s https://api.fooducia.in/health | jq .originLock     # → false, and 200 OK
+```
+
+**c.** Render → `f2f-api` → Environment → add `ORIGIN_SHARED_SECRET` = the same value. Save, and
+wait for the redeploy to finish.
+
+**d.** Verify both sides:
+
+```bash
+curl -s https://api.fooducia.in/health | jq .originLock
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://farm-to-flat.onrender.com/api/v1/catalog/search?q=tomato"
+```
+
+`true`, then `403`. The second is the point of the whole exercise: the Render hostname still
+resolves, but it no longer serves anyone who skipped the edge.
+
+If something goes wrong, deleting `ORIGIN_SHARED_SECRET` on Render restores the previous behaviour
+within one redeploy. The code is written to be inert without it.
+
+### 8. Optional, later: proxy the website too
+
+Switch the apex and `www` records to orange. This brings caching, bot rules and DDoS protection to
+the marketing site and admin console.
+
+Leave it for a separate sitting. Vercel issues and renews its own certificates, and a proxied
+record can interfere with the HTTP validation it uses, so this is the step most likely to need a
+grey-cloud rollback. Nothing above depends on it.
+
+### 9. Caching
+
+Caching → Cache Rules → for `(http.host eq "api.fooducia.in" and
+starts_with(http.request.uri.path, "/api/v1/catalog"))` → Eligible for cache, Edge TTL 5 minutes.
+
+Leave `/auth`, `/me`, `/cart`, `/orders` and `/wallet` uncached. They are per-customer and
+authenticated, and a cache hit across customers there is a data leak, not a speed-up.
