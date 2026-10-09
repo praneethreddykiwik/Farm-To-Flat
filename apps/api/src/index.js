@@ -69,12 +69,17 @@ import { adminCouponsRouter } from './routes/admin/coupons.js';
 import { supportRouter, adminSupportRouter } from './routes/support.js';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
+import { requireCloudflare, originLockEnabled } from './lib/edge.js';
 
 const app = express();
 app.disable('x-powered-by');
 // Render terminates TLS at a proxy, so without this every request reports the proxy's address and
 // any per-IP limit would apply to all users at once. One hop.
 app.set('trust proxy', 1);
+// Before anything else, including the webhook: with Cloudflare in front, a request that reaches
+// this process without passing the edge has skipped every WAF, bot and rate-limit rule there, and
+// the Render hostname is public. No-op until ORIGIN_SHARED_SECRET is set. See lib/edge.js.
+app.use(requireCloudflare);
 app.use(helmet());
 // CORS: in production, lock to an allowlist — set CORS_ORIGIN to a comma-separated list of the
 // admin/site origins (e.g. "https://admin.farmtoflat.in"). When unset (local dev) it reflects any
@@ -173,6 +178,9 @@ app.get('/health', (_req, res) => {
     // only the MODE is exposed here — but "are we on live keys?" is the single most important
     // operational fact once real money is involved, and it should not require a token to answer.
     payments: { mode: razorpayMode(), webhook: webhookEnabled },
+    // Whether the origin is refusing traffic that bypassed Cloudflare. Reported because the whole
+    // point of the lock is that it fails invisibly when it is off — everything still works.
+    originLock: originLockEnabled(),
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     ts: Date.now(),

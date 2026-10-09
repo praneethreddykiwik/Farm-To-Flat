@@ -16,6 +16,7 @@
  * and this must move to a shared store.
  */
 import { fail } from '../http.js';
+import { clientIp } from './edge.js';
 
 /** key -> { count, resetAt }. Swept periodically so a flood of unique keys cannot grow it forever. */
 const buckets = new Map();
@@ -83,5 +84,12 @@ export function rateLimit({
   };
 }
 
-/** Client address, honouring the proxy Render terminates TLS at (see `trust proxy` in index.js). */
-export const ipOf = (req) => req.ip || req.socket?.remoteAddress || 'unknown';
+/**
+ * Client address.
+ *
+ * Delegates to lib/edge.js, which prefers Cloudflare's CF-Connecting-IP on requests proven to have
+ * come through the edge and otherwise falls back to `req.ip`. Keeping that logic there rather than
+ * here is deliberate: trusting the header is only safe because of the origin lock that sits beside
+ * it, and the two should not be able to drift apart.
+ */
+export const ipOf = (req) => clientIp(req);

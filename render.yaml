@@ -114,6 +114,14 @@ services:
       # everyone out of the console.
       - key: ADMIN_TOKEN_SUNSET
         sync: false
+      # ── Cloudflare origin lock ──
+      # The secret Cloudflare injects via a Transform Rule on every request it forwards. Setting it
+      # makes the API refuse anything that reached Render directly, bypassing the WAF and edge rate
+      # limits; it is also what makes CF-Connecting-IP safe to trust for per-IP throttling.
+      # ORDER MATTERS: add the Cloudflare Transform Rule FIRST, then set this. The other way round
+      # takes the API down until the rule exists. /health stays open so Render's probe survives.
+      - key: ORIGIN_SHARED_SECRET
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       # ── login codes over WhatsApp (MSG91) ──
