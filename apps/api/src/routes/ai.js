@@ -12,6 +12,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
+import { clientIp } from '../lib/edge.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
 import { callVision, parseReply, resolve, systemPrompt as visionPrompt } from '../lib/identify.js';
@@ -41,13 +42,17 @@ function requireAiAccess(req, _res, next) {
  * Strict in-memory per-IP rate limiter for /plan. express-rate-limit is not a dependency here, so we
  * keep a tiny sliding window of recent request timestamps per client IP — no new dependency, single
  * process. Allows RATE_MAX requests per RATE_WINDOW_MS; the (RATE_MAX+1)th within the window gets 429.
+ *
+ * The address comes from clientIp, not `req.ip`. Behind Cloudflare `req.ip` is a Cloudflare edge
+ * address, which would collapse every customer in the country into one bucket: the limit becomes a
+ * global cap for the whole user base, and whoever asks first spends it.
  */
 const RATE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const RATE_MAX = 10; // requests per window per IP
 const planHits = new Map(); // ip -> number[] (ms timestamps within the window)
 
 function planLimiter(req, _res, next) {
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const ip = clientIp(req);
   const now = Date.now();
   const recent = (planHits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
   if (recent.length >= RATE_MAX) {
@@ -222,7 +227,7 @@ const IDENT_MAX = 15; // photographs per window per IP
 const identHits = new Map();
 
 function identifyLimiter(req, _res, next) {
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const ip = clientIp(req);
   const now = Date.now();
   const recent = (identHits.get(ip) || []).filter((t) => now - t < IDENT_WINDOW_MS);
   if (recent.length >= IDENT_MAX) {

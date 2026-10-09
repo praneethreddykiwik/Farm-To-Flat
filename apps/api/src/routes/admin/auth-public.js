@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import { recordAction } from '../../lib/audit.js';
 import { rateLimit, ipOf } from '../../lib/rate-limit.js';
+import { clientIp } from '../../lib/edge.js';
 import { googleEnabled, googleClientId, verifyGoogleIdToken } from '../../lib/google-auth.js';
 import { googleDirectoryEnabled, roleForEmail } from '../../lib/admin-directory.js';
 import {
@@ -93,7 +94,10 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
     staff: { email: who.email, role, viaGoogle: true },
     action: 'ADMIN_SIGN_IN',
     target: null,
-    details: { name: who.name || null, ip: req.ip || null },
+    // clientIp, not req.ip: behind Cloudflare the latter is an edge datacentre address, so every
+    // sign-in would be recorded as coming from the same place. The point of keeping it is to be
+    // able to say where someone signed in from.
+    details: { name: who.name || null, ip: clientIp(req) || null },
   });
   // eslint-disable-next-line no-console
   console.error(`[admin-auth] ${who.email} signed in as ${role}.`);
