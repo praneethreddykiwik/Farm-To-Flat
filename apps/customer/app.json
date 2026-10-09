@@ -93,7 +93,16 @@
           "organization": "kiwikone",
           "project": "react-native"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29
+          }
+        }
+      ],
+      "./plugins/with-android-hardening"
     ],
     "experiments": {
       "reactCompiler": false
