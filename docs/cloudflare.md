@@ -200,14 +200,23 @@ resolves, but it no longer serves anyone who skipped the edge.
 If something goes wrong, deleting `ORIGIN_SHARED_SECRET` on Render restores the previous behaviour
 within one redeploy. The code is written to be inert without it.
 
-### 8. Optional, later: proxy the website too
+### 8. Do NOT proxy the website
 
-Switch the apex and `www` records to orange. This brings caching, bot rules and DDoS protection to
-the marketing site and admin console.
+An earlier draft of this document had proxying the Vercel records as an optional later step. It
+should not be done, and Vercel says so itself — the Domains page carries a warning on all eight
+hostnames:
 
-Leave it for a separate sitting. Vercel issues and renews its own certificates, and a proxied
-record can interfere with the HTTP validation it uses, so this is the step most likely to need a
-grey-cloud rollback. Nothing above depends on it.
+> Using a proxy in front of Vercel prevents our automated DDOS and bot-mitigation tools from
+> working correctly. It can also degrade performance.
+
+Vercel runs its own edge, its own DDoS absorption and its own bot mitigation. Putting Cloudflare
+in front does not add a layer; it blinds the one that is already there, and takes on Vercel's
+certificate renewal as a new failure mode in exchange. The apex and `www` records stay grey-cloud
+permanently.
+
+This costs nothing, because the protection was never needed there. The marketing site is static
+and the admin console is a static bundle whose every call is authenticated by the API — which is
+the thing being proxied. All of the value in this document comes from `api.fooducia.in`.
 
 ### 9. Caching
 
