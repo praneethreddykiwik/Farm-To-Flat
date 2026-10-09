@@ -105,6 +105,33 @@ eas channel:edit production --branch <previous-branch>
 
 Phones pick up the rollback on next launch.
 
+### Two places hold the public env, and they are read by different commands
+
+`eas.json`'s per-profile `env` block is read by **`eas build`**. The EAS _environments_
+(`eas env:list --environment preview|production`) are read by **`eas update --environment …`**,
+which is the release path above. Changing one does not change the other, and nothing warns you.
+
+That divergence had already produced two live traps:
+
+- The `production` environment had no `EXPO_PUBLIC_USE_MOCKS`, and the app reads it as
+  `process.env.EXPO_PUBLIC_USE_MOCKS !== '0'` — **unset means mocks ON**. An
+  `eas update --environment production` would have shipped a bundle running entirely on the in-app
+  mock server: fake catalogue, fake orders, no real payments, and nothing about it looking broken.
+  It also had no Supabase URL or anon key, so product images would have been blank.
+- The `preview` environment had no `EXPO_PUBLIC_API_URL` at all, so the bundler fell through to
+  whatever was in the local `.env` of the machine running the command. The comment in that file
+  suggests putting a LAN IP there for on-device testing — meaning an OTA could have shipped a
+  laptop's address to real phones.
+
+Both are now set in both environments. Before any `eas update`, run:
+
+```bash
+eas env:list --environment preview      # must include EXPO_PUBLIC_API_URL and USE_MOCKS=0
+```
+
+If a variable is missing there, it is not "inherited" from `eas.json`. It is simply absent, and the
+app's default takes over.
+
 ### What cannot go over the air
 
 Anything native: the app icon, the name, permissions, a new native module, an SDK upgrade. Those
