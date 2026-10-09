@@ -53,25 +53,14 @@ need(
   (v) => /^https?:\/\//.test(v) && !/(localhost|127\.0\.0\.1)/.test(v),
   'must be an absolute, non-localhost URL',
 );
-need(
-  'EXPO_PUBLIC_RAZORPAY_KEY_ID',
-  (v) => /^rzp_(test|live)_[A-Za-z0-9]{10,}$/.test(v) && !v.includes('xxxx'),
-  'must be a real rzp_test_/rzp_live_ key — a placeholder disables checkout entirely',
-);
 need('EXPO_PUBLIC_SUPABASE_URL', (v) => /^https:\/\//.test(v), 'must be an https URL');
 need('EXPO_PUBLIC_SUPABASE_ANON_KEY', (v) => v.length > 40, 'looks too short to be a real anon key');
 need('EXPO_PUBLIC_USE_MOCKS', (v) => v === '0', 'must be "0" for a build that talks to the real API');
 
-// Shipping a store build against the Razorpay TEST gateway takes real customers through a sandbox
-// that never actually charges them. Worth stopping for, not just mentioning.
-if (profile === 'production' && env.EXPO_PUBLIC_RAZORPAY_KEY_ID?.startsWith('rzp_test_')) {
-  warnings.push(
-    'EXPO_PUBLIC_RAZORPAY_KEY_ID is a TEST key on the "production" profile.\n' +
-      '    Real customers would go through the Razorpay sandbox and no money would move.\n' +
-      '    Switch to the rzp_live_ key here AND set the matching live key id + key secret on the\n' +
-      '    API host before a store release. Both sides must be live, or checkout breaks.',
-  );
-}
+// There is deliberately no Razorpay key check here any more. The app takes the key id from the
+// payment intent, so the gateway account is whatever the API is configured with and the bundle has
+// no say in it. A check on a value nothing reads is worse than no check: it passes, and reads like
+// assurance.
 
 for (const w of warnings) console.warn(`⚠ ${w}`);
 
