@@ -176,8 +176,8 @@ export function Charges() {
           <TableSkeleton rows={4} />
         </div>
       ) : (
-        <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 16 }}>
-          <div className="stack" style={{ gap: 16 }}>
+        <div className="grid-2">
+          <div className="vstack" style={{ gap: 16, minWidth: 0 }}>
             {/* ── fee lines ─────────────────────────────────────────────── */}
             <div className="glass card reveal">
               <div className="card__head">
@@ -192,11 +192,11 @@ export function Charges() {
                   No fees. The customer pays for the items and delivery, nothing else.
                 </p>
               ) : (
-                <div className="stack" style={{ gap: 14 }}>
+                <div className="vstack" style={{ gap: 14 }}>
                   {rules.map((r) => (
                     <div
                       key={r.key}
-                      className="stack"
+                      className="vstack"
                       style={{
                         gap: 8,
                         padding: 12,
@@ -374,7 +374,7 @@ export function Charges() {
               Exactly what the customer would see.
             </p>
 
-            <div className="stack" style={{ gap: 6, marginTop: 10, fontSize: 14 }}>
+            <div className="vstack" style={{ gap: 6, marginTop: 10, fontSize: 14 }}>
               <Row label="Item total" value={inr(SAMPLE_PAISE)} />
               {bill.lines.map((l, i) => (
                 <Row key={`${l.label}-${i}`} label={l.label} value={inr(l.amountPaise)} />
