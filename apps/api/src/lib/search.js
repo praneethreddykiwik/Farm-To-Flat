@@ -6,10 +6,19 @@
  */
 
 export function normalise(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9ఀ-౿ ]/g, '')
-    .trim();
+  return (
+    String(s || '')
+      .toLowerCase()
+      // Latin, digits, Telugu (U+0C00-U+0C7F) and Devanagari (U+0900-U+097F).
+      //
+      // Devanagari was missing, and the failure was silent in the worst way: every character of a
+      // Hindi query was stripped, the query became the empty string, and search returned nothing.
+      // Not "no results for कीमा" — no query at all. So the Hindi aliases on products had never
+      // been reachable, while the Telugu ones beside them worked, which is exactly the kind of
+      // difference nobody notices until a customer who types in Hindi gives up.
+      .replace(/[^a-z0-9\u0C00-\u0C7F\u0900-\u097F ]/g, '')
+      .trim()
+  );
 }
 
 function trigrams(s) {
