@@ -132,6 +132,32 @@ eas env:list --environment preview      # must include EXPO_PUBLIC_API_URL and U
 If a variable is missing there, it is not "inherited" from `eas.json`. It is simply absent, and the
 app's default takes over.
 
+### A schema change does not deploy itself — and the failure is a silent outage
+
+`render.yaml`'s build command runs `prisma generate`, which regenerates the Prisma CLIENT from
+schema.prisma. **Nothing runs `migrate deploy` or `db push`.** There is no migrations directory.
+
+So adding a column to schema.prisma and pushing produces a client that selects a column the
+database does not have. Every query throws, boot hydration fails, `disablePersistence()` fires, and
+the API serves the in-memory seed catalogue instead of real data — orders invisible, writes lost.
+`/health` reports `ok:false` and `"in-memory seed (DATABASE UNAVAILABLE)"`, but the app and the
+console keep rendering, so nothing looks broken from the outside.
+
+This has happened once, adding the charge columns. Before pushing any schema.prisma change:
+
+```bash
+cd apps/api
+node --env-file=.env prisma/add-charge-columns.mjs   # or an equivalent additive script
+curl -s https://api.fooducia.in/health | jq .ok      # must be true AFTER the redeploy
+```
+
+Write the SQL additively (`ADD COLUMN IF NOT EXISTS`) rather than reaching for `prisma db push`:
+push diffs the whole schema and will drop a column that exists in the database but not in the file.
+
+Applying the column BEFORE the deploy makes the change invisible — the old client ignores a column
+it does not know about. Applying it after means an outage lasting until the next restart, because
+persistence is disabled for the life of the process.
+
 ### What cannot go over the air
 
 Anything native: the app icon, the name, permissions, a new native module, an SDK upgrade. Those
