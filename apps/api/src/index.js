@@ -67,6 +67,7 @@ import { adminAuthPublicRouter } from './routes/admin/auth-public.js';
 import { adminOtpRouter } from './routes/admin/otp.js';
 import { adminCouponsRouter } from './routes/admin/coupons.js';
 import { supportRouter, adminSupportRouter } from './routes/support.js';
+import { adminChargesRouter } from './routes/admin/charges.js';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
 import { requireCloudflare, originLockEnabled } from './lib/edge.js';
@@ -243,6 +244,7 @@ admin.use(adminAccessRouter);
 admin.use(adminOtpRouter);
 admin.use(adminCouponsRouter);
 admin.use(adminSupportRouter);
+admin.use(adminChargesRouter);
 app.use(`${v1}/admin`, admin);
 
 // Unknown route → 404 (was 501 NOT_IMPLEMENTED, which reads as a server fault to clients/monitors).

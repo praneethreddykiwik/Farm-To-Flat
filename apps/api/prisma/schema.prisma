@@ -227,6 +227,11 @@ model Order {
   couponCode          String?
   couponDiscountPaise Int      @default(0)
   deliveryChargePaise Int      @default(0)
+  /// What the fee lines and tax actually were WHEN THIS ORDER WAS PLACED. A snapshot, not a
+  /// reference: fees change, and a receipt reprinted next year must show the bill the customer
+  /// agreed to, not today's settings applied to last year's basket.
+  chargeBreakdown     Json?
+  taxPaise            Int      @default(0)
   totalPaise          Int
   walletAppliedPaise  Int      @default(0)
   gatewayAmountPaise  Int      @default(0)
@@ -336,6 +341,12 @@ model AppConfig {
   /// Require the customer to read out a one-time code at the door before an order counts as
   /// delivered. Proof of hand-over, and for a cash order proof the money changed hands.
   deliveryOtpEnabled        Boolean  @default(true)
+  /// Operator-defined fee lines shown on every bill — platform fee, packaging, anything else.
+  /// An array of {id,label,kind,valuePaise|valueBps,taxable,enabled}; see lib/charges.js.
+  charges                   Json     @default("[]")
+  /// {enabled,label,goodsRateBps,feeRateBps}. Two rates because fresh produce is nil-rated under
+  /// Indian GST while a platform or delivery fee is a service at 18%.
+  tax                       Json?
   updatedAt                 DateTime @updatedAt
 }
 

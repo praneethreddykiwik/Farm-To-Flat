@@ -13,6 +13,7 @@ import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { orderCustomer } from '../serialize.js';
 import { createRazorpayOrder, razorpayEnabled, razorpayKeyId } from '../lib/razorpay.js';
+import { breakdownSnapshot, priceBreakdown } from '../lib/charges.js';
 import {
   bookedIndex,
   constants,
@@ -140,8 +141,18 @@ customerOrdersRouter.post(
       discount = couponDiscount(r.coupon, subtotal);
     }
 
-    const delivery = constants().deliveryChargePaise;
-    const payable = Math.max(0, subtotal - discount + delivery);
+    // The SAME function the cart preview used. If these two ever diverge, the customer is charged
+    // something other than the figure they tapped Pay on.
+    const k = constants();
+    const bill = priceBreakdown({
+      subtotalPaise: subtotal,
+      discountPaise: discount,
+      deliveryChargePaise: k.deliveryChargePaise,
+      charges: k.charges,
+      tax: k.tax,
+    });
+    const delivery = bill.deliveryChargePaise;
+    const payable = bill.totalPaise;
 
     // Cash on delivery. Checked at COMMIT time against the live setting, never against what the app
     // believed when the basket was built — an operator who turns cash off must have it off now.
@@ -167,6 +178,7 @@ customerOrdersRouter.post(
     if (code) redeemCoupon(cid, code);
     const customer = getCustomer(cid);
     const order = createOrder({
+      bill,
       customerId: cid,
       customerName: customer?.name || 'Customer',
       mobile: customer?.mobile,

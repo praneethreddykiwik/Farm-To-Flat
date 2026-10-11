@@ -137,6 +137,8 @@ const RULES = [
   { when: (p) => p.startsWith('/access'), roles: ADMIN_UP },
   { when: (p) => p.startsWith('/coupons'), roles: ADMIN_UP },
   { when: (p) => p.startsWith('/support'), roles: ADMIN_UP },
+  // What customers are charged is not a thing an operator changes in passing.
+  { when: (p) => p.startsWith('/charges'), roles: ADMIN_UP },
 ];
 
 /** Pure check, exported for tests. */

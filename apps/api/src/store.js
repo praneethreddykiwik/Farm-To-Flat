@@ -23,6 +23,7 @@ import { communityWindows, keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
 import { persist } from './persistence.js';
+import { breakdownSnapshot, priceBreakdown } from './lib/charges.js';
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -49,6 +50,15 @@ const db = {
     // Proof of hand-over: the customer reads a one-time code to the delivery person at the door.
     // For a cash order it is also the proof the money changed hands.
     deliveryOtp: { enabled: true },
+    // Extra fee lines on every bill — a platform fee, a packaging charge, whatever the operator
+    // needs. Editable from the admin console and reflected in the app on the next basket, so a fee
+    // can be introduced or withdrawn without a release. Empty by default: a bill with no surprises
+    // on it is the correct starting point.
+    charges: [],
+    // Tax. TWO rates, deliberately — see lib/charges.js. Fresh unbranded produce is nil-rated
+    // under Indian GST, so goods default to 0; a platform or delivery fee is a service at 18%.
+    // A single flat rate would overcharge a basket of vegetables.
+    tax: { enabled: true, label: 'GST', goodsRateBps: 0, feeRateBps: 1800 },
     // Support contact shown in the app. Each channel is shown to customers only when its toggle is on.
     support: {
       email: 'support@farmtoflat.in',
@@ -105,7 +115,19 @@ export function createOrder(input) {
   const cost = items.reduce((s, l) => s + l.lineCostPaise, 0);
   const delivery = input.deliveryChargePaise ?? db.constants.deliveryChargePaise;
   const discount = input.couponDiscountPaise ?? 0;
-  const total = Math.max(0, subtotal - discount + delivery);
+  // The customer path passes the bill it already quoted, so the order stores the exact figure the
+  // customer agreed to rather than a recomputation that could differ if a fee changed in between.
+  // Seeded and operator-created orders have no such quote, so they get today's settings.
+  const bill =
+    input.bill ||
+    priceBreakdown({
+      subtotalPaise: subtotal,
+      discountPaise: discount,
+      deliveryChargePaise: delivery,
+      charges: db.constants.charges,
+      tax: db.constants.tax,
+    });
+  const total = bill.totalPaise;
   const walletApplied = input.walletAppliedPaise ?? 0;
   const gateway = input.gatewayAmountPaise ?? total - walletApplied;
   const createdAt = input.createdAt || new Date().toISOString();
@@ -123,6 +145,10 @@ export function createOrder(input) {
     costPaise: cost,
     couponDiscountPaise: discount,
     deliveryChargePaise: delivery,
+    // A snapshot, not a reference. Fees change; a receipt reprinted next year must show the bill
+    // this customer agreed to, not today's settings applied to last year's basket.
+    chargeBreakdown: breakdownSnapshot(bill),
+    taxPaise: bill.taxPaise,
     totalPaise: total,
     walletAppliedPaise: walletApplied,
     gatewayAmountPaise: gateway,
@@ -188,6 +214,9 @@ export function hydrate(data) {
     db.constants.deliveryOtp = {
       enabled: cfg.deliveryOtpEnabled ?? db.constants.deliveryOtp.enabled,
     };
+    if (Array.isArray(cfg.charges)) db.constants.charges = cfg.charges;
+    if (cfg.tax && typeof cfg.tax === 'object')
+      db.constants.tax = { ...db.constants.tax, ...cfg.tax };
     db.constants.support = {
       email: cfg.supportEmail ?? '',
       phone: cfg.supportPhone ?? '',
@@ -324,6 +353,78 @@ export function updateSupport(patch) {
   });
   return clone(s);
 }
+/**
+ * The fee lines and tax on every bill.
+ *
+ * Replaces the whole set rather than patching one line, because the operator edits them as a list
+ * — reordering and deleting are as normal as editing, and a PATCH-one-field API cannot express
+ * either. The caller sends what the bill should look like from now on.
+ *
+ * Validation is strict and the errors are returned, not thrown: these numbers go straight onto a
+ * customer's bill, and a typo in a percentage is a charge nobody authorised.
+ */
+export function updateCharges({ charges, tax }) {
+  if (charges !== undefined) {
+    if (!Array.isArray(charges)) return { error: 'charges must be a list' };
+    if (charges.length > 12) return { error: 'That is too many fees for one bill (max 12).' };
+    const seen = new Set();
+    const cleaned = [];
+    for (const c of charges) {
+      const label = String(c?.label ?? '').trim();
+      if (!label) return { error: 'Every fee needs a name.' };
+      if (label.length > 48) return { error: `"${label}" is too long for a bill line.` };
+      const kind = c?.kind === 'PERCENT' ? 'PERCENT' : 'FLAT';
+      const rule = {
+        id: String(c?.id || label.toLowerCase().replace(/[^a-z0-9]+/g, '-')).slice(0, 48),
+        label,
+        kind,
+        taxable: c?.taxable !== false,
+        enabled: c?.enabled !== false,
+        note: c?.note ? String(c.note).slice(0, 120) : null,
+      };
+      if (seen.has(rule.id)) return { error: `Two fees share the name "${label}".` };
+      seen.add(rule.id);
+      if (kind === 'PERCENT') {
+        const bps = Math.round(Number(c?.valueBps));
+        // 100% of the basket as a "fee" is not a fee. A cap here is the difference between a
+        // mistyped percentage being rejected and it being charged to every customer.
+        if (!Number.isFinite(bps) || bps < 0 || bps > 5000)
+          return { error: `"${label}" must be between 0% and 50%.` };
+        rule.valueBps = bps;
+      } else {
+        const paise = Math.round(Number(c?.valuePaise));
+        if (!Number.isFinite(paise) || paise < 0 || paise > 10000000)
+          return { error: `"${label}" must be between ₹0 and ₹1,00,000.` };
+        rule.valuePaise = paise;
+      }
+      cleaned.push(rule);
+    }
+    db.constants.charges = cleaned;
+  }
+  if (tax !== undefined) {
+    const t = { ...db.constants.tax };
+    if (tax.enabled !== undefined) t.enabled = !!tax.enabled;
+    if (tax.label !== undefined) t.label = String(tax.label).trim().slice(0, 24) || 'GST';
+    for (const key of ['goodsRateBps', 'feeRateBps']) {
+      if (tax[key] === undefined) continue;
+      const bps = Math.round(Number(tax[key]));
+      if (!Number.isFinite(bps) || bps < 0 || bps > 5000)
+        return { error: 'A tax rate must be between 0% and 50%.' };
+      t[key] = bps;
+    }
+    db.constants.tax = t;
+  }
+  persist.configUpdate({ charges: db.constants.charges, tax: db.constants.tax });
+  return { charges: clone(db.constants.charges), tax: clone(db.constants.tax) };
+}
+
+/** What the operator is editing. */
+export const chargesConfig = () => ({
+  charges: clone(db.constants.charges),
+  tax: clone(db.constants.tax),
+  deliveryChargePaise: db.constants.deliveryChargePaise,
+});
+
 /** Customer-facing: each channel only when its toggle is on. */
 export function publicSupport() {
   const s = db.constants.support;

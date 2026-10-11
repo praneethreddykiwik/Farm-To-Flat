@@ -16,6 +16,7 @@ import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist, drainChain } from './persistence.js';
+import { priceBreakdown } from './lib/charges.js';
 
 const DEV_OTP = '123456';
 
@@ -713,14 +714,26 @@ export function priceCart(cid) {
     }
   }
   const k = constants();
-  const delivery = k.deliveryChargePaise;
-  const total = Math.max(0, subtotal - discount + delivery);
+  // One function computes the bill, here and at commit, so what the checkout screen quotes and
+  // what the card is charged cannot drift apart.
+  const b = priceBreakdown({
+    subtotalPaise: subtotal,
+    discountPaise: discount,
+    deliveryChargePaise: k.deliveryChargePaise,
+    charges: k.charges,
+    tax: k.tax,
+  });
   return {
     items,
     subtotalPaise: String(subtotal),
     couponDiscountPaise: String(discount),
-    deliveryChargePaise: String(delivery),
-    totalPaise: String(total),
+    deliveryChargePaise: String(b.deliveryChargePaise),
+    /** Every fee line, in the order the app should print them. */
+    chargeLines: b.chargeLines.map((l) => ({ label: l.label, amountPaise: String(l.amountPaise) })),
+    chargesTotalPaise: String(b.chargesTotalPaise),
+    taxLabel: b.taxLabel,
+    taxPaise: String(b.taxPaise),
+    totalPaise: String(b.totalPaise),
     minOrderValuePaise: String(k.minOrderValuePaise),
     meetsMinimum: subtotal >= k.minOrderValuePaise,
     coupon,
