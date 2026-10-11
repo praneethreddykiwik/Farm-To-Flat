@@ -58,7 +58,11 @@ const db = {
     // Tax. TWO rates, deliberately — see lib/charges.js. Fresh unbranded produce is nil-rated
     // under Indian GST, so goods default to 0; a platform or delivery fee is a service at 18%.
     // A single flat rate would overcharge a basket of vegetables.
-    tax: { enabled: true, label: 'GST', goodsRateBps: 0, feeRateBps: 1800 },
+    // OFF until the operator turns it on. Shipping this with tax enabled would make GST appear on
+    // every bill the moment the code deployed — a change to what customers are charged, decided by
+    // a release rather than by a person. The rates are pre-filled with the right answers so turning
+    // it on is one toggle, not a research project.
+    tax: { enabled: false, label: 'GST', goodsRateBps: 0, feeRateBps: 1800 },
     // Support contact shown in the app. Each channel is shown to customers only when its toggle is on.
     support: {
       email: 'support@farmtoflat.in',

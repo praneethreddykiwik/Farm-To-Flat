@@ -4,6 +4,18 @@ import { priceBreakdown } from '../src/lib/charges.js';
 const P = (rupees) => Math.round(rupees * 100);
 
 describe('the bill', () => {
+  it('applies no tax unless the operator asked for it', () => {
+    // The default must not change what customers are charged the moment a deploy lands. With tax
+    // off, a bill is exactly what it was before this feature existed.
+    const b = priceBreakdown({
+      subtotalPaise: P(290),
+      deliveryChargePaise: P(39),
+      tax: { enabled: false },
+    });
+    expect(b.taxPaise).toBe(0);
+    expect(b.totalPaise).toBe(P(329));
+  });
+
   it('is just the goods when nothing else is configured', () => {
     const b = priceBreakdown({ subtotalPaise: P(290) });
     expect(b.totalPaise).toBe(P(290));
