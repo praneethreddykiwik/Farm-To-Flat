@@ -729,7 +729,11 @@ export function priceCart(cid) {
     couponDiscountPaise: String(discount),
     deliveryChargePaise: String(b.deliveryChargePaise),
     /** Every fee line, in the order the app should print them. */
-    chargeLines: b.chargeLines.map((l) => ({ label: l.label, amountPaise: String(l.amountPaise) })),
+    chargeLines: b.chargeLines.map((l) => ({
+      id: l.id,
+      label: l.label,
+      amountPaise: String(l.amountPaise),
+    })),
     chargesTotalPaise: String(b.chargesTotalPaise),
     taxLabel: b.taxLabel,
     taxPaise: String(b.taxPaise),

@@ -43,6 +43,7 @@ const NAV = [
   { section: 'Admin' },
   { to: '/access', label: 'Access & roles', icon: IconShield },
   { to: '/payments', label: 'Payments & COD', icon: IconRupee },
+  { to: '/charges', label: 'Fees & tax', icon: IconReceipt },
   { to: '/settings', label: 'Support contact', icon: IconLifeBuoy },
 ];
 

@@ -386,7 +386,17 @@ export default function Cart() {
                         color={colors.leafDeep}
                       />
                     ) : null}
+                    {/* Delivery keeps its own row so ₹0 can still read as FREE — the charge
+                        lines from the API omit anything that costs nothing. */}
                     <Row label={t('delivery', lang)} paise={cart.deliveryChargePaise} free />
+                    {(cart.chargeLines || [])
+                      .filter((l) => l.id !== 'delivery')
+                      .map((l) => (
+                        <Row key={l.id} label={l.label} paise={l.amountPaise} />
+                      ))}
+                    {Number(cart.taxPaise) > 0 ? (
+                      <Row label={cart.taxLabel || 'GST'} paise={cart.taxPaise} />
+                    ) : null}
                     <MinimumBar
                       subtotal={cart.subtotalPaise}
                       minimum={cart.minOrderValuePaise}

@@ -589,6 +589,14 @@ export default function Checkout() {
               />
             ) : null}
             <SummaryRow label={t('delivery', lang)} paise={cart.deliveryChargePaise} />
+            {(cart.chargeLines || [])
+              .filter((l) => l.id !== 'delivery')
+              .map((l) => (
+                <SummaryRow key={l.id} label={l.label} paise={l.amountPaise} />
+              ))}
+            {Number(cart.taxPaise) > 0 ? (
+              <SummaryRow label={cart.taxLabel || 'GST'} paise={cart.taxPaise} />
+            ) : null}
             {walletApplied > 0 ? (
               <SummaryRow
                 label={t('wallet', lang)}
