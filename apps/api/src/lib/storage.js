@@ -1,6 +1,7 @@
 // Supabase Storage — product images, and the photographs customers send when something in the bag
 // is wrong. Uses the SERVER-side service-role key (never the app), so uploads are controlled by the
 // API rather than exposed to the client. No-op-safe when Storage isn't configured.
+import { shortId } from './ids.js';
 import { createClient } from '@supabase/supabase-js';
 import { mediaUrl } from './media.js';
 import { s3Enabled, s3Get, s3Put } from './s3.js';
@@ -98,7 +99,7 @@ export function assertRealImage(buffer, declaredType) {
 /** Upload one image buffer, return its public URL. */
 export async function uploadProductImage({ buffer, contentType }) {
   const ext = EXT[contentType] || 'jpg';
-  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const name = `${Date.now()}-${shortId(6)}.${ext}`;
   if (useS3()) {
     await s3Put(`${BUCKET}/${name}`, buffer, contentType);
     // Public bucket or CDN in front of it; S3_PUBLIC_BASE is whichever one serves them.
@@ -128,7 +129,7 @@ export async function uploadProductImage({ buffer, contentType }) {
  */
 export async function uploadIssuePhoto({ buffer, contentType, orderId }) {
   const ext = EXT[contentType] || 'jpg';
-  const name = `${orderId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const name = `${orderId}/${Date.now()}-${shortId(6)}.${ext}`;
   if (useS3()) return s3Put(`${ISSUE_BUCKET}/${name}`, buffer, contentType).then(() => name);
   if (!supabase) throw new Error('Storage not configured');
   let { error } = await supabase.storage

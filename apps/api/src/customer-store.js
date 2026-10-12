@@ -4,6 +4,7 @@
  * the Prisma tables replace; the shapes and rules mirror apps/customer/src/api/mock/server.js so the
  * app runs against this API unchanged (EXPO_PUBLIC_USE_MOCKS=0). Money is integer paise.
  */
+import { randomInt } from 'node:crypto';
 import {
   adjustCouponRedemption,
   constants,
@@ -266,7 +267,11 @@ export async function requestOtp(mobile) {
     allowlist: DEV_OTP_ALLOWLIST,
     isStaff: !!findStaffByMobile(mobile),
   });
-  const otp = useDev ? DEV_OTP : String(Math.floor(100000 + Math.random() * 900000));
+  // crypto.randomInt, not Math.random. A login OTP is a credential, and Math.random in V8 is a
+  // predictable PRNG whose internal state can be recovered from a handful of observed outputs — and
+  // the storage-key helpers leak that same state. A six-digit code from a seeded PRNG is guessable
+  // in a way a CSPRNG one is not. randomInt draws from the OS CSPRNG, uniformly over 100000-999999.
+  const otp = useDev ? DEV_OTP : String(randomInt(100000, 1000000));
   cs.otp.set(mobile, { otp, attempts: 0, expiresAt: Date.now() + 5 * 60 * 1000 });
 
   // Real production (no dev OTP for this number): deliver a random code and never return it.
