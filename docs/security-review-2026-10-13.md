@@ -113,3 +113,165 @@ Google-SSO token-exchange edge cases, and a load/anti-automation test of the AI 
 (`/ai/plan`, `/ai/identify`) which call paid providers.
 
 400 API tests pass, including the two added here (image-signature validation, OTP no-oracle).
+
+---
+
+# Complete checklist coverage (updated 13 Oct, second pass)
+
+Legend: **PASS** verified · **FIXED** this review · **FIXED\*** earlier work · **N/A** (reason) ·
+**OPEN** needs action · **PARTIAL/UNTESTED** honest gap, no evidence of a problem.
+
+## Information Gathering
+
+| Item                                                                  | Status                             |
+| --------------------------------------------------------------------- | ---------------------------------- |
+| Manually explore site                                                 | PASS                               |
+| Spider/crawl hidden content                                           | PARTIAL (not exhaustive)           |
+| Files exposing content (robots/sitemap/.DS_Store)                     | PASS — SPA fallback, no real files |
+| Search-engine caches                                                  | UNTESTED (low value)               |
+| Content by User-Agent                                                 | UNTESTED                           |
+| Web app fingerprinting                                                | PASS                               |
+| Identify technologies / roles / entry points / client code            | PASS                               |
+| Multiple channels / co-hosted / hostnames+ports / third-party content | PASS                               |
+
+## Configuration Management
+
+| Item                              | Status                                        |
+| --------------------------------- | --------------------------------------------- |
+| Admin URLs                        | PASS                                          |
+| Old/backup/unreferenced files     | PASS                                          |
+| HTTP methods + XST                | PASS (TRACE→405)                              |
+| File extension handling           | PARTIAL                                       |
+| Security HTTP headers             | PASS                                          |
+| Flash/Silverlight/robots policies | N/A (no Flash/SL)                             |
+| Non-production data in live       | **FIXED** (seed + mock serving)               |
+| Sensitive data in client code     | PASS / **FIXED\*** (VITE_ADMIN_TOKEN removed) |
+
+## Secure Transmission — all PASS
+
+TLS 1.3 / AES-256-GCM · cert valid · HTTP→301 · HSTS incl. subdomains · login+tokens over HTTPS.
+
+## Authentication
+
+| Item                                       | Status                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| User enumeration                           | PASS (none)                                                          |
+| Authentication bypass                      | PASS                                                                 |
+| Bruteforce protection                      | PASS (layered)                                                       |
+| Password quality/reset/change/autocomplete | N/A (passwordless OTP)                                               |
+| CAPTCHA                                    | N/A — rate limits used instead                                       |
+| MFA                                        | N/A — OTP is phone-possession factor                                 |
+| Logout                                     | PASS (server-side revoke)                                            |
+| HTTP cache management                      | **FIXED** (no-store)                                                 |
+| Default logins                             | **OPEN** — shared ADMIN_TOKEN (sunset switch exists; kill after SSO) |
+| User-accessible auth history               | OPEN (not present; admin actions are audited server-side)            |
+| Out-of-channel lockout/change notice       | OPEN (not present)                                                   |
+| Consistent auth / SSO                      | PASS                                                                 |
+
+## Session Management
+
+| Item                                     | Status                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| How handled                              | PASS (Bearer tokens in header)                              |
+| Cookie flags / scope / duration          | N/A (no cookies anywhere)                                   |
+| Termination: max life / timeout / logout | PASS                                                        |
+| Token randomness                         | PASS (CSPRNG ~119 bits)                                     |
+| New token on login/refresh               | PASS (rotation)                                             |
+| Multiple simultaneous sessions           | **OPEN** — revocation is process-local (survives a restart) |
+| Session puzzling                         | UNTESTED                                                    |
+| CSRF + clickjacking                      | PASS (CSRF N/A by design; frame headers present)            |
+
+## Authorization — all PASS
+
+Path traversal (text) · vertical 403 · horizontal 404 · missing-auth 401.
+
+## Data Validation
+
+| Item                                           | Status                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| Reflected / HTML injection                     | PASS (JSON)                                                        |
+| Stored XSS                                     | PARTIAL (admin fields not render-tested; SVG upload vector closed) |
+| DOM XSS                                        | PASS — no innerHTML/eval/dangerouslySetInnerHTML in admin          |
+| SQL / NoSQL / ORM injection                    | PASS (Prisma param + Cloudflare block)                             |
+| Code / Expression-Language injection           | PASS                                                               |
+| Command injection                              | PASS (no shell exec with input)                                    |
+| XML/XXE/XPath/XQuery/LDAP/SOQL/SSI/IMAP-SMTP   | N/A                                                                |
+| Overflow / format string / Cross-Site Flashing | N/A (JS, no Flash)                                                 |
+| HTTP splitting/smuggling                       | UNTESTED (Cloudflare+Node normalise)                               |
+| HTTP verb tampering                            | PASS                                                               |
+| Open redirection                               | PASS (no input-built redirects)                                    |
+| LFI / RFI                                      | PASS                                                               |
+| Client vs server validation                    | PASS (server-authoritative)                                        |
+| HTTP parameter pollution                       | PASS (repeated params → 422)                                       |
+| Auto-binding / Mass assignment                 | PASS (Zod rejects extras; price injection blocked)                 |
+| NULL/invalid session                           | PASS (401)                                                         |
+
+## Denial of Service
+
+| Item              | Status                                                                          |
+| ----------------- | ------------------------------------------------------------------------------- |
+| Anti-automation   | PASS — AI endpoints capped (plan 10/5min, identify 15/5min per IP); OTP limited |
+| Account lockout   | PASS                                                                            |
+| HTTP protocol DoS | N/A (Cloudflare absorbs)                                                        |
+| SQL wildcard DoS  | UNTESTED                                                                        |
+
+## Business Logic — all PASS
+
+Feature misuse · non-repudiation (audit) · trust (HMAC+origin lock) · integrity (ledger/idempotency) · segregation (roles).
+
+## Cryptography
+
+| Item                          | Status                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| Data that should be encrypted | PASS (HTTPS, secure-store, no card data)                                       |
+| Wrong algorithm for context   | PASS (HMAC-SHA256)                                                             |
+| Weak algorithms               | PASS (no MD5/SHA1 in security paths)                                           |
+| Salting                       | N/A (no passwords)                                                             |
+| Randomness functions          | **FIXED** — OTP was Math.random, now crypto.randomInt; storage keys now CSPRNG |
+
+## File Uploads
+
+| Item                             | Status                                           |
+| -------------------------------- | ------------------------------------------------ |
+| Types whitelisted                | PASS (no SVG)                                    |
+| Size/frequency/count limits      | PASS                                             |
+| Contents match type              | **FIXED** (magic-byte check)                     |
+| Anti-virus scanning              | **OPEN** — not present                           |
+| Filenames sanitised              | PASS / **FIXED** (server-generated CSPRNG names) |
+| Not in web root / different host | PASS (Supabase separate origin)                  |
+| Integrated with authz            | PASS (ownership checks)                          |
+
+## Card Payment — PASS / handled
+
+PCI offloaded to Razorpay; no card data stored. Injection/transport/error-handling/authn/authz/CSRF all covered.
+Guessable default = shared ADMIN_TOKEN (OPEN, above). Dependency CVEs: proxy-addr CRITICAL **FIXED**;
+remaining audit hits are app-devtools/build tooling, not API runtime.
+
+## HTML5
+
+| Item             | Status                                               |
+| ---------------- | ---------------------------------------------------- |
+| Web Messaging    | PASS (no postMessage surface)                        |
+| Web Storage SQLi | N/A (device SQLite holds no injectable server query) |
+| CORS             | PASS (arbitrary origin denied)                       |
+| Offline Web App  | UNTESTED                                             |
+
+---
+
+## The three remaining OPEN items (need a decision/action, not a quick code fix)
+
+1. **No anti-virus on uploads.** Low urgency today (uploads are authenticated, type- and
+   signature-checked, size-capped, served from a separate origin), but if untrusted upload volume
+   grows, add a scanner (e.g. a ClamAV sidecar or an object-storage scan hook) before an uploaded
+   object is marked usable.
+2. **Session revocation is process-local.** A signed-out or role-changed token can come back after
+   a restart, because the revocation set lives in process memory. Fix is a shared/DB-backed
+   revocation store — the same change the in-memory rate limiter wants, and it pairs with moving
+   off Render Free.
+3. **Shared ADMIN_TOKEN.** The one guessable-default credential. The Google-SSO path and the
+   `ADMIN_TOKEN_SUNSET` switch already exist; set it once SSO sign-in is confirmed working, then the
+   token stops being accepted.
+
+Everything else is PASS or N/A. The UNTESTED rows have no evidence of a problem and are low-value
+for this stack (static SPA + JSON API behind Cloudflare); they are listed for honesty, not as known
+defects.
