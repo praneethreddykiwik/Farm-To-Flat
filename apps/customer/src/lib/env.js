@@ -41,7 +41,22 @@ function resolveApiUrl() {
 /** Everything here is public and ships in the bundle. Secrets never appear in this file. */
 export const env = {
   apiUrl: resolveApiUrl(),
-  useMocks: process.env.EXPO_PUBLIC_USE_MOCKS !== '0',
+  /**
+   * MOCKS ARE OPT-IN. The default must be the real API.
+   *
+   * This read `!== '0'`, so ANY build where the variable was merely absent ran entirely on the
+   * in-app mock server — a different catalogue, Unsplash stock photographs instead of the real
+   * ones, three communities instead of eight, payments that succeed without touching a bank.
+   *
+   * That is not hypothetical. `eas update` reads the EAS *environment*, not the eas.json build
+   * profile, and EXPO_PUBLIC_USE_MOCKS was missing from the preview environment — so builds were
+   * correct (eas.json supplied it) while every over-the-air update silently shipped a fully mocked
+   * app to real testers, who then reported the mock data as bugs.
+   *
+   * A missing variable now means the real API, which is the only safe direction for this default
+   * to fail in. Turning mocks on takes a deliberate `=1`.
+   */
+  useMocks: process.env.EXPO_PUBLIC_USE_MOCKS === '1',
   aiProvider: (process.env.EXPO_PUBLIC_AI_PROVIDER || 'groq').toLowerCase(),
   groqKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || null,
   groqModel: process.env.EXPO_PUBLIC_GROQ_MODEL || 'openai/gpt-oss-120b',
