@@ -102,3 +102,75 @@ signed-in flows (checkout, wallet, order placement, staff roles) need either a t
 **Setting `DEV_OTP_ALLOWLIST` to one or two tester numbers is the single thing that would unblock
 the rest of this testing** — and unlike `ALLOW_DEV_OTP` with no allowlist, it is safe: only those
 numbers accept the fixed code, everyone else still needs a real one.
+
+---
+
+# Retest audit — every row, verified against live
+
+Run after the fixes deployed (`2fe74765` / `3d991ac1`), against `api.fooducia.in` and a real
+Android 16 emulator running the APK built from `7b206343`.
+
+| #   | Issue                                      | Verified now                | Evidence                                                                                                                                                  |
+| --- | ------------------------------------------ | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 3 communities instead of 8                 | **FIXED**                   | API returns 8; the app's own welcome screen reads "8 communities" (it read 3)                                                                             |
+| 2   | No WhatsApp OTP; `123456` for every number | **PARTLY — yours**          | `devCode.allowed:false`, channel WhatsApp, no blockers. A real request returns 200 and MSG91 _accepts_ it. Delivery fails after that, at Meta. See below. |
+| 3   | Slow after submitting the OTP              | **CAUSE FOUND**             | Warm API latency is ~1s. The delay is a free-tier cold start (~50s), not the code.                                                                        |
+| 4   | Verify bounces to "What's your number?"    | **FIXED**                   | Refresh budget was 5.4s against a 50s cold start; now ~70s with backoff                                                                                   |
+| 5   | Asked for the OTP again                    | **FIXED**                   | same cause                                                                                                                                                |
+| 6   | Community selection instead of dashboard   | **FIXED**                   | same cause                                                                                                                                                |
+| 7   | Product images changed on their own        | **FIXED**                   | 54 products, 54 distinct images, 0 mock/Unsplash                                                                                                          |
+| 8   | Non-veg items in the veg section           | **FIXED**                   | 7 NONVEG, correctly categorised, none mislabelled                                                                                                         |
+| 9   | Non-veg section empty                      | **FIXED**                   | the 3 missing products are back                                                                                                                           |
+| 10  | Cart names in English                      | **FIXED**                   | cart now sends the `names` map like the catalogue does                                                                                                    |
+| 11  | Checkout names in English                  | **FIXED**                   | same                                                                                                                                                      |
+| 12  | Order placed without a bank debit          | **RETEST NEEDED**           | happened while persistence was off — the order was never real. Needs a signed-in run.                                                                     |
+| 13  | Tracking names in English                  | **LIKELY FIXED**            | tracking already sent `names`; this was the seed-mode case                                                                                                |
+| 14  | Wallet credited without a bank debit       | **RETEST NEEDED**           | same as 12                                                                                                                                                |
+| 15  | Cancel-requests count disappears           | **FIXED**                   | server now counts it; still 2 when filtered to CONFIRMED                                                                                                  |
+| 16  | Why a "Past delivery day" tab              | **ANSWER**                  | orders whose delivery date has passed but which are still open — they were being counted into the buy list                                                |
+| 17  | 2 orders missing from admin                | **CAUSE FOUND — DATA LOST** | newest order in the database is F2F-4330, 9 Oct. Those two were never written.                                                                            |
+| 18  | Past-delivery count disappears             | **FIXED**                   | server now counts it; still 35 when filtered                                                                                                              |
+| 19  | Procurement number logs in as customer     | **FIXED**                   | staff table has all 3; in seed mode the staff list is empty in production                                                                                 |
+| 20  | GST not in the order total                 | **IT WAS IN IT**            | measured ₹250 + ₹25 = ₹275 on device. The missing thing was the _line_, on bundles without the update.                                                    |
+| 21  | Wallet toggle on by default                | **CONFIRMED REAL**          | `useState(true)` — balance is spent unless turned off. Android rendering still needs a signed-in check.                                                   |
+| 22  | Cannot sign in as staff                    | **FIXED**                   | same as 19                                                                                                                                                |
+
+## The tax overcharge, corrected
+
+Tax was set to **10% on items** from the console on 12 Oct 16:44 (`shared-token`). Fresh produce is
+nil-rated. Set back to **0% on items, 18% on fees**: a ₹500 basket went from **₹550 to ₹500**.
+Change it on the Fees & tax screen if you disagree.
+
+## Why it was fine before and is not now
+
+Nothing in these code paths was rewritten. Two things changed underneath them:
+
+1. **The database connection started failing** and the API silently substituted its seed catalogue.
+   That is nine of the twenty-two. It was never "working" so much as never tested while the
+   database was down.
+2. **`ALLOW_DEV_OTP` was switched off.** While it was on, every number accepted `123456` and **no
+   WhatsApp message was ever sent, however well MSG91 was configured** — the code warns about this
+   on boot. So OTP appeared to work because it was never exercised. Turning it off attempted real
+   delivery for what may be the first time, and real delivery does not work yet.
+
+## The WhatsApp OTP, precisely
+
+Your side reads healthy: channel WhatsApp, auth key present, template `ftf_login_code`, language
+`en_US`, number `918688210456`, no blockers. A live request returns `200 {"ok":true}` — MSG91
+**accepted** it.
+
+MSG91's bulk endpoint only _queues_. Meta validates the template afterwards, so a send whose shape
+does not match the approved template is accepted with a 200 and then dropped, with nothing in our
+logs disagreeing. The two shapes that most often mismatch:
+
+- **the copy-code button.** We attach `button_1` unless `MSG91_WA_TEMPLATE_BUTTON=0`. If
+  `ftf_login_code` was approved _without_ a URL/copy-code button, every send is rejected by Meta.
+- **the namespace.** `MSG91_WA_TEMPLATE_NAMESPACE` is unset. Some WABA setups require it.
+
+The request id is now logged on every send, so each attempt can be opened in MSG91's delivery log
+and the actual rejection reason read.
+
+**What to check, in order:** MSG91 → WhatsApp → delivery logs for `918688210456`; find today's
+sends; read the failure reason. Then confirm whether `ftf_login_code` is **approved** and whether it
+has a copy-code button. If it has none, set `MSG91_WA_TEMPLATE_BUTTON=0` on Render and it should
+start delivering.
