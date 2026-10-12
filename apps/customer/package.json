@@ -66,7 +66,9 @@
     "build:preview": "eas build --profile preview",
     "preflight": "node scripts/preflight-env.mjs",
     "build:preview-live": "node scripts/preflight-env.mjs preview-live && eas build --profile preview-live",
-    "build:production": "node scripts/preflight-env.mjs production && eas build --profile production"
+    "build:production": "node scripts/preflight-env.mjs production && eas build --profile production",
+    "update:preview": "node scripts/preflight-update.mjs preview && eas update --branch preview-live --environment preview",
+    "update:production": "node scripts/preflight-update.mjs production && eas channel:edit production --branch preview-live"
   },
   "private": true,
   "devDependencies": {

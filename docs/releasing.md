@@ -158,6 +158,31 @@ Applying the column BEFORE the deploy makes the change invisible — the old cli
 it does not know about. Applying it after means an outage lasting until the next restart, because
 persistence is disabled for the life of the process.
 
+### An update does not read eas.json — validate the EAS environment first
+
+`eas build` reads the eas.json build profile and runs `preflight-env.mjs` against it. **`eas update`
+reads neither.** It reads the EAS _environment_, which is a separate thing, and nothing validated it.
+
+That gap shipped a fully mocked app to real testers. The preview environment held only
+EXPO_PUBLIC_API_URL and EXPO_PUBLIC_SENTRY_DSN — EXPO_PUBLIC_USE_MOCKS was simply absent — and the
+flag read `!== '0'`, so absence meant mocks ON. Builds were correct the whole time, which is what
+made it so hard to see: the APK behaved and every update did not. Testers reported the mock
+catalogue (three communities, stock photographs, payments that always succeed) as application bugs.
+
+Two guards now:
+
+- the flag is **opt-in** (`=== '1'`), so a missing variable means the REAL API;
+- `scripts/preflight-update.mjs` refuses to publish from a half-filled environment, and it is wired
+  into the npm script so it cannot be skipped.
+
+```bash
+cd apps/customer
+pnpm update:preview        # validates, then publishes to preview-live
+```
+
+A SECRET variable is invisible to builds and updates alike. The public ones the app needs must be
+**plaintext** — they are public by definition, since they ship inside the bundle.
+
 ### What cannot go over the air
 
 Anything native: the app icon, the name, permissions, a new native module, an SDK upgrade. Those
