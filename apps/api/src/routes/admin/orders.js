@@ -120,6 +120,16 @@ adminOrdersRouter.get(
     const counts = {};
     for (const s of STATUSES) counts[s] = 0;
     for (const o of all) counts[o.status] = (counts[o.status] || 0) + 1;
+    // "Cancel requests" and "Past delivery day" are views across ALL orders rather than one status,
+    // and the console used to count them from whatever the current filter had returned. Pick any
+    // other tab and the client no longer holds every order, so it could not count them and hid the
+    // number — which reads as the count being broken rather than withheld. Counted here, where the
+    // unfiltered list already is.
+    const today = new Date().toISOString().slice(0, 10);
+    counts.CANCEL_REQUESTED = all.filter(
+      (o) => o.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(o.status),
+    ).length;
+    counts.STALE = all.filter((o) => orderIsStale(o, today)).length;
     res.json({
       orders: linkOrderIssuePhotos(
         filtered.map((o) => orderAdmin(liveName(o))),

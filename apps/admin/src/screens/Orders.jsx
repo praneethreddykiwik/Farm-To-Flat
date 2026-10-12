@@ -64,8 +64,11 @@ export function Orders() {
     [all, cancelView, staleView],
   );
   // Count of open cancellation requests — known whenever we're looking at the unfiltered list.
-  const cancelCount = status === 'all' || cancelView ? all.filter(isCancelRequest).length : null;
-  const staleCount = status === 'all' || staleView ? all.filter(isStale).length : null;
+  // From the server, which counts across every order. Deriving these from `all` only worked while
+  // `all` WAS every order — the moment a status filter was applied the client could no longer see
+  // the rest, so the badge was hidden and the count looked broken.
+  const cancelCount = counts.CANCEL_REQUESTED ?? null;
+  const staleCount = counts.STALE ?? null;
   const pager = usePager(orders, 25, `${status}|${q}`);
 
   async function download(type) {
