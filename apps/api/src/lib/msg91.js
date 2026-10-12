@@ -133,6 +133,23 @@ export async function sendOtpWhatsApp({ mobile, otp }) {
   // not enough to call it delivered.
   if (!r.ok || data?.type === 'error' || data?.status === 'error')
     throw deliveryError(data?.message);
+
+  // ACCEPTED IS NOT DELIVERED, and that gap is where "no OTP arrived" lives.
+  //
+  // This endpoint queues the message. Meta validates the template afterwards, so a template whose
+  // shape does not match what we send — most often a copy-code button we add that the approved
+  // template does not have, or a missing namespace — is accepted here with a 200 and then silently
+  // dropped. The customer is told a code is on its way and nothing ever comes, and nothing in our
+  // logs disagrees.
+  //
+  // We cannot see Meta's verdict from here, but MSG91 returns a request id that identifies this
+  // exact send in their dashboard's delivery log. Logging it is the difference between "OTP does
+  // not work" and a row somebody can open and read the rejection reason from.
+  const requestId = data?.request_id || data?.data?.request_id || null;
+  // eslint-disable-next-line no-console
+  console.error(
+    `[otp] WhatsApp queued at MSG91 — request_id=${requestId || 'none returned'} template=${WA_TEMPLATE} lang=${WA_LANG} button=${WA_HAS_BUTTON ? 'yes' : 'no'} namespace=${WA_NAMESPACE ? 'set' : 'unset'}`,
+  );
   return data;
 }
 
