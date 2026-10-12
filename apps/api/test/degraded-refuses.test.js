@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { degradedGuard } from '../src/lib/degraded.js';
+import { degradedGuard, masterDataProblem } from '../src/lib/degraded.js';
 
 /**
  * The guard that stops the API selling from a catalogue we do not stock.
@@ -64,5 +64,43 @@ describe('with no database configured at all', () => {
   it('lets everything through — dev and the mock server must keep working', async () => {
     const app = appWith({ configured: false, healthy: false });
     expect((await request(app).get('/api/v1/catalog')).status).toBe(200);
+  });
+});
+
+describe('reaching a database and finding nothing', () => {
+  /**
+   * The hole the 503 guard did not cover. loadAll() throws when a query FAILS, so a refused
+   * connection was handled — but a connection to a blank schema, the wrong DATABASE_URL, or a
+   * half-finished restore returns empty arrays and looks like success. hydrate() then leaves the
+   * SEED categories in place beside an empty product list, and /health says "database".
+   */
+  const ok = { products: [{}], communities: [{}], categories: [{}] };
+
+  it('accepts a load that actually has a shop in it', () => {
+    expect(masterDataProblem(ok)).toBeNull();
+  });
+
+  it('refuses a load with no products', () => {
+    expect(masterDataProblem({ ...ok, products: [] })).toMatch(/products=0/);
+  });
+
+  it('refuses a load with no communities — this is the 3-vs-8 symptom', () => {
+    expect(masterDataProblem({ ...ok, communities: [] })).toMatch(/communities=0/);
+  });
+
+  it('refuses a load with no categories, which hydrate() would silently keep seeded', () => {
+    expect(masterDataProblem({ ...ok, categories: [] })).toMatch(/categories=0/);
+  });
+
+  it('refuses an entirely empty load and names every missing part', () => {
+    const why = masterDataProblem({ products: [], communities: [], categories: [] });
+    expect(why).toMatch(/products=0/);
+    expect(why).toMatch(/communities=0/);
+    expect(why).toMatch(/categories=0/);
+  });
+
+  it('refuses undefined rather than treating absence as emptiness-is-fine', () => {
+    expect(masterDataProblem({})).toBeTruthy();
+    expect(masterDataProblem(null)).toBeTruthy();
   });
 });

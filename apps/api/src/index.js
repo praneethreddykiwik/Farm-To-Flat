@@ -72,7 +72,7 @@ import { adminChargesRouter } from './routes/admin/charges.js';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
 import { requireCloudflare, originLockEnabled } from './lib/edge.js';
-import { degradedGuard } from './lib/degraded.js';
+import { degradedGuard, masterDataProblem } from './lib/degraded.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -340,6 +340,19 @@ const HOST = process.env.HOST || '0.0.0.0';
 /** One attempt at filling the in-memory cache from the database. Throws if anything fails. */
 async function hydrateOnce() {
   const data = await loadAll(); // master data first (communities needed to enrich addresses)
+  // A SUCCESSFUL BUT EMPTY LOAD IS NOT A SUCCESS.
+  //
+  // loadAll throws when a query fails, so a refused connection is caught. What it cannot tell you
+  // is that it reached a database and found nothing — a blank schema, the wrong DATABASE_URL, a
+  // restore that has not finished. In that case hydrate() would replace the catalogue with nothing
+  // and KEEP the seed categories (it only overwrites a list it is given a non-empty one for), and
+  // the service would report itself healthy while serving a shop that is part seed and part void.
+  //
+  // A live grocery API with no products or no communities is not a state worth serving. Treating
+  // it as a failed hydration routes it into the same path as a refused connection: refuse traffic,
+  // say so, and keep retrying until the database has something real in it.
+  const problem = masterDataProblem(data);
+  if (problem) throw new Error(problem);
   hydrate(data);
   hydrateStaff(data.staff);
   const tx = await loadTransactional();

@@ -34,3 +34,24 @@ export function degradedGuard(configured, healthy) {
     });
   };
 }
+
+/**
+ * Is a master-data load actually usable, or did we reach a database and find nothing?
+ *
+ * loadAll() throws when a query fails, so a refused connection is already handled. What it cannot
+ * tell you is that it connected to a blank schema, the wrong DATABASE_URL, or a restore that has
+ * not finished — it returns empty arrays and looks like success.
+ *
+ * That matters because hydrate() only overwrites a list it is handed a non-empty one for, so an
+ * empty load leaves the SEED categories in place next to an empty product list, and the service
+ * reports itself healthy while serving a shop that is part seed and part void. A live grocery API
+ * with no products, no communities or no categories is not a state worth serving to anybody.
+ *
+ * @returns {string|null} why it is unusable, or null when it is fine
+ */
+export function masterDataProblem(data) {
+  const n = (k) => data?.[k]?.length ?? 0;
+  const empty = ['products', 'communities', 'categories'].filter((k) => n(k) === 0);
+  if (!empty.length) return null;
+  return `database reachable but empty (${empty.map((k) => `${k}=0`).join(', ')}) — refusing to serve a partly-seeded catalogue`;
+}
