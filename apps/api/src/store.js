@@ -343,13 +343,30 @@ export function deleteProduct(pid) {
 
 // ── support contact ──────────────────────────────────────────────────────────
 export const getSupport = () => clone(db.constants.support);
-export function updateSupport(patch) {
+/**
+ * Await a config write to the database before returning.
+ *
+ * The persist layer is write-behind: persist.configUpdate queues the DB write and returns
+ * immediately, which is right for hot paths where the in-memory cache is already correct. It is
+ * WRONG for operator settings. An operator changes what customers are charged, sees "saved", and
+ * the 200 means only that memory was updated — if the instance then sleeps or redeploys before the
+ * queued write flushes (which a free-tier instance does constantly), the row never reaches the
+ * database and the next boot hydrates the old value. The change vanishes with no error.
+ *
+ * These settings are rare, operator-initiated, and about money. One awaited round-trip is a price
+ * worth paying to guarantee the thing the operator was told was saved actually was.
+ */
+async function persistConfigDurably(patch) {
+  await Promise.resolve(persist.configUpdate(patch));
+}
+
+export async function updateSupport(patch) {
   const s = db.constants.support;
   if (patch.email !== undefined) s.email = String(patch.email).trim();
   if (patch.phone !== undefined) s.phone = String(patch.phone).trim();
   if (patch.showEmail !== undefined) s.showEmail = !!patch.showEmail;
   if (patch.showPhone !== undefined) s.showPhone = !!patch.showPhone;
-  persist.configUpdate({
+  await persistConfigDurably({
     supportEmail: s.email,
     supportPhone: s.phone,
     supportShowEmail: s.showEmail,
@@ -367,7 +384,7 @@ export function updateSupport(patch) {
  * Validation is strict and the errors are returned, not thrown: these numbers go straight onto a
  * customer's bill, and a typo in a percentage is a charge nobody authorised.
  */
-export function updateCharges({ charges, tax }) {
+export async function updateCharges({ charges, tax }) {
   if (charges !== undefined) {
     if (!Array.isArray(charges)) return { error: 'charges must be a list' };
     if (charges.length > 12) return { error: 'That is too many fees for one bill (max 12).' };
@@ -418,7 +435,7 @@ export function updateCharges({ charges, tax }) {
     }
     db.constants.tax = t;
   }
-  persist.configUpdate({ charges: db.constants.charges, tax: db.constants.tax });
+  await persistConfigDurably({ charges: db.constants.charges, tax: db.constants.tax });
   return { charges: clone(db.constants.charges), tax: clone(db.constants.tax) };
 }
 
@@ -444,13 +461,13 @@ export const getPaymentSettings = () => ({
   cod: clone(db.constants.cod),
   deliveryOtp: clone(db.constants.deliveryOtp),
 });
-export function updatePaymentSettings(patch) {
+export async function updatePaymentSettings(patch) {
   const c = db.constants.cod;
   const d = db.constants.deliveryOtp;
   if (patch.codEnabled !== undefined) c.enabled = !!patch.codEnabled;
   if (patch.codMaxOrderPaise != null) c.maxOrderPaise = Math.max(0, Number(patch.codMaxOrderPaise));
   if (patch.deliveryOtpEnabled !== undefined) d.enabled = !!patch.deliveryOtpEnabled;
-  persist.configUpdate({
+  await persistConfigDurably({
     codEnabled: c.enabled,
     codMaxOrderPaise: c.maxOrderPaise,
     deliveryOtpEnabled: d.enabled,
@@ -469,12 +486,12 @@ export const publicPaymentOptions = () => ({
 
 // ── procurement cost-buffer approval ────────────────────────────────────────
 export const getProcurementSettings = () => clone(db.constants.procurement);
-export function updateProcurementSettings(patch) {
+export async function updateProcurementSettings(patch) {
   const s = db.constants.procurement;
   if (patch.costBufferPct != null)
     s.costBufferPct = Math.max(0, Math.min(100, Number(patch.costBufferPct)));
   if (patch.autoApprove != null) s.autoApprove = !!patch.autoApprove;
-  persist.configUpdate({
+  await persistConfigDurably({
     procurementCostBufferPct: s.costBufferPct,
     procurementAutoApprove: s.autoApprove,
   });

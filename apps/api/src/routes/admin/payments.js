@@ -62,7 +62,7 @@ adminPaymentsRouter.patch(
       deliveryOtpEnabled: z.boolean().optional(),
     }),
   ),
-  asyncHandler(async (req, res) => res.json({ settings: updatePaymentSettings(req.body) })),
+  asyncHandler(async (req, res) => res.json({ settings: await updatePaymentSettings(req.body) })),
 );
 
 /**

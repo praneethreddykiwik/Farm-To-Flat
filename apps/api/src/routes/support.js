@@ -35,5 +35,5 @@ adminSupportRouter.patch(
       showPhone: z.boolean().optional(),
     }),
   ),
-  asyncHandler(async (req, res) => res.json({ support: updateSupport(req.body) })),
+  asyncHandler(async (req, res) => res.json({ support: await updateSupport(req.body) })),
 );

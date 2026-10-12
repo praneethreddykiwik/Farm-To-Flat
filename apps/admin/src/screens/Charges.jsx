@@ -19,6 +19,7 @@ const SAMPLE_PAISE = 50000; // the ₹500 basket the preview prices
 
 const blank = () => ({
   key: Math.random().toString(36).slice(2),
+  justAdded: true,
   label: '',
   kind: 'FLAT',
   rupees: '',
@@ -208,10 +209,18 @@ export function Charges() {
                       <div className="hstack" style={{ gap: 8, flexWrap: 'wrap' }}>
                         <input
                           className="field__input"
-                          style={{ flex: '2 1 180px' }}
+                          style={{
+                            flex: '2 1 180px',
+                            // An empty name is the single reason a save is blocked, and the grey
+                            // placeholder used to look exactly like a filled value — so people typed
+                            // the amount, saw Save do nothing, and concluded it did not store. Flag
+                            // the actual culprit field in red.
+                            borderColor: !r.label.trim() ? 'var(--tomato)' : undefined,
+                          }}
                           value={r.label}
                           maxLength={48}
-                          placeholder="Platform fee"
+                          autoFocus={r.justAdded}
+                          placeholder="Name this fee (e.g. Platform fee)"
                           onChange={(e) => patch(r.key, 'label')(e.target.value)}
                         />
                         <select
@@ -404,6 +413,18 @@ export function Charges() {
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
+            {blocked && (
+              // Say WHY the button is dead, next to the button — not only as a line up in the fee
+              // list that the operator has already scrolled past. This is the difference between
+              // "it won't save" and "nothing is stored".
+              <p className="field__hint" style={{ marginTop: 8, color: 'var(--tomato)' }}>
+                {nameless
+                  ? 'Give every fee a name before saving — the red box above is empty.'
+                  : dupes
+                    ? 'Two fees share a name. Rename one before saving.'
+                    : 'A percentage must be 50% or less.'}
+              </p>
+            )}
             <p className="field__hint" style={{ marginTop: 8 }}>
               Applies to the next basket. Orders already placed keep the bill they agreed to.
             </p>

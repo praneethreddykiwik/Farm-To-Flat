@@ -73,7 +73,7 @@ adminChargesRouter.put(
   ),
   asyncHandler(async (req, res) => {
     const before = chargesConfig();
-    const r = updateCharges(req.body);
+    const r = await updateCharges(req.body);
     if (r.error) throw fail(422, 'VALIDATION', r.error);
     // Awaited. Changing what customers are charged is exactly the kind of decision that must have
     // a name attached to it afterwards.

@@ -279,7 +279,7 @@ adminProcurementRouter.patch(
     }),
   ),
   asyncHandler(async (req, res) => {
-    res.json({ settings: updateProcurementSettings(req.body) });
+    res.json({ settings: await updateProcurementSettings(req.body) });
   }),
 );
 
