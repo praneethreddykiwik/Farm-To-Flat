@@ -25,6 +25,7 @@ import { ApiError } from './http.js';
 import { requireAuth } from './routes/require-auth.js';
 import {
   disablePersistence,
+  enablePersistence,
   isPersistenceEnabled,
   loadAll,
   loadTransactional,
@@ -314,25 +315,75 @@ const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || '0.0.0.0';
 
 /** Load master data from Supabase into the in-memory cache before serving (source of truth). */
+/** One attempt at filling the in-memory cache from the database. Throws if anything fails. */
+async function hydrateOnce() {
+  const data = await loadAll(); // master data first (communities needed to enrich addresses)
+  hydrate(data);
+  hydrateStaff(data.staff);
+  const tx = await loadTransactional();
+  hydrateCustomerData(tx);
+  hydrateOrders(tx.orders);
+  enableOrderPersistence(); // real orders now write through (import-time seed did not)
+  return `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Keep trying to reach the database, in the background, for as long as it takes.
+ *
+ * One failed attempt used to poison the process for its entire life: persistence was disabled and
+ * the API served the SEED catalogue — 3 communities instead of 8, different product photographs,
+ * the non-veg items missing entirely — until somebody noticed and redeployed. On a plan where the
+ * instance sleeps and wakes by itself, that is not a rare event. Every wake is a fresh boot and a
+ * fresh chance for a cold database to refuse the first connection, and a free-tier Postgres is
+ * exactly the kind that refuses the first connection and accepts the second.
+ *
+ * So the instance now heals itself: it retries, and the moment the database answers it rehydrates
+ * and switches persistence back on. Nobody has to be watching.
+ */
+async function retryHydrationForever() {
+  let wait = 2000;
+  for (;;) {
+    await sleep(wait);
+    wait = Math.min(wait * 2, 60000);
+    try {
+      const source = await hydrateOnce();
+      enablePersistence(`database reachable again — ${source}`);
+      return;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[boot] rehydration attempt failed, retrying in ${wait / 1000}s:`,
+        e?.message || e,
+      );
+    }
+  }
+}
+
 async function boot() {
   let source = 'in-memory seed';
   if (persistEnabled) {
-    try {
-      const data = await loadAll(); // master data first (communities needed to enrich addresses)
-      hydrate(data);
-      hydrateStaff(data.staff);
-      const tx = await loadTransactional();
-      hydrateCustomerData(tx);
-      hydrateOrders(tx.orders);
-      enableOrderPersistence(); // real orders now write through (import-time seed did not)
-      source = `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
-    } catch (e) {
-      // Fall back to seed so the API still boots if the DB is unreachable — but NEVER let this
-      // seed-backed process write through: the first admin edit would upsert demo rows over live
-      // data and new logins would create duplicate customers. Read-only until a healthy restart.
-      // eslint-disable-next-line no-console
-      console.error('[boot] Supabase load failed — using in-memory seed:', e?.message || e);
+    // Three quick attempts before giving up on the fast path. A cold database usually answers on
+    // the second; a single attempt is what turned a two-second hiccup into hours of wrong data.
+    let lastErr;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        source = await hydrateOnce();
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+        // eslint-disable-next-line no-console
+        console.error(`[boot] hydration attempt ${attempt}/3 failed:`, e?.message || e);
+        if (attempt < 3) await sleep(attempt * 1500);
+      }
+    }
+    if (lastErr) {
+      // Serve nothing rather than the seed catalogue (see lib/degraded.js), and keep trying in the
+      // background so the instance recovers without anyone redeploying it.
       disablePersistence('hydration failed; refusing to write seed data over the live database');
+      retryHydrationForever();
     }
   }
   const server = app.listen(PORT, HOST, () => {

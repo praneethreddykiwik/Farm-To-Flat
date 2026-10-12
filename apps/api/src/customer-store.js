@@ -17,6 +17,7 @@ import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist, drainChain } from './persistence.js';
 import { priceBreakdown } from './lib/charges.js';
+import { productName } from './lib/i18n.js';
 
 const DEV_OTP = '123456';
 
@@ -691,6 +692,15 @@ export function priceCart(cid) {
       id: it.id,
       productId: p.id,
       name: p.name,
+      // The basket was the one screen that shipped English only. The catalogue sends every
+      // language with every product, and the order tracking screen does the same — but the cart
+      // sent `name` alone, so a shopper who had switched to Telugu browsed in Telugu, tapped Add,
+      // and watched the item turn back into English in their own basket and stay English all the
+      // way through checkout. Same helper the catalogue uses, so they cannot drift.
+      names: {
+        hi: productName(p, 'hi') === p.name ? undefined : productName(p, 'hi'),
+        te: productName(p, 'te') === p.name ? undefined : productName(p, 'te'),
+      },
       unit: p.unit,
       increment: p.increment,
       image: p.image,

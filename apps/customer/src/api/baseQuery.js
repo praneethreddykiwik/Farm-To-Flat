@@ -50,6 +50,12 @@ async function rawRequest({ url, method = 'GET', body, headers }) {
   return { status: res.status, data };
 }
 
+/**
+ * How long to keep trying a refresh before giving up, in milliseconds between attempts.
+ * Sums to ~70s, which is what it takes to outlast a free-tier cold start.
+ */
+const BACKOFF_MS = [1000, 2000, 4000, 8000, 12000, 16000, 20000];
+
 let refreshPromise = null;
 
 async function refreshSession(api) {
@@ -61,7 +67,15 @@ async function refreshSession(api) {
       // out on a DEFINITIVE 401 (the refresh token is genuinely invalid/expired) — never on a transient
       // network failure (status 0), timeout, or 5xx. Signing out on a cold-start blip is what dumped
       // users back to the login screen when they opened the shopping app.
-      for (let attempt = 0; attempt < 3; attempt++) {
+      //
+      // THE BUDGET HAS TO OUTLAST THE COLD START. It was three attempts 1.8s apart — 5.4 seconds
+      // against a wake that takes fifty. All three hit a sleeping server, every one returned status
+      // 0, and the function gave up with the refresh token still safely stored but no access token
+      // to show for it, so the app rendered its logged-out self: "What's your number?" again, then
+      // community selection again, for a customer who had signed in days ago and never left.
+      // Backing off to roughly seventy seconds covers a cold start with room to spare, and costs
+      // nothing when the server is awake because the first attempt succeeds.
+      for (let attempt = 0; attempt < BACKOFF_MS.length; attempt++) {
         const res = await rawRequest({
           url: '/auth/refresh',
           method: 'POST',
@@ -79,7 +93,7 @@ async function refreshSession(api) {
           return null;
         }
         // transient (0 / 5xx / cold start) — wait, then retry; keep the session either way
-        await new Promise((r) => setTimeout(r, 1800));
+        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
       }
       return null; // gave up, but the session is preserved (no sign-out on a transient failure)
     })().finally(() => {

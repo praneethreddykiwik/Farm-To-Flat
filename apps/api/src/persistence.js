@@ -349,6 +349,21 @@ export function disablePersistence(reason) {
   // was a log line nobody was watching. It is an incident, not a log line.
   reportError(new Error(`persistence disabled: ${reason}`), { scope: 'persistence' });
 }
+/**
+ * Turn persistence back on after a hydration retry succeeds.
+ *
+ * Without this, one failed boot poisoned the process for its entire life: the API served the seed
+ * catalogue until somebody noticed and redeployed. On a plan where the instance sleeps and wakes by
+ * itself, that is not a rare event — every wake is a fresh boot and a fresh chance for a cold
+ * database to refuse the first connection.
+ */
+export function enablePersistence(reason) {
+  if (enabled) return;
+  enabled = true;
+  // eslint-disable-next-line no-console
+  console.error(`[persist] RE-ENABLED — ${reason}`);
+}
+
 export const isPersistenceEnabled = () => enabled;
 
 /**
