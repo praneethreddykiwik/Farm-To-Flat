@@ -46,6 +46,7 @@ import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
 import {
   allowedImageTypes,
+  assertRealImage,
   linkOrderIssuePhotos,
   storageEnabled,
   uploadIssuePhoto,
@@ -406,6 +407,8 @@ customerOrdersRouter.post(
       if (!buffer.length) continue;
       if (buffer.length > 6 * 1024 * 1024)
         throw fail(413, 'TOO_LARGE', 'Each photo must be under 6 MB.');
+      // Trust the bytes, not the label: the declared type must match the file's signature.
+      assertRealImage(buffer, p.contentType);
       if (!storageEnabled) throw fail(501, 'STORAGE_OFF', 'Photo storage is not configured yet.');
       photos.push(
         await uploadIssuePhoto({

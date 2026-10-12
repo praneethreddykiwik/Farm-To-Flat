@@ -31,6 +31,70 @@ const supabase = storageEnabled
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' };
 export const allowedImageTypes = Object.keys(EXT);
 
+/**
+ * Prove the bytes are the image the caller claims they are, by their file signature.
+ *
+ * Both upload endpoints validate the DECLARED contentType against the whitelist, but a declaration
+ * is not evidence — a caller can label anything `image/png`. The practical risk here is already
+ * small (SVG is not on the whitelist, objects are served from a separate origin with a
+ * server-controlled content-type, and both endpoints are authenticated), so this is defence in
+ * depth rather than a patched hole: it stops the store being used as a general file host and makes
+ * the stored content-type a fact rather than a promise.
+ *
+ * Magic numbers:
+ *   JPEG  FF D8 FF
+ *   PNG   89 50 4E 47 0D 0A 1A 0A
+ *   WEBP  "RIFF" .... "WEBP"
+ *   AVIF  box at offset 4: "ftyp" then a brand containing "avif"/"avis"
+ */
+export function sniffImageType(buffer) {
+  if (!buffer || buffer.length < 12) return null;
+  const b = buffer;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (
+    b[0] === 0x89 &&
+    b[1] === 0x50 &&
+    b[2] === 0x4e &&
+    b[3] === 0x47 &&
+    b[4] === 0x0d &&
+    b[5] === 0x0a &&
+    b[6] === 0x1a &&
+    b[7] === 0x0a
+  )
+    return 'image/png';
+  const ascii = (i, n) => b.slice(i, i + n).toString('latin1');
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') return 'image/webp';
+  if (ascii(4, 4) === 'ftyp') {
+    const brand = ascii(8, 4);
+    if (brand.startsWith('avi')) return 'image/avif'; // avif, avis
+  }
+  return null;
+}
+
+/**
+ * Validate a buffer against the declared type, or throw a 422. Call this before any upload.
+ * The declared type must be on the whitelist AND the bytes must actually be that type.
+ */
+export function assertRealImage(buffer, declaredType) {
+  if (!allowedImageTypes.includes(declaredType)) {
+    const e = new Error(`Unsupported image type ${declaredType}`);
+    e.status = 422;
+    e.code = 'VALIDATION';
+    throw e;
+  }
+  const actual = sniffImageType(buffer);
+  if (actual !== declaredType) {
+    const e = new Error(
+      actual
+        ? `That file is a ${actual}, not a ${declaredType}.`
+        : 'That file is not a recognised image.',
+    );
+    e.status = 422;
+    e.code = 'NOT_AN_IMAGE';
+    throw e;
+  }
+}
+
 /** Upload one image buffer, return its public URL. */
 export async function uploadProductImage({ buffer, contentType }) {
   const ext = EXT[contentType] || 'jpg';

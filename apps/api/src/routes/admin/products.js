@@ -20,7 +20,12 @@ import {
   listProducts,
   updateProduct,
 } from '../../store.js';
-import { allowedImageTypes, storageEnabled, uploadProductImage } from '../../lib/storage.js';
+import {
+  allowedImageTypes,
+  storageEnabled,
+  uploadProductImage,
+  assertRealImage,
+} from '../../lib/storage.js';
 import { examplesFromCatalog, suggestProductNames } from '../../lib/suggest-names.js';
 
 export const adminProductsRouter = Router();
@@ -140,6 +145,8 @@ adminProductsRouter.post(
     const buffer = Buffer.from(req.body.dataBase64, 'base64');
     if (buffer.length === 0) throw fail(422, 'VALIDATION', 'Empty image.');
     if (buffer.length > 5 * 1024 * 1024) throw fail(413, 'TOO_LARGE', 'Image must be under 5 MB.');
+    // The declared contentType is not evidence — verify the bytes actually are that image type.
+    assertRealImage(buffer, req.body.contentType);
     const url = await uploadProductImage({ buffer, contentType: req.body.contentType });
     res.status(201).json({ url });
   }),

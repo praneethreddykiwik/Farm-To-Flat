@@ -301,16 +301,23 @@ export async function requestOtp(mobile) {
     }
     return { ok: true, expiresInSeconds: 300 }; // never leak the code in prod
   }
-  // Handing the code back is safe in exactly one production case: the operator NAMED this number in
-  // DEV_OTP_ALLOWLIST. That is a deliberate "this is a test account" declaration, and the reply only
-  // ever reaches whoever holds that number — an attacker's number is not on the list and learns
-  // nothing. Withholding it from a named tester was not security: 123456 already works for them, so
-  // the only thing hiding it accomplished was leaving them staring at six empty boxes.
+  // The code is returned in the response ONLY in non-production (dev/test), where there is no real
+  // account to protect. It used to also come back to a named allowlisted number in production, on
+  // the reasoning that the reply only reaches whoever holds that number — but that turned the
+  // response into an ENUMERATION ORACLE. The dev code is a constant (123456), so an allowlisted
+  // tester gains nothing from being told it; meanwhile anyone can POST /auth/otp/request for an
+  // arbitrary number and read whether `devOtp` comes back, learning precisely which numbers are
+  // test accounts that accept the fixed code. A named tester already knows the code is 123456 (it
+  // is documented), so nothing is lost by withholding it — and the oracle is closed.
   //
-  // With ALLOW_DEV_OTP=1 and NO allowlist, every number is a dev number, so returning the code would
-  // publish the bypass to anyone who asks. That case stays silent — and is the one to get off.
-  const named = IS_PROD && DEV_OTP_ALLOWLIST.has(mobile);
-  return { ok: true, expiresInSeconds: 300, ...(!IS_PROD || named ? { devOtp: DEV_OTP } : {}) };
+  // In production the code therefore never appears in the HTTP body. It is logged instead, where
+  // only the operator sees it.
+  if (IS_PROD) {
+    // eslint-disable-next-line no-console
+    console.error(`[otp] dev code for allowlisted ${mobile}: ${DEV_OTP}`);
+    return { ok: true, expiresInSeconds: 300 };
+  }
+  return { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
 }
 
 /** @returns {{ ok:true, customer:any, isNew:boolean } | { error:{status,code,message} }} */
