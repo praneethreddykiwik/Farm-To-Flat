@@ -14,6 +14,9 @@ import { resolveStorageImage } from '../lib/supabase';
  *
  * @param {{ uri?: string|null, blurhash?: string|null, tint?: string, name?: string, size?: number|'fill', radius?: number, style?: any, recyclingKey?: string, priority?: 'low'|'normal'|'high', renderWidth?: number }} props
  */
+/** Constant so every <Image> shares one object and React does not re-fetch on identity change. */
+const ACCEPT_WEBP = { Accept: 'image/webp,image/avif,image/*,*/*' };
+
 export function ProductImage({
   uri,
   blurhash,
@@ -98,7 +101,15 @@ export function ProductImage({
   return (
     <View style={[dim, { borderRadius: radius, overflow: 'hidden', backgroundColor: t.bg }, style]}>
       <Image
-        source={{ uri: src }}
+        // Ask for WebP explicitly.
+        //
+        // Supabase's image transform negotiates format from the Accept header, and with no header
+        // it falls back to PNG — which is the wrong format for a photograph by an order of
+        // magnitude. Measured on a real product image: at the 480px a card draws, PNG is 268 KB
+        // and WebP is 27 KB; at the 960px the product hero draws, PNG is 952 KB against 77 KB.
+        // Fifty-odd products on the home screen were pulling megabytes of PNG to paint thumbnails,
+        // which is what the lag was.
+        source={{ uri: src, headers: ACCEPT_WEBP }}
         placeholder={blurhash ? { blurhash } : undefined}
         placeholderContentFit="cover"
         contentFit="cover"
