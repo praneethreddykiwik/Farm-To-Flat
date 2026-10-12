@@ -58,9 +58,19 @@ export const env = {
 
 export const API_BASE = `${env.apiUrl}/api/v1`;
 
-// One line in the Metro terminal on every reload, so it's obvious on-device which API the app is
-// talking to (localhost on the simulator, the Mac's LAN IP on a real phone).
-if (__DEV__) {
-  // eslint-disable-next-line no-console
-  console.log(`[f2f] API → ${API_BASE}  (mocks ${env.useMocks ? 'ON' : 'off'})`);
-}
+/**
+ * One line at startup, in EVERY build, saying which API this bundle talks to and whether the mock
+ * server is in play.
+ *
+ * It used to be __DEV__ only, and that cost a long investigation: a release build on a real device
+ * was showing three communities while the API, polled at the same moment, returned eight — and
+ * there was no way to ask the app which of those two sentences it disagreed with. A tester can now
+ * be asked for one line of logcat instead.
+ *
+ * Nothing here is a secret: the API URL ships in the bundle and is visible in any request, and the
+ * mocks flag is a build setting. No token, no customer, no address.
+ */
+// eslint-disable-next-line no-console
+console.log(
+  `[f2f] API → ${API_BASE}  mocks=${env.useMocks ? 'ON' : 'off'}  expoGo=${env.isExpoGo ? 'yes' : 'no'}`,
+);
