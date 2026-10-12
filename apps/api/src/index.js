@@ -114,6 +114,28 @@ app.use(
   degradedGuard(() => persistEnabled, isPersistenceEnabled),
 );
 
+/**
+ * API answers are never cacheable by the client, and this is not a micro-optimisation.
+ *
+ * Express sends an ETag and no Cache-Control. That combination lets a client apply HEURISTIC
+ * freshness — reuse a stored response without asking us at all — and Android's HTTP stack does.
+ * The consequence was not subtle. While the database was unavailable the API answered out of the
+ * seed; phones stored THAT; and they went on showing it after the database came back. Three
+ * communities instead of eight, the wrong product photographs, an empty non-veg section — against
+ * a server that was by then returning the right answers to anyone who asked it fresh. Clearing the
+ * app's data fixed it instantly, which is what proved where the stale copy was living.
+ *
+ * A catalogue, a basket and an order list are all things the customer has to see as they are now.
+ * None of them is worth a millisecond of staleness, let alone a day of it.
+ *
+ * /media is exempt on purpose: those are immutable token-addressed objects whose whole point is
+ * to be cached.
+ */
+app.use(v1, (req, res, next) => {
+  if (!req.path.startsWith('/media')) res.set('Cache-Control', 'no-store');
+  next();
+});
+
 // BEFORE express.json, and deliberately so: the Razorpay webhook authenticates by HMAC over the
 // exact bytes it sent, and a parsed-then-reserialised body hashes differently. It also sits outside
 // requireAuth below — Razorpay holds no bearer token, the signature is the credential.
