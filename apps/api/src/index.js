@@ -71,6 +71,7 @@ import { adminChargesRouter } from './routes/admin/charges.js';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
 import { requireCloudflare, originLockEnabled } from './lib/edge.js';
+import { degradedGuard } from './lib/degraded.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -104,6 +105,13 @@ app.use(
   ),
 );
 const v1 = '/api/v1';
+
+// The whole of /api/v1 refuses while the database is gone. See lib/degraded.js for why that is
+// better than serving the seed catalogue and taking payments for orders we cannot keep.
+app.use(
+  v1,
+  degradedGuard(() => persistEnabled, isPersistenceEnabled),
+);
 
 // BEFORE express.json, and deliberately so: the Razorpay webhook authenticates by HMAC over the
 // exact bytes it sent, and a parsed-then-reserialised body hashes differently. It also sits outside

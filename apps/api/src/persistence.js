@@ -11,6 +11,7 @@
  * DATABASE_URL is set (pure local demo). Writes are fire-and-forget with error logging so a slow DB
  * never blocks a response; the cache already reflects the change. Carts and OTPs stay ephemeral.
  */
+import { reportError } from './lib/sentry.js';
 import { prisma } from './db.js';
 
 export const persistEnabled = process.env.NODE_ENV !== 'test' && !!process.env.DATABASE_URL;
@@ -343,6 +344,10 @@ export function disablePersistence(reason) {
   enabled = false;
   // eslint-disable-next-line no-console
   console.error(`[persist] DISABLED for this process — ${reason}`);
+  // Loudly, to Sentry. This used to be one console.error on an ephemeral host, which meant the
+  // service could spend an hour serving the seed catalogue to real customers and the only trace
+  // was a log line nobody was watching. It is an incident, not a log line.
+  reportError(new Error(`persistence disabled: ${reason}`), { scope: 'persistence' });
 }
 export const isPersistenceEnabled = () => enabled;
 
