@@ -1,6 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  # proxy-addr <2.0.8 mis-parses IPv4-mapped IPv6, which could forge the client IP the rate limiter
+  # counts. Express 4.22.3 still pins 2.0.7; force the patched floor. (CF-Connecting-IP is the real
+  # mitigation once the origin lock is on, but the floor should be safe regardless.)
+  proxy-addr: '>=2.0.8'
 nodeLinker: hoisted
 allowBuilds:
   '@prisma/client': true
