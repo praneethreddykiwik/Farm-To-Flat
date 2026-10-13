@@ -124,6 +124,9 @@ const RULES = [
   // SUPER_ADMIN short-circuits roleMayAccess above, so an empty roles list means "super only".
   { when: (p) => p === '/orders/close-stale', roles: [] },
   { when: (p) => p.startsWith('/audit'), roles: [] },
+  // Who may open the admin panel with Google is as sensitive as it gets: an ADMIN who could add
+  // addresses could grant access to anyone. Owner only.
+  { when: (p) => p.startsWith('/admin-emails'), roles: [] },
   // Deliberately throws. Harmless, but there is no reason for anyone but the owner to be able
   // to put noise in the error tracker.
   { when: (p) => p === '/sentry-test', roles: [] },

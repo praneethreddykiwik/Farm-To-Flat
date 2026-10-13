@@ -9,8 +9,152 @@ import { api } from '../lib/api.js';
 import { ErrorNote, TableSkeleton } from '../components/ui.jsx';
 import { IconCheck, IconLifeBuoy } from '../components/icons.jsx';
 import { digits, isEmail, isMobile } from '../lib/format.js';
+import { getOperator, getCredential } from '../lib/auth.js';
 
 const empty = { email: '', phone: '', showEmail: false, showPhone: false };
+
+/**
+ * Who may open this panel with Google. SUPER_ADMIN only (the API enforces it too). "Owners" come
+ * from the server's ADMIN_GOOGLE_EMAILS failsafe and are read-only here; everything added below
+ * gets the Admin role, and removing someone cuts their access on their next request.
+ */
+function AdminEmails() {
+  const { data, loading, error, reload } = useResource('/admin/admin-emails');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const bad = !!email.trim() && !isEmail(email.trim());
+
+  async function add() {
+    const e = email.trim().toLowerCase();
+    if (!e || bad) return;
+    setBusy(true);
+    try {
+      await api.post('/admin/admin-emails', { email: e });
+      toast(`${e} can now sign in`);
+      setEmail('');
+      reload();
+    } catch (err) {
+      toast(err.message || 'Could not add', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(e) {
+    try {
+      await api.del(`/admin/admin-emails/${encodeURIComponent(e)}`);
+      toast(`${e} removed`);
+      reload();
+    } catch (err) {
+      toast(err.message || 'Could not remove', 'err');
+    }
+  }
+
+  const owners = data?.owners || [];
+  const managed = data?.managed || [];
+
+  return (
+    <div className="glass card reveal" style={{ marginTop: 20 }}>
+      <div className="card__head">
+        <h2 className="card__title">Who can access admin</h2>
+      </div>
+      <p className="muted" style={{ fontSize: 13, marginTop: -4, marginBottom: 8 }}>
+        Only these Google accounts can sign in to the operator panel. Everyone added here gets the
+        Admin role.
+      </p>
+
+      {error ? (
+        <ErrorNote error={error} onRetry={reload} />
+      ) : loading ? (
+        <TableSkeleton rows={3} />
+      ) : (
+        <>
+          <div className="vstack" style={{ gap: 8 }}>
+            {owners.map((o) => (
+              <div
+                key={o.email}
+                className="hstack"
+                style={{
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '10px 12px',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: 10,
+                }}
+              >
+                <span className="hstack" style={{ gap: 8, minWidth: 0 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.email}</span>
+                </span>
+                <span
+                  className="chip is-active"
+                  title="Set in server configuration — change it there"
+                  style={{ flexShrink: 0 }}
+                >
+                  {o.role === 'SUPER_ADMIN' ? 'Owner' : o.role} · locked
+                </span>
+              </div>
+            ))}
+            {managed.map((m) => (
+              <div
+                key={m.email}
+                className="hstack"
+                style={{
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '10px 12px',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: 10,
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</span>
+                <button
+                  className="btn btn--ghost"
+                  onClick={() => remove(m.email)}
+                  style={{ flexShrink: 0 }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {owners.length + managed.length === 0 && (
+              <p className="muted" style={{ fontSize: 13 }}>
+                No one is on the list yet. Add an email below.
+              </p>
+            )}
+          </div>
+
+          <div className="field" style={{ marginTop: 14 }}>
+            <label className="field__label">Add an email</label>
+            <div className="hstack" style={{ gap: 10, alignItems: 'flex-start' }}>
+              <input
+                className="field__input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && add()}
+                placeholder="person@example.com"
+                maxLength={120}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn btn--primary"
+                onClick={add}
+                disabled={busy || !email.trim() || bad}
+              >
+                {busy ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+            {bad && (
+              <p className="field__hint" style={{ color: 'var(--tomato)' }}>
+                Enter a valid email address.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function Settings() {
   const { data, loading, error, reload } = useResource('/admin/support');
@@ -56,6 +200,11 @@ export function Settings() {
   // What a customer would actually get from the public endpoint.
   const seen = [f.showEmail && f.email.trim(), f.showPhone && f.phone.trim()].filter(Boolean);
   const preview = seen.length ? seen.join(' · ') : 'Nothing (both hidden)';
+
+  // The admin-access list is SUPER_ADMIN-only (the API enforces it too). A shared-token sign-in is
+  // treated as SUPER_ADMIN, so it may manage it as well.
+  const canManageAccess =
+    getOperator()?.role === 'SUPER_ADMIN' || getCredential()?.kind === 'token';
 
   return (
     <>
@@ -156,6 +305,8 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      {canManageAccess && <AdminEmails />}
     </>
   );
 }

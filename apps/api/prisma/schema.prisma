@@ -347,6 +347,10 @@ model AppConfig {
   /// {enabled,label,goodsRateBps,feeRateBps}. Two rates because fresh produce is nil-rated under
   /// Indian GST while a platform or delivery fee is a service at 18%.
   tax                       Json?
+  /// Google addresses granted admin access from the console ("Who can access admin"). A list of
+  /// lowercased email strings; each gets the ADMIN role. SUPER_ADMIN is granted only through the
+  /// ADMIN_GOOGLE_EMAILS env failsafe, which also guarantees a way back in if this list is cleared.
+  adminEmails               Json     @default("[]")
   updatedAt                 DateTime @updatedAt
 }
 

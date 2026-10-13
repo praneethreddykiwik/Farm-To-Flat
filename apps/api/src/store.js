@@ -218,6 +218,7 @@ export function hydrate(data) {
     db.constants.deliveryOtp = {
       enabled: cfg.deliveryOtpEnabled ?? db.constants.deliveryOtp.enabled,
     };
+    if (Array.isArray(cfg.adminEmails)) db.constants.adminEmails = cfg.adminEmails;
     if (Array.isArray(cfg.charges)) db.constants.charges = cfg.charges;
     if (cfg.tax && typeof cfg.tax === 'object')
       db.constants.tax = { ...db.constants.tax, ...cfg.tax };
@@ -374,6 +375,34 @@ export async function updateSupport(patch) {
   });
   return clone(s);
 }
+// ── who may open the operator panel with Google (managed from the console) ────────────────────
+// The env ADMIN_GOOGLE_EMAILS is the lockout-proof failsafe (and the only source of SUPER_ADMIN);
+// this list is the part an owner edits from the "Who can access admin" panel, no redeploy. Entries
+// are lowercased email strings and always resolve to the ADMIN role — see lib/admin-directory.js.
+export const listAdminEmails = () =>
+  Array.isArray(db.constants.adminEmails) ? [...db.constants.adminEmails] : [];
+
+export async function addAdminEmail(email) {
+  const e = String(email || '')
+    .trim()
+    .toLowerCase();
+  const list = listAdminEmails();
+  if (e && !list.includes(e)) list.push(e);
+  db.constants.adminEmails = list;
+  await persistConfigDurably({ adminEmails: list });
+  return list;
+}
+
+export async function removeAdminEmail(email) {
+  const e = String(email || '')
+    .trim()
+    .toLowerCase();
+  const list = listAdminEmails().filter((x) => x !== e);
+  db.constants.adminEmails = list;
+  await persistConfigDurably({ adminEmails: list });
+  return list;
+}
+
 /**
  * The fee lines and tax on every bill.
  *

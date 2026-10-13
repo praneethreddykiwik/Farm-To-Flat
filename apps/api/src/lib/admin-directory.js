@@ -18,6 +18,7 @@
  * When an email column is added, this is the one function that has to start reading it.
  */
 import { ROLE_META } from './roles.js';
+import { listAdminEmails } from '../store.js';
 
 const normalise = (s) =>
   String(s || '')
@@ -39,7 +40,19 @@ export function adminDirectory() {
   return out;
 }
 
-export const googleDirectoryEnabled = () => adminDirectory().size > 0;
+export const googleDirectoryEnabled = () =>
+  adminDirectory().size > 0 || listAdminEmails().length > 0;
 
-/** The role this verified Google address may use, or null if it is not on the list. */
-export const roleForEmail = (email) => adminDirectory().get(normalise(email)) || null;
+/**
+ * The role this verified Google address may use, or null if it is on neither list.
+ *
+ * Two sources, env first: ADMIN_GOOGLE_EMAILS is the failsafe and the only place SUPER_ADMIN is
+ * granted, so an owner can never be locked out by edits made in the console. The console-managed
+ * list (listAdminEmails) is the editable layer and always resolves to ADMIN.
+ */
+export const roleForEmail = (email) => {
+  const e = normalise(email);
+  const env = adminDirectory().get(e);
+  if (env) return env;
+  return listAdminEmails().includes(e) ? 'ADMIN' : null;
+};
