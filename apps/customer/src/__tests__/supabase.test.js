@@ -50,12 +50,14 @@ describe('rendered (resized) image URLs', () => {
 
   it('rewrites our own Storage URL to the render endpoint at the asked width', () => {
     // Now routed through our own API, not supabase.co — the whole point of the fix.
-    expect(renderedUrl(ORIGINAL, 240)).toBe('https://api.fooducia.in/api/v1/img/p_palak.jpg?w=240');
+    expect(renderedUrl(ORIGINAL, 240)).toBe(
+      'https://api.fooducia.in/api/v1/img/p_palak.jpg?w=240&v=2',
+    );
   });
 
   it('works from a bucket-relative path too, via resolveStorageImage', () => {
     expect(resolveStorageImage('product-images/p_palak.jpg', undefined, 120)).toBe(
-      'https://api.fooducia.in/api/v1/img/p_palak.jpg?w=120',
+      'https://api.fooducia.in/api/v1/img/p_palak.jpg?w=120&v=2',
     );
   });
 

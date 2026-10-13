@@ -106,7 +106,12 @@ function thumbUrl(url, width = 120) {
   const i = url.indexOf(OBJECT_MARKER);
   if (i === -1) return url; // not ours, or already a render URL
   const key = url.slice(i + OBJECT_MARKER.length).replace(/^product-images\//, '');
-  return `${IMG_API}/api/v1/img/${key}?w=${width}`;
+  // `v` is a cache epoch, not read by the server. The proxy once served these with
+  // Cross-Origin-Resource-Policy: same-origin, which a browser enforces on an embed — so every
+  // thumbnail here fell back to a letter tile, and Cloudflare had cached that bad response for a
+  // year. The origin is fixed; bumping v changes the URL so the edge re-fetches instead of
+  // serving the stale copy. Bump again only if a future header change needs to bypass the cache.
+  return `${IMG_API}/api/v1/img/${key}?w=${width}&v=2`;
 }
 
 export function Thumb({ name, image, tint, width = 120 }) {

@@ -72,7 +72,11 @@ export function renderedUrl(url, width) {
   // Our proxy addresses by key within the fixed bucket, so drop the bucket segment.
   const key = objectPath.replace(/^product-images\//, '');
   const w = snapWidth(width);
-  return `${env.apiUrl}/api/v1/img/${key}?w=${w}`;
+  // `v` is a cache epoch (the server ignores it). The proxy briefly served images with
+  // Cross-Origin-Resource-Policy: same-origin and Cloudflare cached that for a year; bumping v
+  // moves to a fresh URL so the edge re-fetches the corrected response. Native image loading
+  // ignores CORP, so the app was unaffected — this keeps the app and web on the same epoch.
+  return `${env.apiUrl}/api/v1/img/${key}?w=${w}&v=2`;
 }
 
 /** True for values the client should use as-is (already a full URL, or a data/blob URI). */
