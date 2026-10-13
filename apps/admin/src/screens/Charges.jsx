@@ -321,7 +321,10 @@ export function Charges() {
                 add to the catalogue.
               </p>
 
-              <div className="hstack" style={{ gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
+              <div
+                className="hstack"
+                style={{ gap: 12, flexWrap: 'wrap', marginTop: 10, alignItems: 'flex-start' }}
+              >
                 <div className="field" style={{ flex: '0 0 130px' }}>
                   <label className="field__label">Label</label>
                   <input
