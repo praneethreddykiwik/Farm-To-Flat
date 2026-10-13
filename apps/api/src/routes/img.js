@@ -79,5 +79,12 @@ async function stream(upstream, res) {
   // Cloudflare and the device cache carry the load instead of Render.
   res.set('Cache-Control', 'public, max-age=31536000, immutable');
   res.set('X-Content-Type-Options', 'nosniff');
+  // These are public product images, deliberately embedded cross-origin: the admin console on
+  // fooducia.in and the marketing site load them from api.fooducia.in via <img>. The app sets a
+  // global Cross-Origin-Resource-Policy of same-origin (helmet), which a browser enforces on
+  // embeds — it blocks the <img> and the thumbnail falls back to a letter tile. (curl, direct
+  // navigation and the native app ignore CORP, which is why only the browser consoles broke.)
+  // Override it here to cross-origin so these one bucket of public images can be embedded.
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin');
   res.send(buf);
 }

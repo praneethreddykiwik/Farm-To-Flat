@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import request from 'supertest';
 
 process.env.NODE_ENV = 'test';
@@ -39,5 +39,32 @@ describe('image proxy key validation (SSRF guard)', () => {
     const r = await request(app).get('/api/v1/img/anything.png');
     expect(r.status).not.toBe(401);
     expect(r.status).not.toBe(403);
+  });
+});
+
+/**
+ * These images are embedded cross-origin (the admin console on fooducia.in and the marketing site
+ * load them from api.fooducia.in via <img>). The app's global Cross-Origin-Resource-Policy is
+ * same-origin, which a browser enforces on an embed and which silently broke every admin thumbnail.
+ * The proxy must override it to cross-origin on a served image.
+ */
+describe('image proxy embedding headers', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('serves a public image as cross-origin so a browser can embed it from another origin', async () => {
+    const png = Buffer.from('fake-webp-bytes');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        headers: { get: () => 'image/webp' },
+        arrayBuffer: async () => png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength),
+      })),
+    );
+    const r = await request(app).get('/api/v1/img/1700000000000-abc123.png?w=240');
+    expect(r.status).toBe(200);
+    expect(r.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    expect(r.headers['cache-control']).toContain('immutable');
+    expect(r.headers['content-type']).toContain('image/webp');
   });
 });
