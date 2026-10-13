@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 // The resolver reads env.supabaseUrl; pin it so the test is independent of the local .env.
 vi.mock('../lib/env', () => ({
-  env: { supabaseUrl: 'https://proj.supabase.co', supabaseAnonKey: 'anon' },
+  env: {
+    supabaseUrl: 'https://proj.supabase.co',
+    supabaseAnonKey: 'anon',
+    apiUrl: 'https://api.fooducia.in',
+  },
 }));
 
 const { resolveStorageImage, storagePublicUrl, renderedUrl, snapWidth } = await import(
@@ -45,14 +49,13 @@ describe('rendered (resized) image URLs', () => {
   const ORIGINAL = 'https://proj.supabase.co/storage/v1/object/public/product-images/p_palak.jpg';
 
   it('rewrites our own Storage URL to the render endpoint at the asked width', () => {
-    expect(renderedUrl(ORIGINAL, 240)).toBe(
-      'https://proj.supabase.co/storage/v1/render/image/public/product-images/p_palak.jpg?width=240&quality=70&resize=contain',
-    );
+    // Now routed through our own API, not supabase.co — the whole point of the fix.
+    expect(renderedUrl(ORIGINAL, 240)).toBe('https://api.fooducia.in/api/v1/img/p_palak.jpg?w=240');
   });
 
   it('works from a bucket-relative path too, via resolveStorageImage', () => {
     expect(resolveStorageImage('product-images/p_palak.jpg', undefined, 120)).toBe(
-      'https://proj.supabase.co/storage/v1/render/image/public/product-images/p_palak.jpg?width=120&quality=70&resize=contain',
+      'https://api.fooducia.in/api/v1/img/p_palak.jpg?w=120',
     );
   });
 

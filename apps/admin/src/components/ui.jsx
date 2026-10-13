@@ -92,13 +92,21 @@ export function Stat({ icon, value, label, delta, tint = 'leaf' }) {
  * both share CDN cache entries rather than each minting their own.
  */
 const OBJECT_MARKER = '/storage/v1/object/public/';
+/**
+ * Route a product image through our own API, not supabase.co.
+ *
+ * Same fix as the mobile app: some Indian ISPs hijack DNS for *.supabase.co and their TLS proxy
+ * breaks the handshake, so images fail for an operator on such a connection while the rest of the
+ * console (served from Cloudflare/Vercel) loads. The API image proxy sits behind Cloudflare and is
+ * not intercepted. See apps/api/src/routes/img.js.
+ */
+const IMG_API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 function thumbUrl(url, width = 120) {
   if (typeof url !== 'string') return url;
   const i = url.indexOf(OBJECT_MARKER);
   if (i === -1) return url; // not ours, or already a render URL
-  const origin = url.slice(0, i);
-  const path = url.slice(i + OBJECT_MARKER.length);
-  return `${origin}/storage/v1/render/image/public/${path}?width=${width}&quality=70&resize=contain`;
+  const key = url.slice(i + OBJECT_MARKER.length).replace(/^product-images\//, '');
+  return `${IMG_API}/api/v1/img/${key}?w=${width}`;
 }
 
 export function Thumb({ name, image, tint, width = 120 }) {

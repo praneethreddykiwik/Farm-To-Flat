@@ -49,6 +49,7 @@ import { customerOrdersRouter } from './routes/customer-orders.js';
 import { walletRouter, paymentsRouter } from './routes/wallet.js';
 import { razorpayWebhookRouter } from './routes/razorpay-webhook.js';
 import { mediaRouter } from './routes/media.js';
+import { imgRouter } from './routes/img.js';
 import { devicesRouter } from './routes/devices.js';
 import { aiRouter } from './routes/ai.js';
 // Side-effect import: starts the 10-minute gateway reconciliation pass. The third leg, after the
@@ -132,7 +133,8 @@ app.use(
  * to be cached.
  */
 app.use(v1, (req, res, next) => {
-  if (!req.path.startsWith('/media')) res.set('Cache-Control', 'no-store');
+  if (!req.path.startsWith('/media') && !req.path.startsWith('/img'))
+    res.set('Cache-Control', 'no-store');
   next();
 });
 
@@ -237,6 +239,7 @@ app.use(
 // Private media, authenticated by the token in the path rather than by a header, because an
 // <img> cannot send one. Public by necessity, unguessable by construction. See routes/media.js.
 app.use(`${v1}/media`, mediaRouter);
+app.use(`${v1}/img`, imgRouter); // public product-image proxy — see routes/img.js (ISP hijacks supabase.co)
 app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);

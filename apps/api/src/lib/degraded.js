@@ -28,7 +28,9 @@ export const DEGRADED_MESSAGE =
 export function degradedGuard(configured, healthy) {
   return (req, res, next) => {
     if (!configured() || healthy()) return next();
-    if (req.path === '/health') return next();
+    // /img is a pure Supabase passthrough that never touches the database, so it stays up even
+    // when the database does not — product images should not vanish during a DB blip.
+    if (req.path === '/health' || req.path.startsWith('/img/')) return next();
     return res.status(503).json({
       error: { code: 'SERVICE_DEGRADED', message: DEGRADED_MESSAGE },
     });

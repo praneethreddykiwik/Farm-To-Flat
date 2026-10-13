@@ -49,13 +49,30 @@ const OBJECT_MARKER = '/storage/v1/object/public/';
  * @param {number} width target width in device pixels; snapped to the ladder
  * @returns {string|null|undefined} the rendering URL, or the input unchanged
  */
+/**
+ * Turn a stored product image into a URL the app should actually load.
+ *
+ * It routes through our OWN API (api.fooducia.in/api/v1/img/...), not supabase.co, and that is not
+ * an optimisation — it is the fix for a real outage. Indian ISPs (observed: ACT Fibernet / Beam)
+ * transparently hijack DNS for *.supabase.co and proxy it through a TLS endpoint that closes the
+ * connection during Android's okhttp handshake. Every product image failed on real devices
+ * (SSLHandshakeException) while text and prices loaded, because the API is behind Cloudflare and is
+ * not intercepted. Pointing images at the same Cloudflare-fronted domain removes the dependency on
+ * supabase.co entirely; the API fetches from Supabase server-side and streams the (WebP, resized)
+ * bytes back. See apps/api/src/routes/img.js.
+ *
+ * Falls back to the original URL when it is not a Supabase object URL (already proxied, a data URI,
+ * or an absolute URL from somewhere else).
+ */
 export function renderedUrl(url, width) {
   if (!url || !env.supabaseUrl || !String(url).startsWith(env.supabaseUrl)) return url;
   const i = String(url).indexOf(OBJECT_MARKER);
   if (i === -1) return url; // already a render URL, or a private object path
-  const objectPath = String(url).slice(i + OBJECT_MARKER.length);
+  const objectPath = String(url).slice(i + OBJECT_MARKER.length); // e.g. "product-images/abc.png"
+  // Our proxy addresses by key within the fixed bucket, so drop the bucket segment.
+  const key = objectPath.replace(/^product-images\//, '');
   const w = snapWidth(width);
-  return `${env.supabaseUrl}/storage/v1/render/image/public/${objectPath}?width=${w}&quality=70&resize=contain`;
+  return `${env.apiUrl}/api/v1/img/${key}?w=${w}`;
 }
 
 /** True for values the client should use as-is (already a full URL, or a data/blob URI). */
