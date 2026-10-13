@@ -883,13 +883,19 @@ export function Landing() {
         <section className="lp-sec" id="get">
           <div className="lp-wrap">
             <div className="lp-end lp-rv">
-              <span className="lp-eyebrow">Hyderabad</span>
-              <h2>Harvested after you order.</h2>
-              <p>
-                Install Fooducia, add your community, and put in your first basket before
-                tonight&apos;s cutoff. It arrives with the morning.
-              </p>
-              <StoreBadges onDark />
+              {/* the harvest spills across the top; the green panel is pulled up over it */}
+              <div className="lp-end__band" aria-hidden="true">
+                <img className="lp-end__band-img" src="/produce-band.webp" alt="" />
+              </div>
+              <div className="lp-end__panel">
+                <span className="lp-eyebrow">Hyderabad</span>
+                <h2>Harvested after you order.</h2>
+                <p>
+                  Install Fooducia, add your community, and put in your first basket before
+                  tonight&apos;s cutoff. It arrives with the morning.
+                </p>
+                <StoreBadges onDark />
+              </div>
             </div>
           </div>
         </section>

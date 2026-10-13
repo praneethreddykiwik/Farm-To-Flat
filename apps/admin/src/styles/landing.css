@@ -1092,28 +1092,46 @@
 }
 
 /* ── closing cta ──────────────────────────────────────────────────────────── */
+/* A harvest scattered across a pale band, with the green panel pulled up over its
+   lower edge so the bottom row of produce sits right on the fold. A few whole
+   fruits float free of the band on their own slow loops. */
 .lp-end {
   position: relative;
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: var(--lp-lift);
+}
+.lp-end__band {
+  position: relative;
+  height: clamp(200px, 27vw, 360px);
+  overflow: hidden;
+  background: linear-gradient(104deg, #e8f2e8 0%, #f4f2e8 56%, #f0efe3 100%);
+}
+.lp-end__band-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 46%;
+  transform-origin: 50% 40%;
+  animation: lp-band-breathe 26s ease-in-out infinite;
+}
+/* the green panel — now carries the gradient the whole section used to */
+.lp-end__panel {
+  position: relative;
+  z-index: 3;
+  margin-top: clamp(-130px, -13vw, -74px);
   border-radius: 32px;
   padding: clamp(40px, 6vw, 72px);
   background: linear-gradient(150deg, var(--lp-leaf-deep), #0d3f27 60%, var(--lp-night));
   color: var(--lp-canvas);
-  box-shadow: var(--lp-lift);
-  overflow: hidden;
   display: grid;
   gap: 24px;
   justify-items: center;
   text-align: center;
 }
-.lp-end h2 {
-  color: var(--lp-canvas);
-  max-width: 18ch;
-}
-.lp-end p {
-  color: rgba(243, 245, 239, 0.72);
-  max-width: 52ch;
-}
-.lp-end::before {
+.lp-end__panel::before {
   content: '';
   position: absolute;
   width: 520px;
@@ -1124,6 +1142,29 @@
   left: 50%;
   transform: translateX(-50%);
   pointer-events: none;
+}
+.lp-end h2 {
+  color: var(--lp-canvas);
+  max-width: 18ch;
+}
+.lp-end p {
+  color: rgba(243, 245, 239, 0.72);
+  max-width: 52ch;
+}
+
+@keyframes lp-band-breathe {
+  0%,
+  100% {
+    transform: scale(1.03) translateY(0);
+  }
+  50% {
+    transform: scale(1.06) translateY(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-end__band-img {
+    animation: none !important;
+  }
 }
 
 /* ── footer ───────────────────────────────────────────────────────────────── */
