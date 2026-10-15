@@ -17,6 +17,18 @@
 import { useEffect, useRef, useState } from 'react';
 import '../styles/landing.css';
 import mark from '../assets/fooducia-mark.png';
+import { COMPANY } from './terms-content.js';
+
+// Statutory identity line — renders only the values the owner has filled in COMPANY (entity, CIN,
+// FSSAI licence, GSTIN). Blank until then, exactly like Zomato/Blinkit footers once completed.
+const COMPANY_LINE = [
+  COMPANY.legalName,
+  COMPANY.cin && `CIN ${COMPANY.cin}`,
+  COMPANY.fssai && `FSSAI ${COMPANY.fssai}`,
+  COMPANY.gstin && `GSTIN ${COMPANY.gstin}`,
+]
+  .filter(Boolean)
+  .join(' · ');
 
 /** Swap these for the real listings the day they go live; nothing else needs to change. */
 const APP_STORE_URL = '';
@@ -938,6 +950,7 @@ export function Landing() {
               </div>
             </div>
             <div className="lp-foot__rule" />
+            {COMPANY_LINE ? <div className="lp-foot__legal">{COMPANY_LINE}</div> : null}
             <div className="lp-foot__bot">
               <span>© {new Date().getFullYear()} Fooducia. Made in Hyderabad.</span>
               <a

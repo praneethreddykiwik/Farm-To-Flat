@@ -44,6 +44,83 @@ export const CHROME = {
   },
 };
 
+/**
+ * Company, licence & grievance-officer identity — THE SINGLE SOURCE for the whole app + website.
+ *
+ * Fill each value before launch (see COMPLIANCE-TASKS.md). This is the block that Zomato (Eternal
+ * Ltd) and Blinkit (Blink Commerce Pvt Ltd) display to satisfy the Consumer Protection
+ * (E-Commerce) Rules 2020, the IT Act 2000 (named Grievance Officer) and FSSAI display rules.
+ *
+ * IMPORTANT: a value left '' is simply NOT rendered — an empty row never appears, so nothing
+ * placeholder or invented is ever published. Fill a field and it shows up everywhere at once:
+ * /contact, /account-deletion, the Terms grievance section, in all three languages. Do NOT put a
+ * made-up CIN / FSSAI / GSTIN here — only your real, verified numbers.
+ */
+export const COMPANY = {
+  legalName: '', // registered entity, e.g. 'Fooducia Retail Private Limited'
+  cin: '', // Corporate Identity Number issued by the MCA
+  regOffice: '', // full registered-office address
+  fssai: '', // FSSAI e-commerce licence number (FoSCoS)
+  gstin: '', // GSTIN
+  grievanceName: '', // Grievance Officer — full name of a real person
+  grievanceRole: '', // their designation
+  grievanceEmail: '', // dedicated grievance mailbox (falls back to the support email if blank)
+  grievancePhone: '', // contact phone
+};
+
+const DETAIL_LABELS = {
+  en: {
+    officer: 'Grievance Officer',
+    email: 'Email',
+    phone: 'Phone',
+    legalName: 'Registered entity',
+    cin: 'CIN',
+    fssai: 'FSSAI licence',
+    gstin: 'GSTIN',
+    regOffice: 'Registered office',
+  },
+  hi: {
+    officer: 'शिकायत अधिकारी',
+    email: 'ईमेल',
+    phone: 'फ़ोन',
+    legalName: 'पंजीकृत इकाई',
+    cin: 'CIN',
+    fssai: 'FSSAI लाइसेंस',
+    gstin: 'GSTIN',
+    regOffice: 'पंजीकृत कार्यालय',
+  },
+  te: {
+    officer: 'ఫిర్యాదుల అధికారి',
+    email: 'ఇమెయిల్',
+    phone: 'ఫోన్',
+    legalName: 'నమోదిత సంస్థ',
+    cin: 'CIN',
+    fssai: 'FSSAI లైసెన్స్',
+    gstin: 'GSTIN',
+    regOffice: 'నమోదిత కార్యాలయం',
+  },
+};
+
+/**
+ * Build the grievance + company/licence rows for one language, dropping every field left blank in
+ * COMPANY. The email always shows (grievance mailbox, else the live support CONTACT) so there is
+ * always a way to reach us; everything else appears only once you fill it in.
+ */
+const detailRows = (lang, CONTACT) => {
+  const L = DETAIL_LABELS[lang] || DETAIL_LABELS.en;
+  const officer = [COMPANY.grievanceName, COMPANY.grievanceRole].filter(Boolean).join(', ');
+  return [
+    [L.officer, officer],
+    [L.email, COMPANY.grievanceEmail || CONTACT],
+    [L.phone, COMPANY.grievancePhone],
+    [L.legalName, COMPANY.legalName],
+    [L.cin, COMPANY.cin],
+    [L.fssai, COMPANY.fssai],
+    [L.gstin, COMPANY.gstin],
+    [L.regOffice, COMPANY.regOffice],
+  ].filter(([, v]) => v && String(v).trim());
+};
+
 const EN = (CONTACT) => [
   {
     id: 'who',
@@ -155,11 +232,7 @@ const EN = (CONTACT) => [
     p: [
       'In accordance with the Information Technology Act, 2000 and the Consumer Protection (E-Commerce) Rules, 2020, the name and contact details of the Grievance Officer are provided below. If you have a complaint about an order, a privacy concern, or content on the app, please write to us and we will acknowledge it within 48 hours and resolve it within 30 days.',
     ],
-    list: [
-      ['Grievance Officer', 'Fooducia Operations'],
-      ['Email', CONTACT],
-      ['Address', 'Fooducia, Hyderabad, Telangana, India'],
-    ],
+    list: [...detailRows('en', CONTACT)],
   },
   {
     id: 'contact',
@@ -301,11 +374,7 @@ const HI = (CONTACT) => [
     p: [
       'सूचना प्रौद्योगिकी अधिनियम, 2000 और उपभोक्ता संरक्षण (ई-कॉमर्स) नियम, 2020 के अनुसार, शिकायत अधिकारी का नाम और संपर्क विवरण नीचे दिया गया है। यदि आपको किसी ऑर्डर के बारे में शिकायत है, निजता संबंधी चिंता है, या ऐप की किसी सामग्री पर आपत्ति है, तो कृपया हमें लिखें — हम 48 घंटे के भीतर उसकी पावती देंगे और 30 दिन के भीतर समाधान करेंगे।',
     ],
-    list: [
-      ['शिकायत अधिकारी', 'फ़ार्म टू फ्लैट ऑपरेशंस'],
-      ['ईमेल', CONTACT],
-      ['पता', 'फ़ार्म टू फ्लैट, हैदराबाद, तेलंगाना, भारत'],
-    ],
+    list: [...detailRows('hi', CONTACT)],
   },
   {
     id: 'contact',
@@ -447,11 +516,7 @@ const TE = (CONTACT) => [
     p: [
       'సమాచార సాంకేతిక చట్టం, 2000 మరియు వినియోగదారుల రక్షణ (ఈ-కామర్స్) నియమాలు, 2020 ప్రకారం, ఫిర్యాదుల అధికారి పేరు మరియు సంప్రదింపు వివరాలు క్రింద ఇవ్వబడ్డాయి. ఆర్డర్ గురించి ఫిర్యాదు, గోప్యతా సంబంధిత ఆందోళన, లేదా యాప్‌లోని ఏదైనా విషయంపై అభ్యంతరం ఉంటే, దయచేసి మాకు రాయండి — 48 గంటలలోపు స్వీకరించినట్టు తెలియజేసి, 30 రోజులలోపు పరిష్కరిస్తాము.',
     ],
-    list: [
-      ['ఫిర్యాదుల అధికారి', 'Fooducia ఆపరేషన్స్'],
-      ['ఇమెయిల్', CONTACT],
-      ['చిరునామా', 'Fooducia, హైదరాబాద్, తెలంగాణ, భారతదేశం'],
-    ],
+    list: [...detailRows('te', CONTACT)],
   },
   {
     id: 'contact',

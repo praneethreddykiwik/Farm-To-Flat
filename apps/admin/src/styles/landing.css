@@ -1251,6 +1251,12 @@
   );
   margin: 40px 0 24px;
 }
+.lp-foot__legal {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: rgba(243, 245, 239, 0.4);
+  margin-bottom: 16px;
+}
 .lp-foot__bot {
   display: flex;
   flex-wrap: wrap;
