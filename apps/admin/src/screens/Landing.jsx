@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import '../styles/landing.css';
 import mark from '../assets/fooducia-mark.png';
 import { COMPANY } from './terms-content.js';
+import { ProduceLayer, ProduceBurst } from './Produce.jsx';
 
 // Statutory identity line — renders only the values the owner has filled in COMPANY (entity, CIN,
 // FSSAI licence, GSTIN). Blank until then, exactly like Zomato/Blinkit footers once completed.
@@ -549,6 +550,15 @@ export function Landing() {
 
         {/* ── hero ───────────────────────────────────────────────────────── */}
         <section className="lp-hero" id="top">
+          <ProduceLayer
+            className="pr-layer--hero"
+            items={[
+              { k: 'leaf', x: 6, y: 18, s: 54, r: -18, d: 11, drift: 22, o: 0.5, delay: 0 },
+              { k: 'lemon', x: 90, y: 24, s: 44, r: 14, d: 13, drift: 18, o: 0.5, delay: 1.2 },
+              { k: 'mint', x: 72, y: 70, s: 40, r: 8, d: 10, drift: 20, o: 0.45, delay: 0.6 },
+              { k: 'chili', x: 14, y: 76, s: 46, r: 26, d: 12, drift: 24, o: 0.45, delay: 1.8 },
+            ]}
+          />
           <div className="lp-wrap lp-hero__grid">
             <div className="lp-hero__copy">
               <span className="lp-eyebrow" style={{ '--i': 0 }}>
@@ -582,6 +592,7 @@ export function Landing() {
 
             <div className="lp-stage lp-hero__stage">
               <div style={{ position: 'relative' }}>
+                <ProduceBurst />
                 <Phone src={SHOT.home} alt="The Fooducia home screen on an iPhone" float />
                 <div className="lp-pin lp-pin--tl">
                   <span className="lp-pin__dot" style={{ background: 'var(--lp-leaf-soft)' }}>
@@ -788,7 +799,15 @@ export function Landing() {
         </section>
 
         {/* ── cards ──────────────────────────────────────────────────────── */}
-        <section className="lp-sec">
+        <section className="lp-sec lp-sec--produce">
+          <ProduceLayer
+            items={[
+              { k: 'carrot', x: 3, y: 12, s: 56, r: -20, d: 12, drift: 20, o: 0.3 },
+              { k: 'onion', x: 93, y: 20, s: 52, r: 16, d: 13, drift: 18, o: 0.3, delay: 1 },
+              { k: 'garlic', x: 88, y: 78, s: 50, r: -10, d: 11, drift: 22, o: 0.3, delay: 0.5 },
+              { k: 'leaf', x: 6, y: 82, s: 46, r: 24, d: 14, drift: 24, o: 0.3, delay: 1.6 },
+            ]}
+          />
           <div className="lp-wrap">
             <div className="lp-sec__head lp-rv">
               <span className="lp-eyebrow">Built into the app</span>

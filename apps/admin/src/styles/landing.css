@@ -1485,3 +1485,113 @@
     transform: scaleX(1) !important;
   }
 }
+
+/* ── produce: ambient float field + hero "thrown" burst ─────────────────────────
+   Scalable SVG produce scattered behind sections (see screens/Produce.jsx). Motion lives here so a
+   single prefers-reduced-motion guard can still it. Layers are inset-0 with their own clip, so a
+   drifting tomato never adds a horizontal scrollbar to the page. */
+.lp-sec,
+.lp-hero {
+  position: relative;
+}
+.pr-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pr-layer--hero {
+  z-index: 0;
+}
+.pr-float {
+  position: absolute;
+  display: block;
+  transform: rotate(var(--pr-rot, 0deg));
+  filter: drop-shadow(0 10px 16px rgba(26, 59, 38, 0.18));
+  animation: pr-float var(--pr-dur, 10s) ease-in-out var(--pr-delay, 0s) infinite;
+  will-change: transform;
+}
+.pr-float svg,
+.pr-burst__item svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@keyframes pr-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--pr-rot, 0deg));
+  }
+  50% {
+    transform: translateY(calc(var(--pr-drift, 16px) * -1)) rotate(calc(var(--pr-rot, 0deg) + 8deg));
+  }
+}
+
+/* keep the hero content and phone above the ambient field */
+.lp-hero__grid,
+.lp-sec .lp-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* the hero burst: produce flung out from behind the phone, settling into a bob */
+.pr-burst {
+  position: absolute;
+  inset: -8% -14%;
+  z-index: 0;
+  pointer-events: none;
+}
+.pr-burst__item {
+  position: absolute;
+  display: block;
+  filter: drop-shadow(0 14px 22px rgba(26, 59, 38, 0.22));
+  animation:
+    pr-throw 0.95s cubic-bezier(0.18, 0.9, 0.3, 1.2) var(--pr-delay, 0s) both,
+    pr-bob var(--pr-dur, 9s) ease-in-out calc(var(--pr-delay, 0s) + 0.95s) infinite;
+  will-change: transform;
+}
+@keyframes pr-throw {
+  0% {
+    transform: translate(var(--pr-fx, 80px), var(--pr-fy, 80px)) scale(0.3)
+      rotate(calc(var(--pr-rot, 0deg) - 60deg));
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0) scale(1) rotate(var(--pr-rot, 0deg));
+    opacity: 1;
+  }
+}
+@keyframes pr-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--pr-rot, 0deg));
+  }
+  50% {
+    transform: translateY(-12px) rotate(calc(var(--pr-rot, 0deg) + 6deg));
+  }
+}
+
+@media (max-width: 720px) {
+  /* thin the ambient field on phones so it reads as texture, not clutter */
+  .pr-burst__item:nth-child(n + 4) {
+    display: none;
+  }
+  .pr-float {
+    opacity: 0.3 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-float,
+  .pr-burst__item {
+    animation: none !important;
+  }
+  .pr-burst__item {
+    opacity: 1;
+    transform: none;
+  }
+}
