@@ -11,6 +11,7 @@
  */
 import { getOrder, patchOrder } from '../store.js';
 import { razorpayEnabled } from './razorpay.js';
+import { emitNotification, COPY } from './notify.js';
 import {
   getPayment,
   getWallet,
@@ -105,12 +106,23 @@ export async function capturePayment({
   }
 
   savePayment(pay);
+  const wasPending = current?.status === 'PENDING_PAYMENT';
   const updated = patchOrder(pay.orderId, (ord) => {
     if (ord.status === 'PENDING_PAYMENT') {
       ord.status = 'CONFIRMED';
       ord.timeline.push({ status: 'CONFIRMED', at: new Date().toISOString() });
     }
   });
+  // A prepaid order just became confirmed by this payment — tell the customer it's placed.
+  if (wasPending && updated?.status === 'CONFIRMED' && updated.customerId) {
+    const placed = COPY.ORDER_PLACED(updated);
+    emitNotification(updated.customerId, {
+      type: 'ORDER_PLACED',
+      title: placed.title,
+      body: placed.body,
+      data: { orderId: updated.id, orderNumber: updated.orderNumber, action: 'track' },
+    });
+  }
   return { outcome: 'captured', payment: pay, order: updated };
 }
 

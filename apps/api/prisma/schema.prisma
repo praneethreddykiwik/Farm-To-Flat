@@ -190,6 +190,22 @@ model Device {
   @@index([customerId])
 }
 
+// Per-customer notification feed (the in-app notification centre). Written alongside every push /
+// WhatsApp send so the customer can always see what they were told. No relation back to Customer on
+// purpose — it keeps the Customer model untouched; customerId is indexed for the feed query.
+model Notification {
+  id         String    @id
+  customerId String
+  type       String
+  title      String
+  body       String
+  data       Json?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([customerId])
+}
+
 model Address {
   id            String    @id
   customer      Customer  @relation(fields: [customerId], references: [id])

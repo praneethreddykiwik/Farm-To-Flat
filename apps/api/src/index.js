@@ -51,6 +51,7 @@ import { razorpayWebhookRouter } from './routes/razorpay-webhook.js';
 import { mediaRouter } from './routes/media.js';
 import { imgRouter } from './routes/img.js';
 import { devicesRouter } from './routes/devices.js';
+import { notificationsRouter } from './routes/notifications.js';
 import { aiRouter } from './routes/ai.js';
 // Side-effect import: starts the 10-minute gateway reconciliation pass. The third leg, after the
 // client callback and the webhook — the one that notices when neither of those happened.
@@ -257,6 +258,7 @@ app.use(`${v1}/orders`, requireAuth, customerOrdersRouter);
 app.use(`${v1}/wallet`, requireAuth, walletRouter);
 app.use(`${v1}/payments`, requireAuth, paymentsRouter);
 app.use(`${v1}/devices`, requireAuth, devicesRouter);
+app.use(`${v1}/notifications`, requireAuth, notificationsRouter);
 app.use(`${v1}/ai`, requireAuth, aiRouter);
 
 // ── admin (operator panel) ─────────────────────────────────────────────────

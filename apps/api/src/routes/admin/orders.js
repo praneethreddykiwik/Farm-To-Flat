@@ -28,9 +28,9 @@ import {
   resolveOrderIssue,
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
-import { getDevices, getCustomer, capturedPaymentForOrder } from '../../customer-store.js';
-import { notifyOrderStatus } from '../../lib/push.js';
+import { getCustomer, capturedPaymentForOrder } from '../../customer-store.js';
 import { notifyComplaintResolved, notifyOrderOnTheWay } from '../../lib/notify-whatsapp.js';
+import { emitNotification, COPY } from '../../lib/notify.js';
 import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
 import { listActions, recordAction } from '../../lib/audit.js';
@@ -424,6 +424,16 @@ adminOrdersRouter.post(
     // explains itself is the difference between an answer and silence.
     const resolved = getOrder(req.params.id);
     notifyComplaintResolved(resolved, issue, getCustomer(resolved?.customerId));
+    // In-app + push: the customer sees the operator's reply in their notification centre too.
+    if (resolved?.customerId && String(issue.resolution || '').trim()) {
+      const cr = COPY.COMPLAINT_REPLY(resolved, String(issue.resolution).trim());
+      emitNotification(resolved.customerId, {
+        type: 'COMPLAINT_REPLY',
+        title: cr.title,
+        body: cr.body,
+        data: { orderId: resolved.id, orderNumber: resolved.orderNumber, issueId: issue.id },
+      });
+    }
     res.json({
       issue,
       order: linkOrderIssuePhotos(orderAdmin(getOrder(req.params.id)), baseUrlOf(req)),
@@ -446,9 +456,39 @@ function whenOf(order) {
  * ends up firing on three of them, so they all come through here instead.
  */
 function notifyCustomer(order) {
-  notifyOrderStatus(order, getDevices);
-  if (order?.status === 'OUT_FOR_DELIVERY')
-    notifyOrderOnTheWay(order, getCustomer(order.customerId), whenOf(order));
+  if (!order?.customerId) return;
+  const when = order.status === 'OUT_FOR_DELIVERY' ? whenOf(order) : undefined;
+  // In-app feed + push for each lifecycle status (order placed is handled at creation / payment).
+  const builders = {
+    PACKING: ['ORDER_PACKED', () => COPY.ORDER_PACKED(order)],
+    OUT_FOR_DELIVERY: ['ORDER_OUT', () => COPY.ORDER_OUT(order, when)],
+    DELIVERED: ['ORDER_DELIVERED', () => COPY.ORDER_DELIVERED(order)],
+    CANCELLED: ['ORDER_CANCELLED', () => COPY.ORDER_CANCELLED(order)],
+  };
+  const entry = builders[order.status];
+  if (entry) {
+    const [type, make] = entry;
+    const { title, body } = make();
+    emitNotification(order.customerId, {
+      type,
+      title,
+      body,
+      data: { orderId: order.id, orderNumber: order.orderNumber, status: order.status },
+    });
+  }
+  // WhatsApp for out-for-delivery stays on its existing approved template.
+  if (order.status === 'OUT_FOR_DELIVERY')
+    notifyOrderOnTheWay(order, getCustomer(order.customerId), when);
+  // Right after a delivery, invite feedback / a rating.
+  if (order.status === 'DELIVERED') {
+    const fb = COPY.FEEDBACK_INVITE(order);
+    emitNotification(order.customerId, {
+      type: 'FEEDBACK_INVITE',
+      title: fb.title,
+      body: fb.body,
+      data: { orderId: order.id, orderNumber: order.orderNumber, action: 'rate' },
+    });
+  }
 }
 
 const StatusBody = z.object({ status: z.enum(STATUSES) });

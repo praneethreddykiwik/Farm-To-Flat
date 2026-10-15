@@ -40,10 +40,17 @@ import {
   releaseCoupon,
   validateCoupon,
   flushWallet,
+  capturedPaymentForOrder,
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
+import { emitNotification, COPY } from '../lib/notify.js';
+
+// How long a refund typically takes to reach the customer (gateway refunds). Shown in the refund
+// notification so the customer is not left wondering. Wallet refunds are instant but we quote the
+// cautious number.
+const REFUND_DAYS = Number(process.env.REFUND_ETA_DAYS || 5);
 import {
   allowedImageTypes,
   assertRealImage,
@@ -224,6 +231,18 @@ customerOrdersRouter.post(
       );
     clearCart(cid);
 
+    // "Order placed successfully" — fires now for COD / wallet orders (already CONFIRMED). Prepaid
+    // orders are still PENDING_PAYMENT here and get this notification when the payment is verified.
+    if (order.status === 'CONFIRMED') {
+      const placed = COPY.ORDER_PLACED(order);
+      emitNotification(cid, {
+        type: 'ORDER_PLACED',
+        title: placed.title,
+        body: placed.body,
+        data: { orderId: order.id, orderNumber: order.orderNumber, action: 'track' },
+      });
+    }
+
     let paymentIntent = null;
     if (gateway > 0) {
       const pay = createPayment(cid, { purpose: 'ORDER', orderId: order.id, amountPaise: gateway });
@@ -339,6 +358,14 @@ customerOrdersRouter.post(
         body: `${updated.orderNumber} · ${updated.customerName} · ${updated.address?.block || ''} ${updated.address?.flat || ''}`.trim(),
         data: { type: 'CANCEL_REQUEST', orderId: updated.id },
       });
+      // Confirm to the customer that the request was received (req: cancel after packing).
+      const cr = COPY.CANCEL_REQUESTED(updated);
+      emitNotification(cid, {
+        type: 'CANCEL_REQUESTED',
+        title: cr.title,
+        body: cr.body,
+        data: { orderId: updated.id, orderNumber: updated.orderNumber },
+      });
       return res.json({
         order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
         cancelled: false,
@@ -348,6 +375,26 @@ customerOrdersRouter.post(
 
     // Everything before the packing bench — cancel outright and refund now.
     const { order: updated } = cancelOrder(req.params.id);
+    // What actually gets refunded: any wallet money applied, plus any captured gateway payment.
+    const pay = capturedPaymentForOrder(updated.id);
+    const refundPaise =
+      Number(updated.walletAppliedPaise || 0) + (pay ? Number(pay.amountPaise || 0) : 0);
+    const cc = COPY.ORDER_CANCELLED({ ...updated, refundPaise });
+    emitNotification(cid, {
+      type: 'ORDER_CANCELLED',
+      title: cc.title,
+      body: cc.body,
+      data: { orderId: updated.id, orderNumber: updated.orderNumber, refundPaise },
+    });
+    if (refundPaise > 0) {
+      const rf = COPY.REFUND_INITIATED({ ...updated, refundPaise }, REFUND_DAYS);
+      emitNotification(cid, {
+        type: 'REFUND_INITIATED',
+        title: rf.title,
+        body: rf.body,
+        data: { orderId: updated.id, orderNumber: updated.orderNumber, refundPaise },
+      });
+    }
     res.json({
       order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
       cancelled: true,

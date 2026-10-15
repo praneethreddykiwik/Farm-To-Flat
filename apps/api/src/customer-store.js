@@ -45,6 +45,8 @@ const cs = {
   redemptions: new Map(),
   /** customerId -> Set(expoPushToken) */
   devices: new Map(),
+  /** customerId -> Notification[] (oldest first; the feed reverses for display) */
+  notifications: new Map(),
   /** paymentId -> { purpose, orderId?, amountPaise, status, razorpayOrderId, customerId } */
   payments: new Map(),
 };
@@ -71,6 +73,7 @@ export function hydrateCustomerData({
   redemptions,
   payments,
   carts,
+  notifications,
 }) {
   const communities = listCommunities();
   const comm = (cid) => communities.find((c) => c.id === cid);
@@ -86,6 +89,7 @@ export function hydrateCustomerData({
   cs.addresses = new Map();
   cs.refresh = new Map();
   cs.devices = new Map();
+  cs.notifications = new Map();
   cs.redemptions = new Map();
   cs.payments = new Map();
   for (const c of customers) {
@@ -130,6 +134,27 @@ export function hydrateCustomerData({
     const set =
       cs.devices.get(d.customerId) || cs.devices.set(d.customerId, new Set()).get(d.customerId);
     set.add(d.expoPushToken);
+  }
+  for (const n of notifications || []) {
+    const list =
+      cs.notifications.get(n.customerId) ||
+      cs.notifications.set(n.customerId, []).get(n.customerId);
+    list.push({
+      id: n.id,
+      customerId: n.customerId,
+      type: n.type,
+      title: n.title,
+      body: n.body,
+      data: n.data ?? {},
+      readAt: n.readAt ? new Date(n.readAt).toISOString() : null,
+      createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
+    });
+  }
+  // keep each feed oldest-first and bounded
+  for (const [cid, list] of cs.notifications) {
+    list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    if (list.length > NOTIF_MAX) list.splice(0, list.length - NOTIF_MAX);
+    cs.notifications.set(cid, list);
   }
   for (const r of redemptions) {
     const set =
@@ -1071,6 +1096,63 @@ export function registerDevice(cid, token) {
 }
 /** A customer's registered Expo push tokens (for the push sender). */
 export const getDevices = (cid) => [...(cs.devices.get(cid) || [])];
+
+// ── notifications (the in-app notification centre) ─────────────────────────────
+const NOTIF_MAX = 100; // per customer; the feed is a recent history, not an archive
+
+/**
+ * Append a notification to a customer's feed and persist it (best-effort). Returns the record so the
+ * caller can also hand it to push / WhatsApp. Title and body are clamped; data is free-form JSON.
+ */
+export function addNotification(cid, { type = 'INFO', title = '', body = '', data = {} } = {}) {
+  if (!cid) return null;
+  const n = {
+    id: id('ntf'),
+    customerId: cid,
+    type: String(type).slice(0, 40),
+    title: String(title).slice(0, 140),
+    body: String(body).slice(0, 700),
+    data: data && typeof data === 'object' ? data : {},
+    readAt: null,
+    createdAt: new Date().toISOString(),
+  };
+  const list = cs.notifications.get(cid) || cs.notifications.set(cid, []).get(cid);
+  list.push(n);
+  if (list.length > NOTIF_MAX) list.splice(0, list.length - NOTIF_MAX);
+  persist.notificationUpsert(n);
+  return n;
+}
+
+/** Newest-first feed for a customer. */
+export function listNotifications(cid, { limit = 50 } = {}) {
+  const list = cs.notifications.get(cid) || [];
+  return list.slice(-limit).reverse();
+}
+
+export function unreadNotificationCount(cid) {
+  return (cs.notifications.get(cid) || []).reduce((n, x) => n + (x.readAt ? 0 : 1), 0);
+}
+
+export function markNotificationRead(cid, nid) {
+  const n = (cs.notifications.get(cid) || []).find((x) => x.id === nid);
+  if (n && !n.readAt) {
+    n.readAt = new Date().toISOString();
+    persist.notificationUpsert(n);
+  }
+  return n || null;
+}
+
+export function markAllNotificationsRead(cid) {
+  const now = new Date().toISOString();
+  let count = 0;
+  for (const n of cs.notifications.get(cid) || [])
+    if (!n.readAt) {
+      n.readAt = now;
+      persist.notificationUpsert(n);
+      count += 1;
+    }
+  return count;
+}
 
 /** test helper */
 export function _reset() {

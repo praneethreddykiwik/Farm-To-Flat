@@ -311,25 +311,51 @@ const paymentToRow = (p) => ({
 
 /** Read all transactional tables. Enrichment (address community names) happens in the store. */
 export async function loadTransactional() {
-  const [customers, addresses, sessions, devices, redemptions, orders, payments, carts] =
-    await Promise.all([
-      prisma.customer.findMany(),
-      prisma.address.findMany(),
-      prisma.session.findMany(),
-      prisma.device.findMany(),
-      prisma.couponRedemption.findMany(),
-      prisma.order.findMany(),
-      prisma.payment.findMany(),
-      // The basket table was added after the others. If it is not in the database yet, boot with
-      // empty baskets rather than failing hydration — a throw here would disable persistence for
-      // the whole process and drop the API back to seed data.
-      prisma.cart.findMany().catch((e) => {
-        // eslint-disable-next-line no-console
-        console.error('[persist] cart table unavailable, starting with empty baskets:', e?.message);
-        return [];
-      }),
-    ]);
-  return { customers, addresses, sessions, devices, redemptions, orders, payments, carts };
+  const [
+    customers,
+    addresses,
+    sessions,
+    devices,
+    redemptions,
+    orders,
+    payments,
+    carts,
+    notifications,
+  ] = await Promise.all([
+    prisma.customer.findMany(),
+    prisma.address.findMany(),
+    prisma.session.findMany(),
+    prisma.device.findMany(),
+    prisma.couponRedemption.findMany(),
+    prisma.order.findMany(),
+    prisma.payment.findMany(),
+    // The basket table was added after the others. If it is not in the database yet, boot with
+    // empty baskets rather than failing hydration — a throw here would disable persistence for
+    // the whole process and drop the API back to seed data.
+    prisma.cart.findMany().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[persist] cart table unavailable, starting with empty baskets:', e?.message);
+      return [];
+    }),
+    // Added after the others — boot with an empty feed rather than failing hydration if the
+    // Notification table has not been created on this database yet.
+    prisma.notification.findMany().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[persist] notification table unavailable:', e?.message);
+      return [];
+    }),
+  ]);
+  return {
+    customers,
+    addresses,
+    sessions,
+    devices,
+    redemptions,
+    orders,
+    payments,
+    carts,
+    notifications,
+  };
 }
 
 const logErr = (op) => (e) =>
@@ -526,6 +552,24 @@ export const persist = {
     'cart.delete',
     (cid) => prisma.cart.delete({ where: { customerId: cid } }).catch(() => undefined),
     (cid) => cid,
+  ),
+  // Notification feed. Serialised per notification id so a create then a read-receipt land in order.
+  notificationUpsert: wt(
+    'notification.upsert',
+    (n) => {
+      const row = {
+        id: n.id,
+        customerId: n.customerId,
+        type: n.type,
+        title: n.title,
+        body: n.body,
+        data: n.data ?? {},
+        readAt: n.readAt ? new Date(n.readAt) : null,
+        createdAt: n.createdAt ? new Date(n.createdAt) : new Date(),
+      };
+      return prisma.notification.upsert({ where: { id: n.id }, create: row, update: row });
+    },
+    (n) => n.id,
   ),
 
   // ── transactional (stage 2) ──
