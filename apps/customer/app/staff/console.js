@@ -185,7 +185,7 @@ export default function StaffConsole() {
             </Pressable>
             <Pressable
               style={styles.card}
-              onPress={() => Linking.openURL('https://farm-to-flat.vercel.app').catch(() => {})}
+              onPress={() => Linking.openURL('https://fooducia.in').catch(() => {})}
             >
               <Text style={styles.cardIcon}>🖥️</Text>
               <View style={{ flex: 1 }}>

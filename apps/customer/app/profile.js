@@ -431,9 +431,7 @@ export default function Profile() {
           {/* Carry the reader's language to the web page, which renders in all three. */}
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://farm-to-flat.vercel.app/privacy?lang=${lang}`).catch(
-                () => {},
-              )
+              Linking.openURL(`https://fooducia.in/privacy?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >
@@ -443,7 +441,7 @@ export default function Profile() {
           </Pressy>
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://farm-to-flat.vercel.app/terms?lang=${lang}`).catch(() => {})
+              Linking.openURL(`https://fooducia.in/terms?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >

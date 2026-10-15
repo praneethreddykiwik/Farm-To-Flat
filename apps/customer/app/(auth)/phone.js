@@ -125,9 +125,7 @@ export default function PhoneScreen() {
             <Text
               variant="smallMedium"
               color={colors.leafDeep}
-              onPress={() =>
-                Linking.openURL('https://farm-to-flat.vercel.app/terms').catch(() => {})
-              }
+              onPress={() => Linking.openURL('https://fooducia.in/terms').catch(() => {})}
             >
               terms
             </Text>{' '}
@@ -135,9 +133,7 @@ export default function PhoneScreen() {
             <Text
               variant="smallMedium"
               color={colors.leafDeep}
-              onPress={() =>
-                Linking.openURL('https://farm-to-flat.vercel.app/privacy').catch(() => {})
-              }
+              onPress={() => Linking.openURL('https://fooducia.in/privacy').catch(() => {})}
             >
               privacy policy
             </Text>
