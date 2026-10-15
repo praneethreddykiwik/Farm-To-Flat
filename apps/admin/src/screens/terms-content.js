@@ -166,6 +166,28 @@ const EN = (CONTACT) => [
     h: 'Contact us',
     p: [`Questions about these terms? Email ${CONTACT}. Fooducia, Hyderabad, India.`],
   },
+  {
+    id: 'deletion',
+    h: 'Deleting your account',
+    p: [
+      'You can delete your Fooducia account at any time from the app: open Account, tap “Delete my account”, and confirm. Your account is removed straight away and you are signed out.',
+      `If you cannot use the app, email ${CONTACT} from your registered email or mobile and we will delete your account within 30 days of verifying who you are.`,
+    ],
+    list: [
+      [
+        'What is deleted',
+        'Your profile, name, saved delivery addresses, device and notification tokens, and your sign-in are removed, and your mobile number is freed for a fresh signup.',
+      ],
+      [
+        'What is kept',
+        'Records of past orders and payments are retained in de-identified form only for as long as tax, accounting and other laws require, and are no longer linked to you.',
+      ],
+      [
+        'Wallet balance',
+        'If you hold any wallet balance, contact support to claim it before deleting — it cannot be recovered afterwards.',
+      ],
+    ],
+  },
 ];
 
 const HI = (CONTACT) => [
@@ -290,6 +312,28 @@ const HI = (CONTACT) => [
     h: 'हमसे संपर्क करें',
     p: [`इन शर्तों के बारे में प्रश्न? ${CONTACT} पर ईमेल करें। फ़ार्म टू फ्लैट, हैदराबाद, भारत।`],
   },
+  {
+    id: 'deletion',
+    h: 'अपना खाता हटाना',
+    p: [
+      'आप अपना फ़ार्म टू फ्लैट खाता किसी भी समय ऐप से हटा सकते हैं: Account खोलें, “मेरा खाता हटाएं” पर टैप करें, और पुष्टि करें। आपका खाता तुरंत हटा दिया जाता है और आप साइन आउट हो जाते हैं।',
+      `यदि आप ऐप का उपयोग नहीं कर सकते, तो अपने पंजीकृत ईमेल या मोबाइल से ${CONTACT} पर ईमेल करें; आपकी पहचान सत्यापित होने के 30 दिनों के भीतर हम आपका खाता हटा देंगे।`,
+    ],
+    list: [
+      [
+        'क्या हटाया जाता है',
+        'आपकी प्रोफ़ाइल, नाम, सहेजे गए डिलीवरी पते, डिवाइस और नोटिफ़िकेशन टोकन, और आपका साइन-इन हटा दिया जाता है, और आपका मोबाइल नंबर नए साइनअप के लिए मुक्त कर दिया जाता है।',
+      ],
+      [
+        'क्या रखा जाता है',
+        'पिछले ऑर्डर और भुगतान के रिकॉर्ड केवल उतने समय तक, जितना कर, लेखा और अन्य कानून आवश्यक करते हैं, पहचान-रहित रूप में रखे जाते हैं और अब आपसे जुड़े नहीं रहते।',
+      ],
+      [
+        'वॉलेट शेष राशि',
+        'यदि आपके पास कोई वॉलेट शेष राशि है, तो हटाने से पहले उसे प्राप्त करने के लिए सहायता से संपर्क करें — बाद में इसे वापस नहीं पाया जा सकता।',
+      ],
+    ],
+  },
 ];
 
 const TE = (CONTACT) => [
@@ -413,6 +457,28 @@ const TE = (CONTACT) => [
     id: 'contact',
     h: 'మమ్మల్ని సంప్రదించండి',
     p: [`ఈ నిబంధనల గురించి ప్రశ్నలా? ${CONTACT} కు ఇమెయిల్ చేయండి. Fooducia, హైదరాబాద్, భారతదేశం.`],
+  },
+  {
+    id: 'deletion',
+    h: 'మీ ఖాతాను తొలగించడం',
+    p: [
+      'మీరు మీ Fooducia ఖాతాను ఎప్పుడైనా యాప్ నుండి తొలగించవచ్చు: Account తెరిచి, “నా ఖాతాను తొలగించు” నొక్కి, నిర్ధారించండి. మీ ఖాతా వెంటనే తొలగించబడుతుంది మరియు మీరు సైన్ అవుట్ అవుతారు.',
+      `మీరు యాప్‌ను ఉపయోగించలేకపోతే, మీ నమోదిత ఇమెయిల్ లేదా మొబైల్ నుండి ${CONTACT} కు ఇమెయిల్ చేయండి; మీ గుర్తింపును నిర్ధారించిన 30 రోజుల్లోపు మేము మీ ఖాతాను తొలగిస్తాము.`,
+    ],
+    list: [
+      [
+        'ఏమి తొలగించబడుతుంది',
+        'మీ ప్రొఫైల్, పేరు, సేవ్ చేసిన డెలివరీ చిరునామాలు, పరికర మరియు నోటిఫికేషన్ టోకెన్లు, మరియు మీ సైన్-ఇన్ తొలగించబడతాయి, మరియు మీ మొబైల్ నంబర్ కొత్త సైనప్ కోసం విడుదల చేయబడుతుంది.',
+      ],
+      [
+        'ఏమి ఉంచబడుతుంది',
+        'గత ఆర్డర్‌లు మరియు చెల్లింపుల రికార్డులు పన్ను, అకౌంటింగ్ మరియు ఇతర చట్టాలు అవసరమైనంత కాలం మాత్రమే గుర్తింపు-రహిత రూపంలో ఉంచబడతాయి మరియు ఇకపై మీతో లింక్ చేయబడవు.',
+      ],
+      [
+        'వాలెట్ నిల్వ',
+        'మీ వద్ద ఏదైనా వాలెట్ నిల్వ ఉంటే, తొలగించే ముందు దాన్ని పొందడానికి సపోర్ట్‌ను సంప్రదించండి — తర్వాత దాన్ని తిరిగి పొందలేరు.',
+      ],
+    ],
   },
 ];
 

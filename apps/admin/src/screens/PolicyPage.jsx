@@ -59,6 +59,16 @@ export const PAGES = {
       te: 'మమ్మల్ని ఎలా సంప్రదించాలి, మరియు ఏదైనా పరిష్కారం కాకపోతే ఎవరికి తెలియజేయాలి.',
     },
   },
+  // App stores require a public web page describing account deletion. Same single source as the app.
+  'account-deletion': {
+    ids: ['deletion', 'grievance'],
+    title: { en: 'Account Deletion', hi: 'खाता हटाना', te: 'ఖాతా తొలగింపు' },
+    lede: {
+      en: 'How to delete your Fooducia account, what is removed, and what we must keep.',
+      hi: 'अपना फ़ार्म टू फ्लैट खाता कैसे हटाएं, क्या हटाया जाता है, और हमें क्या रखना पड़ता है।',
+      te: 'మీ Fooducia ఖాతాను ఎలా తొలగించాలి, ఏమి తొలగించబడుతుంది, మరియు మేము ఏమి ఉంచాలి.',
+    },
+  },
 };
 
 const BACK = {

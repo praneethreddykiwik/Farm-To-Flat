@@ -928,6 +928,7 @@ export function Landing() {
                   <a href="/terms">Terms</a>
                   <a href="/refunds">Cancellation &amp; refunds</a>
                   <a href="/shipping">Shipping &amp; delivery</a>
+                  <a href="/account-deletion">Account deletion</a>
                 </div>
                 <div className="lp-foot__col">
                   <b>Get in touch</b>
