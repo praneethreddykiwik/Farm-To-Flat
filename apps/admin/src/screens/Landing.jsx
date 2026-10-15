@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import '../styles/landing.css';
 import mark from '../assets/fooducia-mark.png';
 import { COMPANY } from './terms-content.js';
-import { ProduceLayer, ProduceBurst, ProduceScatter } from './Produce.jsx';
+import { ProduceLayer, ProduceBurst, ProduceScatter, Tomato as BentoTomato } from './Produce.jsx';
 
 // Statutory identity line — renders only the values the owner has filled in COMPANY (entity, CIN,
 // FSSAI licence, GSTIN). Blank until then, exactly like Zomato/Blinkit footers once completed.
@@ -695,6 +695,10 @@ export function Landing() {
     const onScroll = () => {
       const y = window.scrollY;
       setStuck(y > 8);
+      // Reading-progress bar — a CSS var so there is no per-frame re-render.
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      doc.style.setProperty('--lp-progress', max > 0 ? (y / max).toFixed(4) : '0');
       // The hero device drifts a little slower than the page. Written straight to a custom property
       // rather than through React state, because this runs on every scroll frame and a re-render
       // per frame would cost far more than the effect is worth.
@@ -733,6 +737,9 @@ export function Landing() {
       </div>
 
       <div className="lp__body">
+        {/* Reading-progress bar (2025 micro-interaction). */}
+        <div className="lp-progress" aria-hidden="true" />
+
         {/* Announcement ribbon — Steel-style: one line, a live status, an arrow. */}
         <a className="lp-ann" href="#get">
           <span className="lp-ann__badge">NEW</span>
@@ -1144,7 +1151,7 @@ export function Landing() {
               <span className="lp-eyebrow">Built into the app</span>
               <h2>The small things that decide whether you order again.</h2>
             </div>
-            <div className="lp-cards">
+            <div className="lp-bento">
               {[
                 [
                   IcWallet,
@@ -1161,31 +1168,36 @@ export function Landing() {
                 [
                   IcPin,
                   'Addressed to a door, not a pin',
-                  'Community, block, flat. Saved once, and used for every order after it — which is why the bag reaches the right door the first time rather than the right building.',
+                  'Community, block, flat. Saved once, and used for every order after it — the bag reaches the right door the first time, not the right building.',
                   'var(--lp-sky)',
                 ],
                 [
                   IcCamera,
                   'Complaints a human reads',
-                  'If something in the bag is wrong, photograph it. It lands in the operations console as a decision waiting to be made, and comes back as a replacement on the next run or a refund.',
+                  'If something is wrong, photograph it. It lands in the console as a decision, and comes back as a replacement or a refund.',
                   'var(--lp-blush)',
                 ],
                 [
                   IcShield,
                   'No password to steal',
-                  'Your mobile number and a six-digit code on WhatsApp. There is no password on the account, so there is nothing to reuse, leak or guess.',
+                  'Your number and a six-digit code on WhatsApp. No password on the account — nothing to reuse, leak or guess.',
                   'var(--lp-mint)',
                 ],
                 [
                   IcCheck,
                   'Proof at the door',
-                  'A four-digit code read out at handover closes the order. It is the difference between "marked delivered" and actually delivered.',
+                  'A four-digit code read out at handover closes the order — the difference between “marked delivered” and actually delivered.',
                   'var(--lp-leaf-soft)',
                 ],
-              ].map(([Icon, t, p, bg]) => (
-                <article className="lp-card lp-rv" key={t}>
+              ].map(([Icon, t, p, bg], i) => (
+                <article className={`lp-card lp-rv${i === 0 ? ' lp-card--feature' : ''}`} key={t}>
+                  {i === 0 && (
+                    <div className="lp-card__art" aria-hidden="true">
+                      <BentoTomato />
+                    </div>
+                  )}
                   <span className="lp-card__ic" style={{ background: bg }}>
-                    <Icon size={21} />
+                    <Icon size={i === 0 ? 24 : 21} />
                   </span>
                   <h3>{t}</h3>
                   <p>{p}</p>
