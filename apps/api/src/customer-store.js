@@ -120,7 +120,12 @@ export function hydrateCustomerData({
       isDefault: !!a.isDefault,
     });
   }
-  for (const s of sessions) cs.refresh.set(s.refreshToken, s.customerId);
+  for (const s of sessions) {
+    // Drop already-expired refresh tokens at boot rather than hydrating them as valid.
+    const exp = new Date(s.expiresAt).getTime();
+    if (Number.isFinite(exp) && exp > Date.now())
+      cs.refresh.set(s.refreshToken, { customerId: s.customerId, expiresAt: exp });
+  }
   for (const d of devices) {
     const set =
       cs.devices.get(d.customerId) || cs.devices.set(d.customerId, new Set()).get(d.customerId);
@@ -460,6 +465,10 @@ export function verifyOtp(mobile, otp) {
 // for 90 days. Before this, access tokens never expired and every login added a session forever —
 // measured: +50 MB per 10k logins, and any leaked `acc_` token stayed valid indefinitely.
 const ACCESS_TTL_MS = Number(process.env.ACCESS_TOKEN_TTL_MS) || 24 * 60 * 60 * 1000;
+// Refresh tokens live 90 days (matches the DB Session.expiresAt). The expiry is now carried in
+// memory and enforced on rotate — before, cs.refresh held only the customer id, so a refresh token
+// past its intended life still minted fresh sessions indefinitely.
+const REFRESH_TTL_MS = Number(process.env.REFRESH_TOKEN_TTL_MS) || 90 * 864e5;
 const MAX_SESSIONS_PER_CUSTOMER = 10; // phones + tablets; oldest are dropped beyond this
 
 export function issueTokens(customerId) {
@@ -470,8 +479,9 @@ export function issueTokens(customerId) {
     refreshToken,
     expiresAt: Date.now() + ACCESS_TTL_MS,
   });
-  cs.refresh.set(refreshToken, customerId);
-  persist.sessionUpsert(refreshToken, customerId);
+  const refreshExpiresAt = Date.now() + REFRESH_TTL_MS;
+  cs.refresh.set(refreshToken, { customerId, expiresAt: refreshExpiresAt });
+  persist.sessionUpsert(refreshToken, customerId, refreshExpiresAt);
   // cap live sessions per customer (oldest first)
   const mine = [...cs.sessions.entries()].filter(([, s]) => s.customerId === customerId);
   if (mine.length > MAX_SESSIONS_PER_CUSTOMER) {
@@ -511,6 +521,12 @@ export function sweepAuthState(now = Date.now()) {
       cs.otp.delete(mobile);
       removed += 1;
     }
+  for (const [tok, rec] of cs.refresh)
+    if (rec.expiresAt && now > rec.expiresAt) {
+      cs.refresh.delete(tok);
+      persist.sessionDelete(tok);
+      removed += 1;
+    }
   for (const [mobile, hits] of cs.otpRate) {
     const live = hits.filter((t) => now - t < 10 * 60 * 1000);
     if (live.length === 0) {
@@ -523,8 +539,16 @@ export function sweepAuthState(now = Date.now()) {
 if (!IS_TEST) setInterval(() => sweepAuthState(), 10 * 60 * 1000).unref();
 
 export function rotateRefresh(refreshToken) {
-  const customerId = cs.refresh.get(refreshToken);
-  if (!customerId) return null;
+  const rec = cs.refresh.get(refreshToken);
+  if (!rec) return null;
+  // Enforce the refresh lifetime: an expired token is rejected and cleared, not rotated into a
+  // fresh pair. Without this a leaked refresh token stays usable forever.
+  if (rec.expiresAt && Date.now() > rec.expiresAt) {
+    cs.refresh.delete(refreshToken);
+    persist.sessionDelete(refreshToken);
+    return null;
+  }
+  const { customerId } = rec;
   cs.refresh.delete(refreshToken);
   persist.sessionDelete(refreshToken);
   // drop old access tokens for this refresh
@@ -534,7 +558,7 @@ export function rotateRefresh(refreshToken) {
 
 export function logout(customerId) {
   for (const [tok, s] of cs.sessions) if (s.customerId === customerId) cs.sessions.delete(tok);
-  for (const [tok, cid] of cs.refresh) if (cid === customerId) cs.refresh.delete(tok);
+  for (const [tok, rec] of cs.refresh) if (rec.customerId === customerId) cs.refresh.delete(tok);
   persist.sessionsDeleteForCustomer(customerId);
 }
 

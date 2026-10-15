@@ -18,6 +18,7 @@ import {
   SEED_ORDERS,
   TOPUP_DENOMINATIONS_PAISE,
 } from './data/seed.js';
+import { randomInt } from 'node:crypto';
 import { addDaysISO, todayISO } from './lib/dates.js';
 import { communityWindows, keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
@@ -727,7 +728,11 @@ export function updateOrderStatus(oid, status) {
   // here rather than at the door so it reaches them over push/WhatsApp while the rider is still
   // travelling, and re-issued on every dispatch so a code from a failed first attempt is dead.
   if (status === 'OUT_FOR_DELIVERY' && doorCodeRequired(o)) {
-    o.deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
+    // CSPRNG, not Math.random: the door code is a proof-of-handover control, and Math.random's
+    // state is recoverable from a few observed outputs — a rider who learns several codes could
+    // predict others and mark orders delivered without reaching the customer. randomInt is uniform
+    // over the full 4-digit range (1000–9999 inclusive).
+    o.deliveryOtp = String(randomInt(1000, 10000));
     o.deliveryOtpIssuedAt = new Date().toISOString();
   }
   if (orderPersist) persist.orderUpsert(o);

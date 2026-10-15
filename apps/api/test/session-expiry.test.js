@@ -8,6 +8,7 @@ import request from 'supertest';
 
 process.env.NODE_ENV = 'test';
 process.env.ACCESS_TOKEN_TTL_MS = '500';
+process.env.REFRESH_TOKEN_TTL_MS = '900';
 const { app } = await import('../src/index.js');
 const { sweepAuthState } = await import('../src/customer-store.js');
 
@@ -44,5 +45,13 @@ describe('session lifetime', () => {
     const r = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
     expect(r.status).toBe(200);
     expect((await me(r.body.accessToken)).status).toBe(200);
+  });
+
+  it('a refresh token past its TTL is rejected, not rotated into a fresh session', async () => {
+    const { refreshToken } = await login('9555000006');
+    await sleep(1000); // past REFRESH_TOKEN_TTL_MS (900ms)
+    const r = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
+    expect(r.status).toBe(401);
+    expect(r.body.error.code).toBe('REFRESH_INVALID');
   });
 });
