@@ -338,12 +338,30 @@ function Field() {
  */
 function useReveal() {
   useEffect(() => {
-    const show = () => {
+    // Reveal does not need per-frame precision, and running a whole-document query + rect reads on
+    // every Lenis scroll tick was a big source of jank. Throttle to one check per animation frame,
+    // and stop listening entirely once every element has been revealed.
+    let ticking = false;
+    const run = () => {
+      ticking = false;
       const line = window.innerHeight * 0.92;
-      document.querySelectorAll('.lp-rv:not([data-rv])').forEach((el) => {
+      const pending = document.querySelectorAll('.lp-rv:not([data-rv])');
+      pending.forEach((el) => {
         if (el.getBoundingClientRect().top < line) el.setAttribute('data-rv', 'in');
       });
+      if (!document.querySelector('.lp-rv:not([data-rv])')) detach();
     };
+    const show = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(run);
+    };
+    function detach() {
+      window.removeEventListener('scroll', show);
+      window.removeEventListener('resize', show);
+      window.removeEventListener('load', show);
+      ro?.disconnect();
+    }
     show();
     const raf = requestAnimationFrame(show);
     window.addEventListener('scroll', show, { passive: true });
@@ -373,10 +391,13 @@ function useReveal() {
 function useSmoothScroll() {
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return undefined;
+    // lerp-based smoothing feels responsive (snappy) rather than floaty/laggy; the duration+easing
+    // form is kept only for programmatic scrollTo on anchor clicks.
     const lenis = new Lenis({
-      duration: 1.05,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      lerp: 0.12,
+      wheelMultiplier: 1,
       smoothWheel: true,
+      syncTouch: false,
     });
     let raf = 0;
     const loop = (time) => {
@@ -733,8 +754,8 @@ export function Landing() {
   useParallax();
   const [stuck, setStuck] = useState(false);
   const railRef = useRef(null);
+  const fillRef = useRef(null);
   const stepRefs = useRef([]);
-  const [fill, setFill] = useState(0);
   const [activeStep, setActiveStep] = useState(-1);
   const [searchWord, setSearchWord] = useState(SEARCH_WORDS[0]);
 
@@ -773,32 +794,44 @@ export function Landing() {
   // journey it describes. Measuring each step beats a fraction of the whole block: the steps are
   // not equal heights, so a global fraction put the green line in the gap between two of them.
   useEffect(() => {
-    const onScroll = () => {
+    let ticking = false;
+    const run = () => {
+      ticking = false;
       const y = window.scrollY;
-      setStuck(y > 8);
-      // Reading-progress bar — a CSS var so there is no per-frame re-render.
+      setStuck(y > 8); // React bails when the boolean is unchanged — so this re-renders only twice.
+      // Reading-progress bar and hero drift — CSS vars, no re-render.
       const doc = document.documentElement;
       const max = doc.scrollHeight - window.innerHeight;
       doc.style.setProperty('--lp-progress', max > 0 ? (y / max).toFixed(4) : '0');
-      // The hero device drifts a little slower than the page. Written straight to a custom property
-      // rather than through React state, because this runs on every scroll frame and a re-render
-      // per frame would cost far more than the effect is worth.
       const stage = document.querySelector('.lp-hero__stage');
       if (stage) stage.style.setProperty('--lp-par', `${Math.min(y, 900) * 0.07}px`);
       const rail = railRef.current;
-      if (!rail) return;
+      const fillEl = fillRef.current;
+      if (!rail || !fillEl) return;
       const line = window.innerHeight * 0.55;
       let last = -1;
       stepRefs.current.forEach((el, i) => {
         if (el && el.getBoundingClientRect().top < line) last = i;
       });
-      setActiveStep(last);
-      if (last < 0) return setFill(0);
-      const badge = stepRefs.current[last]?.querySelector('.lp-step__n');
-      if (!badge) return setFill(0);
-      const b = badge.getBoundingClientRect();
-      const top = rail.getBoundingClientRect().top;
-      setFill(Math.max(0, Math.min(rail.offsetHeight, b.top + b.height / 2 - top)));
+      setActiveStep(last); // changes ~6× across the whole page; React bails otherwise.
+      // The rail fill height is written straight to the DOM (a ref), NOT React state — updating it
+      // through setState ran a full component re-render on every single scroll frame, which was the
+      // main cause of the scroll feeling laggy under smooth scroll.
+      let h = 0;
+      if (last >= 0) {
+        const badge = stepRefs.current[last]?.querySelector('.lp-step__n');
+        if (badge) {
+          const b = badge.getBoundingClientRect();
+          const top = rail.getBoundingClientRect().top;
+          h = Math.max(0, Math.min(rail.offsetHeight, b.top + b.height / 2 - top));
+        }
+      }
+      fillEl.style.height = `${h}px`;
+    };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(run);
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -1037,7 +1070,7 @@ export function Landing() {
 
             <div className="lp-tl">
               <div className="lp-tl__rail" ref={railRef} aria-hidden="true">
-                <i style={{ height: `${fill}px` }} />
+                <i ref={fillRef} />
               </div>
               {STEPS.map((s, i) => (
                 <article
