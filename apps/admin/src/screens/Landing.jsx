@@ -15,6 +15,7 @@
  * four-digit door code, per-community windows, the three languages). Nothing here is aspirational.
  */
 import { useEffect, useRef, useState } from 'react';
+import Lenis from 'lenis';
 import '../styles/landing.css';
 import mark from '../assets/fooducia-mark.png';
 import { COMPANY } from './terms-content.js';
@@ -364,6 +365,46 @@ function useReveal() {
   }, []);
 }
 
+/* ── smooth inertia scrolling (the Miro / premium-site feel) ───────────────────
+ * Lenis gives the whole page buttery wheel + anchor scrolling. It still drives the native scroll
+ * position and fires real scroll events, so the parallax, reveals and progress bar all keep working
+ * on top of it. Disabled for reduced-motion; destroyed on unmount so leaving the page is clean.
+ */
+function useSmoothScroll() {
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return undefined;
+    const lenis = new Lenis({
+      duration: 1.05,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+    });
+    let raf = 0;
+    const loop = (time) => {
+      lenis.raf(time);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    // in-page links glide instead of jumping
+    const onClick = (e) => {
+      const a = e.target.closest?.('a[href^="#"]');
+      if (!a) return;
+      const href = a.getAttribute('href');
+      if (!href || href.length < 2) return;
+      const target = document.querySelector(href);
+      if (target) {
+        e.preventDefault();
+        lenis.scrollTo(target, { offset: -72 });
+      }
+    };
+    document.addEventListener('click', onClick);
+    return () => {
+      document.removeEventListener('click', onClick);
+      cancelAnimationFrame(raf);
+      lenis.destroy();
+    };
+  }, []);
+}
+
 /* ── scroll-linked parallax (Miro-style depth) ─────────────────────────────────
  * Any element with a data-par attribute drifts vertically as the page scrolls, at a rate set by the
  * attribute's value — so decorative produce and section visuals move at different depths and the
@@ -687,6 +728,7 @@ const SEARCH_WORDS = [
 ];
 
 export function Landing() {
+  useSmoothScroll();
   useReveal();
   useParallax();
   const [stuck, setStuck] = useState(false);
