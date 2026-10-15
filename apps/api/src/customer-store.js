@@ -4,7 +4,7 @@
  * the Prisma tables replace; the shapes and rules mirror apps/customer/src/api/mock/server.js so the
  * app runs against this API unchanged (EXPO_PUBLIC_USE_MOCKS=0). Money is integer paise.
  */
-import { randomInt } from 'node:crypto';
+import { randomInt, createHash } from 'node:crypto';
 import {
   adjustCouponRedemption,
   constants,
@@ -120,7 +120,12 @@ export function hydrateCustomerData({
       isDefault: !!a.isDefault,
     });
   }
-  for (const s of sessions) cs.refresh.set(s.refreshToken, s.customerId);
+  for (const s of sessions) {
+    // Drop already-expired refresh tokens at boot rather than hydrating them as valid.
+    const exp = new Date(s.expiresAt).getTime();
+    if (Number.isFinite(exp) && exp > Date.now())
+      cs.refresh.set(s.refreshToken, { customerId: s.customerId, expiresAt: exp });
+  }
   for (const d of devices) {
     const set =
       cs.devices.get(d.customerId) || cs.devices.set(d.customerId, new Set()).get(d.customerId);
@@ -460,7 +465,19 @@ export function verifyOtp(mobile, otp) {
 // for 90 days. Before this, access tokens never expired and every login added a session forever —
 // measured: +50 MB per 10k logins, and any leaked `acc_` token stayed valid indefinitely.
 const ACCESS_TTL_MS = Number(process.env.ACCESS_TOKEN_TTL_MS) || 24 * 60 * 60 * 1000;
+// Refresh tokens live 90 days (matches the DB Session.expiresAt). The expiry is now carried in
+// memory and enforced on rotate — before, cs.refresh held only the customer id, so a refresh token
+// past its intended life still minted fresh sessions indefinitely.
+const REFRESH_TTL_MS = Number(process.env.REFRESH_TOKEN_TTL_MS) || 90 * 864e5;
 const MAX_SESSIONS_PER_CUSTOMER = 10; // phones + tablets; oldest are dropped beyond this
+
+// Refresh tokens are stored at rest (DB + in-memory map) as a SHA-256 of the token, never the raw
+// value. The raw `ref_...` is returned to the client once and hashed on every receipt — so a DB
+// read, backup, or snapshot no longer yields usable bearer credentials. (Access tokens are
+// memory-only and short-lived; OTPs are memory-only.) Tokens are already CSPRNG, so the hash is
+// only an at-rest-disclosure control. NOTE: deploying this invalidates existing refresh tokens
+// once (their raw values were stored pre-migration), so every customer re-logs in a single time.
+const hashRefresh = (token) => createHash('sha256').update(String(token)).digest('hex');
 
 export function issueTokens(customerId) {
   const accessToken = `acc_${shortId(20)}`;
@@ -470,8 +487,10 @@ export function issueTokens(customerId) {
     refreshToken,
     expiresAt: Date.now() + ACCESS_TTL_MS,
   });
-  cs.refresh.set(refreshToken, customerId);
-  persist.sessionUpsert(refreshToken, customerId);
+  const refreshExpiresAt = Date.now() + REFRESH_TTL_MS;
+  const refreshKey = hashRefresh(refreshToken); // store the hash, hand the raw token to the client
+  cs.refresh.set(refreshKey, { customerId, expiresAt: refreshExpiresAt });
+  persist.sessionUpsert(refreshKey, customerId, refreshExpiresAt);
   // cap live sessions per customer (oldest first)
   const mine = [...cs.sessions.entries()].filter(([, s]) => s.customerId === customerId);
   if (mine.length > MAX_SESSIONS_PER_CUSTOMER) {
@@ -511,6 +530,12 @@ export function sweepAuthState(now = Date.now()) {
       cs.otp.delete(mobile);
       removed += 1;
     }
+  for (const [tok, rec] of cs.refresh)
+    if (rec.expiresAt && now > rec.expiresAt) {
+      cs.refresh.delete(tok);
+      persist.sessionDelete(tok);
+      removed += 1;
+    }
   for (const [mobile, hits] of cs.otpRate) {
     const live = hits.filter((t) => now - t < 10 * 60 * 1000);
     if (live.length === 0) {
@@ -523,10 +548,19 @@ export function sweepAuthState(now = Date.now()) {
 if (!IS_TEST) setInterval(() => sweepAuthState(), 10 * 60 * 1000).unref();
 
 export function rotateRefresh(refreshToken) {
-  const customerId = cs.refresh.get(refreshToken);
-  if (!customerId) return null;
-  cs.refresh.delete(refreshToken);
-  persist.sessionDelete(refreshToken);
+  const refreshKey = hashRefresh(refreshToken); // the raw token is only ever compared by its hash
+  const rec = cs.refresh.get(refreshKey);
+  if (!rec) return null;
+  // Enforce the refresh lifetime: an expired token is rejected and cleared, not rotated into a
+  // fresh pair. Without this a leaked refresh token stays usable forever.
+  if (rec.expiresAt && Date.now() > rec.expiresAt) {
+    cs.refresh.delete(refreshKey);
+    persist.sessionDelete(refreshKey);
+    return null;
+  }
+  const { customerId } = rec;
+  cs.refresh.delete(refreshKey);
+  persist.sessionDelete(refreshKey);
   // drop old access tokens for this refresh
   for (const [tok, s] of cs.sessions) if (s.refreshToken === refreshToken) cs.sessions.delete(tok);
   return { customerId, ...issueTokens(customerId) };
@@ -534,7 +568,7 @@ export function rotateRefresh(refreshToken) {
 
 export function logout(customerId) {
   for (const [tok, s] of cs.sessions) if (s.customerId === customerId) cs.sessions.delete(tok);
-  for (const [tok, cid] of cs.refresh) if (cid === customerId) cs.refresh.delete(tok);
+  for (const [tok, rec] of cs.refresh) if (rec.customerId === customerId) cs.refresh.delete(tok);
   persist.sessionsDeleteForCustomer(customerId);
 }
 

@@ -200,8 +200,9 @@ export async function downloadIssuePhoto(path, width) {
   // (it is a plan feature), because a slow photograph beats a missing one.
   if (width) {
     try {
+      const safePath = String(path).split('/').map(encodeURIComponent).join('/');
       const res = await fetch(
-        `${URL}/storage/v1/render/image/authenticated/${ISSUE_BUCKET}/${path}?width=${width}&quality=70&resize=contain`,
+        `${URL}/storage/v1/render/image/authenticated/${ISSUE_BUCKET}/${safePath}?width=${width}&quality=70&resize=contain`,
         { headers: { Authorization: `Bearer ${KEY}`, apikey: KEY } },
       );
       if (res.ok)

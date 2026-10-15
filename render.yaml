@@ -22,7 +22,7 @@ services:
     branch: main
     # pnpm is provided automatically via the root package.json "packageManager" field — do NOT run
     # `corepack enable` (it fails on Render's read-only /usr/bin).
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter api exec prisma generate
     startCommand: node apps/api/src/index.js
     healthCheckPath: /health
     # PRODUCTION DOES NOT AUTO-DEPLOY.
@@ -40,13 +40,14 @@ services:
         value: "22"
       - key: NODE_ENV
         value: production
-      # The fixed 123456 code. WhatsApp OTP is now live (template ftf_login_code, approved
-      # 2026-10-01), so this is the LAST thing standing between testers and real delivery: while it
-      # is "1" with no DEV_OTP_ALLOWLIST, every number gets 123456 and NOTHING is sent, however well
-      # MSG91 is configured. Confine it with DEV_OTP_ALLOWLIST first, prove a real send, then DELETE
-      # this key. `GET /admin/otp-status` reports which of those states the API is actually in.
+      # The fixed 123456 code. WhatsApp OTP is live (template ftf_login_code, approved 2026-10-01).
+      # SECURITY: while this is "1" with no DEV_OTP_ALLOWLIST, EVERY number gets 123456 and nothing
+      # is sent — an anonymous account-takeover path (customers AND staff). It is no longer a
+      # committed literal: set it in the Render dashboard ONLY for a confined test window, always
+      # together with DEV_OTP_ALLOWLIST, and DELETE it before public launch. Leaving it unset (the
+      # default now) means real OTP delivery for everyone. `GET /admin/otp-status` reports the state.
       - key: ALLOW_DEV_OTP
-        value: "1"
+        sync: false
       - key: HOST
         value: 0.0.0.0
       # ── secrets: set these in the Render dashboard (copy from apps/api/.env) ──
@@ -168,7 +169,7 @@ services:
     plan: free
     rootDir: .
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter api exec prisma generate
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter api exec prisma generate
     startCommand: node apps/api/src/index.js
     healthCheckPath: /health
     autoDeploy: true

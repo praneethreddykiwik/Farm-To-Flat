@@ -596,10 +596,14 @@ export const persist = {
     },
     (p) => p.id,
   ),
-  sessionUpsert: wt('session.upsert', (refreshToken, customerId) =>
+  sessionUpsert: wt('session.upsert', (refreshToken, customerId, expiresAtMs) =>
     prisma.session.upsert({
       where: { refreshToken },
-      create: { refreshToken, customerId, expiresAt: new Date(Date.now() + 90 * 864e5) },
+      create: {
+        refreshToken,
+        customerId,
+        expiresAt: new Date(expiresAtMs || Date.now() + 90 * 864e5),
+      },
       update: {},
     }),
   ),
