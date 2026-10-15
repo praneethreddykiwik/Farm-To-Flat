@@ -6,6 +6,8 @@
  * it reads as a designed page rather than a bare error. On-brand with the Fooducia produce theme —
  * a basket of veg drifts up past an oversized 404, and the middle "0" is a ripe tomato that bobs.
  */
+import { PIECES } from './Produce.jsx';
+
 const CSS = `
   .nf-root {
     position: fixed; inset: 0; overflow: hidden;
@@ -55,9 +57,10 @@ const CSS = `
   .nf-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(195,232,75,0.38); }
 
   /* produce drifting up through the scene */
-  .nf-float { position: absolute; bottom: -80px; z-index: 1; font-size: 30px; opacity: 0;
-    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.35));
+  .nf-float { position: absolute; bottom: -80px; z-index: 1; opacity: 0;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.4));
     animation: nf-rise linear infinite; }
+  .nf-float svg { width: 100%; height: 100%; display: block; }
 
   @keyframes nf-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-14px) } }
   @keyframes nf-blink { 0%,92%,100% { transform: scaleY(1) } 96% { transform: scaleY(0.1) } }
@@ -73,16 +76,16 @@ const CSS = `
   }
 `;
 
-// emoji, horizontal position (%), size (px), duration (s), delay (s)
+// produce key, horizontal position (%), size (px), duration (s), delay (s)
 const FLOATERS = [
-  ['🍅', 8, 30, 15, 0],
-  ['🥕', 18, 26, 19, 3],
-  ['🥦', 30, 34, 17, 6],
-  ['🌽', 44, 28, 21, 1.5],
-  ['🥬', 58, 32, 16, 4.5],
-  ['🧅', 70, 26, 20, 2.5],
-  ['🍆', 82, 30, 18, 7],
-  ['🫑', 92, 28, 22, 5],
+  ['tomato', 8, 54, 15, 0],
+  ['carrot', 18, 46, 19, 3],
+  ['broccoli', 30, 58, 17, 6],
+  ['lemon', 44, 50, 21, 1.5],
+  ['leaf', 58, 52, 16, 4.5],
+  ['onion', 70, 48, 20, 2.5],
+  ['chili', 82, 52, 18, 7],
+  ['garlic', 92, 48, 22, 5],
 ];
 
 function Tomato() {
@@ -119,21 +122,25 @@ export function NotFound() {
   return (
     <div className="nf-root">
       <style>{CSS}</style>
-      {FLOATERS.map(([emo, left, size, dur, delay], i) => (
-        <span
-          key={i}
-          className="nf-float"
-          style={{
-            left: `${left}%`,
-            fontSize: `${size}px`,
-            animationDuration: `${dur}s`,
-            animationDelay: `${delay}s`,
-          }}
-          aria-hidden="true"
-        >
-          {emo}
-        </span>
-      ))}
+      {FLOATERS.map(([k, left, size, dur, delay], i) => {
+        const Piece = PIECES[k];
+        return (
+          <span
+            key={i}
+            className="nf-float"
+            style={{
+              left: `${left}%`,
+              width: `${size}px`,
+              height: `${size}px`,
+              animationDuration: `${dur}s`,
+              animationDelay: `${delay}s`,
+            }}
+            aria-hidden="true"
+          >
+            <Piece />
+          </span>
+        );
+      })}
       <div className="nf-stack">
         <div className="nf-404" aria-hidden="true">
           <span className="d">4</span>

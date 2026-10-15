@@ -1,34 +1,64 @@
 /**
- * Hand-drawn produce, as scalable SVG — the public site's visual signature.
+ * Hand-illustrated produce as scalable SVG — the site's visual signature.
  *
- * Why not the photos? The supplied produce PNGs were watermarked stock previews; shipping those
- * would look cheap and isn't licensed. These vectors cost nothing to load, stay crisp at any size,
- * tint to the brand, and — being real DOM — can be floated, spun and thrown around the page.
+ * These are drawn for VOLUME: each piece has a radial body gradient lit from the upper-left, a
+ * specular highlight, a contact shadow and real surface detail (dimples, ridges, seeds, veins) so it
+ * reads as a glossy 3D object rather than a flat sticker. No watermarks, no licensing, crisp at any
+ * size, and — being real DOM — they float, spin and get thrown around the page.
  *
- * Each piece is a tiny component drawing inside a 0 0 100 100 box, so they all compose at the same
- * scale. <ProduceLayer> scatters them as a parallax/float field behind a section; <ProduceBurst>
- * throws a handful out from a point (used in the hero) and lets them settle into a gentle bob.
+ * Every piece draws inside a 0 0 100 100 box so they compose at one scale. <ProduceLayer> scatters a
+ * float field behind a section; <ProduceBurst> flings a handful out from a point (the hero).
  */
 
-/* ---- individual pieces (viewBox 0 0 100 100) ---------------------------------- */
+/* Shared contact shadow under a piece. */
+const Shadow = ({ cx = 50, cy = 90, rx = 30, ry = 5 }) => (
+  <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="rgba(12,24,16,0.16)" />
+);
 
 export function Tomato() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <ellipse cx="50" cy="78" rx="30" ry="6" fill="rgba(0,0,0,0.10)" />
-      <circle cx="50" cy="56" r="34" fill="#e4512b" />
-      <circle cx="50" cy="56" r="34" fill="url(#pr-tom-sh)" />
-      <path
-        d="M50 20c5-8 13-10 18-8-2 6-5 10-11 11 7-1 12 1 16 5-5 4-11 5-16 2 4 3 6 8 6 14-6-2-10-6-12-12-2 6-6 10-12 12 0-6 2-11 6-14-5 3-11 2-16-2 4-4 9-6 16-5-6-1-9-5-11-11 5-2 13 0 18 8z"
-        fill="#3e9b4f"
-      />
-      <ellipse cx="40" cy="48" rx="7" ry="9" fill="#fff" opacity="0.35" />
       <defs>
-        <radialGradient id="pr-tom-sh" cx="38%" cy="34%" r="62%">
-          <stop offset="0%" stopColor="#ff9068" stopOpacity="0.85" />
-          <stop offset="60%" stopColor="#ff9068" stopOpacity="0" />
+        <radialGradient id="tm-b" cx="38%" cy="32%" r="72%">
+          <stop offset="0%" stopColor="#ff7446" />
+          <stop offset="46%" stopColor="#ec4a24" />
+          <stop offset="100%" stopColor="#b22f14" />
         </radialGradient>
+        <linearGradient id="tm-leaf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#57b65f" />
+          <stop offset="100%" stopColor="#2f7d3c" />
+        </linearGradient>
       </defs>
+      <Shadow cy={92} rx={30} ry={5} />
+      <path
+        d="M50 24c20 0 36 14 36 34 0 20-16 34-36 34S14 78 14 58c0-20 16-34 36-34z"
+        fill="url(#tm-b)"
+      />
+      {/* lobes */}
+      <path
+        d="M34 34c-6 12-7 32 2 46"
+        stroke="#b83a1b"
+        strokeWidth="2"
+        fill="none"
+        opacity="0.35"
+      />
+      <path d="M66 34c6 12 7 32-2 46" stroke="#b83a1b" strokeWidth="2" fill="none" opacity="0.35" />
+      {/* calyx */}
+      <g fill="url(#tm-leaf)">
+        <path d="M50 20c5-9 14-11 20-9-2 7-6 11-13 12 8-1 14 1 18 6-5 4-12 6-18 2 5 4 7 9 7 16-7-2-12-7-14-14-2 7-7 12-14 14 0-7 2-12 7-16-6 4-13 2-18-2 4-5 10-7 18-6-7-1-11-5-13-12 6-2 15 0 20 9z" />
+      </g>
+      <circle cx="50" cy="26" r="3" fill="#2f7d3c" />
+      {/* gloss */}
+      <ellipse
+        cx="38"
+        cy="44"
+        rx="10"
+        ry="14"
+        fill="#fff"
+        opacity="0.4"
+        transform="rotate(-18 38 44)"
+      />
+      <circle cx="62" cy="40" r="3" fill="#fff" opacity="0.5" />
     </svg>
   );
 }
@@ -36,33 +66,32 @@ export function Tomato() {
 export function Lemon() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <ellipse cx="52" cy="80" rx="28" ry="5" fill="rgba(0,0,0,0.10)" />
-      <ellipse cx="50" cy="55" rx="36" ry="27" transform="rotate(-24 50 55)" fill="#f6d222" />
-      <ellipse
-        cx="50"
-        cy="55"
-        rx="36"
-        ry="27"
-        transform="rotate(-24 50 55)"
-        fill="url(#pr-lem-sh)"
-      />
-      <circle cx="83" cy="33" r="4" fill="#f6d222" />
-      <path d="M79 31c3-5 8-6 11-5-1 4-4 7-8 7z" fill="#5aa05a" />
-      <ellipse
-        cx="36"
-        cy="46"
-        rx="9"
-        ry="5"
-        transform="rotate(-24 36 46)"
-        fill="#fff"
-        opacity="0.4"
-      />
       <defs>
-        <radialGradient id="pr-lem-sh" cx="34%" cy="32%" r="60%">
-          <stop offset="0%" stopColor="#fff3a8" stopOpacity="0.9" />
-          <stop offset="60%" stopColor="#fff3a8" stopOpacity="0" />
+        <radialGradient id="lm-b" cx="34%" cy="30%" r="78%">
+          <stop offset="0%" stopColor="#fff39b" />
+          <stop offset="50%" stopColor="#f6cf1f" />
+          <stop offset="100%" stopColor="#d49a06" />
         </radialGradient>
       </defs>
+      <Shadow cy={88} rx={30} ry={5} />
+      <g transform="rotate(-22 50 54)">
+        <ellipse cx="50" cy="54" rx="40" ry="28" fill="url(#lm-b)" />
+        {/* nubs */}
+        <circle cx="90" cy="54" r="5" fill="#e8bb10" />
+        <circle cx="10" cy="54" r="4" fill="#e8bb10" />
+        {/* dimple texture */}
+        <g fill="#d9a40a" opacity="0.4">
+          {Array.from({ length: 26 }).map((_, i) => {
+            const a = (i * 137.5 * Math.PI) / 180;
+            const r = 6 + (i % 7) * 4;
+            return (
+              <circle key={i} cx={50 + Math.cos(a) * r * 1.3} cy={54 + Math.sin(a) * r} r="0.9" />
+            );
+          })}
+        </g>
+        <ellipse cx="36" cy="44" rx="12" ry="6" fill="#fff" opacity="0.45" />
+      </g>
+      <path d="M78 30c4-5 10-6 13-4-1 5-5 8-10 8z" fill="#4f9b4a" />
     </svg>
   );
 }
@@ -70,21 +99,31 @@ export function Lemon() {
 export function Chili() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <path
-        d="M22 30c6-3 11 2 14 8 6 12 20 28 42 34 5 1 6 8 0 9-30 4-52-18-60-38-3-7-2-11 4-13z"
-        fill="#e02c2c"
-      />
-      <path
-        d="M22 30c6-3 11 2 14 8 6 12 20 28 42 34 5 1 6 8 0 9-30 4-52-18-60-38-3-7-2-11 4-13z"
-        fill="url(#pr-chi-sh)"
-      />
-      <path d="M20 31c-4-5-3-12 2-16 2 5 5 7 9 6-2 5-6 9-11 10z" fill="#4aa24a" />
       <defs>
-        <linearGradient id="pr-chi-sh" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#ff7a6b" stopOpacity="0.7" />
-          <stop offset="55%" stopColor="#ff7a6b" stopOpacity="0" />
+        <linearGradient id="ch-b" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ff5a46" />
+          <stop offset="45%" stopColor="#e11f1f" />
+          <stop offset="100%" stopColor="#a30f14" />
+        </linearGradient>
+        <linearGradient id="ch-s" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#5fc05f" />
+          <stop offset="100%" stopColor="#2f7d3c" />
         </linearGradient>
       </defs>
+      <Shadow cx={54} cy={88} rx={26} ry={4} />
+      <path
+        d="M24 30c7-3 12 3 15 9 7 14 22 30 44 35 6 1 7 9-1 10-32 3-55-20-63-42-3-8-2-10 5-12z"
+        fill="url(#ch-b)"
+      />
+      <path
+        d="M30 34c5 14 18 32 42 42"
+        stroke="#fff"
+        strokeWidth="3"
+        fill="none"
+        opacity="0.3"
+        strokeLinecap="round"
+      />
+      <path d="M22 31c-4-6-3-13 3-17 2 5 5 8 9 7-2 6-7 10-12 10z" fill="url(#ch-s)" />
     </svg>
   );
 }
@@ -92,46 +131,84 @@ export function Chili() {
 export function Carrot() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <path
-        d="M28 30l12-14M38 28l6-18M46 30l14-12"
-        stroke="#4aa24a"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-      <path d="M30 34c14-8 28-6 36 2L46 84c-3 6-9 6-12 0z" fill="#ef7a1a" />
-      <path d="M30 34c14-8 28-6 36 2L46 84c-3 6-9 6-12 0z" fill="url(#pr-car-sh)" />
-      <path
-        d="M40 44h18M38 56h16M40 68h10"
-        stroke="#c45f10"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        opacity="0.55"
-      />
       <defs>
-        <linearGradient id="pr-car-sh" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#ffb160" stopOpacity="0.8" />
-          <stop offset="60%" stopColor="#ffb160" stopOpacity="0" />
+        <linearGradient id="cr-b" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ffa94d" />
+          <stop offset="45%" stopColor="#f07d12" />
+          <stop offset="100%" stopColor="#c85a08" />
+        </linearGradient>
+        <linearGradient id="cr-g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#6fc24a" />
+          <stop offset="100%" stopColor="#3b8f36" />
         </linearGradient>
       </defs>
+      <Shadow cx={48} cy={90} rx={24} ry={4} />
+      <g stroke="url(#cr-g)" strokeWidth="5" strokeLinecap="round" fill="none">
+        <path d="M30 32C24 16 22 8 20 4" />
+        <path d="M38 30C36 12 36 6 36 2" />
+        <path d="M46 31C50 16 54 10 60 6" />
+      </g>
+      <path d="M28 32c14-9 30-7 40 3L50 88c-3 7-10 7-13 0z" fill="url(#cr-b)" />
+      <g stroke="#b85208" strokeWidth="2" strokeLinecap="round" opacity="0.5">
+        <path d="M34 42h26" />
+        <path d="M35 54h22" />
+        <path d="M38 66h15" />
+        <path d="M41 76h8" />
+      </g>
+      <path
+        d="M32 36c10-6 22-5 30 2"
+        stroke="#fff"
+        strokeWidth="2.5"
+        fill="none"
+        opacity="0.4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 export function Broccoli() {
+  const florets = [
+    [34, 36, 15, '#2b8347'],
+    [66, 36, 15, '#2b8347'],
+    [50, 26, 17, '#36a054'],
+    [26, 46, 12, '#246e3c'],
+    [74, 46, 12, '#246e3c'],
+    [50, 44, 15, '#2f8f4e'],
+  ];
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <path d="M42 54h16l-3 28c-1 6-9 6-10 0z" fill="#cfe8b0" />
-      <circle cx="34" cy="42" r="16" fill="#2f8f4e" />
-      <circle cx="66" cy="42" r="16" fill="#2f8f4e" />
-      <circle cx="50" cy="30" r="18" fill="#37a559" />
-      <circle cx="50" cy="46" r="15" fill="#2f8f4e" />
-      <g fill="#49bf6c" opacity="0.8">
-        <circle cx="44" cy="26" r="4" />
-        <circle cx="56" cy="27" r="4" />
-        <circle cx="50" cy="20" r="4" />
-        <circle cx="31" cy="40" r="4" />
-        <circle cx="67" cy="40" r="4" />
-        <circle cx="50" cy="42" r="4" />
+      <defs>
+        <linearGradient id="br-st" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#dff0c2" />
+          <stop offset="100%" stopColor="#bcd99a" />
+        </linearGradient>
+      </defs>
+      <Shadow cy={90} rx={24} ry={4} />
+      <path d="M40 52h20l-2 30c-1 7-15 7-16 0z" fill="url(#br-st)" />
+      <path d="M44 54v26M52 54v26" stroke="#aecb8a" strokeWidth="1.6" opacity="0.7" />
+      {florets.map(([x, y, r, c], i) => (
+        <circle key={i} cx={x} cy={y} r={r} fill={c} />
+      ))}
+      {/* bumpy tops */}
+      <g>
+        {Array.from({ length: 60 }).map((_, i) => {
+          const a = (i * 137.5 * Math.PI) / 180;
+          const rr = 4 + (i % 9) * 3.4;
+          const x = 50 + Math.cos(a) * rr * 1.5;
+          const y = 36 + Math.sin(a) * rr * 0.95;
+          if (y > 56) return null;
+          return (
+            <circle
+              key={i}
+              cx={x}
+              cy={y}
+              r={1.9}
+              fill={i % 3 ? '#49bf6c' : '#58d07a'}
+              opacity="0.9"
+            />
+          );
+        })}
       </g>
     </svg>
   );
@@ -140,35 +217,41 @@ export function Broccoli() {
 export function Onion() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <ellipse cx="50" cy="82" rx="26" ry="5" fill="rgba(0,0,0,0.10)" />
+      <defs>
+        <radialGradient id="on-b" cx="38%" cy="32%" r="72%">
+          <stop offset="0%" stopColor="#cf6ea0" />
+          <stop offset="52%" stopColor="#a63f78" />
+          <stop offset="100%" stopColor="#6f2a55" />
+        </radialGradient>
+      </defs>
+      <Shadow cy={90} rx={26} ry={4} />
       <path
-        d="M50 24c16 0 28 16 28 34 0 16-12 24-28 24s-28-8-28-24c0-18 12-34 28-34z"
-        fill="#b0497e"
+        d="M50 22c17 0 30 17 30 36 0 17-13 26-30 26S20 75 20 58c0-19 13-36 30-36z"
+        fill="url(#on-b)"
       />
       <path
-        d="M50 24c16 0 28 16 28 34 0 16-12 24-28 24s-28-8-28-24c0-18 12-34 28-34z"
-        fill="url(#pr-oni-sh)"
-      />
-      <path
-        d="M50 26c0 18 0 40 0 56M38 30c-4 16-4 36 2 52M62 30c4 16 4 36-2 52"
-        stroke="#7d2f59"
-        strokeWidth="2"
+        d="M50 24v58M39 28c-6 16-6 38 1 54M61 28c6 16 6 38-1 54M30 38c-4 12-4 30 1 42M70 38c4 12 4 30-1 42"
+        stroke="#5e2447"
+        strokeWidth="1.6"
         fill="none"
-        opacity="0.5"
+        opacity="0.45"
       />
       <path
-        d="M46 24c-2-6 0-10 4-12 4 2 6 6 4 12M50 14c0-4 3-7 6-7-1 5-3 7-6 7"
-        stroke="#6aa84f"
-        strokeWidth="3.4"
+        d="M44 23c-3-6-2-13 3-16 5 3 7 10 4 16M50 8c1-4 4-6 7-6-1 5-4 7-7 7"
+        stroke="#8e7a4a"
+        strokeWidth="3"
         fill="none"
         strokeLinecap="round"
       />
-      <defs>
-        <radialGradient id="pr-oni-sh" cx="38%" cy="34%" r="62%">
-          <stop offset="0%" stopColor="#d884ad" stopOpacity="0.8" />
-          <stop offset="60%" stopColor="#d884ad" stopOpacity="0" />
-        </radialGradient>
-      </defs>
+      <ellipse
+        cx="40"
+        cy="42"
+        rx="7"
+        ry="12"
+        fill="#fff"
+        opacity="0.28"
+        transform="rotate(-14 40 42)"
+      />
     </svg>
   );
 }
@@ -176,28 +259,35 @@ export function Onion() {
 export function Leaf() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <path d="M20 80C20 40 48 20 82 20c4 34-16 62-56 62-2 0-4 0-6-2z" fill="#3ba35a" />
-      <path d="M20 80C20 40 48 20 82 20c4 34-16 62-56 62-2 0-4 0-6-2z" fill="url(#pr-leaf-sh)" />
+      <defs>
+        <linearGradient id="lf-b" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0%" stopColor="#2f8f46" />
+          <stop offset="100%" stopColor="#6fd072" />
+        </linearGradient>
+      </defs>
+      <Shadow cx={52} cy={90} rx={24} ry={4} />
+      <path d="M18 82C18 42 46 16 84 16c4 38-18 66-60 66-2 0-4 0-6-0z" fill="url(#lf-b)" />
       <path
-        d="M26 74C40 52 58 38 78 30"
-        stroke="#2b7d44"
+        d="M24 76C40 50 60 34 82 24"
+        stroke="#1f6f36"
         strokeWidth="2.6"
         fill="none"
         strokeLinecap="round"
       />
+      <g stroke="#2a8040" strokeWidth="1.6" strokeLinecap="round" opacity="0.7">
+        <path d="M44 62l-14 4" />
+        <path d="M54 50l-14 1" />
+        <path d="M64 40l-13-2" />
+        <path d="M36 70l-10 4" />
+      </g>
       <path
-        d="M40 62l-10 2M52 50l-12 0M64 40l-12-2"
-        stroke="#2b7d44"
-        strokeWidth="1.8"
+        d="M34 66C48 46 64 32 80 24"
+        stroke="#bff0b8"
+        strokeWidth="2"
+        fill="none"
+        opacity="0.4"
         strokeLinecap="round"
-        opacity="0.7"
       />
-      <defs>
-        <linearGradient id="pr-leaf-sh" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="#8ee89f" stopOpacity="0" />
-          <stop offset="100%" stopColor="#8ee89f" stopOpacity="0.7" />
-        </linearGradient>
-      </defs>
     </svg>
   );
 }
@@ -205,28 +295,48 @@ export function Leaf() {
 export function Banana() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <linearGradient id="ba-b" x1="0.1" y1="0" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#ffe873" />
+          <stop offset="55%" stopColor="#f2cc2b" />
+          <stop offset="100%" stopColor="#cfa016" />
+        </linearGradient>
+      </defs>
+      <Shadow cx={52} cy={86} rx={30} ry={4} />
       <path
-        d="M18 34c2 30 24 50 56 48 8-1 10-8 4-11-26-4-40-20-44-42-2-8-12-5-16 5z"
-        fill="#f4cf2e"
+        d="M16 32c2 32 26 52 60 50 9-1 11-9 4-12-28-4-43-22-47-45-2-9-13-6-17 7z"
+        fill="url(#ba-b)"
       />
       <path
-        d="M18 34c2 30 24 50 56 48 8-1 10-8 4-11-26-4-40-20-44-42-2-8-12-5-16 5z"
-        fill="url(#pr-ban-sh)"
+        d="M22 34c3 26 24 44 52 46"
+        stroke="#fff"
+        strokeWidth="2.4"
+        fill="none"
+        opacity="0.35"
+        strokeLinecap="round"
       />
-      <path d="M74 82c6-1 8-6 4-9" stroke="#c9a21e" strokeWidth="2" fill="none" />
       <path
-        d="M22 30c-2-4-1-8 3-9"
-        stroke="#6b5e12"
-        strokeWidth="4"
+        d="M74 82c6-1 9-6 4-9"
+        stroke="#8a6a12"
+        strokeWidth="2.4"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M20 30c-3-5-1-9 3-10"
+        stroke="#5a4a10"
+        strokeWidth="5"
         strokeLinecap="round"
         fill="none"
       />
-      <defs>
-        <linearGradient id="pr-ban-sh" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#fde98a" stopOpacity="0.8" />
-          <stop offset="55%" stopColor="#fde98a" stopOpacity="0" />
-        </linearGradient>
-      </defs>
+      <path
+        d="M30 70c8 5 18 8 30 8"
+        stroke="#c9a21e"
+        strokeWidth="2"
+        fill="none"
+        opacity="0.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -234,12 +344,27 @@ export function Banana() {
 export function Mint() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <path d="M50 86V46" stroke="#5aa050" strokeWidth="3.4" strokeLinecap="round" />
-      <path d="M50 52C34 52 26 42 26 28c16 0 24 10 24 24z" fill="#45b05f" />
-      <path d="M50 52C66 52 74 42 74 28c-16 0-24 10-24 24z" fill="#3a9a51" />
-      <path d="M50 38C38 36 32 28 32 16c13 1 19 10 18 22z" fill="#4dbc68" />
-      <path d="M50 38C62 36 68 28 68 16c-13 1-19 10-18 22z" fill="#43a85b" />
-      <path d="M50 30c-6-2-9-8-9-16 7 1 10 7 9 16z" fill="#58c974" />
+      <defs>
+        <linearGradient id="mt-a" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#58cf72" />
+          <stop offset="100%" stopColor="#2f9a4e" />
+        </linearGradient>
+      </defs>
+      <Shadow cy={90} rx={20} ry={4} />
+      <path d="M50 88V44" stroke="#4a9a46" strokeWidth="3.4" strokeLinecap="round" />
+      {[
+        'M50 52C33 52 25 41 25 26c17 0 25 11 25 26z',
+        'M50 52C67 52 75 41 75 26c-17 0-25 11-25 26z',
+        'M50 36C37 34 31 25 31 12c14 1 20 11 19 24z',
+        'M50 36C63 34 69 25 69 12c-14 1-20 11-19 24z',
+      ].map((d, i) => (
+        <path key={i} d={d} fill="url(#mt-a)" />
+      ))}
+      <path d="M50 30c-6-2-10-9-10-18 8 1 11 8 10 18z" fill="#64dd7f" />
+      <g stroke="#1f7a3a" strokeWidth="1.2" opacity="0.55" fill="none">
+        <path d="M38 38c6 3 10 8 12 12" />
+        <path d="M62 38c-6 3-10 8-12 12" />
+      </g>
     </svg>
   );
 }
@@ -247,28 +372,65 @@ export function Mint() {
 export function Garlic() {
   return (
     <svg viewBox="0 0 100 100" aria-hidden="true">
-      <ellipse cx="50" cy="82" rx="24" ry="5" fill="rgba(0,0,0,0.10)" />
-      <path
-        d="M50 26c14 0 24 18 24 34 0 14-10 22-24 22s-24-8-24-22c0-16 10-34 24-34z"
-        fill="#f2ece2"
-      />
-      <path
-        d="M50 26c14 0 24 18 24 34 0 14-10 22-24 22s-24-8-24-22c0-16 10-34 24-34z"
-        fill="url(#pr-gar-sh)"
-      />
-      <path
-        d="M50 28v54M36 34c-5 14-5 34 0 48M64 34c5 14 5 34 0 48"
-        stroke="#d8cdb8"
-        strokeWidth="2"
-        fill="none"
-      />
-      <path d="M50 26c-3-6-2-12 2-16 4 4 5 10 2 16" fill="#efe8da" />
       <defs>
-        <radialGradient id="pr-gar-sh" cx="38%" cy="32%" r="62%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-          <stop offset="60%" stopColor="#ffffff" stopOpacity="0" />
+        <radialGradient id="ga-b" cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="60%" stopColor="#f1e9db" />
+          <stop offset="100%" stopColor="#d8cbb4" />
         </radialGradient>
       </defs>
+      <Shadow cy={90} rx={24} ry={4} />
+      <path
+        d="M50 26c15 0 25 18 25 36 0 15-10 24-25 24S25 77 25 62c0-18 10-36 25-36z"
+        fill="url(#ga-b)"
+      />
+      <path
+        d="M50 28v56M38 32c-5 16-5 36 0 50M62 32c5 16 5 36 0 50M31 42c-3 12-3 28 1 38M69 42c3 12 3 28-1 38"
+        stroke="#cdc0a8"
+        strokeWidth="1.5"
+        fill="none"
+        opacity="0.8"
+      />
+      <path d="M50 26c-3-6-2-13 3-16 5 3 6 10 3 16" fill="#efe8da" />
+      <ellipse
+        cx="40"
+        cy="44"
+        rx="6"
+        ry="12"
+        fill="#fff"
+        opacity="0.5"
+        transform="rotate(-12 40 44)"
+      />
+    </svg>
+  );
+}
+
+export function Ginger() {
+  return (
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <linearGradient id="gi-b" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#edd3a0" />
+          <stop offset="55%" stopColor="#d2ab6a" />
+          <stop offset="100%" stopColor="#a87d42" />
+        </linearGradient>
+      </defs>
+      <Shadow cy={88} rx={28} ry={4} />
+      <path
+        d="M30 46c-10-4-16-16-8-24 6-6 16-2 20 6 3-10 15-14 22-8 7 6 4 16-3 20 10 1 18 10 14 20-3 8-14 9-21 3-1 10-12 16-21 10-8-6-7-18 2-22-2 0-4-2-5-5z"
+        fill="url(#gi-b)"
+      />
+      <g stroke="#9a6f38" strokeWidth="1.6" fill="none" opacity="0.55">
+        <path d="M34 40c6 4 10 10 12 16" />
+        <path d="M58 34c2 8 2 16-1 22" />
+        <path d="M64 58c-6 2-13 2-19-1" />
+      </g>
+      <g fill="#c79a5a">
+        <circle cx="30" cy="44" r="2.4" />
+        <circle cx="70" cy="48" r="2.4" />
+        <circle cx="46" cy="72" r="2.4" />
+      </g>
+      <ellipse cx="44" cy="40" rx="6" ry="4" fill="#fff" opacity="0.3" />
     </svg>
   );
 }
@@ -285,13 +447,14 @@ export const PIECES = {
   banana: Banana,
   mint: Mint,
   garlic: Garlic,
+  ginger: Ginger,
 };
 
-/* ---- ambient scatter field ---------------------------------------------------- */
+const ALL_KEYS = Object.keys(PIECES);
+
 /**
- * A decorative, non-interactive layer of produce that floats behind a section. Each item carries
- * CSS custom props the stylesheet reads (position, size, drift distance, duration), so the motion
- * lives in landing.css and respects prefers-reduced-motion there.
+ * Decorative, non-interactive produce that floats behind a section. Motion lives in landing.css
+ * (position/size/drift/duration come through CSS custom props) and respects prefers-reduced-motion.
  */
 export function ProduceLayer({ items = [], className = '' }) {
   return (
@@ -313,7 +476,6 @@ export function ProduceLayer({ items = [], className = '' }) {
               '--pr-delay': `${it.delay ?? 0}s`,
               '--pr-rot': `${it.r ?? 0}deg`,
               '--pr-drift': `${it.drift ?? 16}px`,
-              '--pr-par': it.par ?? 0.04,
             }}
           >
             <Piece />
@@ -324,19 +486,43 @@ export function ProduceLayer({ items = [], className = '' }) {
   );
 }
 
-/* ---- hero burst --------------------------------------------------------------- */
 /**
- * A handful of produce "thrown" out from behind the phone on load, each flying to its resting spot
- * and then bobbing. The fly-in is a CSS keyframe keyed off --pr-fx/--pr-fy (where it starts) and the
- * final left/top (where it lands). Purely decorative.
+ * Scatter a whole section with produce automatically — a quick way to flood a band without hand
+ * placing each one. `n` pieces are spread across the width, alternating sides, sizes and species.
  */
+export function ProduceScatter({
+  n = 6,
+  seed = 0,
+  opacity = 0.5,
+  size = [40, 64],
+  className = '',
+}) {
+  const items = Array.from({ length: n }).map((_, i) => {
+    const r = (seed * 97 + i * 53) % 100;
+    const left = i % 2 ? 90 - (r % 10) : 2 + (r % 10);
+    return {
+      k: ALL_KEYS[(seed + i * 3) % ALL_KEYS.length],
+      x: left,
+      y: 6 + ((i * 31 + seed * 17) % 82),
+      s: size[0] + ((r * 7) % (size[1] - size[0])),
+      r: (r % 60) - 30,
+      d: 9 + (r % 7),
+      drift: 16 + (r % 12),
+      o: opacity,
+      delay: (i % 5) * 0.4,
+    };
+  });
+  return <ProduceLayer items={items} className={className} />;
+}
+
+/* ---- hero burst --------------------------------------------------------------- */
 const BURST = [
-  { k: 'tomato', x: -14, y: 8, s: 76, fx: 120, fy: 120, r: -18, d: 8 },
-  { k: 'lemon', x: 86, y: 2, s: 66, fx: -90, fy: 140, r: 16, d: 9 },
-  { k: 'chili', x: 94, y: 58, s: 72, fx: -120, fy: -40, r: 24, d: 10 },
-  { k: 'broccoli', x: -10, y: 62, s: 70, fx: 130, fy: -30, r: -14, d: 9 },
-  { k: 'carrot', x: 78, y: 86, s: 60, fx: -60, fy: -120, r: 20, d: 11 },
-  { k: 'mint', x: 8, y: 92, s: 54, fx: 80, fy: -110, r: -22, d: 8.5 },
+  { k: 'tomato', x: -14, y: 8, s: 84, fx: 120, fy: 120, r: -18, d: 8 },
+  { k: 'lemon', x: 86, y: 2, s: 72, fx: -90, fy: 140, r: 16, d: 9 },
+  { k: 'chili', x: 94, y: 56, s: 78, fx: -120, fy: -40, r: 24, d: 10 },
+  { k: 'broccoli', x: -10, y: 60, s: 78, fx: 130, fy: -30, r: -14, d: 9 },
+  { k: 'carrot', x: 78, y: 88, s: 66, fx: -60, fy: -120, r: 20, d: 11 },
+  { k: 'ginger', x: 8, y: 92, s: 64, fx: 80, fy: -110, r: -22, d: 8.5 },
 ];
 
 export function ProduceBurst() {

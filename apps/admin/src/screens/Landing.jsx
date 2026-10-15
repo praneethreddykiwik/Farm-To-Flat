@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import '../styles/landing.css';
 import mark from '../assets/fooducia-mark.png';
 import { COMPANY } from './terms-content.js';
-import { ProduceLayer, ProduceBurst } from './Produce.jsx';
+import { ProduceLayer, ProduceBurst, ProduceScatter } from './Produce.jsx';
 
 // Statutory identity line — renders only the values the owner has filled in COMPANY (entity, CIN,
 // FSSAI licence, GSTIN). Blank until then, exactly like Zomato/Blinkit footers once completed.
@@ -981,7 +981,8 @@ export function Landing() {
         </section>
 
         {/* ── live tracking ──────────────────────────────────────────────── */}
-        <section className="lp-sec" id="track">
+        <section className="lp-sec lp-sec--produce" id="track">
+          <ProduceScatter n={5} seed={2} opacity={0.4} size={[44, 68]} />
           <div className="lp-wrap">
             <div className="lp-track lp-rv">
               <div className="lp-stage lp-track__stage">
@@ -1099,7 +1100,8 @@ export function Landing() {
         </section>
 
         {/* ── the field ──────────────────────────────────────────────────── */}
-        <section className="lp-sec">
+        <section className="lp-sec lp-sec--produce">
+          <ProduceScatter n={6} seed={5} opacity={0.4} size={[42, 64]} />
           <div className="lp-wrap">
             <div className="lp-sec__head lp-rv">
               <span className="lp-eyebrow">Where it comes from</span>
@@ -1194,7 +1196,8 @@ export function Landing() {
         </section>
 
         {/* ── documentation ──────────────────────────────────────────────── */}
-        <section className="lp-sec" id="details">
+        <section className="lp-sec lp-sec--produce" id="details">
+          <ProduceScatter n={4} seed={8} opacity={0.32} size={[40, 58]} />
           <div className="lp-wrap">
             <div className="lp-sec__head lp-rv">
               <span className="lp-eyebrow">The details, in plain terms</span>
@@ -1222,7 +1225,8 @@ export function Landing() {
         </section>
 
         {/* ── faq ────────────────────────────────────────────────────────── */}
-        <section className="lp-sec">
+        <section className="lp-sec lp-sec--produce">
+          <ProduceScatter n={4} seed={11} opacity={0.3} size={[40, 56]} />
           <div className="lp-wrap">
             <div className="lp-sec__head lp-rv">
               <span className="lp-eyebrow">Questions</span>
