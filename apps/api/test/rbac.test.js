@@ -42,6 +42,31 @@ describe('roleMayAccess (pure)', () => {
     expect(roleMayAccess('SUPER_ADMIN', '/anything', 'DELETE')).toBe(true);
     expect(roleMayAccess(undefined, '/orders', 'GET')).toBe(false);
   });
+
+  // Regression: Express routing is non-strict and case-insensitive, so '/orders/close-stale/' and
+  // '/orders/Close-Stale' reach the same handler. The exact-match RULES must not be bypassable by a
+  // trailing slash or a case change (which would drop a FULFILMENT/PROCUREMENT caller into a weaker
+  // prefix rule — the owner-only bulk refund and procurement self-approval).
+  it('canonicalises the path so trailing-slash/case variants cannot escalate', () => {
+    for (const path of ['/orders/close-stale/', '/orders/Close-Stale', '/orders/close-stale//']) {
+      for (const role of ['FULFILMENT', 'PROCUREMENT', 'ADMIN']) {
+        expect(roleMayAccess(role, path, 'POST')).toBe(false); // SUPER_ADMIN only
+      }
+      expect(roleMayAccess('SUPER_ADMIN', path, 'POST')).toBe(true);
+    }
+    for (const path of [
+      '/procurement/approve/',
+      '/procurement/Approve',
+      '/procurement/settings/',
+    ]) {
+      expect(roleMayAccess('PROCUREMENT', path, 'POST')).toBe(false);
+      expect(roleMayAccess('PROCUREMENT', path, 'PATCH')).toBe(false);
+      expect(roleMayAccess('ADMIN', path, 'POST')).toBe(true);
+    }
+    // And the normal section grants still work with a trailing slash.
+    expect(roleMayAccess('FULFILMENT', '/orders/', 'GET')).toBe(true);
+    expect(roleMayAccess('PROCUREMENT', '/procurement/', 'GET')).toBe(true);
+  });
 });
 
 describe('admin routes enforce roles', () => {

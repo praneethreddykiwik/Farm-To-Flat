@@ -148,7 +148,14 @@ const RULES = [
 export function roleMayAccess(role, path, method) {
   if (!role || !ROLE_META[role]) return false;
   if (role === 'SUPER_ADMIN') return true;
-  const rule = RULES.find((r) => r.when(path, method));
+  // Match on the canonical path Express actually dispatched on, not the raw URL path. Express
+  // routing is non-strict and case-insensitive, so '/orders/close-stale/' and '/orders/Close-Stale'
+  // reach the same handler — but the exact-match RULES below use `===`, so without normalising, a
+  // trailing slash or case change would miss the SUPER_ADMIN/ADMIN gate and fall through to a
+  // broader prefix rule (a FULFILMENT driver reaching the bulk refund, PROCUREMENT self-approving).
+  // Every RULE literal is a lower-case canonical path, so lower-casing here is safe.
+  const p = (String(path).replace(/\/+$/, '') || '/').toLowerCase();
+  const rule = RULES.find((r) => r.when(p, method));
   if (!rule) return ADMIN_UP.includes(role);
   if (rule.roles === null) return true;
   if (rule.roles) return rule.roles.includes(role);
