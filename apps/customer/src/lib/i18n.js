@@ -100,6 +100,18 @@ const STRINGS = {
     callUs: 'Call us',
     aboutLabel: 'About',
     signOut: 'Sign out',
+    keepAccount: 'Keep my account',
+    cancellationRefund: 'Cancellation & refunds',
+    shippingDelivery: 'Shipping & delivery',
+    contactGrievance: 'Contact & grievance',
+    deleteAccount: 'Delete my account',
+    deleteAccountTitle: 'Delete your account?',
+    deleteAccountBody:
+      'This permanently removes your profile, saved addresses and sign-in. Past order records are kept, de-identified, only as long as the law requires. This cannot be undone.',
+    deleteAccountWallet:
+      'You still have money in your wallet — contact support to claim it before deleting; it cannot be recovered afterwards.',
+    deleteAccountConfirm: 'Delete account',
+    deleteAccountFailed: 'Could not delete your account. Please try again or contact support.',
     notSet: 'Not set',
     savedToast: 'Saved',
     couldNotSave: 'Could not save',
@@ -282,6 +294,19 @@ const STRINGS = {
     callUs: 'हमें कॉल करें',
     aboutLabel: 'ऐप के बारे में',
     signOut: 'साइन आउट',
+    keepAccount: 'मेरा खाता रखें',
+    cancellationRefund: 'रद्दीकरण और रिफंड',
+    shippingDelivery: 'शिपिंग और डिलीवरी',
+    contactGrievance: 'संपर्क और शिकायत',
+    deleteAccount: 'मेरा खाता हटाएं',
+    deleteAccountTitle: 'अपना खाता हटाएं?',
+    deleteAccountBody:
+      'इससे आपकी प्रोफ़ाइल, सहेजे गए पते और साइन-इन स्थायी रूप से हट जाते हैं। पुराने ऑर्डर रिकॉर्ड, पहचान हटाकर, केवल कानूनन आवश्यक अवधि तक रखे जाते हैं। इसे पूर्ववत नहीं किया जा सकता।',
+    deleteAccountWallet:
+      'आपके वॉलेट में अभी भी राशि है — हटाने से पहले इसे प्राप्त करने के लिए सहायता से संपर्क करें; बाद में इसे वापस नहीं पाया जा सकता।',
+    deleteAccountConfirm: 'खाता हटाएं',
+    deleteAccountFailed:
+      'आपका खाता हटाया नहीं जा सका। कृपया पुनः प्रयास करें या सहायता से संपर्क करें।',
     notSet: 'तय नहीं',
     savedToast: 'सेव हो गया',
     couldNotSave: 'सेव नहीं हो सका',
@@ -461,6 +486,19 @@ const STRINGS = {
     callUs: 'మాకు కాల్ చేయండి',
     aboutLabel: 'యాప్ గురించి',
     signOut: 'సైన్ అవుట్',
+    keepAccount: 'నా ఖాతాను ఉంచు',
+    cancellationRefund: 'రద్దు మరియు రీఫండ్‌లు',
+    shippingDelivery: 'షిప్పింగ్ మరియు డెలివరీ',
+    contactGrievance: 'సంప్రదింపు మరియు ఫిర్యాదు',
+    deleteAccount: 'నా ఖాతాను తొలగించు',
+    deleteAccountTitle: 'మీ ఖాతాను తొలగించాలా?',
+    deleteAccountBody:
+      'ఇది మీ ప్రొఫైల్, సేవ్ చేసిన చిరునామాలు మరియు సైన్-ఇన్‌ను శాశ్వతంగా తొలగిస్తుంది. పాత ఆర్డర్ రికార్డులు, గుర్తింపు తొలగించి, చట్టం అవసరమైన కాలం వరకు మాత్రమే ఉంచబడతాయి. దీన్ని వెనక్కి తీసుకోలేము.',
+    deleteAccountWallet:
+      'మీ వాలెట్‌లో ఇంకా డబ్బు ఉంది — తొలగించే ముందు దాన్ని పొందడానికి సపోర్ట్‌ను సంప్రదించండి; తర్వాత దాన్ని తిరిగి పొందలేరు.',
+    deleteAccountConfirm: 'ఖాతా తొలగించు',
+    deleteAccountFailed:
+      'మీ ఖాతాను తొలగించలేకపోయాం. దయచేసి మళ్లీ ప్రయత్నించండి లేదా సపోర్ట్‌ను సంప్రదించండి.',
     notSet: 'ఇవ్వలేదు',
     savedToast: 'సేవ్ అయింది',
     couldNotSave: 'సేవ్ కాలేదు',

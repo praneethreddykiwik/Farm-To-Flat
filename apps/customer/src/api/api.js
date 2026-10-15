@@ -24,6 +24,9 @@ export const api = createApi({
       query: (body) => ({ url: '/me', method: 'PATCH', body }),
       invalidatesTags: ['Me'],
     }),
+    // Right-to-erasure: anonymises the account server-side and revokes the session. The caller
+    // signs out immediately after; the returned walletBalancePaise lets us warn first.
+    deleteAccount: b.mutation({ query: () => ({ url: '/me', method: 'DELETE' }) }),
     // Changing the number keeps the same account — see apps/api/src/routes/me.js. Invalidating Me
     // and Addresses is what makes the profile show the new number without a sign-out.
     requestMobileChange: b.mutation({
@@ -182,6 +185,7 @@ export const {
   useLogoutMutation,
   useGetMeQuery,
   useUpdateMeMutation,
+  useDeleteAccountMutation,
   useRequestMobileChangeMutation,
   useVerifyMobileChangeMutation,
   useGetCommunitiesQuery,

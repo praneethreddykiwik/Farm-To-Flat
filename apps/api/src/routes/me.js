@@ -12,6 +12,7 @@ import {
   addAddress,
   changeCustomerMobile,
   checkOtpOnly,
+  deleteCustomerAccount,
   getCustomerIdByMobile,
   requestOtp,
   cartCount,
@@ -50,6 +51,21 @@ meRouter.patch(
   asyncHandler(async (req, res) => {
     const c = updateCustomer(req.customerId, req.body);
     res.json({ customer: customerPublic(c, { hasAddress: hasAddress(req.customerId) }) });
+  }),
+);
+
+/**
+ * Delete (erase) the signed-in customer's account. Required by Google Play / App Store and by the
+ * DPDP Act's right to erasure. Anonymises PII and revokes every session; order/payment records are
+ * retained (de-identified) for tax/legal retention. `walletBalancePaise` is returned so the client
+ * can warn when a balance would be left behind — refunding it is an operations decision.
+ */
+meRouter.delete(
+  '/',
+  asyncHandler(async (req, res) => {
+    const r = await deleteCustomerAccount(req.customerId);
+    if (!r.ok) throw fail(404, 'NOT_FOUND', 'Account not found.');
+    res.json({ ok: true, walletBalancePaise: String(r.walletBalancePaise || 0) });
   }),
 );
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { kv } from '../src/lib/kv';
@@ -30,6 +30,7 @@ import {
   useRegisterDeviceMutation,
   useSetDefaultAddressMutation,
   useUpdateMeMutation,
+  useDeleteAccountMutation,
 } from '../src/api/api';
 import { customerUpdated, selectCustomer } from '../src/features/auth/authSlice';
 import { profileUpdated, selectProfile } from '../src/features/plan/planSlice';
@@ -91,8 +92,32 @@ export default function Profile() {
   const [setDefault] = useSetDefaultAddressMutation();
   const [registerDevice] = useRegisterDeviceMutation();
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
+  const [deleteAccount, { isLoading: deleting }] = useDeleteAccountMutation();
   const signOut = useSignOut();
   const lang = useSelector(selectLanguage);
+
+  // Right-to-erasure. Two-step confirm; warns first if a wallet balance would be left behind, then
+  // deletes server-side and signs out. The account is anonymised and the session revoked by the API.
+  const confirmDelete = useCallback(() => {
+    const balance = Number(customer?.balancePaise || 0);
+    const body =
+      t('deleteAccountBody', lang) + (balance > 0 ? `\n\n${t('deleteAccountWallet', lang)}` : '');
+    Alert.alert(t('deleteAccountTitle', lang), body, [
+      { text: t('keepAccount', lang), style: 'cancel' },
+      {
+        text: t('deleteAccountConfirm', lang),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteAccount().unwrap();
+            signOut();
+          } catch {
+            dispatch(showToast({ title: t('deleteAccountFailed', lang), tone: 'error' }));
+          }
+        },
+      },
+    ]);
+  }, [customer, lang, deleteAccount, signOut, dispatch]);
   // Reflect the REAL notification permission, not a guess. This was `useState(false)`, so the
   // switch reset itself to off every time the screen remounted — turn it on, go back, come back,
   // and it read as off while notifications were in fact enabled.
@@ -449,6 +474,36 @@ export default function Profile() {
               {t('termsAndConditions', lang)}
             </Small>
           </Pressy>
+          <Pressy
+            onPress={() =>
+              Linking.openURL(`https://fooducia.in/refunds?lang=${lang}`).catch(() => {})
+            }
+            haptics="select"
+          >
+            <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
+              {t('cancellationRefund', lang)}
+            </Small>
+          </Pressy>
+          <Pressy
+            onPress={() =>
+              Linking.openURL(`https://fooducia.in/shipping?lang=${lang}`).catch(() => {})
+            }
+            haptics="select"
+          >
+            <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
+              {t('shippingDelivery', lang)}
+            </Small>
+          </Pressy>
+          <Pressy
+            onPress={() =>
+              Linking.openURL(`https://fooducia.in/contact?lang=${lang}`).catch(() => {})
+            }
+            haptics="select"
+          >
+            <Small style={{ color: colors.leafDeep, textDecorationLine: 'underline' }}>
+              {t('contactGrievance', lang)}
+            </Small>
+          </Pressy>
         </Glass>
 
         <View style={{ marginTop: 26 }}>
@@ -458,6 +513,15 @@ export default function Profile() {
             onPress={signOut}
             icon={<LogOut size={18} color={colors.tomato} />}
           />
+        </View>
+
+        {/* Right-to-erasure: required by the app stores and the DPDP Act. */}
+        <View style={{ marginTop: 14, alignItems: 'center' }}>
+          <Pressy onPress={confirmDelete} haptics="select" disabled={deleting}>
+            <Small style={{ color: colors.tomato, textDecorationLine: 'underline' }}>
+              {t('deleteAccount', lang)}
+            </Small>
+          </Pressy>
         </View>
       </ScrollView>
 

@@ -613,6 +613,15 @@ export const persist = {
   sessionsDeleteForCustomer: wt('session.deleteForCustomer', (customerId) =>
     prisma.session.deleteMany({ where: { customerId } }),
   ),
+  // Account deletion: remove a customer's PII collections. Orders/payments/wallet ledger are
+  // retained (legal/tax retention) linked to the now-anonymised customer; these three hold PII
+  // (delivery addresses, device push tokens) and are deleted outright.
+  addressesDeleteForCustomer: wt('address.deleteForCustomer', (customerId) =>
+    prisma.address.deleteMany({ where: { customerId } }),
+  ),
+  devicesDeleteForCustomer: wt('device.deleteForCustomer', (customerId) =>
+    prisma.device.deleteMany({ where: { customerId } }),
+  ),
   deviceUpsert: wt('device.upsert', (cid, token) =>
     prisma.device.upsert({
       where: { expoPushToken: token },

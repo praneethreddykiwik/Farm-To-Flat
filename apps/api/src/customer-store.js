@@ -572,6 +572,48 @@ export function logout(customerId) {
   persist.sessionsDeleteForCustomer(customerId);
 }
 
+/**
+ * Delete a customer's account (app-store / DPDP "right to erasure" requirement).
+ *
+ * We ANONYMISE rather than hard-delete: orders, payments and the wallet ledger must be retained for
+ * tax/legal record-keeping and they foreign-key to the customer (Prisma restricts the delete). So we
+ * (1) revoke every session, (2) delete the PII collections — addresses, device push tokens, the
+ * live cart — and (3) blank the customer's name/email and replace the mobile with a non-PII tombstone
+ * (`deleted_<id>`), which also frees the real number for a fresh signup. After this the retained
+ * order history is no longer linked to any identifying data.
+ *
+ * Returns the wallet balance at deletion so the caller can surface it: a non-zero balance may be
+ * owed back to the customer under consumer law — that refund is an operations decision, not erased here.
+ */
+export async function deleteCustomerAccount(customerId) {
+  const c = cs.customers.get(customerId);
+  if (!c) return { ok: false, notFound: true };
+  const walletBalancePaise = wallet(customerId).balancePaise;
+
+  logout(customerId); // revoke all sessions everywhere
+
+  // PII collections — removed outright
+  cs.addresses.delete(customerId);
+  cs.devices.delete(customerId);
+  clearCart(customerId);
+  await Promise.resolve(persist.cartDelete(customerId));
+  await Promise.resolve(persist.addressesDeleteForCustomer(customerId));
+  await Promise.resolve(persist.devicesDeleteForCustomer(customerId));
+
+  // Anonymise the customer row (retains order/payment FK integrity; frees the real mobile)
+  const tombstone = `deleted_${customerId}`;
+  cs.byMobile.delete(c.mobile); // free the real number for a fresh signup
+  cs.byMobile.set(tombstone, customerId); // keep the row addressable by its tombstone
+  c.mobile = tombstone;
+  c.name = null;
+  c.email = null;
+  cs.customers.set(customerId, c);
+  // Durable: the account must actually be gone before we tell the client it is.
+  await Promise.resolve(persist.customerUpsert(c));
+
+  return { ok: true, walletBalancePaise };
+}
+
 // ── customer / addresses ──────────────────────────────────────────────────────
 export const getCustomer = (cid) => cs.customers.get(cid) || null;
 /** Resolve a mobile number to its customer id (null if that number never signed in). */
