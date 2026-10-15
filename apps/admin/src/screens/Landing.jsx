@@ -477,6 +477,20 @@ const FAQ = [
   ],
 ];
 
+/** Produce names the hero search cycles through, in the three languages the app ships. */
+const SEARCH_WORDS = [
+  'palak',
+  'పాలకూర',
+  'tomato',
+  'టమాటా',
+  'coriander',
+  'कोथमीर',
+  'ginger',
+  'అల్లం',
+  'green chilli',
+  'నిమ్మకాయ',
+];
+
 export function Landing() {
   useReveal();
   const [stuck, setStuck] = useState(false);
@@ -484,6 +498,38 @@ export function Landing() {
   const stepRefs = useRef([]);
   const [fill, setFill] = useState(0);
   const [activeStep, setActiveStep] = useState(-1);
+  const [searchWord, setSearchWord] = useState(SEARCH_WORDS[0]);
+
+  // Cycle the hero search placeholder — a small, living detail that shows the catalogue is
+  // multilingual without a word of marketing copy.
+  useEffect(() => {
+    let i = 0;
+    const id = setInterval(() => {
+      i = (i + 1) % SEARCH_WORDS.length;
+      setSearchWord(SEARCH_WORDS[i]);
+    }, 1900);
+    return () => clearInterval(id);
+  }, []);
+
+  // Cursor parallax over the hero (Antimetal/Octolane feel): the thrown produce and the aurora
+  // lean toward the pointer. Written to CSS custom properties so there is no per-frame re-render,
+  // and skipped entirely for anyone who prefers reduced motion or is on a touch device.
+  useEffect(() => {
+    const hero = document.querySelector('.lp-hero');
+    if (!hero) return undefined;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+    if (reduce || coarse) return undefined;
+    const onMove = (e) => {
+      const r = hero.getBoundingClientRect();
+      const mx = (e.clientX - r.left) / r.width - 0.5;
+      const my = (e.clientY - r.top) / r.height - 0.5;
+      hero.style.setProperty('--lp-mx', mx.toFixed(3));
+      hero.style.setProperty('--lp-my', my.toFixed(3));
+    };
+    hero.addEventListener('pointermove', onMove);
+    return () => hero.removeEventListener('pointermove', onMove);
+  }, []);
 
   // The rail fills to the badge of the step you are actually reading, so the page reads as the
   // journey it describes. Measuring each step beats a fraction of the whole block: the steps are
@@ -530,6 +576,15 @@ export function Landing() {
       </div>
 
       <div className="lp__body">
+        {/* Announcement ribbon — Steel-style: one line, a live status, an arrow. */}
+        <a className="lp-ann" href="#get">
+          <span className="lp-ann__badge">NEW</span>
+          Launching community by community across Hyderabad
+          <span className="lp-ann__arrow" aria-hidden="true">
+            →
+          </span>
+        </a>
+
         <header className={`lp-nav${stuck ? ' is-stuck' : ''}`}>
           <div className="lp-wrap lp-nav__in">
             <a className="lp-nav__brand" href="#top">
@@ -550,6 +605,13 @@ export function Landing() {
 
         {/* ── hero ───────────────────────────────────────────────────────── */}
         <section className="lp-hero" id="top">
+          {/* Octolane-style living aurora: slow prismatic ribbons in produce tones. */}
+          <div className="lp-aurora" aria-hidden="true">
+            <span className="lp-aurora__blob lp-aurora__blob--1" />
+            <span className="lp-aurora__blob lp-aurora__blob--2" />
+            <span className="lp-aurora__blob lp-aurora__blob--3" />
+            <span className="lp-aurora__blob lp-aurora__blob--4" />
+          </div>
           <ProduceLayer
             className="pr-layer--hero"
             items={[
@@ -574,10 +636,46 @@ export function Landing() {
                 built to close that gap: your order goes to the farm overnight, it is cut at dawn,
                 and it is at your door before breakfast.
               </p>
-              <div className="lp-hero__cta" style={{ '--i': 3 }}>
+              {/* Glide-style prompt box: a real-feeling search that cycles produce the app sells. */}
+              <div className="lp-search" style={{ '--i': 3 }}>
+                <IcLeaf size={18} className="lp-search__leaf" />
+                <span className="lp-search__text">
+                  Search “<em key={searchWord}>{searchWord}</em>”
+                </span>
+                <a className="lp-search__go" href="#get" aria-label="Get the app">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </a>
+              </div>
+              <div className="lp-hero__cta" style={{ '--i': 4 }}>
                 <StoreBadges />
               </div>
-              <div className="lp-hero__proof" style={{ '--i': 4 }}>
+              {/* Twin-style social proof row. */}
+              <div className="lp-social" style={{ '--i': 5 }}>
+                <span className="lp-social__stars" aria-hidden="true">
+                  ★★★★★
+                </span>
+                <span>
+                  <b>3 farms</b> · Chevella, Shamshabad, Araku
+                </span>
+                <span className="lp-social__dot" aria-hidden="true">
+                  ·
+                </span>
+                <span>
+                  <b>Same-morning</b> delivery
+                </span>
+              </div>
+              <div className="lp-hero__proof" style={{ '--i': 6 }}>
                 <span>
                   <IcLeaf size={17} /> Never from a cold room
                 </span>
@@ -615,6 +713,11 @@ export function Landing() {
               </div>
             </div>
           </div>
+          {/* Octolane-style scroll cue. */}
+          <a className="lp-scroll" href="#how" aria-label="Scroll to explore">
+            <span className="lp-scroll__t">SCROLL TO EXPLORE</span>
+            <span className="lp-scroll__line" />
+          </a>
         </section>
 
         {/* ── band ───────────────────────────────────────────────────────── */}
