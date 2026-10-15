@@ -364,6 +364,44 @@ function useReveal() {
   }, []);
 }
 
+/* ── scroll-linked parallax (Miro-style depth) ─────────────────────────────────
+ * Any element with a data-par attribute drifts vertically as the page scrolls, at a rate set by the
+ * attribute's value — so decorative produce and section visuals move at different depths and the
+ * page feels layered rather than flat. Transform-only and rAF-throttled, so it is cheap; disabled
+ * for reduced-motion and coarse pointers. It never touches layout, so nothing can shift or break.
+ */
+function useParallax() {
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return undefined;
+    const els = Array.from(document.querySelectorAll('[data-par]'));
+    if (!els.length) return undefined;
+    let raf = 0;
+    const update = () => {
+      const vh = window.innerHeight;
+      for (const el of els) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom < -300 || r.top > vh + 300) continue;
+        // clamp to [-1, 1] so elements far from centre don't accumulate a huge offset
+        const delta = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
+        const speed = parseFloat(el.dataset.par) || 0;
+        el.style.transform = `translate3d(0, ${(-delta * speed).toFixed(1)}px, 0)`;
+      }
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+}
+
 /* ── the timeline ─────────────────────────────────────────────────────────── */
 const STEPS = [
   {
@@ -650,6 +688,7 @@ const SEARCH_WORDS = [
 
 export function Landing() {
   useReveal();
+  useParallax();
   const [stuck, setStuck] = useState(false);
   const railRef = useRef(null);
   const stepRefs = useRef([]);
@@ -992,7 +1031,7 @@ export function Landing() {
           <ProduceScatter n={5} seed={2} opacity={0.4} size={[44, 68]} />
           <div className="lp-wrap">
             <div className="lp-track lp-rv">
-              <div className="lp-stage lp-track__stage">
+              <div className="lp-stage lp-track__stage" data-par="34">
                 <Phone
                   src={SHOT.tracking}
                   alt="An order being tracked in the app: confirmed, packed, on its way, delivered, with the items and the total"

@@ -530,9 +530,9 @@ const ALL_KEYS = Object.keys(PIECES);
  * Decorative, non-interactive produce that floats behind a section. Motion lives in landing.css
  * (position/size/drift/duration come through CSS custom props) and respects prefers-reduced-motion.
  */
-export function ProduceLayer({ items = [], className = '' }) {
+export function ProduceLayer({ items = [], className = '', par = 70 }) {
   return (
-    <div className={`pr-layer ${className}`} aria-hidden="true">
+    <div className={`pr-layer ${className}`} aria-hidden="true" data-par={par}>
       {items.map((it, i) => {
         const Piece = PIECES[it.k];
         if (!Piece) return null;
