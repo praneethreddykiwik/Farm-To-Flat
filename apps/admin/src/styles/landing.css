@@ -1684,9 +1684,9 @@
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  filter: blur(46px) saturate(1.15);
-  opacity: 0.9;
-  transform: translate(calc(var(--lp-mx, 0) * -26px), calc(var(--lp-my, 0) * -20px));
+  filter: blur(38px) saturate(1.5);
+  opacity: 1;
+  transform: translate(calc(var(--lp-mx, 0) * -34px), calc(var(--lp-my, 0) * -26px));
   transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .lp-aurora__blob {
@@ -1701,7 +1701,7 @@
   height: 46vw;
   left: 44%;
   top: -12%;
-  background: radial-gradient(circle at 30% 30%, rgba(159, 209, 44, 0.55), transparent 65%);
+  background: radial-gradient(circle at 30% 30%, rgba(159, 209, 44, 0.8), transparent 64%);
   animation: lp-aur-a 18s ease-in-out infinite;
 }
 .lp-aurora__blob--2 {
@@ -1709,7 +1709,7 @@
   height: 40vw;
   left: 56%;
   top: 6%;
-  background: radial-gradient(circle at 40% 40%, rgba(30, 122, 76, 0.5), transparent 65%);
+  background: radial-gradient(circle at 40% 40%, rgba(30, 122, 76, 0.72), transparent 64%);
   animation: lp-aur-b 22s ease-in-out infinite;
 }
 .lp-aurora__blob--3 {
@@ -1717,7 +1717,7 @@
   height: 34vw;
   left: 62%;
   top: -6%;
-  background: radial-gradient(circle at 50% 50%, rgba(216, 155, 26, 0.4), transparent 62%);
+  background: radial-gradient(circle at 50% 50%, rgba(216, 155, 26, 0.6), transparent 60%);
   animation: lp-aur-a 26s ease-in-out infinite reverse;
 }
 .lp-aurora__blob--4 {
@@ -1725,7 +1725,7 @@
   height: 28vw;
   left: 40%;
   top: 18%;
-  background: radial-gradient(circle at 50% 50%, rgba(217, 83, 43, 0.3), transparent 60%);
+  background: radial-gradient(circle at 50% 50%, rgba(217, 83, 43, 0.48), transparent 58%);
   animation: lp-aur-b 20s ease-in-out infinite reverse;
 }
 @keyframes lp-aur-a {
@@ -1761,9 +1761,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  width: min(420px, 100%);
+  width: min(470px, 100%);
   margin: 4px 0 22px;
-  padding: 12px 12px 12px 16px;
+  padding: 10px 10px 10px 16px;
   border-radius: 16px;
   background: var(--lp-white);
   border: 1px solid var(--lp-hairline);
@@ -1898,5 +1898,65 @@
   .lp-aurora,
   .pr-burst {
     transform: none !important;
+  }
+}
+
+/* ── search tools: voice + lens ──────────────────────────────────────────── */
+.lp-search__tool {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--lp-ink-2);
+  background: var(--lp-canvas);
+  border: 1px solid var(--lp-hairline);
+  transition:
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+.lp-search__tool:hover {
+  color: var(--lp-leaf);
+  background: var(--lp-leaf-soft);
+  transform: translateY(-1px);
+}
+/* the mic gets a soft live "listening" pulse so it reads as interactive */
+.lp-search__tool:first-of-type::after {
+  content: '';
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 0 rgba(30, 122, 76, 0.35);
+  animation: lp-mic-pulse 2.6s ease-out infinite;
+  pointer-events: none;
+}
+.lp-search__tool {
+  position: relative;
+}
+@keyframes lp-mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(30, 122, 76, 0.3);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 10px rgba(30, 122, 76, 0);
+  }
+}
+@media (max-width: 460px) {
+  .lp-search {
+    gap: 8px;
+    padding-left: 12px;
+  }
+  .lp-search__tool {
+    width: 30px;
+    height: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-search__tool:first-of-type::after {
+    animation: none !important;
   }
 }

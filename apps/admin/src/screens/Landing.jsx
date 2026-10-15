@@ -156,6 +156,17 @@ const IcCamera = (p) => (
     }
   />
 );
+const IcMic = (p) => (
+  <Ic
+    {...p}
+    d={
+      <>
+        <rect x="9" y="3" width="6" height="11" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+      </>
+    }
+  />
+);
 
 /* ── the device ───────────────────────────────────────────────────────────── */
 /**
@@ -642,6 +653,23 @@ export function Landing() {
                 <span className="lp-search__text">
                   Search “<em key={searchWord}>{searchWord}</em>”
                 </span>
+                {/* Voice search and the AI lens — both real features of the app. */}
+                <a
+                  className="lp-search__tool"
+                  href="#get"
+                  title="Search by voice — in the app"
+                  aria-label="Search by voice"
+                >
+                  <IcMic size={18} />
+                </a>
+                <a
+                  className="lp-search__tool"
+                  href="#get"
+                  title="Point the camera, get the item — Lens, in the app"
+                  aria-label="Search with the camera lens"
+                >
+                  <IcCamera size={18} />
+                </a>
                 <a className="lp-search__go" href="#get" aria-label="Get the app">
                   <svg
                     viewBox="0 0 24 24"
@@ -749,7 +777,15 @@ export function Landing() {
         </div>
 
         {/* ── timeline ───────────────────────────────────────────────────── */}
-        <section className="lp-sec" id="how">
+        <section className="lp-sec lp-sec--produce" id="how">
+          <ProduceLayer
+            items={[
+              { k: 'lemon', x: 2, y: 8, s: 48, r: -14, d: 12, drift: 20, o: 0.28 },
+              { k: 'mint', x: 95, y: 40, s: 44, r: 10, d: 11, drift: 22, o: 0.28, delay: 1 },
+              { k: 'tomato', x: 92, y: 88, s: 50, r: -8, d: 13, drift: 18, o: 0.26, delay: 0.5 },
+              { k: 'chili', x: 4, y: 72, s: 46, r: 22, d: 14, drift: 24, o: 0.26, delay: 1.6 },
+            ]}
+          />
           <div className="lp-wrap">
             <div className="lp-sec__head lp-rv">
               <span className="lp-eyebrow">The flow, end to end</span>
@@ -1014,7 +1050,15 @@ export function Landing() {
         </section>
 
         {/* ── closing ────────────────────────────────────────────────────── */}
-        <section className="lp-sec" id="get">
+        <section className="lp-sec lp-sec--produce" id="get">
+          <ProduceLayer
+            items={[
+              { k: 'carrot', x: 4, y: 20, s: 52, r: -18, d: 12, drift: 22, o: 0.3 },
+              { k: 'broccoli', x: 92, y: 14, s: 54, r: 12, d: 13, drift: 18, o: 0.3, delay: 0.8 },
+              { k: 'banana', x: 90, y: 80, s: 56, r: -10, d: 14, drift: 20, o: 0.28, delay: 0.4 },
+              { k: 'onion', x: 6, y: 82, s: 48, r: 20, d: 11, drift: 24, o: 0.28, delay: 1.4 },
+            ]}
+          />
           <div className="lp-wrap">
             <div className="lp-end lp-rv">
               {/* the harvest spills across the top; the green panel is pulled up over it */}
