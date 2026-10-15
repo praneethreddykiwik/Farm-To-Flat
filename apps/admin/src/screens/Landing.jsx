@@ -488,6 +488,152 @@ const FAQ = [
   ],
 ];
 
+/** The stat band. Numbers count up when the row scrolls in; the first cell is plain text. */
+const BAND = [
+  { text: 'Same morning', label: 'Cut at dawn, delivered before breakfast' },
+  { num: 3, suf: ' languages', label: 'The whole app, not just the labels' },
+  { pre: '₹', num: 500, label: 'Minimum basket · delivery free above it' },
+  { num: 4, suf: ' digits', label: 'The door code that proves it was handed over' },
+];
+
+/** Counts from 0 to `to` once, the first time it scrolls into view. Respects reduced motion. */
+function CountUp({ to, ms = 1100 }) {
+  const ref = useRef(null);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      setN(to);
+      return undefined;
+    }
+    let raf = 0;
+    let started = false;
+    const run = (t0) => {
+      const tick = (t) => {
+        const p = Math.min(1, (t - t0) / ms);
+        // ease-out cubic
+        setN(Math.round(to * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    };
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !started) {
+          started = true;
+          run(performance.now());
+          io.disconnect();
+        }
+      },
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [to, ms]);
+  return <span ref={ref}>{n.toLocaleString('en-IN')}</span>;
+}
+
+/** A hairline that draws itself across the page as it scrolls in (Antimetal-style divider). */
+function Divider() {
+  return (
+    <div className="lp-wrap">
+      <div className="lp-div lp-rv" aria-hidden="true" />
+    </div>
+  );
+}
+
+/** Prompts the AI-planner terminal types out, then clears, in a loop. Real feature (aiPlan). */
+const PROMPTS = [
+  'a week of South Indian dinners for 4',
+  'everything for a weekend biryani',
+  'low-oil meals, mostly leafy greens',
+  'a ₹1200 basket for two, no onion',
+];
+
+/**
+ * A Steel-style terminal card that types a request to the AI planner, holds, then clears and types
+ * the next — a living demo of a real feature (the planner turns a sentence into a basket).
+ */
+function PlannerTerminal() {
+  const [text, setText] = useState('');
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      setText(PROMPTS[0]);
+      return undefined;
+    }
+    let p = 0;
+    let i = 0;
+    let mode = 'type';
+    let timer = 0;
+    const step = () => {
+      const full = PROMPTS[p];
+      if (mode === 'type') {
+        i += 1;
+        setText(full.slice(0, i));
+        if (i >= full.length) {
+          mode = 'hold';
+          timer = setTimeout(step, 1600);
+          return;
+        }
+        timer = setTimeout(step, 42 + Math.random() * 40);
+      } else if (mode === 'hold') {
+        mode = 'erase';
+        timer = setTimeout(step, 40);
+      } else {
+        i -= 2;
+        if (i <= 0) {
+          i = 0;
+          p = (p + 1) % PROMPTS.length;
+          mode = 'type';
+          timer = setTimeout(step, 240);
+          return;
+        }
+        setText(full.slice(0, i));
+        timer = setTimeout(step, 22);
+      }
+    };
+    timer = setTimeout(step, 400);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div
+      className="lp-term lp-rv"
+      role="img"
+      aria-label="The Fooducia planner turning a request into a basket"
+    >
+      <div className="lp-term__bar">
+        <i /> <i /> <i />
+        <span className="lp-term__title">Fooducia · planner</span>
+      </div>
+      <div className="lp-term__body">
+        <p className="lp-term__line">
+          <span className="lp-term__prompt">plan</span>
+          <span className="lp-term__arrow">❯</span>
+          <span className="lp-term__typed">{text}</span>
+          <span className="lp-term__caret" />
+        </p>
+        <div className="lp-term__out">
+          {[
+            '🥬 Palak · 2 bunches',
+            '🍅 Tomato · 1 kg',
+            '🧅 Onion · 500 g',
+            '🌶 Chilli · 100 g',
+          ].map((r) => (
+            <span className="lp-term__chip" key={r}>
+              {r}
+            </span>
+          ))}
+          <span className="lp-term__chip lp-term__chip--ghost">+ 6 more → basket</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Produce names the hero search cycles through, in the three languages the app ships. */
 const SEARCH_WORDS = [
   'palak',
@@ -748,18 +894,23 @@ export function Landing() {
           </a>
         </section>
 
-        {/* ── band ───────────────────────────────────────────────────────── */}
+        {/* ── band — numbers count up as the row scrolls into view ─────────── */}
         <div className="lp-wrap">
           <div className="lp-band lp-rv">
-            {[
-              ['Same morning', 'Cut at dawn, delivered before breakfast'],
-              ['3 languages', 'The whole app, not just the labels'],
-              ['₹500', 'Minimum basket · delivery free above it'],
-              ['4 digits', 'The door code that proves it was handed over'],
-            ].map(([n, l]) => (
-              <div className="lp-band__cell" key={n}>
-                <div className="lp-band__n">{n}</div>
-                <div className="lp-band__l">{l}</div>
+            {BAND.map((b) => (
+              <div className="lp-band__cell" key={b.label}>
+                <div className="lp-band__n">
+                  {b.num != null ? (
+                    <>
+                      {b.pre}
+                      <CountUp to={b.num} />
+                      {b.suf}
+                    </>
+                  ) : (
+                    b.text
+                  )}
+                </div>
+                <div className="lp-band__l">{b.label}</div>
               </div>
             ))}
           </div>
@@ -869,8 +1020,47 @@ export function Landing() {
           </div>
         </section>
 
+        <Divider />
+
+        {/* ── planner (Steel-style terminal) ─────────────────────────────── */}
+        <section className="lp-sec lp-sec--produce">
+          <ProduceLayer
+            items={[
+              { k: 'garlic', x: 4, y: 24, s: 46, r: -16, d: 12, drift: 20, o: 0.24 },
+              { k: 'lemon', x: 93, y: 68, s: 44, r: 14, d: 13, drift: 18, o: 0.24, delay: 1 },
+            ]}
+          />
+          <div className="lp-wrap">
+            <div className="lp-plan">
+              <div className="lp-plan__copy lp-rv">
+                <span className="lp-eyebrow">Tell it what you&apos;re cooking</span>
+                <h2>Say the meal. Get the basket.</h2>
+                <p className="lp-lede">
+                  Describe dinner in a sentence and the planner fills a basket with the exact
+                  produce and quantities — in your language. Or point the camera at a vegetable and
+                  Lens finds it in today&apos;s catalogue.
+                </p>
+                <div className="lp-step__meta">
+                  <span className="lp-chip">Voice or text</span>
+                  <span className="lp-chip">Camera lens</span>
+                  <span className="lp-chip">Quantities, not guesses</span>
+                </div>
+              </div>
+              <PlannerTerminal />
+            </div>
+          </div>
+        </section>
+
+        <Divider />
+
         {/* ── language ───────────────────────────────────────────────────── */}
-        <section className="lp-sec" id="language">
+        <section className="lp-sec lp-sec--produce" id="language">
+          <ProduceLayer
+            items={[
+              { k: 'mint', x: 3, y: 60, s: 46, r: -12, d: 12, drift: 22, o: 0.24 },
+              { k: 'chili', x: 95, y: 18, s: 44, r: 18, d: 13, drift: 20, o: 0.24, delay: 0.8 },
+            ]}
+          />
           <div className="lp-wrap lp-lang">
             <div className="lp-sec__head lp-rv" style={{ marginBottom: 0 }}>
               <span className="lp-eyebrow">Shop the way you speak</span>
@@ -1048,6 +1238,8 @@ export function Landing() {
             </div>
           </div>
         </section>
+
+        <Divider />
 
         {/* ── closing ────────────────────────────────────────────────────── */}
         <section className="lp-sec lp-sec--produce" id="get">

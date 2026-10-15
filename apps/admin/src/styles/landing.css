@@ -1960,3 +1960,195 @@
     animation: none !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UPGRADE PASS 2 — count-up band, drawn dividers, planner terminal, section glow
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── drawn divider (Antimetal) ───────────────────────────────────────────── */
+.lp-div {
+  height: 0;
+  margin: 8px 0;
+  border-top: 1.5px dashed var(--lp-hairline);
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+  transition:
+    transform 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 500ms ease;
+}
+.lp-div[data-rv='in'] {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* ── faint aurora glow behind the lighter produce sections ───────────────── */
+.lp-sec--produce {
+  isolation: isolate;
+}
+.lp-sec--produce::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 20%;
+  width: 70vw;
+  max-width: 900px;
+  height: 60%;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(159, 209, 44, 0.16),
+    rgba(30, 122, 76, 0.08) 45%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  pointer-events: none;
+  animation: lp-aur-a 24s ease-in-out infinite;
+}
+
+/* ── planner terminal (Steel) ────────────────────────────────────────────── */
+.lp-plan {
+  display: grid;
+  grid-template-columns: 1fr 1.05fr;
+  gap: 48px;
+  align-items: center;
+}
+@media (max-width: 860px) {
+  .lp-plan {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+.lp-term {
+  position: relative;
+  z-index: 1;
+  border-radius: 18px;
+  background: #0d1a13;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--lp-lift);
+  overflow: hidden;
+  font-family: var(--lp-mono);
+}
+.lp-term__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.lp-term__bar i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #2f4034;
+}
+.lp-term__bar i:nth-child(1) {
+  background: #ff5f57;
+}
+.lp-term__bar i:nth-child(2) {
+  background: #febc2e;
+}
+.lp-term__bar i:nth-child(3) {
+  background: #28c840;
+}
+.lp-term__title {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #7f9a88;
+  letter-spacing: 0.02em;
+}
+.lp-term__body {
+  padding: 20px 18px 22px;
+}
+.lp-term__line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+  font-size: 15px;
+  color: #e7f2ea;
+}
+.lp-term__prompt {
+  color: var(--lp-sprout);
+}
+.lp-term__arrow {
+  color: #5fae79;
+}
+.lp-term__typed {
+  color: #fff;
+}
+.lp-term__caret {
+  display: inline-block;
+  width: 9px;
+  height: 18px;
+  transform: translateY(3px);
+  background: var(--lp-sprout);
+  animation: lp-caret 1s steps(1) infinite;
+}
+@keyframes lp-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.lp-term__out {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lp-term__chip {
+  font-size: 12.5px;
+  color: #d7e6dc;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  padding: 6px 10px;
+  opacity: 0;
+  animation: lp-chip-in 420ms ease forwards;
+}
+.lp-term__out .lp-term__chip:nth-child(1) {
+  animation-delay: 2.2s;
+}
+.lp-term__out .lp-term__chip:nth-child(2) {
+  animation-delay: 2.35s;
+}
+.lp-term__out .lp-term__chip:nth-child(3) {
+  animation-delay: 2.5s;
+}
+.lp-term__out .lp-term__chip:nth-child(4) {
+  animation-delay: 2.65s;
+}
+.lp-term__out .lp-term__chip:nth-child(5) {
+  animation-delay: 2.8s;
+}
+.lp-term__chip--ghost {
+  color: var(--lp-sprout);
+  background: transparent;
+  border-style: dashed;
+}
+@keyframes lp-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-sec--produce::before,
+  .lp-term__caret {
+    animation: none !important;
+  }
+  .lp-term__chip {
+    opacity: 1;
+    animation: none !important;
+  }
+  .lp-div {
+    transition: none;
+  }
+}
