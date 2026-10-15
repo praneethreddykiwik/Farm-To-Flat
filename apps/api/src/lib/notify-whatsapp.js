@@ -23,7 +23,19 @@
  * messages about the customer's own order, which is the category WhatsApp expects to be sent
  * without a separate subscription.
  */
-import { complaintTemplate, deliveryTemplate, sendTemplate, whatsappEnabled } from './msg91.js';
+import {
+  cancelRequestedTemplate,
+  cancelledTemplate,
+  complaintTemplate,
+  deliveredTemplate,
+  deliveryTemplate,
+  feedbackTemplate,
+  packedTemplate,
+  placedTemplate,
+  refundTemplate,
+  sendTemplate,
+  whatsappEnabled,
+} from './msg91.js';
 
 /** The first name we greet them by. Falls back to a neutral word rather than an empty variable, which Meta rejects. */
 const firstName = (customer) =>
@@ -96,4 +108,73 @@ export function notifyComplaintResolved(order, issue, customer) {
       params: [firstName(customer), order.orderNumber, words],
     }),
   );
+}
+
+/* ── the remaining lifecycle events ────────────────────────────────────────────
+ * Each mirrors an in-app/push notification. They send only when their template env var is set AND
+ * WhatsApp is enabled — otherwise dormant (app + push already covered the event). The params match
+ * the template bodies the owner submits (see NOTIFICATIONS-OWNER-STEPS.md). Every send is detached.
+ */
+function sendLifecycle(what, template, mobile, params) {
+  if (!whatsappEnabled || !template || !mobile) return;
+  detach(what, sendTemplate({ mobile, template, params }));
+}
+
+/** "Order placed" — params: name, orderNumber. */
+export function waOrderPlaced(order, customer) {
+  sendLifecycle(`placed ${order?.orderNumber}`, placedTemplate, customer?.mobile, [
+    firstName(customer),
+    order?.orderNumber,
+  ]);
+}
+
+/** "Packed & ready" — params: name, orderNumber. */
+export function waOrderPacked(order, customer) {
+  sendLifecycle(`packed ${order?.orderNumber}`, packedTemplate, customer?.mobile, [
+    firstName(customer),
+    order?.orderNumber,
+  ]);
+}
+
+/** "Delivered" — params: name, orderNumber. */
+export function waOrderDelivered(order, customer) {
+  sendLifecycle(`delivered ${order?.orderNumber}`, deliveredTemplate, customer?.mobile, [
+    firstName(customer),
+    order?.orderNumber,
+  ]);
+}
+
+/** "Cancelled" — params: name, orderNumber, refund line (a full sentence or a single space). */
+export function waOrderCancelled(order, customer, refundLine) {
+  sendLifecycle(`cancelled ${order?.orderNumber}`, cancelledTemplate, customer?.mobile, [
+    firstName(customer),
+    order?.orderNumber,
+    String(refundLine || '').trim() || 'No payment was taken.',
+  ]);
+}
+
+/** "Cancellation requested" — params: name, orderNumber. */
+export function waCancelRequested(order, customer) {
+  sendLifecycle(`cancel-req ${order?.orderNumber}`, cancelRequestedTemplate, customer?.mobile, [
+    firstName(customer),
+    order?.orderNumber,
+  ]);
+}
+
+/** "Refund initiated" — params: name, amount, orderNumber, days. */
+export function waRefundInitiated(order, customer, amountStr, days) {
+  sendLifecycle(`refund ${order?.orderNumber}`, refundTemplate, customer?.mobile, [
+    firstName(customer),
+    String(amountStr || ''),
+    order?.orderNumber,
+    String(days),
+  ]);
+}
+
+/** "How was your order?" — params: name, orderNumber. */
+export function waFeedbackInvite(order, customer) {
+  sendLifecycle(`feedback ${order?.orderNumber}`, feedbackTemplate, customer?.mobile, [
+    firstName(customer),
+    order?.orderNumber,
+  ]);
 }

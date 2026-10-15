@@ -157,6 +157,16 @@ export async function sendOtpWhatsApp({ mobile, otp }) {
 export const deliveryTemplate = WA_TEMPLATE_DELIVERY || null;
 export const complaintTemplate = WA_TEMPLATE_COMPLAINT || null;
 
+// The remaining lifecycle templates. Each is a separate approved UTILITY template read from its own
+// env var; any that is unset simply means that event is not sent over WhatsApp (app + push still go).
+export const placedTemplate = process.env.MSG91_WA_TEMPLATE_PLACED || null;
+export const packedTemplate = process.env.MSG91_WA_TEMPLATE_PACKED || null;
+export const deliveredTemplate = process.env.MSG91_WA_TEMPLATE_DELIVERED || null;
+export const cancelledTemplate = process.env.MSG91_WA_TEMPLATE_CANCELLED || null;
+export const cancelRequestedTemplate = process.env.MSG91_WA_TEMPLATE_CANCEL_REQUESTED || null;
+export const refundTemplate = process.env.MSG91_WA_TEMPLATE_REFUND || null;
+export const feedbackTemplate = process.env.MSG91_WA_TEMPLATE_FEEDBACK || null;
+
 /**
  * Meta rejects a template parameter containing a newline, a tab, or more than four consecutive
  * spaces — the whole send fails with a validation error, not a stripped character. Operators type

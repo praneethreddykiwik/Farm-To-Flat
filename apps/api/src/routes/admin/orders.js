@@ -29,7 +29,14 @@ import {
 } from '../../store.js';
 import { listCommunities } from '../../store.js';
 import { getCustomer, capturedPaymentForOrder } from '../../customer-store.js';
-import { notifyComplaintResolved, notifyOrderOnTheWay } from '../../lib/notify-whatsapp.js';
+import {
+  notifyComplaintResolved,
+  notifyOrderOnTheWay,
+  waOrderPacked,
+  waOrderDelivered,
+  waOrderCancelled,
+  waFeedbackInvite,
+} from '../../lib/notify-whatsapp.js';
 import { emitNotification, COPY } from '../../lib/notify.js';
 import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
@@ -457,6 +464,7 @@ function whenOf(order) {
  */
 function notifyCustomer(order) {
   if (!order?.customerId) return;
+  const customer = getCustomer(order.customerId);
   const when = order.status === 'OUT_FOR_DELIVERY' ? whenOf(order) : undefined;
   // In-app feed + push for each lifecycle status (order placed is handled at creation / payment).
   const builders = {
@@ -476,9 +484,11 @@ function notifyCustomer(order) {
       data: { orderId: order.id, orderNumber: order.orderNumber, status: order.status },
     });
   }
-  // WhatsApp for out-for-delivery stays on its existing approved template.
-  if (order.status === 'OUT_FOR_DELIVERY')
-    notifyOrderOnTheWay(order, getCustomer(order.customerId), when);
+  // WhatsApp per status — each dormant until its template env var is set.
+  if (order.status === 'PACKING') waOrderPacked(order, customer);
+  if (order.status === 'OUT_FOR_DELIVERY') notifyOrderOnTheWay(order, customer, when);
+  if (order.status === 'CANCELLED')
+    waOrderCancelled(order, customer, 'If you paid, a refund has been initiated.');
   // Right after a delivery, invite feedback / a rating.
   if (order.status === 'DELIVERED') {
     const fb = COPY.FEEDBACK_INVITE(order);
@@ -488,6 +498,8 @@ function notifyCustomer(order) {
       body: fb.body,
       data: { orderId: order.id, orderNumber: order.orderNumber, action: 'rate' },
     });
+    waOrderDelivered(order, customer);
+    waFeedbackInvite(order, customer);
   }
 }
 

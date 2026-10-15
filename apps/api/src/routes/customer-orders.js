@@ -46,6 +46,12 @@ import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
 import { emitNotification, COPY } from '../lib/notify.js';
+import {
+  waOrderPlaced,
+  waOrderCancelled,
+  waCancelRequested,
+  waRefundInitiated,
+} from '../lib/notify-whatsapp.js';
 
 // How long a refund typically takes to reach the customer (gateway refunds). Shown in the refund
 // notification so the customer is not left wondering. Wallet refunds are instant but we quote the
@@ -241,6 +247,7 @@ customerOrdersRouter.post(
         body: placed.body,
         data: { orderId: order.id, orderNumber: order.orderNumber, action: 'track' },
       });
+      waOrderPlaced(order, customer);
     }
 
     let paymentIntent = null;
@@ -366,6 +373,7 @@ customerOrdersRouter.post(
         body: cr.body,
         data: { orderId: updated.id, orderNumber: updated.orderNumber },
       });
+      waCancelRequested(updated, getCustomer(cid));
       return res.json({
         order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
         cancelled: false,
@@ -386,6 +394,12 @@ customerOrdersRouter.post(
       body: cc.body,
       data: { orderId: updated.id, orderNumber: updated.orderNumber, refundPaise },
     });
+    const customerC = getCustomer(cid);
+    const refundLine =
+      refundPaise > 0
+        ? `A refund of ₹${Math.round(refundPaise / 100)} has been initiated.`
+        : 'No payment was taken.';
+    waOrderCancelled(updated, customerC, refundLine);
     if (refundPaise > 0) {
       const rf = COPY.REFUND_INITIATED({ ...updated, refundPaise }, REFUND_DAYS);
       emitNotification(cid, {
@@ -394,6 +408,7 @@ customerOrdersRouter.post(
         body: rf.body,
         data: { orderId: updated.id, orderNumber: updated.orderNumber, refundPaise },
       });
+      waRefundInitiated(updated, customerC, `₹${Math.round(refundPaise / 100)}`, REFUND_DAYS);
     }
     res.json({
       order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
