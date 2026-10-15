@@ -9,7 +9,7 @@ import { KV_KEYS, kv } from '../lib/kv';
 export const api = createApi({
   reducerPath: 'api',
   baseQuery,
-  tagTypes: ['Me', 'Addresses', 'Catalog', 'Cart', 'Windows', 'Orders', 'Wallet'],
+  tagTypes: ['Me', 'Addresses', 'Catalog', 'Cart', 'Windows', 'Orders', 'Wallet', 'Notifications'],
   endpoints: (b) => ({
     // ---- auth ----
     requestOtp: b.mutation({
@@ -171,6 +171,21 @@ export const api = createApi({
     }),
     registerDevice: b.mutation({ query: (body) => ({ url: '/devices', method: 'POST', body }) }),
 
+    // ---- notifications (the in-app notification centre) ----
+    getNotifications: b.query({ query: () => '/notifications', providesTags: ['Notifications'] }),
+    getUnreadCount: b.query({
+      query: () => '/notifications/unread-count',
+      providesTags: ['Notifications'],
+    }),
+    markNotificationRead: b.mutation({
+      query: (id) => ({ url: `/notifications/${id}/read`, method: 'POST', body: {} }),
+      invalidatesTags: ['Notifications'],
+    }),
+    markAllNotificationsRead: b.mutation({
+      query: () => ({ url: '/notifications/read-all', method: 'POST', body: {} }),
+      invalidatesTags: ['Notifications'],
+    }),
+
     // ---- ai planner (production path; keeps the provider key server-side) ----
     aiPlan: b.mutation({ query: (body) => ({ url: '/ai/plan', method: 'POST', body }) }),
 
@@ -213,6 +228,10 @@ export const {
   useCreateTopupMutation,
   useVerifyPaymentMutation,
   useRegisterDeviceMutation,
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkNotificationReadMutation,
+  useMarkAllNotificationsReadMutation,
   useAiPlanMutation,
   useAiIdentifyMutation,
 } = api;
