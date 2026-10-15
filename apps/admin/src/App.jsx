@@ -95,6 +95,66 @@ function AdminShell() {
 /** Addresses that are public and chrome-free: no sidebar, no sign-in, customer-facing titles. */
 const PUBLIC = new Set(['/', '/privacy', '/terms', ...Object.keys(PAGES).map((p) => `/${p}`)]);
 
+/**
+ * The operator console lives ONLY at these addresses. Anything else — /mm, a typo, a probe — is a
+ * 404, not the sign-in screen. Previously every unmatched path fell through to <SignIn/>, so the
+ * whole domain looked like a login wall and leaked the fact that an operator panel exists.
+ */
+const ADMIN_PATHS = new Set([
+  '/admin',
+  '/catalog',
+  '/pricing',
+  '/coupons',
+  '/communities',
+  '/orders',
+  '/procurement',
+  '/fulfilment',
+  '/complaints',
+  '/stats',
+  '/access',
+  '/settings',
+  '/charges',
+  '/payments',
+]);
+
+/** Public, chrome-free "page not found" — sends people back to the site, reveals nothing. */
+function NotFound() {
+  return (
+    <>
+      <Background />
+      <main
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 14,
+          textAlign: 'center',
+          padding: 24,
+        }}
+      >
+        <IconLeaf size={40} style={{ color: 'var(--sprout)' }} />
+        <h1 style={{ margin: 0, fontSize: 28 }}>Page not found</h1>
+        <p style={{ margin: 0, color: 'var(--muted, #8a988c)', maxWidth: 420 }}>
+          That address doesn’t exist on Fooducia.
+        </p>
+        <a
+          href="/"
+          style={{
+            marginTop: 6,
+            color: 'var(--sprout)',
+            textDecoration: 'none',
+            fontWeight: 600,
+          }}
+        >
+          Go to fooducia.in
+        </a>
+      </main>
+    </>
+  );
+}
+
 function Root() {
   // /privacy and /terms are public and chrome-free — customers open them from the app, so no
   // sidebar and no login.
@@ -110,9 +170,11 @@ function Root() {
     const policy = PAGES[pathname.slice(1)];
     document.title = policy
       ? `${policy.title.en} · Fooducia`
-      : !PUBLIC.has(pathname)
+      : ADMIN_PATHS.has(pathname)
         ? 'Fooducia · Operations'
-        : 'Fooducia — vegetables harvested after you order';
+        : !PUBLIC.has(pathname)
+          ? 'Page not found · Fooducia'
+          : 'Fooducia — vegetables harvested after you order';
   }, [pathname]);
 
   // The customer-facing site is what `/` is for now. The operator panel lives at /admin and the
@@ -123,8 +185,10 @@ function Root() {
   // /refunds, /shipping, /contact — views onto the Terms sections. Public, like the two above.
   const policy = pathname.slice(1);
   if (PAGES[policy]) return <PolicyPage page={policy} />;
-  if (!token) return <SignIn />;
-  return <AdminShell />;
+  // The operator console is reachable only at its own addresses. Everything else is a real 404,
+  // so random URLs no longer surface the sign-in gate.
+  if (ADMIN_PATHS.has(pathname)) return token ? <AdminShell /> : <SignIn />;
+  return <NotFound />;
 }
 
 export function App() {
