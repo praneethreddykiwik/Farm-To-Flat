@@ -27,6 +27,7 @@ import { Terms } from './screens/Terms.jsx';
 import { PolicyPage, PAGES } from './screens/PolicyPage.jsx';
 import { SignIn } from './screens/SignIn.jsx';
 import { Landing } from './screens/Landing.jsx';
+import { NotFound } from './screens/NotFound.jsx';
 import { getToken, onAuthChange } from './lib/auth.js';
 
 /** The operator app: sidebar + the admin screens. Everything except the public privacy page. */
@@ -116,44 +117,6 @@ const ADMIN_PATHS = new Set([
   '/charges',
   '/payments',
 ]);
-
-/** Public, chrome-free "page not found" — sends people back to the site, reveals nothing. */
-function NotFound() {
-  return (
-    <>
-      <Background />
-      <main
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 14,
-          textAlign: 'center',
-          padding: 24,
-        }}
-      >
-        <IconLeaf size={40} style={{ color: 'var(--sprout)' }} />
-        <h1 style={{ margin: 0, fontSize: 28 }}>Page not found</h1>
-        <p style={{ margin: 0, color: 'var(--muted, #8a988c)', maxWidth: 420 }}>
-          That address doesn’t exist on Fooducia.
-        </p>
-        <a
-          href="/"
-          style={{
-            marginTop: 6,
-            color: 'var(--sprout)',
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
-        >
-          Go to fooducia.in
-        </a>
-      </main>
-    </>
-  );
-}
 
 function Root() {
   // /privacy and /terms are public and chrome-free — customers open them from the app, so no
