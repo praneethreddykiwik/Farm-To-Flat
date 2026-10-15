@@ -22,6 +22,7 @@
     },
     "android": {
       "package": "in.farmtoflat.customer",
+      "allowBackup": false,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#0B1510",
