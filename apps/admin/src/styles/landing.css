@@ -155,19 +155,26 @@
 .lp-eyebrow {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
+  width: fit-content;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--lp-leaf);
+  color: var(--lp-leaf-deep);
+  background: var(--lp-leaf-soft);
+  border: 1px solid rgba(30, 122, 76, 0.16);
+  padding: 6px 13px 6px 11px;
+  border-radius: 999px;
 }
 .lp-eyebrow::before {
   content: '';
-  width: 22px;
-  height: 1px;
-  background: currentColor;
-  opacity: 0.6;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lp-sprout-deep);
+  box-shadow: 0 0 0 3px rgba(159, 209, 44, 0.25);
 }
 .lp-lede {
   font-size: clamp(1.05rem, 1.6vw, 1.22rem);
@@ -387,7 +394,21 @@
 }
 .lp-hero h1 em {
   font-style: italic;
+  background: linear-gradient(
+    100deg,
+    var(--lp-leaf-deep) 0%,
+    var(--lp-leaf) 42%,
+    var(--lp-sprout-deep) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: var(--lp-leaf);
+}
+/* a touch more drama on the hero headline */
+.lp-hero h1 {
+  font-size: clamp(2.9rem, 6.6vw, 5rem);
+  letter-spacing: -0.03em;
 }
 .lp-hero__proof {
   display: flex;
@@ -837,12 +858,25 @@
   box-shadow: var(--lp-lift);
 }
 .lp-card__ic {
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
   display: grid;
   place-items: center;
   color: var(--lp-leaf-deep);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 6px 16px rgba(14, 27, 20, 0.08);
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lp-card:hover .lp-card__ic {
+  transform: scale(1.08) rotate(-4deg);
+}
+.lp-card h3 {
+  font-size: 1.22rem;
+}
+.lp-card {
+  padding: 28px;
 }
 .lp-card p {
   color: var(--lp-ink-2);
@@ -1508,7 +1542,7 @@
   position: absolute;
   display: block;
   transform: rotate(var(--pr-rot, 0deg));
-  filter: drop-shadow(0 10px 16px rgba(26, 59, 38, 0.18));
+  filter: drop-shadow(0 12px 18px rgba(26, 59, 38, 0.22)) saturate(1.08) contrast(1.03);
   animation: pr-float var(--pr-dur, 10s) ease-in-out var(--pr-delay, 0s) infinite;
   will-change: transform;
 }
@@ -1545,7 +1579,7 @@
 .pr-burst__item {
   position: absolute;
   display: block;
-  filter: drop-shadow(0 14px 22px rgba(26, 59, 38, 0.22));
+  filter: drop-shadow(0 16px 26px rgba(26, 59, 38, 0.26)) saturate(1.1) contrast(1.04);
   animation:
     pr-throw 0.95s cubic-bezier(0.18, 0.9, 0.3, 1.2) var(--pr-delay, 0s) both,
     pr-bob var(--pr-dur, 9s) ease-in-out calc(var(--pr-delay, 0s) + 0.95s) infinite;
@@ -1671,6 +1705,12 @@
 }
 .lp-nav__in .lp-btn--primary {
   padding: 10px 18px;
+  background: linear-gradient(135deg, var(--lp-sprout), var(--lp-sprout-deep));
+  color: #16340a;
+  box-shadow: 0 8px 20px rgba(159, 209, 44, 0.4);
+}
+.lp-nav__in .lp-btn--primary:hover {
+  box-shadow: 0 12px 26px rgba(159, 209, 44, 0.52);
 }
 
 /* ── hero aurora (Octolane) ──────────────────────────────────────────────── */

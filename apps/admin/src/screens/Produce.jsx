@@ -435,6 +435,78 @@ export function Ginger() {
   );
 }
 
+export function Capsicum() {
+  return (
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <radialGradient id="cp-b" cx="36%" cy="28%" r="78%">
+          <stop offset="0%" stopColor="#8fe06a" />
+          <stop offset="48%" stopColor="#43b23f" />
+          <stop offset="100%" stopColor="#237a2c" />
+        </radialGradient>
+      </defs>
+      <Shadow cy={90} rx={28} ry={5} />
+      <path
+        d="M30 36c-6-4-4-12 2-13 5-1 8 3 9 7 2-6 9-6 11 0 1-4 5-8 10-7 6 1 8 9 2 13 8 2 14 11 14 24 0 18-13 28-28 28S22 78 22 60c0-13 6-22 8-24z"
+        fill="url(#cp-b)"
+      />
+      <path
+        d="M36 44c-3 14-3 30 2 42M64 44c3 14 3 30-2 42M50 42v46"
+        stroke="#1f6e2a"
+        strokeWidth="2"
+        fill="none"
+        opacity="0.4"
+      />
+      <path d="M48 23c0-6 3-10 7-11 1 5-1 10-5 12l6 2c-3 2-6 2-8-3z" fill="#3b8f36" />
+      <ellipse
+        cx="38"
+        cy="48"
+        rx="7"
+        ry="13"
+        fill="#fff"
+        opacity="0.3"
+        transform="rotate(-12 38 48)"
+      />
+    </svg>
+  );
+}
+
+export function Brinjal() {
+  return (
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <radialGradient id="bj-b" cx="36%" cy="30%" r="80%">
+          <stop offset="0%" stopColor="#9b5fd0" />
+          <stop offset="50%" stopColor="#5f2e94" />
+          <stop offset="100%" stopColor="#36175a" />
+        </radialGradient>
+        <linearGradient id="bj-c" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#6fc24a" />
+          <stop offset="100%" stopColor="#3b8f36" />
+        </linearGradient>
+      </defs>
+      <Shadow cx={54} cy={90} rx={26} ry={5} />
+      <path
+        d="M40 34c14-8 34-4 42 12 9 18-2 40-22 44-20 4-38-8-40-26-2-16 8-26 20-30z"
+        fill="url(#bj-b)"
+      />
+      <g fill="url(#bj-c)">
+        <path d="M40 34c-6-6-6-14-2-20 4 3 6 7 6 12 3-5 8-8 14-7-2 6-7 10-13 11 4 2 6 5 5 9-4-1-8-3-10-5z" />
+      </g>
+      <path d="M44 28c-2-6-1-12 3-16 2 5 2 11-3 16z" fill="#2f7d3c" />
+      <ellipse
+        cx="46"
+        cy="48"
+        rx="9"
+        ry="16"
+        fill="#fff"
+        opacity="0.22"
+        transform="rotate(-24 46 48)"
+      />
+    </svg>
+  );
+}
+
 /** The full set, keyed, so layers can pick by name. */
 export const PIECES = {
   tomato: Tomato,
@@ -448,6 +520,8 @@ export const PIECES = {
   mint: Mint,
   garlic: Garlic,
   ginger: Ginger,
+  capsicum: Capsicum,
+  brinjal: Brinjal,
 };
 
 const ALL_KEYS = Object.keys(PIECES);
