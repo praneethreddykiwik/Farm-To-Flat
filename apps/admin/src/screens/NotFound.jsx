@@ -153,7 +153,7 @@ export function NotFound() {
           been moved, or it never grew here.
         </p>
         <a className="nf-btn" href="/">
-          🌿 Back to fooducia.in
+          🌿 Back to fooducia.health
         </a>
       </div>
     </div>

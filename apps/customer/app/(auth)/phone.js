@@ -125,7 +125,7 @@ export default function PhoneScreen() {
             <Text
               variant="smallMedium"
               color={colors.leafDeep}
-              onPress={() => Linking.openURL('https://fooducia.in/terms').catch(() => {})}
+              onPress={() => Linking.openURL('https://fooducia.health/terms').catch(() => {})}
             >
               terms
             </Text>{' '}
@@ -133,7 +133,7 @@ export default function PhoneScreen() {
             <Text
               variant="smallMedium"
               color={colors.leafDeep}
-              onPress={() => Linking.openURL('https://fooducia.in/privacy').catch(() => {})}
+              onPress={() => Linking.openURL('https://fooducia.health/privacy').catch(() => {})}
             >
               privacy policy
             </Text>

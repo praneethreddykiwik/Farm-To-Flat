@@ -185,7 +185,7 @@ export default function StaffConsole() {
             </Pressable>
             <Pressable
               style={styles.card}
-              onPress={() => Linking.openURL('https://fooducia.in').catch(() => {})}
+              onPress={() => Linking.openURL('https://fooducia.health').catch(() => {})}
             >
               <Text style={styles.cardIcon}>🖥️</Text>
               <View style={{ flex: 1 }}>

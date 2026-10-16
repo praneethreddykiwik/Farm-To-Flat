@@ -456,7 +456,7 @@ export default function Profile() {
           {/* Carry the reader's language to the web page, which renders in all three. */}
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://fooducia.in/privacy?lang=${lang}`).catch(() => {})
+              Linking.openURL(`https://fooducia.health/privacy?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >
@@ -466,7 +466,7 @@ export default function Profile() {
           </Pressy>
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://fooducia.in/terms?lang=${lang}`).catch(() => {})
+              Linking.openURL(`https://fooducia.health/terms?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >
@@ -476,7 +476,7 @@ export default function Profile() {
           </Pressy>
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://fooducia.in/refunds?lang=${lang}`).catch(() => {})
+              Linking.openURL(`https://fooducia.health/refunds?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >
@@ -486,7 +486,7 @@ export default function Profile() {
           </Pressy>
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://fooducia.in/shipping?lang=${lang}`).catch(() => {})
+              Linking.openURL(`https://fooducia.health/shipping?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >
@@ -496,7 +496,7 @@ export default function Profile() {
           </Pressy>
           <Pressy
             onPress={() =>
-              Linking.openURL(`https://fooducia.in/contact?lang=${lang}`).catch(() => {})
+              Linking.openURL(`https://fooducia.health/contact?lang=${lang}`).catch(() => {})
             }
             haptics="select"
           >
