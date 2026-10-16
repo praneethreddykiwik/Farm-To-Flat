@@ -384,9 +384,12 @@ customerOrdersRouter.post(
     // Everything before the packing bench — cancel outright and refund now.
     const { order: updated } = cancelOrder(req.params.id);
     // What actually gets refunded: any wallet money applied, plus any captured gateway payment.
+    // Split the refund by destination: wallet money (walletAppliedPaise) comes back to the wallet
+    // instantly; gateway money (a captured Razorpay payment) returns to the bank/UPI it came from.
     const pay = capturedPaymentForOrder(updated.id);
-    const refundPaise =
-      Number(updated.walletAppliedPaise || 0) + (pay ? Number(pay.amountPaise || 0) : 0);
+    const walletPaise = Number(updated.walletAppliedPaise || 0);
+    const bankPaise = pay ? Number(pay.amountPaise || 0) : 0;
+    const refundPaise = walletPaise + bankPaise;
     const cc = COPY.ORDER_CANCELLED({ ...updated, refundPaise });
     emitNotification(cid, {
       type: 'ORDER_CANCELLED',
@@ -401,14 +404,23 @@ customerOrdersRouter.post(
         : 'No payment was taken.';
     waOrderCancelled(updated, customerC, refundLine);
     if (refundPaise > 0) {
-      const rf = COPY.REFUND_INITIATED({ ...updated, refundPaise }, REFUND_DAYS);
+      const rf = COPY.REFUND_INITIATED(updated, { bankPaise, walletPaise, days: REFUND_DAYS });
       emitNotification(cid, {
         type: 'REFUND_INITIATED',
         title: rf.title,
         body: rf.body,
-        data: { orderId: updated.id, orderNumber: updated.orderNumber, refundPaise },
+        data: {
+          orderId: updated.id,
+          orderNumber: updated.orderNumber,
+          refundPaise,
+          bankPaise,
+          walletPaise,
+        },
       });
-      waRefundInitiated(updated, customerC, `₹${Math.round(refundPaise / 100)}`, REFUND_DAYS);
+      // WhatsApp refund message only applies to the bank-bound portion (it speaks of working days);
+      // a pure wallet refund is instant and covered by the in-app notification above.
+      if (bankPaise > 0)
+        waRefundInitiated(updated, customerC, `₹${Math.round(bankPaise / 100)}`, REFUND_DAYS);
     }
     res.json({
       order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),

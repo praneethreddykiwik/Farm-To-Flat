@@ -91,10 +91,20 @@ export const COPY = {
     title: 'Cancellation requested',
     body: `We've received your request to cancel ${o.orderNumber}. As it was already packed, our team will confirm shortly.`,
   }),
-  REFUND_INITIATED: (o, days) => ({
-    title: 'Refund initiated 💸',
-    body: `A refund for ${o.orderNumber}${o.refundPaise ? ` of ${rupees(o.refundPaise)}` : ''} has been initiated. It usually reaches you in ${days} working day${days === 1 ? '' : 's'}.`,
-  }),
+  // Refund copy says WHERE the money goes: gateway (UPI/card) money returns to the bank account
+  // and takes a few working days; wallet money is credited back to the Fooducia wallet instantly.
+  REFUND_INITIATED: (o, { bankPaise = 0, walletPaise = 0, days = 5 } = {}) => {
+    const d = `${days} working day${days === 1 ? '' : 's'}`;
+    let body;
+    if (bankPaise > 0 && walletPaise > 0) {
+      body = `Your refund for ${o.orderNumber} has been initiated: ${rupees(bankPaise)} back to your bank account (in about ${d}) and ${rupees(walletPaise)} added to your Fooducia wallet (ready now).`;
+    } else if (bankPaise > 0) {
+      body = `Your refund of ${rupees(bankPaise)} for ${o.orderNumber} is on its way to your bank account — it usually arrives within ${d}.`;
+    } else {
+      body = `${rupees(walletPaise)} for ${o.orderNumber} has been added back to your Fooducia wallet — it's ready to use now.`;
+    }
+    return { title: 'Refund initiated 💸', body };
+  },
   FEEDBACK_INVITE: (o) => ({
     title: 'How was your order? ⭐',
     body: `We'd love your feedback on ${o.orderNumber}. Tap to rate your order — it takes a moment.`,
