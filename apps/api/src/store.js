@@ -66,7 +66,7 @@ const db = {
     tax: { enabled: false, label: 'GST', goodsRateBps: 0, feeRateBps: 1800 },
     // Support contact shown in the app. Each channel is shown to customers only when its toggle is on.
     support: {
-      email: 'support@farmtoflat.in',
+      email: 'support@fooducia.health',
       phone: '',
       showEmail: true,
       showPhone: false,

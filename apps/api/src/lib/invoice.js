@@ -218,7 +218,7 @@ export function buildInvoicePdf(order) {
       .text(
         'This is a computer-generated invoice and does not require a signature. ' +
           'For any query about this order, contact us at ' +
-          (seller.email || 'support@fooducia.in') +
+          (seller.email || 'support@fooducia.health') +
           '. Weighed items are billed on packed weight.',
         left,
         footY + 10,

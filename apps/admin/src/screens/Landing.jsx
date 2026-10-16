@@ -1433,7 +1433,7 @@ export function Landing() {
                 <div className="lp-foot__col">
                   <b>Get in touch</b>
                   <a href="/contact">Contact us</a>
-                  <a href="mailto:support@fooducia.in">support@fooducia.in</a>
+                  <a href="mailto:support@fooducia.health">support@fooducia.health</a>
                 </div>
               </div>
             </div>
