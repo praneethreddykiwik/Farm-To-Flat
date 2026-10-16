@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, MapPin, RotateCcw, Share2 } from 'lucide-react-native';
+import { ArrowLeft, Download, MapPin, RotateCcw, Share2 } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -30,6 +30,9 @@ import {
   useSetCartItemMutation,
 } from '../../src/api/api';
 import { showToast } from '../../src/features/ui/uiSlice';
+import { downloadAndShare } from '../../src/lib/downloadFile';
+import { selectAccessToken } from '../../src/features/auth/authSlice';
+import { API_BASE } from '../../src/lib/env';
 import { colors, radius } from '../../src/theme';
 import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
@@ -65,6 +68,30 @@ export default function OrderDetail() {
   const [reportIssue, { isLoading: reporting }] = useReportOrderIssueMutation();
   const [setCartItem] = useSetCartItemMutation();
   const [reordering, setReordering] = useState(false);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const accessToken = useSelector(selectAccessToken);
+
+  // Fetch the order's invoice PDF (built server-side from the stored bill) and hand it to the share
+  // sheet so the customer can save it to Files / Drive or send it on. Available once confirmed.
+  const downloadInvoice = async () => {
+    if (!order) return;
+    setInvoiceBusy(true);
+    try {
+      const { shared, reason } = await downloadAndShare({
+        url: `${API_BASE}/orders/${id}/invoice`,
+        filename: `Fooducia-invoice-${order.orderNumber}.pdf`,
+        token: accessToken,
+        mime: 'application/pdf',
+        uti: 'com.adobe.pdf',
+        dialogTitle: 'Your Fooducia invoice',
+      });
+      if (!shared && reason) dispatch(showToast({ title: reason, tone: 'neutral' }));
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || 'Could not download the invoice', tone: 'error' }));
+    } finally {
+      setInvoiceBusy(false);
+    }
+  };
   const order = data?.order;
 
   // Fire a local banner when the status actually changes (not on first load).
@@ -313,6 +340,21 @@ export default function OrderDetail() {
                 </View>
               </Glass>
             </Animated.View>
+
+            {order.status !== 'PENDING_PAYMENT' && order.status !== 'PAYMENT_FAILED' ? (
+              <Animated.View
+                entering={FadeInDown.delay(150).duration(360)}
+                style={{ marginTop: 16 }}
+              >
+                <Button
+                  title="Download invoice"
+                  variant="glass"
+                  onPress={downloadInvoice}
+                  loading={invoiceBusy}
+                  icon={<Download size={18} color={colors.ink} />}
+                />
+              </Animated.View>
+            ) : null}
 
             {order.canCancel || order.canRequestCancel ? (
               <Animated.View

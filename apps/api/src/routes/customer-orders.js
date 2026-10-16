@@ -46,6 +46,7 @@ import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
 import { emitNotification, COPY } from '../lib/notify.js';
+import { buildInvoicePdf, invoiceNumberOf } from '../lib/invoice.js';
 import {
   waOrderPlaced,
   waOrderCancelled,
@@ -315,6 +316,25 @@ customerOrdersRouter.get(
     const o = getOrderForCustomer(req.params.id, req.customerId);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
     res.json({ order: linkOrderIssuePhotos(orderCustomer(o), baseUrlOf(req)) });
+  }),
+);
+
+/**
+ * The order's invoice as a PDF (base64), built from the order's own stored snapshot. Available once
+ * the order is confirmed (an order still awaiting payment has nothing to invoice yet). The app saves
+ * the bytes to a file and shares / downloads them.
+ */
+customerOrdersRouter.get(
+  '/:id/invoice',
+  asyncHandler(async (req, res) => {
+    const o = getOrderForCustomer(req.params.id, req.customerId);
+    if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    if (o.status === 'PENDING_PAYMENT' || o.status === 'PAYMENT_FAILED')
+      throw fail(409, 'NO_INVOICE', 'An invoice is available once the order is confirmed.');
+    const pdf = await buildInvoicePdf(o);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoiceNumberOf(o)}.pdf"`);
+    res.send(pdf);
   }),
 );
 
