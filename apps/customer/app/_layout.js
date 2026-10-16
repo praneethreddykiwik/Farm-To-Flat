@@ -92,13 +92,12 @@ function AuthGate({ ready }) {
   useEffect(() => {
     if (auth.status !== 'signedIn' || roleState.resolved || !auth.customer?.mobile) return;
     let alive = true;
-    const mobile = auth.customer.mobile;
     const withTimeout = (p, ms) =>
       Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
     (async () => {
       for (let attempt = 0; attempt < 4 && alive; attempt++) {
         try {
-          const r = await withTimeout(adminApi.resolveRole(mobile), 25000);
+          const r = await withTimeout(adminApi.resolveRole(), 25000);
           if (alive) dispatch(roleResolved(r));
           return;
         } catch {

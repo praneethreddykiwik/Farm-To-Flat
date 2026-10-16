@@ -61,7 +61,10 @@ async function j(url, opts = {}, retried = false) {
 
 export const adminApi = {
   /** the access seam — which role/sections/AI a phone number has */
-  resolveRole: (mobile) => j(`${V1}/access/resolve?mobile=${encodeURIComponent(mobile)}`),
+  // The server resolves the caller's OWN number from the Bearer session and ignores any ?mobile=
+  // param, so we don't send it — keeping the customer's phone number out of the request URL (and
+  // therefore out of server access logs).
+  resolveRole: () => j(`${V1}/access/resolve`),
   metrics: () => j(`${ADMIN}/metrics`),
   procurement: (qs = '') => j(`${ADMIN}/procurement${qs}`),
   /** Every customer note on the live orders — what the buyer and the delivery team act on. */
