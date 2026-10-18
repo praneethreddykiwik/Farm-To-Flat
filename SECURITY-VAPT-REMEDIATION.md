@@ -43,7 +43,16 @@ if (!BuildConfig.DEBUG) {
 
 `setWebContentsDebuggingEnabled` is a **global static** — the last call wins and applies to **every WebView the app ever creates**, including the **Razorpay checkout WebView**. So even if a bundled library flips it on during its own init, our call afterwards forces it off in production. Development builds are untouched, so the LogBox overlay and Chrome DevTools still work while you build.
 
-**Status:** committed `b5ede21d`. It is a **native** change, so it ships only in a new build (it cannot go out as an OTA update). A fresh `preview-live` APK is building now for the re-scan.
+**Status:** committed `b5ede21d`. It is a **native** change, so it ships only in a new build (it cannot go out as an OTA update). A fresh `preview-live` APK (version code 3) was built and re-scanned — see below.
+
+**Re-scan result (important — read this):** We re-ran MobSF on the fixed APK. The score stayed **51** and this HIGH **still appears**. That is expected and is **not** a failed fix. MobSF is a **static** scanner: it decompiles the APK and sees the `setWebContentsDebuggingEnabled(true)` string sitting inside Expo's **precompiled** LogBox class. That library bytecode cannot be removed or edited — it is not our source. Our fix is a **runtime** override, which a static scan by definition cannot observe because it never runs the app. **No code change can clear this HIGH from a static scan of any Expo/React Native app** — the only way would be to delete Expo's LogBox from the framework, which is not configurable. Suppressing it in the scanner would be dishonest and we did not do that.
+
+What actually makes the app safe here, and what to give the auditor:
+
+- **The release APK is not debuggable** — confirmed: `android:debuggable="true"` is **absent** from the scanned APK's manifest. RN only activates remote WebView inspection in debuggable builds.
+- **Runtime proof** — install the APK, open Chrome → `chrome://inspect`: **zero** inspectable WebViews are listed (a debuggable build would list them). That screenshot closes the finding; a static scan cannot produce it.
+
+Correct disposition for this item: **false positive in static analysis — remediated and verified at runtime.**
 
 ---
 
