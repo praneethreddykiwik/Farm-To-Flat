@@ -25,10 +25,43 @@
  * itself, capped at maxSdkVersion=32, and removing them would break photographing a vegetable
  * or a damaged delivery on Android 10-12.
  */
-const { AndroidConfig, withAndroidManifest } = require('expo/config-plugins');
+const { AndroidConfig, withAndroidManifest, withMainApplication } = require('expo/config-plugins');
 
 /** Permissions from the bare template that nothing in this app uses. */
 const DROP = ['android.permission.SYSTEM_ALERT_WINDOW'];
+
+/**
+ * Remote WebView debugging off in release.
+ *
+ * A VAPT static scan flags `WebView.setWebContentsDebuggingEnabled(true)` inside Expo's LogBox
+ * (expo/modules/logbox/ExpoLogBoxWebViewWrapper) — the on-device dev error overlay. React Native
+ * only ever turns remote WebView inspection on for a *debuggable* build, and a release AAB/APK is
+ * not debuggable, so it is already off in production. But the auditor wants proof, and defence in
+ * depth is cheap: we call setWebContentsDebuggingEnabled(false) ourselves at app start in every
+ * non-debug build. It is a global static, so this last call wins for every WebView the app ever
+ * creates (including the Razorpay checkout WebView). Dev builds are untouched, so the LogBox overlay
+ * and Chrome DevTools still work while developing.
+ */
+const withWebViewDebuggingOff = (config) =>
+  withMainApplication(config, (cfg) => {
+    let src = cfg.modResults.contents;
+    if (src.includes('setWebContentsDebuggingEnabled(false)')) return cfg; // idempotent
+    const kotlin = cfg.modResults.language === 'kt';
+    const guard = kotlin
+      ? '\n    if (!BuildConfig.DEBUG) {\n      android.webkit.WebView.setWebContentsDebuggingEnabled(false)\n    }'
+      : '\n    if (!BuildConfig.DEBUG) {\n      android.webkit.WebView.setWebContentsDebuggingEnabled(false);\n    }';
+    const anchor = /super\.onCreate\(\);?/;
+    if (!anchor.test(src)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[with-android-hardening] could not find super.onCreate() to guard WebView debugging',
+      );
+      return cfg;
+    }
+    src = src.replace(anchor, (m) => `${m}${guard}`);
+    cfg.modResults.contents = src;
+    return cfg;
+  });
 
 const withAndroidHardening = (config) =>
   withAndroidManifest(config, (cfg) => {
