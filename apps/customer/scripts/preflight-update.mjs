@@ -31,8 +31,7 @@ const REQUIRED = {
   // The one that caused it. '0' is the only value that means "talk to the real API"; anything else
   // is either mocks or a typo, and both are worth stopping for.
   EXPO_PUBLIC_USE_MOCKS: (v) => v === '0',
-  EXPO_PUBLIC_SUPABASE_URL: (v) => /^https:\/\//.test(v),
-  EXPO_PUBLIC_SUPABASE_ANON_KEY: (v) => v.length > 40,
+  // Supabase vars intentionally removed — images are proxied by the API, so the client ships neither.
 };
 
 let raw;

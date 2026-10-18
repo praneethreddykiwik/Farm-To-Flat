@@ -53,8 +53,9 @@ need(
   (v) => /^https?:\/\//.test(v) && !/(localhost|127\.0\.0\.1)/.test(v),
   'must be an absolute, non-localhost URL',
 );
-need('EXPO_PUBLIC_SUPABASE_URL', (v) => /^https:\/\//.test(v), 'must be an https URL');
-need('EXPO_PUBLIC_SUPABASE_ANON_KEY', (v) => v.length > 40, 'looks too short to be a real anon key');
+// No Supabase vars any more: the app never talks to supabase.co directly. Product images come back
+// from our own API already pointing at the /api/v1/img proxy, so the client needs neither the
+// Supabase URL nor the anon key — and we don't ship them, keeping the storage host off the device.
 need('EXPO_PUBLIC_USE_MOCKS', (v) => v === '0', 'must be "0" for a build that talks to the real API');
 
 // There is deliberately no Razorpay key check here any more. The app takes the key id from the

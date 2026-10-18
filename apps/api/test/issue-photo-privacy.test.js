@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { issuePhotoPath } from '../src/lib/storage.js';
 
 const PUBLIC_URL =
-  'https://anphxxszdqkqnbzdsrre.supabase.co/storage/v1/object/public/order-issues/ord_h0G2IxaGbd/1790339037184-7m7osi.png';
+  'https://proj.supabase.co/storage/v1/object/public/order-issues/ord_h0G2IxaGbd/1790339037184-7m7osi.png';
 
 describe('recovering the object path from whatever is stored', () => {
   it('reads the path out of a legacy public URL', () => {

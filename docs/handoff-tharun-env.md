@@ -14,7 +14,7 @@ stand up the services below and hand back the values in §5.
 
 | Thing                           | State                                                                                                                                                          |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase project                | **Created by owner.** Ref `anphxxszdqkqnbzdsrre`, region `ap-south-1`. URL + anon (publishable) key are in `apps/customer/.env`.                               |
+| Supabase project                | **Created by owner.** Ref `<ref>`, region `ap-south-1`. URL + anon (publishable) key are in `apps/customer/.env`.                                              |
 | Supabase Auth — phone/OTP       | **Disabled** (`phone:false`). Not used in P1 anyway — OTP is handled by the API via MSG91 + Redis (see §1). Leave off unless we switch to Supabase Auth later. |
 | Database tables                 | **Not yet created.** DDL is ready in `db/schema.sql` (17-entity model per TDD §03). Apply it — see §4 step 1.                                                  |
 | Storage bucket `product-images` | **Not yet created.** Public read. The app resolves `bucket/path` → public URL via `src/lib/supabase.js`.                                                       |
@@ -30,16 +30,16 @@ stand up the services below and hand back the values in §5.
 
 ## 1. Accounts to create (owner + Tharun, Day 0–1)
 
-| Service                           | Purpose                                                | Who                 | Lead time                         | Notes                                                                                                                                                |
-| --------------------------------- | ------------------------------------------------------ | ------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase project                  | Postgres 17, Storage for product images                | **Done (owner)**    | —                                 | Ref `anphxxszdqkqnbzdsrre`, `ap-south-1`. Enable extensions `pgcrypto`, `pg_trgm` (the DDL does this). Create bucket `product-images` (public read). |
-| Upstash Redis                     | OTP hashes, rate limits, token revocation, idempotency | Tharun              | Minutes                           | Use TLS URL (`rediss://`).                                                                                                                           |
-| MSG91 (or Kaleyra)                | OTP SMS                                                | Owner (Praneeth)    | **1–3 weeks, DLT**                | Register entity, sender ID and the OTP template. Until approved, run the API with `OTP_PROVIDER=console`.                                            |
-| Razorpay                          | Payments, refunds, webhooks                            | Owner (KYC) + Adnan | **1–4 weeks**                     | Test keys are enough until Day 14.                                                                                                                   |
-| API host (Railway / Render / Fly) | Runs `apps/api`                                        | Tharun              | Minutes                           | Must be reachable over HTTPS from phones.                                                                                                            |
-| Expo EAS                          | Builds, OTA, client distribution (§7)                  | Vivek               | Minutes                           | Covered on the mobile side.                                                                                                                          |
-| Apple Developer + Google Play     | Ship to client phones (§7)                             | Owner               | **Apple same-day; Play 1–2 days** | ₹ ~8,300/yr Apple, $25 once Google. Needed for TestFlight / Play testing.                                                                            |
-| Sentry                            | Errors                                                 | Tharun              | Minutes                           | Optional until Day 14.                                                                                                                               |
+| Service                           | Purpose                                                | Who                 | Lead time                         | Notes                                                                                                                                 |
+| --------------------------------- | ------------------------------------------------------ | ------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase project                  | Postgres 17, Storage for product images                | **Done (owner)**    | —                                 | Ref `<ref>`, `ap-south-1`. Enable extensions `pgcrypto`, `pg_trgm` (the DDL does this). Create bucket `product-images` (public read). |
+| Upstash Redis                     | OTP hashes, rate limits, token revocation, idempotency | Tharun              | Minutes                           | Use TLS URL (`rediss://`).                                                                                                            |
+| MSG91 (or Kaleyra)                | OTP SMS                                                | Owner (Praneeth)    | **1–3 weeks, DLT**                | Register entity, sender ID and the OTP template. Until approved, run the API with `OTP_PROVIDER=console`.                             |
+| Razorpay                          | Payments, refunds, webhooks                            | Owner (KYC) + Adnan | **1–4 weeks**                     | Test keys are enough until Day 14.                                                                                                    |
+| API host (Railway / Render / Fly) | Runs `apps/api`                                        | Tharun              | Minutes                           | Must be reachable over HTTPS from phones.                                                                                             |
+| Expo EAS                          | Builds, OTA, client distribution (§7)                  | Vivek               | Minutes                           | Covered on the mobile side.                                                                                                           |
+| Apple Developer + Google Play     | Ship to client phones (§7)                             | Owner               | **Apple same-day; Play 1–2 days** | ₹ ~8,300/yr Apple, $25 once Google. Needed for TestFlight / Play testing.                                                             |
+| Sentry                            | Errors                                                 | Tharun              | Minutes                           | Optional until Day 14.                                                                                                                |
 
 ---
 
@@ -50,21 +50,21 @@ Copy `.env.example` at the repo root and fill these. **None of these ever go int
 
 ### Database (Supabase → Project Settings → Database)
 
-| Variable       | Value                                                                                                                         | Notes                                                                                 |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `DATABASE_URL` | `postgresql://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1` | **Transaction pooler, port 6543.** Runtime queries. `<ref>` = `anphxxszdqkqnbzdsrre`. |
-| `DIRECT_URL`   | `postgresql://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`                                   | **Direct / session, port 5432.** Migrations and DDL only.                             |
+| Variable       | Value                                                                                                                         | Notes                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL` | `postgresql://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1` | **Transaction pooler, port 6543.** Runtime queries. `<ref>` = `<ref>`. |
+| `DIRECT_URL`   | `postgresql://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`                                   | **Direct / session, port 5432.** Migrations and DDL only.              |
 
 `<password>` is the database password from Project Settings → Database → Reset/Show. It is **not** the
 anon key.
 
 ### Supabase (Project Settings → API)
 
-| Variable                    | Value                                      | Notes                                                                                     |
-| --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `SUPABASE_URL`              | `https://anphxxszdqkqnbzdsrre.supabase.co` | Already known.                                                                            |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role secret                        | **Server only.** Storage uploads from the admin API, and any DB access that bypasses RLS. |
-| `SUPABASE_ANON_KEY`         | anon / publishable key                     | Public. Already in the app's `.env` for read-only Storage.                                |
+| Variable                    | Value                       | Notes                                                                                     |
+| --------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
+| `SUPABASE_URL`              | `https://<ref>.supabase.co` | Already known.                                                                            |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role secret         | **Server only.** Storage uploads from the admin API, and any DB access that bypasses RLS. |
+| `SUPABASE_ANON_KEY`         | anon / publishable key      | Public. Already in the app's `.env` for read-only Storage.                                |
 
 ### Redis (Upstash → Database → Details)
 
@@ -161,13 +161,13 @@ Non-negotiables from the TDD the app relies on:
 
 Only these, none of them secret:
 
-| Value                           | Used for                                                               | Status                                                |
-| ------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`           | e.g. `https://f2f-api.up.railway.app` (or a LAN IP for device testing) | **pending** — needs the API host                      |
-| `EXPO_PUBLIC_RAZORPAY_KEY_ID`   | the `rzp_test_…` / `rzp_live_…` key id                                 | **pending** — needs Razorpay                          |
-| `EXPO_PUBLIC_SUPABASE_URL`      | product image URLs in `/catalog` resolve                               | **done** — `https://anphxxszdqkqnbzdsrre.supabase.co` |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | same                                                                   | **done** — in the app `.env`                          |
-| Admin panel URL                 | so the team can watch orders arrive during UAT                         | **pending**                                           |
+| Value                           | Used for                                                               | Status                                 |
+| ------------------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
+| `EXPO_PUBLIC_API_URL`           | e.g. `https://f2f-api.up.railway.app` (or a LAN IP for device testing) | **pending** — needs the API host       |
+| `EXPO_PUBLIC_RAZORPAY_KEY_ID`   | the `rzp_test_…` / `rzp_live_…` key id                                 | **pending** — needs Razorpay           |
+| `EXPO_PUBLIC_SUPABASE_URL`      | product image URLs in `/catalog` resolve                               | **done** — `https://<ref>.supabase.co` |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | same                                                                   | **done** — in the app `.env`           |
+| Admin panel URL                 | so the team can watch orders arrive during UAT                         | **pending**                            |
 
 Two of the four are already set. Once the API URL and Razorpay key id are back, Vivek sets
 `EXPO_PUBLIC_USE_MOCKS=0` in `apps/customer/.env`, rebuilds, and the app runs live. The `/catalog`

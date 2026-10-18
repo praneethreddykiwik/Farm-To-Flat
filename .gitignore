@@ -20,3 +20,7 @@ coverage/
 
 # Local-only security report — do NOT push to the public repo (hands attackers a roadmap)
 SECURITY-PENTEST-RESULTS.md
+
+# MobSF scan artifacts — decompiled strings; never push to the public repo
+MobSF-Fooducia-rescan.json
+MobSF-Fooducia-rescan.pdf

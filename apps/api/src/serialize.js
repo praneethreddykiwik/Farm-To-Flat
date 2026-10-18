@@ -8,6 +8,7 @@
  */
 import { getProduct, listCategories } from './store.js';
 import { money } from './lib/money.js';
+import { proxyImageUrl } from './lib/public-image.js';
 import { categoryName, productName } from './lib/i18n.js';
 import { communityWindows } from './lib/windows.js';
 
@@ -90,7 +91,8 @@ export function productPublic(p) {
     pricePaise: money(p.pricePaise),
     dailyCap: p.dailyCap,
     farm: p.farm,
-    image: p.image,
+    // Proxied, never the raw Supabase URL — keeps the storage host out of this (unauthenticated) response.
+    image: proxyImageUrl(p.image),
     blurhash: p.blurhash || null,
     variableWeight: !!p.variableWeight,
     diet: dietOf(p),
@@ -219,7 +221,7 @@ function orderItemsCustomer(items) {
     names: lineNames(it.productId),
     unit: it.unit,
     increment: it.increment,
-    image: it.image ?? null,
+    image: proxyImageUrl(it.image),
     blurhash: it.blurhash ?? null,
     tint: it.tint,
     variableWeight: !!it.variableWeight,
