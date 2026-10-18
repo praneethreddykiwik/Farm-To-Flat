@@ -17,3 +17,6 @@ coverage/
 .eas/
 .pnpm-store/
 .claude/
+
+# Local-only security report — do NOT push to the public repo (hands attackers a roadmap)
+SECURITY-PENTEST-RESULTS.md
