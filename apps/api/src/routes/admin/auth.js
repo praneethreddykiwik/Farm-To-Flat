@@ -1,5 +1,6 @@
 import { resolveAccess, getCustomer } from '../../customer-store.js';
 import { verifyAdminSession } from '../../lib/admin-session.js';
+import { readAdminCookie } from '../../lib/admin-cookie.js';
 import { roleForEmail } from '../../lib/admin-directory.js';
 import { findStaffByMobile } from '../../access-store.js';
 import { ROLE_META } from '../../lib/roles.js';
@@ -24,7 +25,7 @@ export function adminAuth(req, res, next) {
   // The token is valid for twelve hours, so a role carried inside it would keep working for twelve
   // hours after someone was removed from ADMIN_GOOGLE_EMAILS — which is the whole point of removing
   // them. Re-reading makes revocation take effect on the next request.
-  const sessionToken = req.header('x-admin-session');
+  const sessionToken = req.header('x-admin-session') || readAdminCookie(req);
   if (sessionToken) {
     const session = verifyAdminSession(sessionToken);
     const role = session ? roleForEmail(session.email) : null;

@@ -40,6 +40,10 @@ async function request(method, path, body) {
     method,
     headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    // Send the HttpOnly operator-session cookie on same-site requests (console on fooducia.in →
+    // API on api.fooducia.in). Harmless where there is no such cookie; the x-admin-session header
+    // still carries auth until we move fully off localStorage (stage 2).
+    credentials: 'include',
   });
   const isJson = (res.headers.get('content-type') || '').includes('application/json');
   const data = isJson ? await res.json() : await res.text();

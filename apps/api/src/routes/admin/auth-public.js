@@ -24,6 +24,7 @@ import {
   revokeAdminSession,
   verifyAdminSession,
 } from '../../lib/admin-session.js';
+import { setAdminCookie, clearAdminCookie, readAdminCookie } from '../../lib/admin-cookie.js';
 import { ROLE_META } from '../../lib/roles.js';
 
 export const adminAuthPublicRouter = Router();
@@ -101,6 +102,10 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
   });
   // eslint-disable-next-line no-console
   console.error(`[admin-auth] ${who.email} signed in as ${role}.`);
+  // Also hand the session back as an HttpOnly cookie. A console served same-site with this API
+  // (operator console on fooducia.in, API on api.fooducia.in) will authenticate with a cookie its
+  // JS can never read; the `session` in the body stays for the header path (mobile, .health).
+  setAdminCookie(res, token, expiresAt);
   return res.json({
     session: token,
     expiresAt,
@@ -115,9 +120,12 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
 });
 
 adminAuthPublicRouter.post('/signout', async (req, res) => {
-  // Read the session BEFORE revoking it, or there is nobody left to name in the record.
-  const who = verifyAdminSession(req.header('x-admin-session') || '');
-  revokeAdminSession(req.header('x-admin-session') || '');
+  // Read the session BEFORE revoking it, or there is nobody left to name in the record. Accept it
+  // from the header OR the cookie, so a cookie-only console can sign itself out too.
+  const presented = req.header('x-admin-session') || readAdminCookie(req) || '';
+  const who = verifyAdminSession(presented);
+  revokeAdminSession(presented);
+  clearAdminCookie(res);
   // Sign-out matters as much as sign-in: "when did this person stop having access" is half of
   // any access question. Not awaited-and-refused like sign-in — refusing to sign someone OUT
   // because the log is down would be the wrong way round.
