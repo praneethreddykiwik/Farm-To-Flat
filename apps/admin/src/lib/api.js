@@ -40,9 +40,10 @@ async function request(method, path, body) {
     method,
     headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
-    // Send the HttpOnly operator-session cookie on same-site requests (console on fooducia.in →
-    // API on api.fooducia.in). Harmless where there is no such cookie; the x-admin-session header
-    // still carries auth until we move fully off localStorage (stage 2).
+    // A Google session authenticates with the HttpOnly f2f_admin cookie — sent on same-site
+    // requests (console on fooducia.in → API on api.fooducia.in). The session token is no longer
+    // kept in localStorage, so there is no auth header for it; authHeader() only carries the shared
+    // operator token when that (sunset) path is used.
     credentials: 'include',
   });
   const isJson = (res.headers.get('content-type') || '').includes('application/json');

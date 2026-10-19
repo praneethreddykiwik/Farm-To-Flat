@@ -31,13 +31,21 @@ function read() {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const cred = JSON.parse(raw);
-      if (!cred?.value) return null;
-      // A session carries its own deadline. Treat a lapsed one as signed out here rather than
-      // letting every request fail with a 401 the operator has to interpret.
-      if (cred.kind === 'session' && cred.expiresAt && Date.now() >= cred.expiresAt) {
-        localStorage.removeItem(KEY);
-        return null;
+      // A Google session no longer keeps its token here — that lives only in the HttpOnly f2f_admin
+      // cookie, which the page's JS cannot read (and cannot leak to an XSS). What we keep is the
+      // non-sensitive profile so the shell can render who is signed in and gate on it; the cookie is
+      // what actually authenticates each request. A lapsed session is treated as signed out here
+      // rather than letting every request 401.
+      if (cred.kind === 'session') {
+        if (cred.expiresAt && Date.now() >= cred.expiresAt) {
+          localStorage.removeItem(KEY);
+          return null;
+        }
+        if (!cred.operator) return null;
+        return cred;
       }
+      // The shared operator token (sunset) still identifies itself by its value.
+      if (!cred?.value) return null;
       return cred;
     }
     // Anyone already signed in with the shared token keeps their session across this change.
@@ -68,27 +76,35 @@ function write(cred) {
 /** @returns {{kind:'token'|'session', value:string, operator?:object, expiresAt?:number}|null} */
 export const getCredential = () => read();
 
-/** Truthy when signed in — what the shell gates on. */
-export const getToken = () => read()?.value || '';
+/** Truthy when signed in — what the shell gates on. A cookie session has no local token value, so
+ *  report the operator's email as the truthy marker; the shared token reports its own value. */
+export const getToken = () => {
+  const cred = read();
+  if (!cred) return '';
+  return cred.kind === 'session' ? cred.operator?.email || 'session' : cred.value || '';
+};
 
 /** The signed-in person, when we know who they are. The shared token identifies nobody. */
 export const getOperator = () => read()?.operator || null;
 
-/** The auth header for an API call. Empty when signed out. */
+/** The auth header for an API call. A Google session sends NO header — it authenticates with the
+ *  HttpOnly cookie (requests go out with credentials:'include'). Only the shared token needs one. */
 export function authHeader() {
   const cred = read();
-  if (!cred) return {};
-  return cred.kind === 'session'
-    ? { 'x-admin-session': cred.value }
-    : { 'x-admin-token': cred.value };
+  if (!cred || cred.kind === 'session') return {};
+  return { 'x-admin-token': cred.value };
 }
 
 /** Sign in with the shared operator token. */
 export const setToken = (token) => write({ kind: 'token', value: String(token || '').trim() });
 
-/** Sign in as a person, with the session the API issued after verifying Google. */
-export const setSession = (session, operator, expiresAt) =>
-  write({ kind: 'session', value: session, operator: operator || null, expiresAt: expiresAt || 0 });
+/**
+ * Sign in as a person. The API set the session as an HttpOnly cookie on the sign-in response; we do
+ * NOT keep the token (`session`) here — only the profile and its deadline, so the token is never
+ * readable by JavaScript. The `session` arg is accepted for signature compatibility and ignored.
+ */
+export const setSession = (_session, operator, expiresAt) =>
+  write({ kind: 'session', operator: operator || null, expiresAt: expiresAt || 0 });
 
 /**
  * Sign out. A Google session is also revoked ON THE SERVER — dropping it from localStorage alone
@@ -102,8 +118,7 @@ export function clearToken() {
     try {
       fetch(`${base}/admin/auth/signout`, {
         method: 'POST',
-        headers: { 'x-admin-session': cred.value },
-        credentials: 'include', // send the f2f_admin cookie so the server can clear it too
+        credentials: 'include', // the f2f_admin cookie identifies the session to revoke and clear
         keepalive: true,
       }).catch(() => {});
     } catch {
