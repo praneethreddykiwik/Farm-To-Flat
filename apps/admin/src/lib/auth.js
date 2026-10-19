@@ -103,6 +103,7 @@ export function clearToken() {
       fetch(`${base}/admin/auth/signout`, {
         method: 'POST',
         headers: { 'x-admin-session': cred.value },
+        credentials: 'include', // send the f2f_admin cookie so the server can clear it too
         keepalive: true,
       }).catch(() => {});
     } catch {

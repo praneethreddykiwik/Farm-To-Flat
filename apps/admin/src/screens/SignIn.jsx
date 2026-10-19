@@ -64,6 +64,9 @@ export function SignIn() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: response.credential }),
+        // Needed for the browser to STORE the HttpOnly f2f_admin cookie the API sets on this
+        // response — without it the Set-Cookie is dropped on a cross-origin request.
+        credentials: 'include',
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new ApiError(res.status, data?.error?.code, data?.error?.message);
