@@ -18,12 +18,15 @@ overrides:
   decode-uri-component: '>=0.5.0'
   postcss-selector-parser: '>=7.1.6'
   shell-quote: '>=1.11.0'
-  effect: '>=3.20.0'
-  deepmerge-ts: '>=8.0.0'
-  # NOTE (audit 2026-10-19): a few remaining advisories can't be floored and are all build/dev-only,
-  # never shipped to the deployed API or the app bundle: `braces`<=3.0.3 and `node-forge`<=1.4.0 have
-  # NO patched release yet; `tinypool` and `@vitest/mocker` would require vitest 4 (test runner only);
-  # `deepmerge-ts`>=8 is a major bump of a transitive. None is reachable by an attacker in production.
+  # NOTE (audit 2026-10-19): the remaining advisories are all build/dev-only, never shipped to the
+  # deployed API or the app bundle, and each is deliberately NOT floored because doing so breaks the
+  # build or needs a major bump:
+  #   - `effect` >=3.20.0 breaks `@prisma/config` (prisma generate crashes: Struct.hasPropertyKey) —
+  #     reverted after it failed the Render build.
+  #   - `deepmerge-ts` >=8 is a major bump of a transitive (reverted alongside effect to be safe).
+  #   - `braces` <=3.0.3 and `node-forge` <=1.4.0 have NO patched release yet.
+  #   - `tinypool` / `@vitest/mocker` would require vitest 4 (test runner only).
+  # None is reachable by an attacker in production.
 nodeLinker: hoisted
 allowBuilds:
   '@prisma/client': true
