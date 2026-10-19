@@ -6,6 +6,24 @@ overrides:
   # counts. Express 4.22.3 still pins 2.0.7; force the patched floor. (CF-Connecting-IP is the real
   # mitigation once the origin lock is on, but the floor should be safe regardless.)
   proxy-addr: '>=2.0.8'
+  # Security hygiene (2026-10-19 audit): floor transitive deps to their patched versions. These are
+  # all backward-compatible patch/minor bumps of utility libs; the vulns are DoS/ReDoS-class and the
+  # runtime-reachable ones (qs) sit behind Cloudflare + app rate limiting. See SECURITY-AUDIT-REPORT.md.
+  qs: '>=6.16.0'
+  source-map-js: '>=1.2.2'
+  braces: '>=3.0.3'
+  brace-expansion: '>=5.0.12'
+  compression: '>=1.8.2'
+  uuid: '>=11.1.1'
+  decode-uri-component: '>=0.5.0'
+  postcss-selector-parser: '>=7.1.6'
+  shell-quote: '>=1.11.0'
+  effect: '>=3.20.0'
+  deepmerge-ts: '>=8.0.0'
+  # NOTE (audit 2026-10-19): a few remaining advisories can't be floored and are all build/dev-only,
+  # never shipped to the deployed API or the app bundle: `braces`<=3.0.3 and `node-forge`<=1.4.0 have
+  # NO patched release yet; `tinypool` and `@vitest/mocker` would require vitest 4 (test runner only);
+  # `deepmerge-ts`>=8 is a major bump of a transitive. None is reachable by an attacker in production.
 nodeLinker: hoisted
 allowBuilds:
   '@prisma/client': true
