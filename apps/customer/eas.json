@@ -44,6 +44,21 @@
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
+    "internal": {
+      "channel": "preview-live",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_USE_MOCKS": "0",
+        "EXPO_PUBLIC_API_URL": "https://api.fooducia.in",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
+    },
     "production": {
       "channel": "production",
       "autoIncrement": true,
@@ -61,6 +76,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {},
+    "internal": {
+      "android": {
+        "track": "internal"
+      }
+    }
   }
 }

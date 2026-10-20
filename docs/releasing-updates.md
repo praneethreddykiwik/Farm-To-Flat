@@ -103,20 +103,88 @@ NOT catch a bad dep that breaks the Render build (learned the hard way with the 
 
 ## The tester group (your "give the team early access" idea)
 
-Updates are delivered by **which build a phone installed + its channel**, NOT by phone number. A phone
-_number_ sets your **role** (super-admin / procurement / delivery) = which _features_ you see. So the
-tester setup is a **tester build on a pre-release track**, optionally with a staff test number.
+**The rule that governs all of this:** a phone receives OTA updates **only from the channel its
+installed build was compiled with**. Not by phone number, not by the Play track name. A phone _number_
+sets your **role** (super-admin / procurement / delivery) = which _features_ you see; the **channel**
+(baked into the build) sets which OTA updates you get.
 
-Set up once:
+So the whole point is: **give testers a build on a pre-release channel, give customers a build on the
+`production` channel.** This repo is wired for exactly that:
 
-- **Android — Play Console → Testing → Internal testing:** add you + procurement + delivery by email
-  (up to 100). They install from a private opt-in link. New builds appear in minutes, no review.
-- **iOS — App Store Connect → TestFlight:** add the same people as internal testers (up to 100).
+| Who                              | Build profile                | Channel        | Install via                        | Gets OTA from                      |
+| -------------------------------- | ---------------------------- | -------------- | ---------------------------------- | ---------------------------------- |
+| **You** (dev loop)               | `preview-live` (APK)         | `preview-live` | direct link / QR                   | `eas update --branch preview-live` |
+| **Team** (procurement, delivery) | `internal` (store AAB/IPA)   | `preview-live` | Play Internal Testing / TestFlight | `eas update --branch preview-live` |
+| **All customers**                | `production` (store AAB/IPA) | `production`   | Play / App Store Production        | `eas update --branch production`   |
+
+Because you and the team share the **`preview-live`** channel, **one** `eas update --branch preview-live`
+reaches your device _and_ every teammate at once — and nobody else. Then promote to `production`.
+
+### Set it up once
+
+```bash
+cd apps/customer
+# tester store build (goes to the stores' test tracks, listens to preview-live)
+eas build --profile internal --platform android          # AAB  (+ --platform ios when Apple is ready)
+eas submit --profile internal --platform android         # uploads to the Play "internal" track
+```
+
+- **Android — Play Console → Testing → Internal testing → Testers:** add you + procurement + delivery by
+  email (up to 100) → share the opt-in link → they install from Play. New _builds_ appear in minutes, no
+  review; OTA _updates_ arrive silently on next app launch.
+- **iOS — App Store Connect → TestFlight:** same people as internal testers (up to 100). _Blocked until
+  the paid Apple Developer account is active._
 - Give each tester device a **staff phone number** so they exercise real procurement/delivery flows on
   the pre-release version before customers see it.
 
-Result: a trusted group that gets every build + OTA first, tests on real devices, and only then do you
-release to all users.
+### How a teammate actually _sees_ an update
+
+- **OTA (JS change):** `eas update --branch preview-live` → it lands **silently on their next app launch**.
+  No Play/TestFlight notification, no re-install — they just reopen the app.
+- **New build (native change):** `eas submit --profile internal` → they get a Play/TestFlight "update
+  available" notification → they tap update.
+
+---
+
+## Android vs Apple — what's shared, what's separate
+
+**OTA updates are shared; everything native is per-platform.**
+
+| Thing                               | Android & iOS together?  | Notes                                                                                                                                                                                            |
+| ----------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **OTA update** (`eas update`)       | ✅ One command does both | It publishes a bundle per platform at once; each phone pulls the one matching it. You never run it twice. Each platform has its own fingerprint runtimeVersion — EAS handles that automatically. |
+| **New build** (`eas build`)         | ❌ Separate              | `--platform android` → **AAB → Play**; `--platform ios` → **IPA → App Store**. Different signing, different stores, different review.                                                            |
+| **Store submission** (`eas submit`) | ❌ Separate              | Play Console (Android) vs App Store Connect (iOS).                                                                                                                                               |
+| **Test track**                      | ❌ Separate              | **Play Internal Testing** (Android) vs **TestFlight** (iOS). Add the same people to both.                                                                                                        |
+| **Review time**                     | —                        | Play: minutes (internal) to a few hours (production). App Store: internal TestFlight instant; App Store review usually < 24h.                                                                    |
+
+### Account / setup differences
+
+- **Android (Google Play):** one-time $25 developer fee, account active quickly. You can ship today.
+- **Apple (App Store):** $99/year Apple Developer Program, and some features need it active before you can
+  even build them. **This is your current blocker** for iOS.
+
+### Platform-only features — the "live order" UI near the notch vs the corner
+
+These are **native, per-platform**, so they ship via a **new build** (never OTA) and are built/tested
+on each platform separately:
+
+- **Android — the ongoing "live order" notification (bottom/corner):** ✅ **already built**
+  (`src/hooks/useOrderLiveNotification.js`). It keeps one sticky notification in sync as the order moves
+  Confirmed → Packing → On the road. Works today.
+- **iOS — Live Activities (Dynamic Island / lock screen, near the notch):** ❌ **not built yet.** It needs
+  a native **ActivityKit** widget extension + the paid Apple Developer account + a new build. On the
+  roadmap for when the Apple account is active.
+
+So: don't expect the Dynamic Island card on iPhones yet — that's a native iOS feature still to be built.
+The Android live card is the current equivalent and is live.
+
+### The practical two-platform release
+
+1. One `eas update --branch preview-live` → covers **both** platforms' testers for a JS change.
+2. For a native change: `eas build --platform android` **and** `eas build --platform ios` (two builds),
+   each submitted to its own store's test track, tested, then promoted per store.
+3. Keep the **same `expo.version`** across both so a release is one logical version on both stores.
 
 ---
 
