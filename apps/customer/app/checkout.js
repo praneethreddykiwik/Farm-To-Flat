@@ -65,8 +65,14 @@ function Card({
           <View style={styles.cardRow}>
             <View style={styles.cardIcon}>{icon}</View>
             <View style={{ flex: 1 }}>
-              <Text variant="bodyMedium">{title}</Text>
-              {subtitle ? <Small muted>{subtitle}</Small> : null}
+              <Text variant="bodyMedium" numberOfLines={1}>
+                {title}
+              </Text>
+              {subtitle ? (
+                <Small muted numberOfLines={1}>
+                  {subtitle}
+                </Small>
+              ) : null}
             </View>
             {right}
           </View>

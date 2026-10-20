@@ -14,6 +14,10 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function Pressy({
   scale = 0.97,
   haptics = 'tap',
+  // A small default tap-target expansion so icon-only controls (a 16px clear "X", a chevron) reach a
+  // comfortable ~44pt target without every caller remembering to add it. A caller can still override
+  // or pass hitSlop={0}.
+  hitSlop = 10,
   style,
   onPress,
   onPressIn,

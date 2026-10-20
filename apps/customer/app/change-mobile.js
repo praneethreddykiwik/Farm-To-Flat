@@ -1,5 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -78,109 +85,122 @@ export default function ChangeMobile() {
   return (
     <View style={styles.root}>
       <Ambient intensity={0.7} />
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 20 }}>
-        <Pressy
-          onPress={() => router.back()}
-          haptics="select"
-          accessibilityLabel="Back"
-          style={{ alignSelf: 'flex-start' }}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            paddingTop: insets.top + 8,
+            paddingHorizontal: 20,
+            paddingBottom: 40,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
-            <ArrowLeft size={20} color={colors.ink} />
-          </Glass>
-        </Pressy>
+          <Pressy
+            onPress={() => router.back()}
+            haptics="select"
+            accessibilityLabel="Back"
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <Glass radius={radius.pill} innerStyle={styles.iconBtn}>
+              <ArrowLeft size={20} color={colors.ink} />
+            </Glass>
+          </Pressy>
 
-        <Animated.View entering={FadeInDown.duration(380)} style={{ marginTop: 22 }}>
-          <Small muted>{step === 'NUMBER' ? 'STEP 1 OF 2' : 'STEP 2 OF 2'}</Small>
-          <Display style={{ marginTop: 6 }}>
-            {step === 'NUMBER' ? 'New mobile number' : 'Enter the code'}
-          </Display>
-          <Body muted style={{ marginTop: 8 }}>
-            {step === 'NUMBER'
-              ? 'Your orders, addresses and wallet all stay exactly where they are — only the number you sign in with changes.'
-              : `We sent a 6-digit code to +91 ${next}.`}
-          </Body>
-        </Animated.View>
+          <Animated.View entering={FadeInDown.duration(380)} style={{ marginTop: 22 }}>
+            <Small muted>{step === 'NUMBER' ? 'STEP 1 OF 2' : 'STEP 2 OF 2'}</Small>
+            <Display style={{ marginTop: 6 }}>
+              {step === 'NUMBER' ? 'New mobile number' : 'Enter the code'}
+            </Display>
+            <Body muted style={{ marginTop: 8 }}>
+              {step === 'NUMBER'
+                ? 'Your orders, addresses and wallet all stay exactly where they are — only the number you sign in with changes.'
+                : `We sent a 6-digit code to +91 ${next}.`}
+            </Body>
+          </Animated.View>
 
-        {step === 'NUMBER' ? (
-          <Animated.View entering={FadeInDown.delay(80).duration(380)} style={{ marginTop: 28 }}>
-            <Input
-              label="Mobile number"
-              value={next}
-              onChangeText={(t) => {
-                setNext(t.replace(/\D/g, '').slice(0, 10));
-                if (error) setError(null);
-              }}
-              placeholder="9876543210"
-              keyboardType="number-pad"
-              maxLength={10}
-              error={error}
-              leading={<Phone size={18} color={colors.ink3} />}
-              autoFocus
-            />
-            <Button
-              title="Send code"
-              onPress={send}
-              loading={sending}
-              disabled={!valid}
-              style={{ marginTop: 20 }}
-            />
-            <Small muted center style={{ marginTop: 10 }}>
-              Currently +91 {current}
+          {step === 'NUMBER' ? (
+            <Animated.View entering={FadeInDown.delay(80).duration(380)} style={{ marginTop: 28 }}>
+              <Input
+                label="Mobile number"
+                value={next}
+                onChangeText={(t) => {
+                  setNext(t.replace(/\D/g, '').slice(0, 10));
+                  if (error) setError(null);
+                }}
+                placeholder="9876543210"
+                keyboardType="number-pad"
+                maxLength={10}
+                error={error}
+                leading={<Phone size={18} color={colors.ink3} />}
+                autoFocus
+              />
+              <Button
+                title="Send code"
+                onPress={send}
+                loading={sending}
+                disabled={!valid}
+                style={{ marginTop: 20 }}
+              />
+              <Small muted center style={{ marginTop: 10 }}>
+                Currently +91 {current}
+              </Small>
+            </Animated.View>
+          ) : (
+            <Animated.View entering={FadeInDown.delay(80).duration(380)} style={{ marginTop: 28 }}>
+              <TextInput
+                ref={codeRef}
+                value={code}
+                onChangeText={(t) => {
+                  const v = t.replace(/\D/g, '').slice(0, 6);
+                  setCode(v);
+                  if (error) setError(null);
+                  if (v.length === 6) verify(v);
+                }}
+                keyboardType="number-pad"
+                maxLength={6}
+                style={styles.codeInput}
+                placeholder="······"
+                placeholderTextColor={colors.ink3}
+                accessibilityLabel="Verification code"
+              />
+              {error ? (
+                <Small style={{ color: colors.tomato, marginTop: 10 }} center>
+                  {error}
+                </Small>
+              ) : null}
+              <Button
+                title="Confirm"
+                onPress={() => verify()}
+                loading={verifying}
+                disabled={code.length !== 6}
+                style={{ marginTop: 20 }}
+              />
+              <Pressy
+                onPress={() => {
+                  setStep('NUMBER');
+                  setCode('');
+                  setError(null);
+                }}
+                haptics="select"
+                style={{ paddingVertical: 14 }}
+              >
+                <Small center color={colors.leafDeep}>
+                  Use a different number
+                </Small>
+              </Pressy>
+            </Animated.View>
+          )}
+
+          {slow ? (
+            <Small muted center style={{ marginTop: 12 }}>
+              {WAKING_MESSAGE}
             </Small>
-          </Animated.View>
-        ) : (
-          <Animated.View entering={FadeInDown.delay(80).duration(380)} style={{ marginTop: 28 }}>
-            <TextInput
-              ref={codeRef}
-              value={code}
-              onChangeText={(t) => {
-                const v = t.replace(/\D/g, '').slice(0, 6);
-                setCode(v);
-                if (error) setError(null);
-                if (v.length === 6) verify(v);
-              }}
-              keyboardType="number-pad"
-              maxLength={6}
-              style={styles.codeInput}
-              placeholder="······"
-              placeholderTextColor={colors.ink3}
-              accessibilityLabel="Verification code"
-            />
-            {error ? (
-              <Small style={{ color: colors.tomato, marginTop: 10 }} center>
-                {error}
-              </Small>
-            ) : null}
-            <Button
-              title="Confirm"
-              onPress={() => verify()}
-              loading={verifying}
-              disabled={code.length !== 6}
-              style={{ marginTop: 20 }}
-            />
-            <Pressy
-              onPress={() => {
-                setStep('NUMBER');
-                setCode('');
-                setError(null);
-              }}
-              haptics="select"
-              style={{ paddingVertical: 14 }}
-            >
-              <Small center color={colors.leafDeep}>
-                Use a different number
-              </Small>
-            </Pressy>
-          </Animated.View>
-        )}
-
-        {slow ? (
-          <Small muted center style={{ marginTop: 12 }}>
-            {WAKING_MESSAGE}
-          </Small>
-        ) : null}
-      </View>
+          ) : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

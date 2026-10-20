@@ -102,7 +102,11 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: 10, marginTop: 10 },
   tile: {
-    width: 56,
+    // Flex so six tiles fit any screen — 6×56 + gaps overflowed narrow phones. Caps at 56 on wide
+    // screens; shrinks (down to minWidth 0) on small ones so the outer digits never clip.
+    flex: 1,
+    minWidth: 0,
+    maxWidth: 56,
     height: 68,
     borderRadius: 14,
     alignItems: 'center',

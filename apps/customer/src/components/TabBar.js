@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
@@ -60,6 +60,10 @@ function TabIcon({ name, focused, color }) {
  */
 export function TabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
+  // Cap the pill at 340 but never let it exceed the screen (minus a gutter), so the outer tabs
+  // don't clip on small phones (≤320pt). The row's onLayout re-measures, so the indicator follows.
+  const { width: screenW } = useWindowDimensions();
+  const rowWidth = Math.min(340, screenW - 24);
   const signedIn = useSelector(selectIsSignedIn);
   const { data } = useGetCartQuery(undefined, { skip: !signedIn });
   const count = data?.cart?.items?.length || 0;
@@ -109,7 +113,10 @@ export function TabBar({ state, descriptors, navigation }) {
       style={[styles.host, { paddingBottom: Math.max(insets.bottom, 12) }]}
     >
       <Glass tone="dark" radius={radius.pill} liquid innerStyle={styles.inner}>
-        <View style={styles.row} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+        <View
+          style={[styles.row, { width: rowWidth }]}
+          onLayout={(e) => setW(e.nativeEvent.layout.width)}
+        >
           {slot > 0 && (
             <Animated.View style={[styles.indicator, { width: slot - 8 }, indicator]}>
               <View style={styles.indicatorFill} />
@@ -163,7 +170,7 @@ export function TabBar({ state, descriptors, navigation }) {
 const styles = StyleSheet.create({
   host: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   inner: { paddingHorizontal: 6, paddingVertical: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', width: 340, height: 56 },
+  row: { flexDirection: 'row', alignItems: 'center', height: 56 },
   tab: { flex: 1, height: 56, alignItems: 'center', justifyContent: 'center' },
   indicator: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: radius.pill },
   indicatorFill: { flex: 1, borderRadius: radius.pill, backgroundColor: colors.sprout },

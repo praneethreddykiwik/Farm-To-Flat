@@ -198,6 +198,7 @@ export default function Calendar() {
                 onPress={() => setSelected(addDaysISO(selected, view === 'month' ? -30 : -7))}
                 haptics="select"
                 style={styles.nav}
+                accessibilityLabel={view === 'month' ? 'Previous month' : 'Previous week'}
               >
                 <Text variant="bodyMedium">‹</Text>
               </Pressy>
@@ -208,6 +209,7 @@ export default function Calendar() {
                 onPress={() => setSelected(addDaysISO(selected, view === 'month' ? 30 : 7))}
                 haptics="select"
                 style={styles.nav}
+                accessibilityLabel={view === 'month' ? 'Next month' : 'Next week'}
               >
                 <Text variant="bodyMedium">›</Text>
               </Pressy>
