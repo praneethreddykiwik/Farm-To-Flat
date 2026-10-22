@@ -435,31 +435,47 @@ function useSmoothScroll() {
 function useParallax() {
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return undefined;
-    const els = Array.from(document.querySelectorAll('[data-par]'));
-    if (!els.length) return undefined;
+    if (!document.querySelector('[data-par]')) return undefined;
     let raf = 0;
+    // Reading getBoundingClientRect() for every element on every scroll frame forces a layout
+    // (reflow) each frame — the main source of the scroll stutter. Instead we MEASURE each element's
+    // document position once (and on resize / height change), then on scroll we only read scrollY and
+    // WRITE transforms. No per-frame layout reads, so scrolling stays on the compositor.
+    let items = [];
+    const measure = () => {
+      const sy = window.scrollY;
+      items = Array.from(document.querySelectorAll('[data-par]')).map((el) => {
+        el.style.transform = ''; // read the untransformed base position
+        const r = el.getBoundingClientRect();
+        return { el, mid: r.top + sy + r.height / 2, speed: parseFloat(el.dataset.par) || 0 };
+      });
+      update();
+    };
     const update = () => {
       const vh = window.innerHeight;
-      for (const el of els) {
-        const r = el.getBoundingClientRect();
-        if (r.bottom < -300 || r.top > vh + 300) continue;
-        // clamp to [-1, 1] so elements far from centre don't accumulate a huge offset
-        const delta = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
-        const speed = parseFloat(el.dataset.par) || 0;
-        el.style.transform = `translate3d(0, ${(-delta * speed).toFixed(1)}px, 0)`;
+      const sy = window.scrollY;
+      for (const it of items) {
+        const fromCentre = it.mid - sy - vh / 2;
+        if (fromCentre < -vh - 400 || fromCentre > vh + 400) continue; // skip far off-screen
+        const delta = Math.max(-1, Math.min(1, fromCentre / vh));
+        it.el.style.transform = `translate3d(0, ${(-delta * it.speed).toFixed(1)}px, 0)`;
       }
     };
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(update);
     };
-    update();
+    measure();
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    window.addEventListener('resize', measure);
+    // Lazy-loaded screenshots change the page height after mount; re-measure when it settles.
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(document.documentElement);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('resize', measure);
+      ro?.disconnect();
     };
   }, []);
 }
@@ -1453,6 +1469,9 @@ export function Landing() {
                 </span>
               </a>
             </div>
+          </div>
+          <div className="lp-foot__wordmark" aria-hidden="true">
+            Fooducia
           </div>
         </footer>
       </div>

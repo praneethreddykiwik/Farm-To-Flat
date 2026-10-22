@@ -188,7 +188,7 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  backdrop-filter: saturate(1.3) blur(14px);
+  backdrop-filter: saturate(1.3) blur(8px);
   background: rgba(243, 245, 239, 0.78);
   border-bottom: 1px solid transparent;
   transition: border-color 220ms ease;
@@ -1300,6 +1300,45 @@
   font-size: 13.5px;
   color: rgba(243, 245, 239, 0.45);
 }
+
+/* Giant brand wordmark across the very bottom — a colourful lime→green gradient on the dark footer.
+   Static (no scroll/animation cost); sized in vw so it fills the width and never overflows (the page
+   clips overflow-x anyway). */
+.lp-foot__wordmark {
+  margin-top: clamp(26px, 4.5vw, 54px);
+  text-align: center;
+  font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: clamp(3rem, 17vw, 15rem);
+  line-height: 0.86;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+  user-select: none;
+  background: linear-gradient(
+    100deg,
+    var(--lp-sprout) 0%,
+    var(--lp-leaf) 38%,
+    var(--lp-sprout-deep) 64%,
+    var(--lp-leaf-deep) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--lp-sprout);
+  filter: drop-shadow(0 8px 26px rgba(159, 209, 44, 0.14));
+  padding-bottom: clamp(8px, 1.5vw, 18px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp-foot__wordmark {
+    background-size: 200% 100%;
+    animation: lp-wordmark 14s ease-in-out infinite alternate;
+  }
+}
+@keyframes lp-wordmark {
+  to {
+    background-position: 100% 0;
+  }
+}
 .lp-powered {
   display: inline-flex;
   align-items: center;
@@ -1692,7 +1731,7 @@
   padding: 0 10px 0 18px;
   border-radius: 999px;
   background: var(--lp-glass);
-  backdrop-filter: saturate(1.4) blur(16px);
+  backdrop-filter: saturate(1.4) blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow:
     0 8px 28px rgba(14, 27, 20, 0.1),
@@ -2045,9 +2084,10 @@
     rgba(30, 122, 76, 0.08) 45%,
     transparent 70%
   );
-  filter: blur(40px);
+  filter: blur(26px);
   pointer-events: none;
   animation: lp-aur-a 24s ease-in-out infinite;
+  will-change: transform;
 }
 
 /* ── planner terminal (Steel) ────────────────────────────────────────────── */
