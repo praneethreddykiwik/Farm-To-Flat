@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,7 +11,15 @@ import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
-import { CalendarDays, Sparkles, UserRound, AlertTriangle, ArrowRight } from 'lucide-react-native';
+import {
+  CalendarDays,
+  Sparkles,
+  UserRound,
+  AlertTriangle,
+  ArrowRight,
+  Utensils,
+} from 'lucide-react-native';
+import { scheduleMealReminders } from '../../src/lib/mealReminders';
 import {
   Ambient,
   Button,
@@ -87,6 +95,12 @@ export default function Plan() {
   const provider = useSelector(selectProvider);
   const draft = useSelector(selectDraft);
   const scheduled = useSelector(selectScheduled);
+
+  // Once a plan is on the calendar, arm the daily meal-time reminders (super-admin only for now).
+  // scheduleMealReminders clears + re-schedules, so running it on change is safe and idempotent.
+  useEffect(() => {
+    if (aiVisible && scheduled.length) scheduleMealReminders();
+  }, [aiVisible, scheduled.length]);
   const catalog = useGetCatalogQuery();
   const products = useMemo(() => catalog.data?.products || [], [catalog.data]);
   const [aiPlan] = useAiPlanMutation();
@@ -249,25 +263,43 @@ export default function Plan() {
           ) : null}
 
           {scheduled.length ? (
-            <Pressy
-              onPress={() => router.push('/calendar')}
-              haptics="soft"
-              scale={0.985}
-              style={{ marginTop: 16 }}
-            >
-              <Glass tone="dark" radius={radius.lg} innerStyle={styles.calRow}>
-                <CalendarDays size={20} color={colors.sprout} />
-                <View style={{ flex: 1 }}>
-                  <Text variant="bodyMedium" color={colors.inkOnDark}>
-                    {scheduled.length} plan{scheduled.length > 1 ? 's' : ''} on your calendar
-                  </Text>
-                  <Small color="rgba(243,245,239,0.7)">
-                    Day, week and month views · order-before reminders
-                  </Small>
-                </View>
-                <ArrowRight size={18} color={colors.sprout} />
-              </Glass>
-            </Pressy>
+            <>
+              <Pressy
+                onPress={() => router.push('/calendar')}
+                haptics="soft"
+                scale={0.985}
+                style={{ marginTop: 16 }}
+              >
+                <Glass tone="dark" radius={radius.lg} innerStyle={styles.calRow}>
+                  <CalendarDays size={20} color={colors.sprout} />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="bodyMedium" color={colors.inkOnDark}>
+                      {scheduled.length} plan{scheduled.length > 1 ? 's' : ''} on your calendar
+                    </Text>
+                    <Small color="rgba(243,245,239,0.7)">
+                      Day, week and month views · order-before reminders
+                    </Small>
+                  </View>
+                  <ArrowRight size={18} color={colors.sprout} />
+                </Glass>
+              </Pressy>
+
+              <Pressy
+                onPress={() => router.push('/meal-checkin')}
+                haptics="soft"
+                scale={0.985}
+                style={{ marginTop: 12 }}
+              >
+                <Glass radius={radius.lg} innerStyle={styles.calRow}>
+                  <Utensils size={20} color={colors.leafDeep} />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="bodyMedium">Track today’s meals</Text>
+                    <Small muted>Log what you ate · add a photo to check calories vs plan</Small>
+                  </View>
+                  <ArrowRight size={18} color={colors.leafDeep} />
+                </Glass>
+              </Pressy>
+            </>
           ) : null}
 
           <ConfirmBanner style={{ marginTop: 12 }} />

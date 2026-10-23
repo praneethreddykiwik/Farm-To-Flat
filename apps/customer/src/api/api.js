@@ -191,6 +191,24 @@ export const api = createApi({
 
     // ---- lens: a photograph in, a product from our catalogue out ----
     aiIdentify: b.mutation({ query: (body) => ({ url: '/ai/identify', method: 'POST', body }) }),
+
+    // ---- meal-plan adherence (super-admin only server-side) ----
+    mealDay: b.query({ query: (date) => `/meals/day?date=${encodeURIComponent(date)}` }),
+    mealCheckin: b.mutation({
+      query: (body) => ({ url: '/meals/checkin', method: 'POST', body }),
+    }),
+    mealPhoto: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/meals/${id}/photo`, method: 'POST', body }),
+    }),
+    mealAdherence: b.query({
+      query: ({ from, to } = {}) => {
+        const qs = new URLSearchParams();
+        if (from) qs.set('from', from);
+        if (to) qs.set('to', to);
+        const s = qs.toString();
+        return `/meals/adherence${s ? `?${s}` : ''}`;
+      },
+    }),
   }),
 });
 
@@ -234,4 +252,8 @@ export const {
   useMarkAllNotificationsReadMutation,
   useAiPlanMutation,
   useAiIdentifyMutation,
+  useMealDayQuery,
+  useMealCheckinMutation,
+  useMealPhotoMutation,
+  useMealAdherenceQuery,
 } = api;

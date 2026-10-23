@@ -118,6 +118,7 @@ function AuthGate({ ready }) {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp?.notification?.request?.content?.data || {};
       if (data.kind === 'PROCUREMENT_BUFFER') router.push('/staff/approvals');
+      else if (data.kind === 'MEAL_CHECKIN') router.push('/meal-checkin');
       else if (data.orderId) router.push(`/order/${data.orderId}`);
     });
     return () => sub.remove();
@@ -245,6 +246,7 @@ function Root() {
           />
           <Stack.Screen name="order/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="meal-checkin" options={{ animation: 'slide_from_right' }} />
           {/* Pushed, not presented: iOS will not stack a modal over the basket's form sheet. */}
           <Stack.Screen name="coupon" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="confirm/[date]" options={{ animation: 'slide_from_right' }} />
