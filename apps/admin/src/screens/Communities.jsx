@@ -114,27 +114,32 @@ export function Communities() {
                   </span>
                 </div>
 
-                <div
-                  className="hstack"
-                  style={{ gap: 5, marginTop: 16 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {DAYS.map((d, i) => (
-                    <button
-                      key={i}
-                      title={`${DAYNAME[i]} — click to ${c.deliveryDays.includes(i) ? 'remove' : 'add'}`}
-                      className="daypill"
-                      onClick={() => toggleDay(c, i)}
-                      style={{
-                        background: c.deliveryDays.includes(i)
-                          ? 'var(--leaf)'
-                          : 'rgba(14,27,20,0.05)',
-                        color: c.deliveryDays.includes(i) ? '#fff' : 'var(--ink-3)',
-                      }}
-                    >
-                      {d}
-                    </button>
-                  ))}
+                <div style={{ marginTop: 16 }} onClick={(e) => e.stopPropagation()}>
+                  <span className="field__label" style={{ margin: '0 0 6px', display: 'block' }}>
+                    Delivery days <span className="muted">· tap to add or remove</span>
+                  </span>
+                  <div className="hstack" style={{ gap: 5 }}>
+                    {DAYS.map((d, i) => (
+                      <button
+                        key={i}
+                        title={`${DAYNAME[i]} — click to ${c.deliveryDays.includes(i) ? 'remove' : 'add'}`}
+                        className="daypill"
+                        onClick={() => toggleDay(c, i)}
+                        style={{
+                          background: c.deliveryDays.includes(i)
+                            ? 'var(--leaf)'
+                            : 'rgba(14,27,20,0.05)',
+                          color: c.deliveryDays.includes(i) ? '#fff' : 'var(--ink-3)',
+                        }}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 14 }} onClick={(e) => e.stopPropagation()}>
+                  <BlocksEditor community={c} onSaved={reload} />
                 </div>
 
                 <div style={{ marginTop: 14 }} onClick={(e) => e.stopPropagation()}>
@@ -315,6 +320,104 @@ const DEFAULT_NEW_WINDOW = { label: 'Afternoon', cutoff: '09:30', start: '14:00'
  * community advertising a window nobody is staffing. Save is disabled until the draft is both
  * different and valid, so the operator cannot write a half-finished list either.
  */
+/**
+ * Edit a community's blocks/towers after it's created. Collapsed, it shows the current blocks as
+ * chips; expanded, it's the same comma-separated input as the create form. Saves via the same
+ * PATCH the day pills use. Residents pick their block when adding an address, so this is what keeps
+ * that list correct as towers are added or renamed.
+ */
+function BlocksEditor({ community, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(community.blocks.join(', '));
+  const [saving, setSaving] = useState(false);
+
+  // Mirror external changes (e.g. after a save + reload) back into the field when not mid-edit.
+  useEffect(() => {
+    if (!editing) setText(community.blocks.join(', '));
+  }, [community.blocks, editing]);
+
+  async function save() {
+    const blocks = [
+      ...new Set(
+        text
+          .split(',')
+          .map((b) => b.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (blocks.length === 0) return toast('Add at least one block/tower.', 'err');
+    setSaving(true);
+    try {
+      await api.patch(`/admin/communities/${community.id}`, { blocks });
+      toast(`${community.name} · blocks updated`);
+      setEditing(false);
+      onSaved?.();
+    } catch (e) {
+      toast(e.message || 'Could not update blocks', 'err');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="vstack" style={{ gap: 8 }}>
+        <div className="hstack" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="field__label" style={{ margin: 0 }}>
+            Blocks / towers
+          </span>
+          <button className="btn btn--ghost btn--sm" onClick={() => setEditing(true)}>
+            Edit blocks
+          </button>
+        </div>
+        <div className="hstack" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {community.blocks.length ? (
+            community.blocks.map((b) => (
+              <span key={b} className="chip" style={{ cursor: 'default' }}>
+                {b}
+              </span>
+            ))
+          ) : (
+            <span className="muted" style={{ fontSize: 12.5 }}>
+              No blocks yet — add the towers residents choose from.
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="field" style={{ margin: 0 }}>
+      <label className="field__label">Blocks / towers (comma-separated)</label>
+      <input
+        className="field__input"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Tower A, Tower B, Tower C"
+        autoFocus
+      />
+      <p className="field__hint" style={{ margin: '6px 0 0' }}>
+        Residents pick their block when adding an address in the app.
+      </p>
+      <div className="hstack" style={{ gap: 8, marginTop: 10 }}>
+        <button className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save blocks'}
+        </button>
+        <button
+          className="btn btn--ghost btn--sm"
+          onClick={() => {
+            setEditing(false);
+            setText(community.blocks.join(', '));
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function WindowEditor({ community, onSaved }) {
   const saved = useMemo(() => community.windows || [], [community.windows]);
   const [draft, setDraft] = useState(saved);
