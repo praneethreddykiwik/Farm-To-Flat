@@ -57,6 +57,13 @@ export function parseMealReply(text) {
 
 /** Photo (as a data URL) → { items, totalKcal, confidence, note }. */
 export async function analyseMealPhoto(apiKey, { dataUrl, signal }) {
-  const raw = await callVision(apiKey, { prompt: mealVisionPrompt(), dataUrl, signal });
+  // Bigger token budget than identify: the reasoning model needs room to think AND still emit the
+  // items[] JSON. 512 left it empty (json_validate_failed); 1400 gives comfortable headroom.
+  const raw = await callVision(apiKey, {
+    prompt: mealVisionPrompt(),
+    dataUrl,
+    signal,
+    maxTokens: 1400,
+  });
   return parseMealReply(raw);
 }

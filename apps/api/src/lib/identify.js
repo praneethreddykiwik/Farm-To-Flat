@@ -62,7 +62,7 @@ export function systemPrompt(products) {
  * reasoning model left at full effort spends most of the bill — and most of the wait — on tokens
  * nobody reads.
  */
-export async function callVision(apiKey, { prompt, dataUrl, signal }) {
+export async function callVision(apiKey, { prompt, dataUrl, signal, maxTokens = 512 }) {
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
@@ -71,7 +71,10 @@ export async function callVision(apiKey, { prompt, dataUrl, signal }) {
       model: VISION_MODEL,
       reasoning_effort: 'low',
       response_format: { type: 'json_object' },
-      max_completion_tokens: 512,
+      // The budget has to cover the reasoning model's thinking AND the JSON it then emits. 512 is
+      // enough for identify's one-line reply; a meal's items[] array needs more, or the model spends
+      // the whole budget thinking and returns an empty body (Groq then 400s with json_validate_failed).
+      max_completion_tokens: maxTokens,
       messages: [
         {
           role: 'user',
