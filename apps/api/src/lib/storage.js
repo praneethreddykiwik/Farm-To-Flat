@@ -23,6 +23,7 @@ const BUCKET = 'product-images';
 // A customer's complaint photo is evidence about a specific order, not catalog art — its own bucket
 // keeps the two from being confused, and lets the retention rules differ later.
 const ISSUE_BUCKET = 'order-issues';
+const MEAL_BUCKET = 'meal-photos';
 
 export const storageEnabled = !!(URL && KEY) || (DRIVER === 's3' && s3Enabled());
 const supabase = storageEnabled
@@ -147,6 +148,35 @@ export async function uploadIssuePhoto({ buffer, contentType, orderId }) {
       .catch(() => {});
     ({ error } = await supabase.storage
       .from(ISSUE_BUCKET)
+      .upload(name, buffer, { contentType, upsert: false }));
+  }
+  if (error) throw error;
+  return name;
+}
+
+/**
+ * Upload a meal-adherence photo, returning its OBJECT PATH (not a URL). Private for the same reason
+ * complaint photos are: it's a photo from inside someone's kitchen, tied to a named account. Filed
+ * under the customer so a reviewer can tell whose meal it is. Mirrors uploadIssuePhoto.
+ */
+export async function uploadMealPhoto({ buffer, contentType, customerId }) {
+  const ext = EXT[contentType] || 'jpg';
+  const name = `${customerId}/${Date.now()}-${shortId(6)}.${ext}`;
+  if (useS3()) return s3Put(`${MEAL_BUCKET}/${name}`, buffer, contentType).then(() => name);
+  if (!supabase) throw new Error('Storage not configured');
+  let { error } = await supabase.storage
+    .from(MEAL_BUCKET)
+    .upload(name, buffer, { contentType, upsert: false });
+  if (error && /not found/i.test(error.message || '')) {
+    await supabase.storage
+      .createBucket(MEAL_BUCKET, {
+        public: false,
+        fileSizeLimit: '6MB',
+        allowedMimeTypes: allowedImageTypes,
+      })
+      .catch(() => {});
+    ({ error } = await supabase.storage
+      .from(MEAL_BUCKET)
       .upload(name, buffer, { contentType, upsert: false }));
   }
   if (error) throw error;

@@ -206,6 +206,30 @@ model Notification {
   @@index([customerId])
 }
 
+// Meal-plan adherence check-ins. One row per planned meal the user responds to: did they follow it,
+// and (if they uploaded a photo) what the vision model read back as actually eaten. This is what makes
+// the AI plan OBJECTIVE — we compare plannedKcal (from the plan) with actualKcal (from the photo).
+// Gated to super-admin for now via the route; `audience` lets us widen to customers later without a
+// schema change.
+model MealLog {
+  id          String   @id
+  customerId  String
+  date        String // YYYY-MM-DD, the local day the meal belongs to
+  slot        String // breakfast | lunch | snack | dinner
+  mealName    String?
+  status      String // FOLLOWED | SKIPPED | DEVIATED
+  plannedKcal Int? // estimate carried from the plan (client-supplied)
+  actualKcal  Int? // estimate read from the uploaded photo
+  items       Json? // [{ name, grams?, kcal? }] from the vision model
+  photoKey    String? // storage path of the meal photo (private)
+  note        String? // "what I ate instead" for DEVIATED, or a free note
+  confidence  String? // low | medium | high — the vision model's self-rated certainty
+  audience    String   @default("SUPER_ADMIN") // SUPER_ADMIN now; CUSTOMER when rolled out
+  createdAt   DateTime @default(now())
+
+  @@index([customerId, date])
+}
+
 model Address {
   id            String    @id
   customer      Customer  @relation(fields: [customerId], references: [id])

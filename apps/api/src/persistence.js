@@ -321,6 +321,7 @@ export async function loadTransactional() {
     payments,
     carts,
     notifications,
+    mealLogs,
   ] = await Promise.all([
     prisma.customer.findMany(),
     prisma.address.findMany(),
@@ -344,6 +345,12 @@ export async function loadTransactional() {
       console.error('[persist] notification table unavailable:', e?.message);
       return [];
     }),
+    // Added after the others — boot empty if the MealLog table is not on this database yet.
+    prisma.mealLog.findMany().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[persist] mealLog table unavailable:', e?.message);
+      return [];
+    }),
   ]);
   return {
     customers,
@@ -355,6 +362,7 @@ export async function loadTransactional() {
     payments,
     carts,
     notifications,
+    mealLogs,
   };
 }
 
@@ -570,6 +578,31 @@ export const persist = {
       return prisma.notification.upsert({ where: { id: n.id }, create: row, update: row });
     },
     (n) => n.id,
+  ),
+  // Meal-plan adherence check-ins. Serialised per log id so a create then a photo-analysis update
+  // land in order.
+  mealLogUpsert: wt(
+    'mealLog.upsert',
+    (m) => {
+      const row = {
+        id: m.id,
+        customerId: m.customerId,
+        date: m.date,
+        slot: m.slot,
+        mealName: m.mealName ?? null,
+        status: m.status,
+        plannedKcal: m.plannedKcal ?? null,
+        actualKcal: m.actualKcal ?? null,
+        items: m.items ?? null,
+        photoKey: m.photoKey ?? null,
+        note: m.note ?? null,
+        confidence: m.confidence ?? null,
+        audience: m.audience || 'SUPER_ADMIN',
+        createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+      };
+      return prisma.mealLog.upsert({ where: { id: m.id }, create: row, update: row });
+    },
+    (m) => m.id,
   ),
 
   // ── transactional (stage 2) ──

@@ -47,6 +47,8 @@ const cs = {
   devices: new Map(),
   /** customerId -> Notification[] (oldest first; the feed reverses for display) */
   notifications: new Map(),
+  /** customerId -> MealLog[] (meal-plan adherence check-ins) */
+  mealLogs: new Map(),
   /** paymentId -> { purpose, orderId?, amountPaise, status, razorpayOrderId, customerId } */
   payments: new Map(),
 };
@@ -74,6 +76,7 @@ export function hydrateCustomerData({
   payments,
   carts,
   notifications,
+  mealLogs,
 }) {
   const communities = listCommunities();
   const comm = (cid) => communities.find((c) => c.id === cid);
@@ -90,6 +93,7 @@ export function hydrateCustomerData({
   cs.refresh = new Map();
   cs.devices = new Map();
   cs.notifications = new Map();
+  cs.mealLogs = new Map();
   cs.redemptions = new Map();
   cs.payments = new Map();
   for (const c of customers) {
@@ -155,6 +159,30 @@ export function hydrateCustomerData({
     list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     if (list.length > NOTIF_MAX) list.splice(0, list.length - NOTIF_MAX);
     cs.notifications.set(cid, list);
+  }
+  for (const m of mealLogs || []) {
+    const list =
+      cs.mealLogs.get(m.customerId) || cs.mealLogs.set(m.customerId, []).get(m.customerId);
+    list.push({
+      id: m.id,
+      customerId: m.customerId,
+      date: m.date,
+      slot: m.slot,
+      mealName: m.mealName ?? null,
+      status: m.status,
+      plannedKcal: m.plannedKcal ?? null,
+      actualKcal: m.actualKcal ?? null,
+      items: m.items ?? null,
+      photoKey: m.photoKey ?? null,
+      note: m.note ?? null,
+      confidence: m.confidence ?? null,
+      audience: m.audience || 'SUPER_ADMIN',
+      createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+    });
+  }
+  for (const [cid, list] of cs.mealLogs) {
+    list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    cs.mealLogs.set(cid, list);
   }
   for (const r of redemptions) {
     const set =
@@ -1152,6 +1180,57 @@ export function markAllNotificationsRead(cid) {
       count += 1;
     }
   return count;
+}
+
+// ── meal-plan adherence check-ins ──────────────────────────────────────────────
+const MEALLOG_MAX = 1000; // per customer; plenty for months of a few meals a day
+
+/**
+ * Record (or replace) a check-in for one planned meal on one day. Keyed by (date, slot): a second
+ * response for the same meal updates the first rather than piling up — the user answers each meal once.
+ */
+export function upsertMealLog(cid, fields) {
+  const list = cs.mealLogs.get(cid) || cs.mealLogs.set(cid, []).get(cid);
+  const existing = list.find((m) => m.date === fields.date && m.slot === fields.slot);
+  const row = existing || {
+    id: id('meal'),
+    customerId: cid,
+    createdAt: new Date().toISOString(),
+    audience: 'SUPER_ADMIN',
+  };
+  Object.assign(row, {
+    date: fields.date,
+    slot: fields.slot,
+    mealName: fields.mealName ?? row.mealName ?? null,
+    status: fields.status ?? row.status ?? 'FOLLOWED',
+    plannedKcal: fields.plannedKcal ?? row.plannedKcal ?? null,
+    actualKcal: fields.actualKcal ?? row.actualKcal ?? null,
+    items: fields.items ?? row.items ?? null,
+    photoKey: fields.photoKey ?? row.photoKey ?? null,
+    note: fields.note ?? row.note ?? null,
+    confidence: fields.confidence ?? row.confidence ?? null,
+  });
+  if (!existing) {
+    list.push(row);
+    if (list.length > MEALLOG_MAX) list.splice(0, list.length - MEALLOG_MAX);
+  }
+  persist.mealLogUpsert(row);
+  return structuredClone(row);
+}
+
+export function getMealLog(cid, mid) {
+  const m = (cs.mealLogs.get(cid) || []).find((x) => x.id === mid);
+  return m ? structuredClone(m) : null;
+}
+
+/** Logs for a customer, optionally within an inclusive [from, to] date range (YYYY-MM-DD). */
+export function listMealLogs(cid, { from, to } = {}) {
+  let list = cs.mealLogs.get(cid) || [];
+  if (from) list = list.filter((m) => m.date >= from);
+  if (to) list = list.filter((m) => m.date <= to);
+  return list
+    .map((m) => structuredClone(m))
+    .sort((a, b) => (a.date + a.slot).localeCompare(b.date + b.slot));
 }
 
 /** test helper */
