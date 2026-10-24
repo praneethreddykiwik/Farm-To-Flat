@@ -152,6 +152,19 @@ export const api = createApi({
       // Cancelling an order that never got paid for hands the basket back too — same reason.
       invalidatesTags: ['Orders', 'Wallet', 'Me', 'Cart'],
     }),
+    /**
+     * Add items to an order still inside its edit window. COD grows the door amount and the response
+     * carries the updated order; PREPAID returns a paymentIntent for the delta ONLY, settled through
+     * the same /payments/verify leg as a new order. We don't invalidate here — the caller refetches
+     * the order once the delta (if any) is paid, so the list never flashes a half-applied total.
+     */
+    addItemsToOrder: b.mutation({
+      query: ({ id, items }) => ({
+        url: `/orders/${id}/add-items`,
+        method: 'POST',
+        body: { items },
+      }),
+    }),
 
     // ---- wallet & payments ----
     getWallet: b.query({ query: () => '/wallet', providesTags: ['Wallet'] }),
@@ -241,6 +254,7 @@ export const {
   useGetOrdersQuery,
   useGetOrderQuery,
   useCancelOrderMutation,
+  useAddItemsToOrderMutation,
   useReportOrderIssueMutation,
   useGetWalletQuery,
   useCreateTopupMutation,

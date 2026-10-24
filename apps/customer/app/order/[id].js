@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, Download, MapPin, RotateCcw, Share2 } from 'lucide-react-native';
+import { ArrowLeft, Download, MapPin, Plus, RotateCcw, Share2 } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -23,22 +23,29 @@ import {
 import { OrderStatusTimeline } from '../../src/components/OrderStatusTimeline';
 import { DeliveryCode } from '../../src/components/DeliveryCode';
 import { ReportIssue } from '../../src/components/ReportIssue';
+import { AddItemsSheet } from '../../src/components/AddItemsSheet';
+import { PaymentSimulator } from '../../src/components/PaymentSimulator';
 import {
   useCancelOrderMutation,
+  useAddItemsToOrderMutation,
   useReportOrderIssueMutation,
   useGetOrderQuery,
+  useGetCatalogQuery,
   useSetCartItemMutation,
+  useVerifyPaymentMutation,
 } from '../../src/api/api';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { downloadAndShare } from '../../src/lib/downloadFile';
-import { selectAccessToken } from '../../src/features/auth/authSlice';
-import { API_BASE } from '../../src/lib/env';
+import { selectAccessToken, selectCustomer } from '../../src/features/auth/authSlice';
+import { API_BASE, env } from '../../src/lib/env';
 import { colors, radius } from '../../src/theme';
 import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
 import { notifyLocal } from '../../src/lib/notifications';
 import { selectLanguage } from '../../src/features/ui/uiSlice';
 import { productLabel } from '../../src/lib/i18n';
+import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
+import { haptic } from '../../src/lib/haptics';
 import { useSelector } from 'react-redux';
 
 // In-app banner shown when the ops board advances THIS order while the screen is open. Works with no
@@ -67,8 +74,15 @@ export default function OrderDetail() {
   const [cancel, { isLoading: cancelling }] = useCancelOrderMutation();
   const [reportIssue, { isLoading: reporting }] = useReportOrderIssueMutation();
   const [setCartItem] = useSetCartItemMutation();
+  const [addItems, { isLoading: addingItems }] = useAddItemsToOrderMutation();
+  const [verifyPayment] = useVerifyPaymentMutation();
+  const catalog = useGetCatalogQuery();
+  const customer = useSelector(selectCustomer);
   const [reordering, setReordering] = useState(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [intent, setIntent] = useState(null);
+  const addSheet = useRef(null);
+  const simSheet = useRef(null);
   const accessToken = useSelector(selectAccessToken);
 
   // Fetch the order's invoice PDF (built server-side from the stored bill) and hand it to the share
@@ -157,6 +171,88 @@ export default function OrderDetail() {
       dispatch(showToast({ title: e?.message || 'Could not add all items', tone: 'error' }));
     } finally {
       setReordering(false);
+    }
+  };
+
+  // Settle the delta payment for a PREPAID addition, through the same /payments/verify leg a new
+  // order uses. On success the lines attach server-side (capture.js) — we just refetch to show them.
+  const settleAdd = async (pi, result) => {
+    try {
+      await verifyPayment({
+        paymentId: pi.paymentId,
+        razorpayPaymentId: result.paymentId,
+        razorpayOrderId: result.razorpayOrderId,
+        razorpaySignature: result.signature,
+        success: result.success,
+      }).unwrap();
+      if (result.success) {
+        haptic.success();
+        dispatch(showToast({ title: 'Items added to your order', tone: 'success' }));
+      } else {
+        haptic.error();
+        dispatch(showToast({ title: 'Payment cancelled — nothing was added', tone: 'neutral' }));
+      }
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || 'Could not confirm the payment', tone: 'error' }));
+    } finally {
+      simSheet.current?.dismiss();
+      setIntent(null);
+      refetch();
+    }
+  };
+
+  // Customer picked extra items in the sheet. COD grows the door amount straight away; PREPAID hands
+  // back a payment intent for the DELTA only, which we settle like a checkout.
+  const onConfirmAdd = async (items) => {
+    try {
+      const res = await addItems({ id, items }).unwrap();
+      addSheet.current?.dismiss();
+      const pi = res.paymentIntent;
+      if (!pi) {
+        // COD — nothing to collect online.
+        haptic.success();
+        dispatch(showToast({ title: 'Items added to your order', tone: 'success' }));
+        refetch();
+        return;
+      }
+      setIntent(pi);
+      if (razorpayAvailable && pi.razorpayOrderId) {
+        try {
+          const r = await openRazorpay({ ...pi, contact: customer?.mobile, name: customer?.name });
+          await settleAdd(pi, {
+            success: true,
+            paymentId: r.razorpay_payment_id,
+            razorpayOrderId: r.razorpay_order_id,
+            signature: r.razorpay_signature,
+          });
+        } catch {
+          await settleAdd(pi, { success: false });
+        }
+      } else if (__DEV__ || env.useMocks || env.isExpoGo) {
+        setTimeout(() => simSheet.current?.present(), 200);
+      } else {
+        // Production build with no gateway module — never fake a success.
+        haptic.error();
+        setIntent(null);
+        dispatch(
+          showToast({
+            title: 'Couldn’t start the payment. Please try again shortly.',
+            tone: 'error',
+          }),
+        );
+      }
+    } catch (e) {
+      haptic.error();
+      addSheet.current?.dismiss();
+      // The window may have closed, or an item sold out, while the sheet was open — say which.
+      const msg =
+        e?.code === 'ORDER_CUTOFF_PASSED'
+          ? 'This order’s window just closed, so items can’t be added anymore.'
+          : e?.code === 'NOT_EDITABLE'
+            ? 'This order is already being prepared and can’t be edited.'
+            : e?.message || 'Could not add those items';
+      dispatch(showToast({ title: msg, tone: 'error' }));
+      refetch();
     }
   };
 
@@ -356,6 +452,26 @@ export default function OrderDetail() {
               </Animated.View>
             ) : null}
 
+            {/* Still inside the edit window — let the customer top up the order. The window's
+                cut-off is re-checked on the server when they confirm, so a button shown a moment
+                too late fails cleanly with a message rather than silently doing nothing. */}
+            {order.canAddItems ? (
+              <Animated.View
+                entering={FadeInDown.delay(165).duration(360)}
+                style={{ marginTop: 16 }}
+              >
+                <Button
+                  title="Add items to this order"
+                  variant="glass"
+                  onPress={() => addSheet.current?.present()}
+                  icon={<Plus size={18} color={colors.ink} />}
+                />
+                <Small muted center style={{ marginTop: 8 }}>
+                  You can keep adding until this delivery window closes.
+                </Small>
+              </Animated.View>
+            ) : null}
+
             {order.canCancel || order.canRequestCancel ? (
               <Animated.View
                 entering={FadeInDown.delay(180).duration(360)}
@@ -461,6 +577,19 @@ export default function OrderDetail() {
           </>
         )}
       </ScrollView>
+
+      <AddItemsSheet
+        ref={addSheet}
+        products={catalog.data?.products || []}
+        lang={lang}
+        busy={addingItems}
+        onConfirm={onConfirmAdd}
+      />
+      <PaymentSimulator
+        ref={simSheet}
+        intent={intent}
+        onResult={(r) => intent && settleAdd(intent, r)}
+      />
     </View>
   );
 }
