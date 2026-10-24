@@ -277,6 +277,11 @@ export function orderCustomer(o) {
     // From the packing bench onwards the customer can still ASK. Separate flag so the app can word
     // the button honestly — "Request cancellation", not "Cancel" — and stop offering it once asked.
     canRequestCancel: ['PACKING', 'OUT_FOR_DELIVERY'].includes(o.status) && !o.cancelRequested,
+    // Items can be ADDED only while the order sits CONFIRMED (before the packing bench). This is the
+    // status half of the gate; the edit window's cut-off is re-checked authoritatively on submit, so
+    // the app may still get an ORDER_CUTOFF_PASSED if the slot closed since the screen last loaded —
+    // same contract as canCancel, where the server is the final word.
+    canAddItems: o.status === 'CONFIRMED',
   };
 }
 

@@ -9,7 +9,7 @@
  * Idempotency is anchored on `payment.status`: once CAPTURED, every later call — retry, webhook
  * replay, double tap — returns `already` and changes nothing.
  */
-import { getOrder, patchOrder } from '../store.js';
+import { getOrder, patchOrder, applyOrderAddition } from '../store.js';
 import { razorpayEnabled } from './razorpay.js';
 import { emitNotification, COPY } from './notify.js';
 import { waOrderPlaced } from './notify-whatsapp.js';
@@ -87,6 +87,26 @@ export async function capturePayment({
       'Wallet top-up',
     );
     return { outcome: 'captured', payment: pay };
+  }
+
+  // Payment for items ADDED to an already-confirmed order (the edit-window top-up). Apply the lines
+  // that were stashed on the order when the add was requested, and tell the customer.
+  if (pay.purpose === 'ORDER_ADDITION') {
+    savePayment(pay);
+    const ord = getOrder(pay.orderId);
+    const pend = ord?.pendingAddition;
+    let updated = ord;
+    if (pend && pend.paymentId === pay.id) {
+      updated = applyOrderAddition(pay.orderId, pend.lineInputs, { gatewayPaid: pay.amountPaise });
+      if (updated?.customerId)
+        emitNotification(updated.customerId, {
+          type: 'ORDER_UPDATED',
+          title: 'Items added to your order',
+          body: `We added ${pend.lineInputs.length} item(s) to ${updated.orderNumber}.`,
+          data: { orderId: updated.id, orderNumber: updated.orderNumber, action: 'track' },
+        });
+    }
+    return { outcome: 'captured', payment: pay, order: updated };
   }
 
   const current = getOrder(pay.orderId);

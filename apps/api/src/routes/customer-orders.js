@@ -25,6 +25,8 @@ import {
   orderedQtyIndex,
   addOrderIssue,
   patchOrder,
+  projectOrderAddition,
+  applyOrderAddition,
 } from '../store.js';
 import {
   clearCart,
@@ -316,6 +318,132 @@ customerOrdersRouter.get(
     const o = getOrderForCustomer(req.params.id, req.customerId);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
     res.json({ order: linkOrderIssuePhotos(orderCustomer(o), baseUrlOf(req)) });
+  }),
+);
+
+/**
+ * Add items to an order AFTER it was placed — the "forgot the coriander" top-up.
+ *
+ * Allowed only while the order is still editable: status CONFIRMED (not yet being packed) AND the
+ * order's delivery window is still open (now < its cut-off). Add-only — there is no remove here;
+ * removing paid items opens a refund path we don't want on a window edit.
+ *
+ * COD orders apply immediately (the extra is collected at the door). PREPAID orders get a payment
+ * intent for the DELTA only; the lines are stashed as `pendingAddition` and attach when that payment
+ * is verified (lib/capture.js), exactly like the initial order confirms on its payment.
+ */
+const AddItemsBody = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1).max(60),
+        quantity: z.number().positive().max(100000),
+        note: z.string().max(200).optional(),
+      }),
+    )
+    .min(1)
+    .max(30),
+});
+customerOrdersRouter.post(
+  '/:id/add-items',
+  validateBody(AddItemsBody),
+  asyncHandler(async (req, res) => {
+    const cid = req.customerId;
+    const order = getOrderForCustomer(req.params.id, cid);
+    if (!order) throw fail(404, 'NOT_FOUND', 'Order not found');
+    if (order.status !== 'CONFIRMED')
+      throw fail(409, 'NOT_EDITABLE', 'This order is already being prepared and can’t be edited.');
+
+    // Re-check the window at THIS moment — never trust the client's earlier read. The edit window is
+    // the same cut-off that governs new orders for this slot.
+    const community = getCommunity(order.address.communityId);
+    const windows = generateWindows(community, todayISO(), bookedIndex(community.id));
+    const win = windows.find((w) => w.date === order.deliveryDate && w.window === order.window);
+    if (!win || !win.isOpen)
+      throw fail(
+        409,
+        'ORDER_CUTOFF_PASSED',
+        'The window for this order has closed — items can’t be added.',
+      );
+
+    // Validate every added line against the LIVE catalog + the day's cap (counting what's already
+    // booked across all orders for the day, including this one).
+    const lineInputs = req.body.items;
+    const orderedQty = orderedQtyIndex(order.deliveryDate);
+    for (const l of lineInputs) {
+      const p = getProduct(l.productId);
+      if (!p || p.isActive === false || (p.availability && p.availability !== 'AVAILABLE'))
+        throw fail(409, 'UNAVAILABLE', 'One of those items is no longer available.', {
+          productId: l.productId,
+        });
+      const already = orderedQty.get(p.id) || 0;
+      const left = Math.max(0, Number(p.dailyCap) - already);
+      if (Number(l.quantity) > left)
+        throw fail(
+          422,
+          'CAP_EXCEEDED',
+          left > 0
+            ? `Only ${left} ${p.unit.toLowerCase()} of ${p.name} left for that day.`
+            : `${p.name} is fully booked for that day.`,
+          { productId: p.id, remaining: String(left) },
+        );
+    }
+
+    const proj = projectOrderAddition(order, lineInputs);
+    if (proj.added.length === 0 || proj.deltaPaise <= 0)
+      throw fail(422, 'NOTHING_TO_ADD', 'Add at least one item.');
+
+    // COD — nothing to collect online; the door amount just grows. Re-check the cash ceiling.
+    if (order.paymentMethod === 'COD') {
+      const codCfg = constants().cod;
+      if (proj.bill.totalPaise > codCfg.maxOrderPaise)
+        throw fail(422, 'COD_LIMIT_EXCEEDED', 'That would take this order over the cash limit.', {
+          maxOrderPaise: String(codCfg.maxOrderPaise),
+        });
+      const updated = applyOrderAddition(order.id, lineInputs, { gatewayPaid: 0 });
+      emitNotification(cid, {
+        type: 'ORDER_UPDATED',
+        title: 'Items added',
+        body: `${proj.added.length} item(s) added to ${order.orderNumber}.`,
+        data: { orderId: order.id, orderNumber: order.orderNumber, action: 'track' },
+      });
+      return res.json({
+        order: linkOrderIssuePhotos(orderCustomer(updated), baseUrlOf(req)),
+        addedPaise: String(proj.deltaPaise),
+        paymentIntent: null,
+      });
+    }
+
+    // PREPAID — the delta is paid online; stash the lines and hand back a payment intent for it.
+    const pay = createPayment(cid, {
+      purpose: 'ORDER_ADDITION',
+      orderId: order.id,
+      amountPaise: proj.deltaPaise,
+    });
+    patchOrder(order.id, (ord) => {
+      ord.pendingAddition = { paymentId: pay.id, lineInputs };
+    });
+    let razorpayOrderId = null;
+    if (razorpayEnabled) {
+      const rz = await createRazorpayOrder({
+        amountPaise: proj.deltaPaise,
+        receipt: pay.id,
+        notes: { purpose: 'ORDER_ADDITION', orderId: order.id, customerId: cid },
+      });
+      pay.razorpayOrderId = rz.id;
+      razorpayOrderId = rz.id;
+    }
+    res.json({
+      order: linkOrderIssuePhotos(orderCustomer(order), baseUrlOf(req)),
+      addedPaise: String(proj.deltaPaise),
+      paymentIntent: {
+        paymentId: pay.id,
+        razorpayOrderId: razorpayEnabled ? razorpayOrderId : null,
+        keyId: razorpayKeyId,
+        amountPaise: String(proj.deltaPaise),
+        description: `Add to ${order.orderNumber}`,
+      },
+    });
   }),
 );
 

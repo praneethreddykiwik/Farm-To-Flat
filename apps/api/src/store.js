@@ -309,6 +309,73 @@ export function patchOrder(oid, fn) {
   if (orderPersist) persist.orderUpsert(o);
   return clone(o);
 }
+
+/**
+ * Price a set of items being ADDED to an existing order, WITHOUT mutating it — the dry run the
+ * add-items endpoint uses to show the delta and (for COD) check the cash ceiling before committing.
+ *
+ * Existing lines keep the price they were captured at; new lines are priced at today's prices and
+ * APPENDED. Appending (rather than merging into a matching line) is deliberate: it means nothing the
+ * customer already agreed to is ever silently re-priced, and procurement still sums by product.
+ */
+export function projectOrderAddition(order, lineInputs) {
+  const added = (lineInputs || [])
+    .map((l) => makeLine(l.productId, l.quantity, l.note || null))
+    .filter(Boolean);
+  const items = [...order.items, ...added];
+  const subtotal = items.reduce((s, l) => s + l.lineTotalPaise, 0);
+  const cost = items.reduce((s, l) => s + l.lineCostPaise, 0);
+  const bill = priceBreakdown({
+    subtotalPaise: subtotal,
+    discountPaise: order.couponDiscountPaise || 0,
+    deliveryChargePaise: order.deliveryChargePaise ?? db.constants.deliveryChargePaise,
+    charges: db.constants.charges,
+    tax: db.constants.tax,
+  });
+  return {
+    added,
+    items,
+    subtotalPaise: subtotal,
+    costPaise: cost,
+    bill,
+    deltaPaise: bill.totalPaise - order.totalPaise,
+  };
+}
+
+/**
+ * Commit an addition: append the new lines and move the order's totals to the projected bill.
+ * `gatewayPaid` is the delta the customer just paid online (prepaid); 0 for COD, where the extra is
+ * collected at the door. Records an audit entry under `additions`.
+ */
+export function applyOrderAddition(orderId, lineInputs, { gatewayPaid = 0 } = {}) {
+  const base = db.orders.find((x) => x.id === orderId);
+  if (!base) return null;
+  const proj = projectOrderAddition(base, lineInputs);
+  if (!proj.added.length) return clone(base);
+  return patchOrder(orderId, (ord) => {
+    ord.items = proj.items;
+    ord.subtotalPaise = proj.subtotalPaise;
+    ord.costPaise = proj.costPaise;
+    ord.chargeBreakdown = breakdownSnapshot(proj.bill);
+    ord.taxPaise = proj.bill.taxPaise;
+    ord.totalPaise = proj.bill.totalPaise;
+    ord.gatewayAmountPaise = (ord.gatewayAmountPaise || 0) + gatewayPaid;
+    ord.pendingAddition = null;
+    (ord.additions ||= []).push({
+      at: new Date().toISOString(),
+      addedPaise: proj.deltaPaise,
+      paidOnline: gatewayPaid,
+      lines: proj.added.map((l) => ({
+        productId: l.productId,
+        name: l.name,
+        quantity: l.quantity,
+        lineTotalPaise: l.lineTotalPaise,
+      })),
+    });
+    ord.timeline.push({ status: ord.status, at: new Date().toISOString(), note: 'items added' });
+  });
+}
+
 export const constants = () => clone(db.constants);
 export const rawProducts = () => db.products;
 
