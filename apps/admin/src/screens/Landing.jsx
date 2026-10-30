@@ -17,7 +17,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Lenis from 'lenis';
 import '../styles/landing.css';
-import mark from '../assets/fooducia-mark.png';
+import logoFull from '../assets/fooducia-logo-full.png';
+import logoFullLight from '../assets/fooducia-logo-full-light.png';
 import { COMPANY } from './terms-content.js';
 import { ProduceLayer, ProduceBurst, ProduceScatter, Tomato as BentoTomato } from './Produce.jsx';
 
@@ -391,13 +392,18 @@ function useReveal() {
 function useSmoothScroll() {
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return undefined;
-    // lerp-based smoothing feels responsive (snappy) rather than floaty/laggy; the duration+easing
-    // form is kept only for programmatic scrollTo on anchor clicks.
+    // Free, buttery smooth-inertia scrolling (the helm.events feel): Lenis owns
+    // the wheel/trackpad with momentum, while still driving the real scroll
+    // position so parallax, reveals and the progress bar ride along on top. No
+    // section snapping — the page flows continuously and the blur-in reveals do
+    // the sectioning visually.
     const lenis = new Lenis({
-      lerp: 0.12,
+      lerp: 0.085, // lower = longer glide / more inertia
       wheelMultiplier: 1,
       smoothWheel: true,
-      syncTouch: false,
+      syncTouch: true, // smooth, inertial touch scrolling (helm feel on phones)
+      syncTouchLerp: 0.075, // touch glide smoothing
+      touchInertiaMultiplier: 28,
     });
     let raf = 0;
     const loop = (time) => {
@@ -405,7 +411,8 @@ function useSmoothScroll() {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    // in-page links glide instead of jumping
+
+    // in-page links glide to their target instead of jumping
     const onClick = (e) => {
       const a = e.target.closest?.('a[href^="#"]');
       if (!a) return;
@@ -414,14 +421,30 @@ function useSmoothScroll() {
       const target = document.querySelector(href);
       if (target) {
         e.preventDefault();
-        lenis.scrollTo(target, { offset: -72 });
+        lenis.scrollTo(target, { offset: -72, duration: 1.1 });
       }
     };
     document.addEventListener('click', onClick);
+
+    // While actively scrolling, suspend the costly backdrop-blur (it re-samples
+    // the moving backdrop every frame). Restored ~140ms after scrolling stops,
+    // so it is only ever off mid-motion — invisible, but much smoother.
+    const root = document.documentElement;
+    let idle = 0;
+    const onScroll = () => {
+      root.classList.add('is-scrolling');
+      window.clearTimeout(idle);
+      idle = window.setTimeout(() => root.classList.remove('is-scrolling'), 140);
+    };
+    lenis.on('scroll', onScroll);
+
     return () => {
       document.removeEventListener('click', onClick);
+      lenis.off?.('scroll', onScroll);
+      window.clearTimeout(idle);
       cancelAnimationFrame(raf);
       lenis.destroy();
+      root.classList.remove('is-scrolling');
     };
   }, []);
 }
@@ -881,9 +904,8 @@ export function Landing() {
 
         <header className={`lp-nav${stuck ? ' is-stuck' : ''}`}>
           <div className="lp-wrap lp-nav__in">
-            <a className="lp-nav__brand" href="#top">
-              <img src={mark} alt="" width={30} height={30} />
-              Fooducia
+            <a className="lp-nav__brand" href="#top" aria-label="Fooducia">
+              <img src={logoFull} alt="Fooducia" />
             </a>
             <nav className="lp-nav__links">
               <a href="#how">How it works</a>
@@ -1422,8 +1444,7 @@ export function Landing() {
             <div className="lp-foot__top">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 320 }}>
                 <span className="lp-foot__brand">
-                  <img src={mark} alt="" width={30} height={30} />
-                  Fooducia
+                  <img src={logoFullLight} alt="Fooducia" />
                 </span>
                 <p className="lp-foot__blurb">
                   Vegetables harvested after you order them, delivered to Hyderabad apartments the
@@ -1471,7 +1492,7 @@ export function Landing() {
             </div>
           </div>
           <div className="lp-foot__wordmark" aria-hidden="true">
-            Fooducia
+            <img src={logoFullLight} alt="" />
           </div>
         </footer>
       </div>
