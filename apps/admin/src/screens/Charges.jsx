@@ -92,6 +92,7 @@ export function Charges() {
     feeRateBps: 1800,
   });
   const [deliveryPaise, setDeliveryPaise] = useState(0);
+  const [minBasketPaise, setMinBasketPaise] = useState(19900);
   const [saving, setSaving] = useState(false);
   const [savedTotal, setSavedTotal] = useState(null);
 
@@ -106,6 +107,7 @@ export function Charges() {
       ...(data.tax || {}),
     });
     setDeliveryPaise(Number(data.deliveryChargePaise) || 0);
+    setMinBasketPaise(Number(data.minOrderValuePaise) || 0);
     setSavedTotal(Number(data.preview?.totalPaise) || null);
   }, [data]);
 
@@ -146,6 +148,7 @@ export function Charges() {
           goodsRateBps: tax.goodsRateBps,
           feeRateBps: tax.feeRateBps,
         },
+        minOrderValuePaise: Math.max(0, Math.round(Number(minBasketPaise) || 0)),
       };
       const r = await api.put('/admin/charges', body);
       setSavedTotal(Number(r?.preview?.totalPaise) || null);
@@ -179,6 +182,33 @@ export function Charges() {
       ) : (
         <div className="grid-2">
           <div className="vstack" style={{ gap: 16, minWidth: 0 }}>
+            {/* ── minimum basket ────────────────────────────────────────── */}
+            <div className="glass card reveal">
+              <div className="card__head">
+                <h2 className="card__title">Minimum basket</h2>
+              </div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 12px' }}>
+                The smallest order a customer can check out with. The app shows it on the basket and
+                blocks checkout below it. Applies to the next basket.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 240 }}>
+                <span className="muted" style={{ fontSize: 15 }}>
+                  ₹
+                </span>
+                <input
+                  className="field__input"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={Math.round((Number(minBasketPaise) || 0) / 100)}
+                  onChange={(e) =>
+                    setMinBasketPaise(Math.max(0, Math.round(Number(e.target.value) || 0)) * 100)
+                  }
+                  aria-label="Minimum basket in rupees"
+                />
+              </div>
+            </div>
+
             {/* ── fee lines ─────────────────────────────────────────────── */}
             <div className="glass card reveal">
               <div className="card__head">

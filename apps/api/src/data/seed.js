@@ -883,7 +883,7 @@ export const COUPONS = [
 ];
 
 export const TOPUP_DENOMINATIONS_PAISE = [50000, 100000, 200000, 500000];
-export const MIN_ORDER_VALUE_PAISE = 50000;
+export const MIN_ORDER_VALUE_PAISE = 19900; // ₹199 default minimum basket; operator-editable in the console
 export const DELIVERY_CHARGE_PAISE = 0;
 
 /**

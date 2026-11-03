@@ -14,7 +14,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
-import { chargesConfig, constants, updateCharges } from '../../store.js';
+import { chargesConfig, constants, updateCharges, updateMinOrderValue } from '../../store.js';
 import { priceBreakdown } from '../../lib/charges.js';
 import { recordAction } from '../../lib/audit.js';
 
@@ -69,20 +69,38 @@ adminChargesRouter.put(
           feeRateBps: z.number().int().min(0).max(5000).optional(),
         })
         .optional(),
+      // The minimum basket a customer must reach to check out (₹0–₹10,000, in paise).
+      minOrderValuePaise: z.number().int().min(0).max(1000000).optional(),
     }),
   ),
   asyncHandler(async (req, res) => {
     const before = chargesConfig();
     const r = await updateCharges(req.body);
     if (r.error) throw fail(422, 'VALIDATION', r.error);
-    // Awaited. Changing what customers are charged is exactly the kind of decision that must have
-    // a name attached to it afterwards.
+    if (req.body.minOrderValuePaise !== undefined) {
+      const m = await updateMinOrderValue(req.body.minOrderValuePaise);
+      if (m.error) throw fail(422, 'VALIDATION', m.error);
+    }
+    // Awaited. Changing what customers are charged — or the minimum they must spend — is exactly the
+    // kind of decision that must have a name attached to it afterwards.
     await recordAction({
       staff: req.staff,
       action: 'CHARGES_UPDATED',
       target: null,
-      details: { before, after: { charges: r.charges, tax: r.tax } },
+      details: {
+        before,
+        after: {
+          charges: r.charges,
+          tax: r.tax,
+          minOrderValuePaise: constants().minOrderValuePaise,
+        },
+      },
     });
-    res.json({ ...r, deliveryChargePaise: before.deliveryChargePaise, preview: preview() });
+    res.json({
+      ...r,
+      deliveryChargePaise: before.deliveryChargePaise,
+      minOrderValuePaise: constants().minOrderValuePaise,
+      preview: preview(),
+    });
   }),
 );

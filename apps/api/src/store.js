@@ -550,7 +550,22 @@ export const chargesConfig = () => ({
   charges: clone(db.constants.charges),
   tax: clone(db.constants.tax),
   deliveryChargePaise: db.constants.deliveryChargePaise,
+  minOrderValuePaise: db.constants.minOrderValuePaise,
 });
+
+/**
+ * The minimum basket a customer must reach to check out. Operator-editable from the console; the
+ * customer app reads it live (cart.minOrderValuePaise), so a change takes effect on the next basket
+ * without a release. Clamped to ₹0–₹10,000; persisted so it survives a restart.
+ */
+export async function updateMinOrderValue(paise) {
+  const v = Math.round(Number(paise));
+  if (!Number.isFinite(v) || v < 0 || v > 1000000)
+    return { error: 'The minimum basket must be between ₹0 and ₹10,000.' };
+  db.constants.minOrderValuePaise = v;
+  await persistConfigDurably({ minOrderValuePaise: v });
+  return { minOrderValuePaise: v };
+}
 
 /** Customer-facing: each channel only when its toggle is on. */
 export function publicSupport() {
