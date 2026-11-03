@@ -6,10 +6,32 @@
  * configuration is the SELLER's own identity, read from the environment and rendered only where set
  * — so nothing placeholder is ever printed.
  *
- * Amounts are written "Rs." rather than the ₹ glyph on purpose: the built-in Helvetica font has no
- * rupee sign, and "Rs." renders correctly everywhere without embedding a Unicode font.
+ * Design: a modern, Blinkit-style receipt — the Fooducia logo, info cards, a zebra item table, a
+ * highlighted total band and a "you saved" callout, in the brand green. Amounts are written "Rs."
+ * rather than the ₹ glyph on purpose: pdfkit's built-in Helvetica has no rupee sign, and "Rs."
+ * renders everywhere without embedding a Unicode font.
  */
 import PDFDocument from 'pdfkit';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Brand palette (matches the app / landing).
+const BRAND = '#1E7A4C';
+const BRAND_DEEP = '#135A37';
+const BRAND_SOFT = '#E8F4ED';
+const INK = '#15261c';
+const MUT = '#6b7a70';
+const LINE = '#e6ebe4';
+const ZEBRA = '#f6f8f5';
+const GREEN_TEXT = '#1a8a4f';
+
+// Load the logo once; fall back to a text wordmark if it is missing so the invoice never fails.
+let LOGO = null;
+try {
+  LOGO = readFileSync(fileURLToPath(new URL('../assets/fooducia-logo.png', import.meta.url)));
+} catch {
+  LOGO = null;
+}
 
 /** Seller identity for the invoice header. Fill these as env vars on the API (owner action). */
 export function sellerDetails() {
@@ -37,6 +59,12 @@ const dateStr = (iso) => {
     : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const qtyStr = (q, unit) => {
+  const n = Number(q);
+  const num = Number.isFinite(n) ? (n % 1 === 0 ? String(n) : n.toFixed(3).replace(/0+$/, '')) : '';
+  return `${num}${unit ? ` ${unit}` : ''}`;
+};
+
 /** A stable, human invoice number derived from the order number. */
 export const invoiceNumberOf = (order) => `INV-${order?.orderNumber || ''}`;
 
@@ -47,183 +75,257 @@ export const invoiceNumberOf = (order) => `INV-${order?.orderNumber || ''}`;
  */
 export function buildInvoicePdf(order) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 48 });
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
     const chunks = [];
     doc.on('data', (c) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
     const seller = sellerDetails();
-    const left = doc.page.margins.left;
-    const right = doc.page.width - doc.page.margins.right;
-    const width = right - left;
-    const ink = '#16261b';
-    const mut = '#6b7a70';
-    const line = '#e2e7df';
+    const L = doc.page.margins.left;
+    const R = doc.page.width - doc.page.margins.right;
+    const W = R - L;
 
-    // ── header ────────────────────────────────────────────────────────────────
-    doc.fillColor(ink).font('Helvetica-Bold').fontSize(22).text(seller.legalName, left, 48);
-    doc.font('Helvetica').fontSize(9.5).fillColor(mut);
-    const sellerLines = [
-      seller.address,
-      seller.gstin ? `GSTIN: ${seller.gstin}` : null,
-      seller.fssai ? `FSSAI: ${seller.fssai}` : null,
-      [seller.email, seller.phone].filter(Boolean).join('  ·  ') || null,
-    ].filter(Boolean);
-    if (sellerLines.length) doc.text(sellerLines.join('\n'), left, 76, { width: width * 0.6 });
+    // ── header: logo (left) + Tax Invoice (right) ─────────────────────────────
+    if (LOGO) {
+      try {
+        doc.image(LOGO, L, 40, { height: 50 });
+      } catch {
+        doc.font('Helvetica-Bold').fontSize(24).fillColor(BRAND).text('Fooducia', L, 48);
+      }
+    } else {
+      doc.font('Helvetica-Bold').fontSize(24).fillColor(BRAND).text('Fooducia', L, 48);
+    }
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(16)
-      .fillColor(ink)
-      .text('TAX INVOICE', left, 50, { width, align: 'right' });
+    doc.font('Helvetica-Bold').fontSize(18).fillColor(BRAND_DEEP).text('TAX INVOICE', L, 44, {
+      width: W,
+      align: 'right',
+    });
     doc
       .font('Helvetica')
       .fontSize(9.5)
-      .fillColor(mut)
+      .fillColor(MUT)
       .text(
-        `Invoice no: ${invoiceNumberOf(order)}\nDate: ${dateStr(order.createdAt)}\nStatus: ${String(
-          order.status || '',
-        ).replace(/_/g, ' ')}`,
-        left,
-        74,
-        { width, align: 'right' },
+        `Invoice No   ${invoiceNumberOf(order)}\nInvoice Date   ${dateStr(order.createdAt)}`,
+        L,
+        70,
+        { width: W, align: 'right', lineGap: 2 },
       );
 
-    let y = 150;
-    doc.moveTo(left, y).lineTo(right, y).strokeColor(line).lineWidth(1).stroke();
-    y += 16;
+    // seller identity just under the logo
+    const sellerLines = [
+      seller.legalName && seller.legalName !== 'Fooducia' ? `Sold by ${seller.legalName}` : null,
+      seller.address,
+      [
+        seller.gstin ? `GSTIN: ${seller.gstin}` : null,
+        seller.fssai ? `FSSAI: ${seller.fssai}` : null,
+      ]
+        .filter(Boolean)
+        .join('    '),
+    ].filter(Boolean);
+    if (sellerLines.length) {
+      doc
+        .font('Helvetica')
+        .fontSize(8.5)
+        .fillColor(MUT)
+        .text(sellerLines.join('\n'), L, 98, { width: W * 0.62, lineGap: 1.5 });
+    }
 
-    // ── bill to ─────────────────────────────────────────────────────────────
+    let y = 100 + Math.max(sellerLines.length, 1) * 12 + 12;
+    doc.rect(L, y, W, 2).fill(BRAND);
+    y += 18;
+
+    // ── info cards: billed to + order ─────────────────────────────────────────
     const a = order.address || {};
     const addrLine = [a.block, a.flat].filter(Boolean).join(' · ');
-    const buyerLines = [
+    const buyer = [
       order.customerName || 'Customer',
       order.mobile ? `+91 ${order.mobile}` : null,
       [addrLine, a.communityName, a.area].filter(Boolean).join(', ') || null,
       a.landmark || null,
     ].filter(Boolean);
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(mut).text('BILL TO', left, y);
-    doc
-      .font('Helvetica')
-      .fontSize(10.5)
-      .fillColor(ink)
-      .text(buyerLines.join('\n'), left, y + 15, { width: width * 0.55 });
+    const orderRows = [
+      ['Order No', order.orderNumber || ''],
+      [
+        'Payment',
+        (order.paymentMethod || 'PREPAID') === 'COD' ? 'Cash on delivery' : 'Paid online',
+      ],
+      ['Order date', dateStr(order.createdAt)],
+      ['Delivery', dateStr(order.deliveryDate)],
+      ['Status', String(order.status || '').replace(/_/g, ' ')],
+    ];
+    const gap = 14;
+    const cw = (W - gap) / 2;
+    const cardH = 24 + Math.max(buyer.length, orderRows.length) * 15 + 12;
 
-    // order meta on the right
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(mut).text('ORDER', left, y, {
-      width,
-      align: 'right',
+    const card = (x, title, render) => {
+      doc.roundedRect(x, y, cw, cardH, 10).fillAndStroke('#fbfdfb', LINE);
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor(BRAND)
+        .text(title, x + 14, y + 12, { characterSpacing: 0.6 });
+      render(x + 14, y + 28);
+    };
+    card(L, 'BILLED TO', (tx, ty) => {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10.5)
+        .fillColor(INK)
+        .text(buyer[0], tx, ty, {
+          width: cw - 28,
+        });
+      doc
+        .font('Helvetica')
+        .fontSize(9.5)
+        .fillColor(MUT)
+        .text(buyer.slice(1).join('\n'), tx, ty + 15, { width: cw - 28, lineGap: 2 });
     });
-    doc
-      .font('Helvetica')
-      .fontSize(10.5)
-      .fillColor(ink)
-      .text(
-        `${order.orderNumber}\nPayment: ${order.paymentMethod || 'PREPAID'}\nDelivery: ${dateStr(
-          order.deliveryDate,
-        )}`,
-        left,
-        y + 15,
-        { width, align: 'right' },
-      );
-
-    y += 15 + Math.max(buyerLines.length, 3) * 14 + 18;
+    card(L + cw + gap, 'ORDER DETAILS', (tx, ty) => {
+      doc.font('Helvetica').fontSize(9.5);
+      let ry = ty;
+      for (const [k, v] of orderRows) {
+        doc.fillColor(MUT).text(k, tx, ry, { width: cw * 0.42 });
+        doc.fillColor(INK).text(v, tx + cw * 0.42, ry, { width: cw * 0.58 - 14, align: 'right' });
+        ry += 15;
+      }
+    });
+    y += cardH + 22;
 
     // ── items table ───────────────────────────────────────────────────────────
-    const cols = {
-      idx: left,
-      name: left + 26,
-      qty: left + width * 0.55,
-      rate: left + width * 0.72,
-      amt: right,
-    };
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(mut);
-    doc.text('#', cols.idx, y);
-    doc.text('ITEM', cols.name, y);
-    doc.text('QTY', cols.qty, y, { width: 60 });
-    doc.text('RATE', cols.rate, y, { width: 70 });
-    doc.text('AMOUNT', cols.rate, y, { width: cols.amt - cols.rate, align: 'right' });
-    y += 14;
-    doc.moveTo(left, y).lineTo(right, y).strokeColor(line).stroke();
-    y += 8;
+    const colIdx = L + 12;
+    const colName = L + 34;
+    const colQty = L + W * 0.52;
+    const colRate = L + W * 0.68;
+    const colAmtR = R - 12;
+    const headH = 22;
+    doc.roundedRect(L, y, W, headH, 6).fill(BRAND_SOFT);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(BRAND_DEEP);
+    const hy = y + 7;
+    doc.text('#', colIdx, hy);
+    doc.text('ITEM', colName, hy);
+    doc.text('QTY', colQty, hy, { width: W * 0.14 });
+    doc.text('RATE', colRate, hy, { width: colAmtR - colRate - 60, align: 'left' });
+    doc.text('AMOUNT', colRate, hy, { width: colAmtR - colRate, align: 'right' });
+    y += headH + 2;
 
     const items = Array.isArray(order.items) ? order.items : [];
-    doc.font('Helvetica').fontSize(10).fillColor(ink);
     items.forEach((it, i) => {
-      if (y > doc.page.height - 160) {
+      if (y > doc.page.height - 220) {
         doc.addPage();
-        y = 60;
+        y = 50;
       }
-      const q = Number(it.quantity);
-      const qty = Number.isFinite(q)
-        ? q % 1 === 0
-          ? String(q)
-          : q.toFixed(3).replace(/0+$/, '')
-        : '';
-      const unit = it.unit ? ` ${it.unit}` : '';
-      doc.fillColor(mut).text(String(i + 1), cols.idx, y);
-      doc.fillColor(ink).text(it.name || 'Item', cols.name, y, { width: cols.qty - cols.name - 8 });
-      const rowH = doc.heightOfString(it.name || 'Item', { width: cols.qty - cols.name - 8 });
-      doc.text(`${qty}${unit}`, cols.qty, y, { width: 70 });
-      doc.text(rs(it.unitPricePaise), cols.rate, y, { width: 70 });
-      doc.text(rs(it.lineTotalPaise), cols.rate, y, {
-        width: cols.amt - cols.rate,
+      const name = it.name || 'Item';
+      const nameW = colQty - colName - 10;
+      const rowH = Math.max(20, doc.heightOfString(name, { width: nameW, fontSize: 10 }) + 10);
+      if (i % 2 === 1) doc.rect(L, y, W, rowH).fill(ZEBRA);
+      const ty = y + (rowH - 11) / 2;
+      doc.font('Helvetica').fontSize(10);
+      doc.fillColor(MUT).text(String(i + 1), colIdx, ty);
+      doc.fillColor(INK).text(name, colName, ty, { width: nameW });
+      doc.fillColor(MUT).text(qtyStr(it.quantity, it.unit), colQty, ty, { width: W * 0.14 });
+      doc.fillColor(MUT).text(rs(it.unitPricePaise), colRate, ty, {
+        width: colAmtR - colRate - 60,
+      });
+      doc.fillColor(INK).text(rs(it.lineTotalPaise), colRate, ty, {
+        width: colAmtR - colRate,
         align: 'right',
       });
-      y += Math.max(16, rowH + 6);
+      y += rowH;
     });
+    doc.moveTo(L, y).lineTo(R, y).strokeColor(LINE).lineWidth(1).stroke();
+    y += 16;
 
-    doc.moveTo(left, y).lineTo(right, y).strokeColor(line).stroke();
-    y += 12;
-
-    // ── summary ────────────────────────────────────────────────────────────────
-    const sumX = left + width * 0.5;
-    const sumRow = (label, value, bold = false) => {
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 12 : 10.5);
-      doc.fillColor(bold ? ink : mut).text(label, sumX, y, { width: (right - sumX) * 0.55 });
-      doc.fillColor(ink).text(value, sumX, y, { width: right - sumX, align: 'right' });
-      y += bold ? 20 : 16;
+    // ── summary (right-aligned block) ─────────────────────────────────────────
+    const sumX = L + W * 0.5;
+    const sumRow = (label, value, color = MUT, valColor = INK) => {
+      doc
+        .font('Helvetica')
+        .fontSize(10)
+        .fillColor(color)
+        .text(label, sumX, y, {
+          width: (R - sumX) * 0.55,
+        });
+      doc.fillColor(valColor).text(value, sumX, y, { width: R - sumX, align: 'right' });
+      y += 17;
     };
-    sumRow('Subtotal', rs(order.subtotalPaise));
-    if (Number(order.couponDiscountPaise) > 0)
+    sumRow('Item subtotal', rs(order.subtotalPaise));
+    const saved = Number(order.couponDiscountPaise) || 0;
+    if (saved > 0)
       sumRow(
         `Discount${order.couponCode ? ` (${order.couponCode})` : ''}`,
-        `- ${rs(order.couponDiscountPaise)}`,
+        `- ${rs(saved)}`,
+        GREEN_TEXT,
+        GREEN_TEXT,
       );
     if (Number(order.deliveryChargePaise) > 0)
       sumRow('Delivery fee', rs(order.deliveryChargePaise));
     for (const l of order.chargeBreakdown?.lines || []) sumRow(l.label, rs(l.amountPaise));
     if (Number(order.taxPaise) > 0)
       sumRow(order.chargeBreakdown?.taxLabel || 'GST', rs(order.taxPaise));
-    doc.moveTo(sumX, y).lineTo(right, y).strokeColor(line).stroke();
-    y += 8;
-    sumRow('Total', rs(order.totalPaise), true);
+
+    // total band
+    y += 4;
+    const bandH = 34;
+    doc.roundedRect(sumX, y, R - sumX, bandH, 8).fill(BRAND);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#ffffff')
+      .text('Total', sumX + 14, y + 11, { width: (R - sumX) * 0.5 });
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(13)
+      .fillColor('#ffffff')
+      .text(rs(order.totalPaise), sumX, y + 10, { width: R - sumX - 14, align: 'right' });
+    y += bandH + 10;
 
     // payment split
     if (Number(order.walletAppliedPaise) > 0)
       sumRow('Paid via wallet', rs(order.walletAppliedPaise));
     if (order.paymentMethod === 'COD')
-      sumRow('Payable at door', rs(order.codDuePaise ?? order.totalPaise));
+      sumRow('Payable at door', rs(order.codDuePaise ?? order.totalPaise), INK, INK);
     else if (Number(order.gatewayAmountPaise) > 0)
-      sumRow('Paid online', rs(order.gatewayAmountPaise));
+      sumRow('Paid online', rs(order.gatewayAmountPaise), INK, INK);
 
-    // ── footer ──────────────────────────────────────────────────────────────────
-    const footY = doc.page.height - 90;
-    doc.moveTo(left, footY).lineTo(right, footY).strokeColor(line).stroke();
+    // ── "you saved" callout (left side, Blinkit-style) ────────────────────────
+    if (saved > 0) {
+      const pillY = y - 2;
+      const pillW = W * 0.46;
+      doc.roundedRect(L, pillY, pillW, 30, 8).fill('#eafaf0');
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10.5)
+        .fillColor(GREEN_TEXT)
+        .text(`You saved ${rs(saved)} on this order`, L + 14, pillY + 10, { width: pillW - 28 });
+    }
+
+    // ── footer ────────────────────────────────────────────────────────────────
+    const footY = doc.page.height - 104;
+    doc.moveTo(L, footY).lineTo(R, footY).strokeColor(LINE).lineWidth(1).stroke();
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9.5)
+      .fillColor(BRAND_DEEP)
+      .text('Thank you for shopping fresh with Fooducia.', L, footY + 14, {
+        width: W,
+        align: 'center',
+      });
+    const contact = [seller.email || 'support@fooducia.health', seller.phone]
+      .filter(Boolean)
+      .join('  ·  ');
     doc
       .font('Helvetica')
-      .fontSize(8.5)
-      .fillColor(mut)
-      .text(
-        'This is a computer-generated invoice and does not require a signature. ' +
-          'For any query about this order, contact us at ' +
-          (seller.email || 'support@fooducia.health') +
-          '. Weighed items are billed on packed weight.',
-        left,
-        footY + 10,
-        { width, align: 'center' },
-      );
+      .fontSize(8)
+      .fillColor(MUT)
+      .text('Computer-generated invoice — no signature required.', L, footY + 32, {
+        width: W,
+        align: 'center',
+      });
+    doc.text(`Weighed items are billed on packed weight.   Questions? ${contact}`, L, footY + 44, {
+      width: W,
+      align: 'center',
+    });
 
     doc.end();
   });
