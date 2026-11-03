@@ -316,6 +316,9 @@ export function orderAdmin(o, today = new Date().toISOString().slice(0, 10)) {
     id: o.id,
     orderNumber: o.orderNumber,
     status: o.status,
+    // First-ever order from this customer — surfaced as a "new customer" badge in the console, on the
+    // delivery/fulfilment screens and in procurement so a welcome goodie can be added.
+    firstOrder: !!o.isFirstOrder,
     customerName: o.customerName,
     mobile: o.mobile,
     items: orderItems(o.items),

@@ -138,10 +138,19 @@ export function createOrder(input) {
   const createdAt = input.createdAt || new Date().toISOString();
   const status = input.status || 'CONFIRMED';
   seq += 1;
+  // First-time customer? True when neither this customer id nor this mobile already has an earlier
+  // order. Computed at placement and frozen on the order, so the "new customer" signal (used to hand
+  // out welcome goodies) stays stable for delivery, the console and procurement.
+  const isFirstOrder = !db.orders.some(
+    (o) =>
+      (input.customerId && o.customerId === input.customerId) ||
+      (input.mobile && o.mobile === input.mobile),
+  );
   const order = {
     id: id('ord', 10),
     orderNumber: `F2F-${seq}`,
     status,
+    isFirstOrder,
     customerId: input.customerId || null,
     customerName: input.customerName,
     mobile: input.mobile,

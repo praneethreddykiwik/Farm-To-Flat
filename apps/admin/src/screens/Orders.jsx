@@ -47,10 +47,12 @@ export function Orders() {
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
   const query = new URLSearchParams();
-  // "Cancel requests" is a client-side view over ALL orders (the server filters by status only).
+  // "Cancel requests", "Stale" and "New customers" are client-side views over ALL orders
+  // (the server filters by status only).
   const cancelView = status === 'CANCEL_REQUESTED';
   const staleView = status === 'STALE';
-  if (status !== 'all' && !cancelView && !staleView) query.set('status', status);
+  const firstView = status === 'FIRST_ORDER';
+  if (status !== 'all' && !cancelView && !staleView && !firstView) query.set('status', status);
   if (q.trim()) query.set('q', q.trim());
   const qs = query.toString();
   const { data, loading, error, reload } = useResource(`/admin/orders${qs ? `?${qs}` : ''}`);
@@ -60,8 +62,15 @@ export function Orders() {
   const counts = data?.counts || {};
   const all = useMemo(() => data?.orders || [], [data]);
   const orders = useMemo(
-    () => (cancelView ? all.filter(isCancelRequest) : staleView ? all.filter(isStale) : all),
-    [all, cancelView, staleView],
+    () =>
+      cancelView
+        ? all.filter(isCancelRequest)
+        : staleView
+          ? all.filter(isStale)
+          : firstView
+            ? all.filter((o) => o.firstOrder)
+            : all,
+    [all, cancelView, staleView, firstView],
   );
   // Count of open cancellation requests — known whenever we're looking at the unfiltered list.
   // From the server, which counts across every order. Deriving these from `all` only worked while
@@ -69,6 +78,9 @@ export function Orders() {
   // the rest, so the badge was hidden and the count looked broken.
   const cancelCount = counts.CANCEL_REQUESTED ?? null;
   const staleCount = counts.STALE ?? null;
+  // Derived from the loaded page; accurate on the unfiltered / New-customers views, hidden under a
+  // status filter (where `all` is only that status) — same pattern as the cancel/stale counts.
+  const firstCount = status === 'all' || firstView ? all.filter((o) => o.firstOrder).length : null;
   const pager = usePager(orders, 25, `${status}|${q}`);
 
   async function download(type) {
@@ -157,6 +169,15 @@ export function Orders() {
           Past delivery day
           {staleCount != null && <span className="chip__count">{staleCount}</span>}
         </button>
+        <button
+          className={`chip${firstView ? ' is-active' : ''}`}
+          onClick={() => setStatus('FIRST_ORDER')}
+          title="First-ever order from this customer — add a welcome goodie"
+          style={firstCount ? { borderColor: 'var(--leaf)', color: 'var(--leaf)' } : undefined}
+        >
+          New customers
+          {firstCount != null && <span className="chip__count">{firstCount}</span>}
+        </button>
       </div>
 
       <div className="glass" style={{ overflow: 'hidden' }}>
@@ -190,7 +211,28 @@ export function Orders() {
                         {o.orderNumber}
                       </td>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{o.customerName}</div>
+                        <div
+                          style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          {o.customerName}
+                          {o.firstOrder && (
+                            <span
+                              title="First-ever order — add a welcome goodie"
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                                color: 'var(--leaf, #1e7a4c)',
+                                background: 'var(--leaf-soft, #ddf0e4)',
+                                borderRadius: 999,
+                                padding: '2px 7px',
+                              }}
+                            >
+                              ★ New
+                            </span>
+                          )}
+                        </div>
                         <div className="muted" style={{ fontSize: 12 }}>
                           {o.address?.communityName} · {o.address?.block} {o.address?.flat}
                         </div>
