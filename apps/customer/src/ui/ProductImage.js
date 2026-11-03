@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PixelRatio, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,14 +32,35 @@ export function ProductImage({
   // suited to a card and the few places that draw bigger (the product hero) pass their own.
   renderWidth,
 }) {
-  const [failed, setFailed] = useState(false);
+  // A transient blip (image proxy cold-start, a dropped frame on a flaky mobile connection) makes
+  // expo-image fire onError exactly once and never retry — which is why a photo would render one
+  // time and show the letter tile the next. Retry a couple of times with a short backoff before
+  // giving up, cache-busting each attempt so the loader refetches instead of serving the miss.
+  const MAX_RETRY = 2;
+  const [retry, setRetry] = useState(0);
+  const [errored, setErrored] = useState(false);
   // Adjust on render when the source changes: a tile that failed once kept showing the fallback for
   // every later product that landed in the same recycled view.
   const [failedFor, setFailedFor] = useState(uri);
   if (failedFor !== uri) {
     setFailedFor(uri);
-    setFailed(false);
+    setRetry(0);
+    setErrored(false);
   }
+  // Schedule a backed-off retry on error; deferred inside the timeout so no state is set directly
+  // in the effect body. Once we've used up the retries, `giveUp` (derived below) shows the tile.
+  useEffect(() => {
+    if (!errored || retry >= MAX_RETRY) return undefined;
+    const id = setTimeout(
+      () => {
+        setRetry((r) => r + 1);
+        setErrored(false);
+      },
+      350 * (retry + 1),
+    );
+    return () => clearTimeout(id);
+  }, [errored, retry]);
+  const giveUp = errored && retry >= MAX_RETRY;
   const t = tintOf(tint);
   const dim = size === 'fill' ? { width: '100%', height: '100%' } : { width: size, height: size };
   // Absolute URLs pass through unchanged; a Supabase Storage path becomes a public URL. Either way
@@ -47,8 +68,10 @@ export function ProductImage({
   const wanted =
     renderWidth || (size === 'fill' ? 480 : PixelRatio.getPixelSizeForLayoutSize(size));
   const src = resolveStorageImage(uri, undefined, wanted);
+  // Cache-bust each retry so expo-image refetches rather than replaying the cached failure.
+  const srcKey = src && retry > 0 ? `${src}${src.includes('?') ? '&' : '?'}retry=${retry}` : src;
 
-  if (!src || failed) {
+  if (!src || giveUp) {
     const initial = (name || '?').trim().charAt(0).toUpperCase();
     const fs = size === 'fill' ? 46 : Math.max(18, Math.round(size * 0.42));
     return (
@@ -109,7 +132,7 @@ export function ProductImage({
         // and WebP is 27 KB; at the 960px the product hero draws, PNG is 952 KB against 77 KB.
         // Fifty-odd products on the home screen were pulling megabytes of PNG to paint thumbnails,
         // which is what the lag was.
-        source={{ uri: src, headers: ACCEPT_WEBP }}
+        source={{ uri: srcKey, headers: ACCEPT_WEBP }}
         placeholder={blurhash ? { blurhash } : undefined}
         placeholderContentFit="cover"
         contentFit="cover"
@@ -117,7 +140,7 @@ export function ProductImage({
         cachePolicy="memory-disk"
         recyclingKey={recyclingKey}
         priority={priority}
-        onError={() => setFailed(true)}
+        onError={() => setErrored(true)}
         style={StyleSheet.absoluteFill}
       />
     </View>

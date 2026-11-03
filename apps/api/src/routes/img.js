@@ -35,6 +35,25 @@ const WIDTHS = new Set([120, 240, 480, 960]);
 /** A storage key is `name.ext` with no slashes, no traversal, from the known extensions. */
 const KEY_RE = /^[A-Za-z0-9._-]+\.(png|jpe?g|webp|avif)$/;
 
+/**
+ * fetch with a hard timeout. Without this a slow or hung Supabase render could stall the request
+ * indefinitely — the client's okhttp then gives up and the thumbnail falls back to a letter tile,
+ * which is exactly the "renders once, not the next time" flakiness. A timeout fails fast so the
+ * raw-object fallback (and the client's own retry) can take over.
+ */
+async function fetchTimed(url, ms = 7000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  try {
+    return await fetch(url, {
+      headers: { Accept: 'image/webp,image/avif,image/*,*/*' },
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 imgRouter.get('/:key', async (req, res, next) => {
   try {
     if (!SUPABASE_URL) throw fail(501, 'STORAGE_OFF', 'Image storage is not configured.');
@@ -49,20 +68,33 @@ imgRouter.get('/:key', async (req, res, next) => {
 
     // Built entirely from server-side constants plus the validated key. The client never supplies
     // a URL, host or scheme.
-    const upstream = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeURIComponent(
+    const renderUrl = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeURIComponent(
       key,
     )}?width=${width}&quality=70&resize=contain`;
+    const rawUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${encodeURIComponent(key)}`;
 
-    const r = await fetch(upstream, {
-      headers: { Accept: 'image/webp,image/avif,image/*,*/*' },
-    });
-    if (!r.ok) {
-      // Fall back to the untransformed object: if the transform endpoint is unavailable (plan or
-      // quota), the raw object is still served, so an image appears rather than a blank tile.
-      const rawUpstream = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${encodeURIComponent(key)}`;
-      const raw = await fetch(rawUpstream);
-      if (!raw.ok)
-        throw fail(raw.status === 404 ? 404 : 502, 'IMAGE_UNAVAILABLE', 'Image unavailable.');
+    // Try the small WebP transform first; fall back to the raw object. Each step must survive a
+    // THROW (timeout / dropped connection), not only a non-OK status — previously a thrown render
+    // fetch skipped the fallback entirely and 502'd, which is the intermittent failure.
+    let r = null;
+    try {
+      r = await fetchTimed(renderUrl);
+    } catch {
+      r = null;
+    }
+    if (!r || !r.ok) {
+      let raw = null;
+      try {
+        raw = await fetchTimed(rawUrl);
+      } catch {
+        raw = null;
+      }
+      if (!raw || !raw.ok)
+        throw fail(
+          raw && raw.status === 404 ? 404 : 502,
+          'IMAGE_UNAVAILABLE',
+          'Image unavailable.',
+        );
       return stream(raw, res);
     }
     return stream(r, res);
