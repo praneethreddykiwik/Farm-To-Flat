@@ -17,26 +17,37 @@ import { HINDI_NAMES } from './i18n.js';
 const MODEL = 'openai/gpt-oss-120b';
 
 const SYSTEM = `You translate grocery product names for an Indian grocery delivery service in Hyderabad.
-Given an English product name, reply with the name a local shopper would actually use.
+Given an English product name, reply with the names a local shopper would actually use.
 
 Rules:
-- "hi" must be Hindi in Devanagari script. "te" must be Telugu in Telugu script.
+- "hi" is Hindi in Devanagari script. "te" is Telugu in Telugu script. Each is an ARRAY.
+- Give 1 to 3 names per language, BEST FIRST. Include genuine regional synonyms a Hyderabad
+  shopper would recognise (e.g. colocasia leaves are called both చామ ఆకు and చామదుంప ఆకు). Do NOT
+  pad with invented variants — only names that are actually used. One correct name beats three.
 - Use the REAL local name, never a transliteration of the English word, when a real name exists.
   Spinach -> पालक / పాలకూర. Bottle gourd -> लौकी / సొరకాయ.
+- The name MUST denote THIS exact plant. Never return a word that means a different food — e.g.
+  చేపలకూర means "fish greens" and is WRONG for colocasia; do not guess by sound.
 - Only transliterate when the item genuinely has no local name (e.g. "Broccoli").
-- Keep it to the product name alone: no brand, no quantity, no punctuation, no explanation.
-- Reply with JSON only: {"hi":"...","te":"..."}
+- Keep each entry to the product name alone: no brand, no quantity, no punctuation, no explanation.
+- If you are not sure of a correct name in one language, return an empty array for it rather than
+  guessing. A wrong name is worse than none.
+- Reply with JSON only: {"hi":["..."],"te":["..."]}
 
 Worked examples (these are correct — match this level of specificity):
-Spinach -> {"hi":"पालक","te":"పాలకూర"}
-Bitter gourd -> {"hi":"करेला","te":"కాకరకాయ"}
-Ridge gourd -> {"hi":"तोरई","te":"బీరకాయ"}
-Bottle gourd -> {"hi":"लौकी","te":"సొరకాయ"}
-Sorrel leaves -> {"hi":"अंबाडी","te":"గోంగూర"}
-Coriander -> {"hi":"धनिया","te":"కొత్తిమీర"}
-Okra -> {"hi":"भिंडी","te":"బెండకాయ"}
-Brinjal -> {"hi":"बैंगन","te":"వంకాయ"}
-Note how the gourds differ from one another — do not confuse them.`;
+Spinach -> {"hi":["पालक"],"te":["పాలకూర"]}
+Bitter gourd -> {"hi":["करेला"],"te":["కాకరకాయ"]}
+Ridge gourd -> {"hi":["तोरई"],"te":["బీరకాయ"]}
+Bottle gourd -> {"hi":["लौकी"],"te":["సొరకాయ"]}
+Sorrel leaves -> {"hi":["अंबाडी"],"te":["గోంగూర"]}
+Colocasia leaves -> {"hi":["अरबी के पत्ते","पत्रा"],"te":["చామ ఆకు","చామదుంప ఆకు"]}
+Amaranth leaves -> {"hi":["चौलाई","लाल साग"],"te":["తోటకూర"]}
+Fenugreek leaves -> {"hi":["मेथी"],"te":["మెంతికూర"]}
+Coriander -> {"hi":["धनिया"],"te":["కొత్తిమీర"]}
+Okra -> {"hi":["भिंडी"],"te":["బెండకాయ"]}
+Brinjal -> {"hi":["बैंगन"],"te":["వంకాయ"]}
+Note how the gourds and the leafy greens differ from one another — do not confuse them, and never
+name a leaf after an unrelated item.`;
 
 const DEVANAGARI = /[ऀ-ॿ]/;
 const TELUGU = /[ఀ-౿]/;
@@ -65,15 +76,28 @@ export function examplesFromCatalog(products) {
     // (it returned "jaggery" for cluster beans with Telugu grounded and Hindi not).
     const hi = aliases.find((a) => DEVANAGARI.test(a)) || HINDI_NAMES[p.id] || '';
     const te = aliases.find((a) => TELUGU.test(a)) || '';
-    if (p.name && (hi || te)) out.push(`${p.name} -> {"hi":"${hi}","te":"${te}"}`);
+    const arr = (s) => (s ? `["${s}"]` : '[]');
+    if (p.name && (hi || te)) out.push(`${p.name} -> {"hi":${arr(hi)},"te":${arr(te)}}`);
     if (out.length >= 40) break;
   }
   return out;
 }
 
+/** Up to 3 names in the required script, trimmed, de-duplicated, English echoes dropped. */
+const pickNames = (value, scriptRe) => {
+  const list = Array.isArray(value) ? value : [value];
+  const out = [];
+  for (const v of list) {
+    const c = clean(v);
+    if (c && scriptRe.test(c) && !out.includes(c)) out.push(c);
+    if (out.length >= 3) break;
+  }
+  return out;
+};
+
 /**
  * @param {{ name: string, category?: string, examples?: string[] }} args
- * @returns {Promise<{ hi: string, te: string }>}
+ * @returns {Promise<{ hi: string[], te: string[] }>}
  */
 export async function suggestProductNames({ name, category, examples }) {
   const key = process.env.GROQ_API_KEY;
@@ -121,13 +145,11 @@ export async function suggestProductNames({ name, category, examples }) {
     throw fail(502, 'AI_UNREADABLE', 'The suggestion service sent something unreadable.');
   }
 
-  const hi = clean(parsed.hi);
-  const te = clean(parsed.te);
-  // Check the SCRIPT, not just that something came back. A model that echoes the English name is
-  // the common failure here, and an English "suggestion" dropped into the aliases field would
-  // quietly make productName() treat it as a Hindi name forever.
+  // Check the SCRIPT of every candidate, not just that something came back. A model that echoes the
+  // English name is the common failure here, and an English "suggestion" dropped into the aliases
+  // field would quietly make productName() treat it as a Hindi name forever.
   return {
-    hi: DEVANAGARI.test(hi) ? hi : '',
-    te: TELUGU.test(te) ? te : '',
+    hi: pickNames(parsed.hi, DEVANAGARI),
+    te: pickNames(parsed.te, TELUGU),
   };
 }

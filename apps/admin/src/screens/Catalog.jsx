@@ -275,7 +275,11 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           name: typed,
           category: categories.find((c) => c.id === f.category)?.name,
         });
-        if (alive) setSugg(r && (r.hi || r.te) ? r : null);
+        // Normalise to arrays — the endpoint now returns several candidates per language, but
+        // tolerate an older single-string shape so a stale API during a deploy still works.
+        const toArr = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+        const norm = r ? { hi: toArr(r.hi), te: toArr(r.te) } : null;
+        if (alive) setSugg(norm && (norm.hi.length || norm.te.length) ? norm : null);
       } catch (err) {
         if (alive) {
           setSugg(null);
@@ -554,20 +558,23 @@ function ProductForm({ product, categories, onClose, onSaved }) {
         {suggErr && <p className="field__hint">{suggErr}</p>}
         {sugg && (
           <div className="hstack" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            {['hi', 'te'].map((k) =>
-              sugg[k] ? (
-                <button
-                  key={k}
-                  type="button"
-                  className="chip"
-                  onClick={() => addAlias(sugg[k])}
-                  disabled={aliasList.includes(sugg[k])}
-                  title={`Add ${k === 'hi' ? 'Hindi' : 'Telugu'} name to aliases`}
-                >
-                  {k === 'hi' ? 'हिंदी' : 'తెలుగు'} · {sugg[k]}
-                  {aliasList.includes(sugg[k]) ? ' ✓' : ' +'}
-                </button>
-              ) : null,
+            {['hi', 'te'].flatMap((k) =>
+              (sugg[k] || []).map((name) => {
+                const added = aliasList.includes(name);
+                return (
+                  <button
+                    key={`${k}-${name}`}
+                    type="button"
+                    className="chip"
+                    onClick={() => addAlias(name)}
+                    disabled={added}
+                    title={`Add ${k === 'hi' ? 'Hindi' : 'Telugu'} name to aliases`}
+                  >
+                    {k === 'hi' ? 'हिंदी' : 'తెలుగు'} · {name}
+                    {added ? ' ✓' : ' +'}
+                  </button>
+                );
+              }),
             )}
           </div>
         )}
