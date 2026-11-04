@@ -51,7 +51,7 @@ import {
   selectProvider,
   selectScheduled,
 } from '../../src/features/plan/planSlice';
-import { showToast } from '../../src/features/ui/uiSlice';
+import { showToast, selectLanguage } from '../../src/features/ui/uiSlice';
 import { selectAiVisible } from '../../src/features/role/roleSlice';
 import { generatePlan } from '../../src/lib/ai';
 import { NUTRITION_SOURCE } from '../../src/lib/nutrition';
@@ -91,6 +91,7 @@ export default function Plan() {
   const router = useRouter();
   const dispatch = useDispatch();
   const aiVisible = useSelector(selectAiVisible);
+  const lang = useSelector(selectLanguage);
   const profile = useSelector(selectProfile);
   const provider = useSelector(selectProvider);
   const draft = useSelector(selectDraft);
@@ -134,6 +135,7 @@ export default function Plan() {
         request,
         horizon,
         products,
+        lang,
         provider: provider || undefined,
         onProgress: setStage,
         serverPlan: (body) => aiPlan(body).unwrap(),

@@ -52,7 +52,17 @@ function catalogForPrompt(products) {
     .join('\n');
 }
 
-function systemPrompt({ profile, targets, horizon, products }) {
+// The plan comes back as JSON with fixed keys; only the human-readable VALUES are translated. The
+// catalog ids stay English (the app resolves each id to the already-translated product name), so a
+// Telugu reader sees Telugu dish names and steps sitting beside Telugu product names.
+const LANG_NAME = { hi: 'Hindi (in Devanagari script)', te: 'Telugu (in Telugu script)' };
+function languageClause(lang) {
+  const name = LANG_NAME[lang];
+  if (!name) return '';
+  return `\nLANGUAGE: Write every human-readable value — "title", "summary", each meal "name", every "steps" line and every "cautions" line — in ${name}. Keep the JSON keys, the "slot" values (breakfast/lunch/snack/dinner) and every "productId" EXACTLY as specified in English. Do not translate product ids.`;
+}
+
+function systemPrompt({ profile, targets, horizon, products, lang }) {
   const days = TEMPLATE_DAYS[horizon] || 1;
   const avoidList = [...(profile.excludes || []), profile.avoid]
     .map((s) => String(s || '').trim())
@@ -116,7 +126,7 @@ RESPONSE: JSON only, matching exactly:
     ] }
   ],
   "cautions": [ "only real limitations, e.g. protein target needs pantry pulses; max 3" ]
-}`;
+}${languageClause(lang)}`;
 }
 
 async function callGroq({ model, key, system, user }) {
@@ -370,6 +380,7 @@ export async function generatePlan({
   request,
   horizon,
   products,
+  lang,
   provider,
   onProgress,
   serverPlan,
@@ -385,7 +396,7 @@ export async function generatePlan({
   );
   const cfg = aiConfig(provider);
   let usedCfg = cfg;
-  const system = systemPrompt({ profile, targets, horizon, products });
+  const system = systemPrompt({ profile, targets, horizon, products, lang });
   const user = `Customer request: ${request || 'Plan my meals.'}\nHorizon: ${horizon}. Return JSON only.`;
   let text;
   if (!env.useMocks && !cfg.key) {
@@ -394,10 +405,10 @@ export async function generatePlan({
     // gets the same single-flight 401 refresh as every other call — a raw fetch here 401s with
     // "Please sign in again." because the /ai route is behind requireAuth.
     if (serverPlan) {
-      const data = await serverPlan({ profile, request, horizon });
+      const data = await serverPlan({ profile, request, horizon, lang });
       text = typeof data?.plan === 'string' ? data.plan : JSON.stringify(data?.plan ?? data);
     } else {
-      text = await callServer({ body: { profile, request, horizon } });
+      text = await callServer({ body: { profile, request, horizon, lang } });
     }
   } else if (!cfg.key) {
     throw new Error(

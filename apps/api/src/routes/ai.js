@@ -78,7 +78,18 @@ const PlanBody = z.object({
   profile: z.record(z.string(), z.any()).optional(),
   request: z.string().max(2000).optional(),
   horizon: z.enum(['meal', 'day', 'week', 'month']).default('day'),
+  // The reading language the plan's prose should come back in. Unknown/absent → English.
+  lang: z.enum(['en', 'hi', 'te']).optional(),
 });
+
+// Only the human-readable values are translated; keys, slot names and productIds stay English so the
+// app can still resolve each id to its (already translated) catalog name.
+const LANG_NAME = { hi: 'Hindi (in Devanagari script)', te: 'Telugu (in Telugu script)' };
+function languageClause(lang) {
+  const name = LANG_NAME[lang];
+  if (!name) return '';
+  return `Write every human-readable value — "title", "summary", each meal "name", every "steps" line and every "cautions" line — in ${name}. Keep the JSON keys, the "slot" values (breakfast/lunch/snack/dinner) and every "productId" EXACTLY as given in English. Never translate product ids.`;
+}
 
 // The app only needs a compact rotation from the model: one day for meal/day, seven for week, and a
 // seven-day rotation for month (the app tiles it to 30 itself — see normalisePlan in the client's
@@ -86,7 +97,7 @@ const PlanBody = z.object({
 // exactly why "This week" / "A month" used to fail while "Today" worked.
 const TEMPLATE_DAYS = { meal: 1, day: 1, week: 7, month: 7 };
 
-function systemPrompt(horizon) {
+function systemPrompt(horizon, lang) {
   const cats = listCategories();
   const catalog = listProducts()
     .filter((p) => p.isActive !== false)
@@ -105,7 +116,10 @@ function systemPrompt(horizon) {
     'Keep it compact: max 4 short steps per meal (≤ 12 words each), dish names ≤ 5 words.',
     'Return STRICT JSON: { title, summary, days:[{ day, meals:[{ slot, name, items:[{productId, grams}], steps, prepMinutes }] }], cautions }.',
     'Every productId MUST be from the catalog. No prose outside JSON.',
-  ].join('\n');
+    languageClause(lang),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**
@@ -187,7 +201,7 @@ aiRouter.post(
         'AI planner needs a server key (GROQ_API_KEY or GEMINI_API_KEY). In dev the app calls the provider directly.',
       );
 
-    const prompt = systemPrompt(req.body.horizon);
+    const prompt = systemPrompt(req.body.horizon, req.body.lang);
     const user = JSON.stringify({
       profile: req.body.profile || {},
       request: req.body.request || '',
