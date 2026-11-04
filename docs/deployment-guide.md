@@ -1,7 +1,7 @@
 # Farm-to-Flat — Deployment Guide (Play Store + App Store)
 
 **Owner:** Vivek · **Build system:** Expo Application Services (EAS) · **Status:** pre-launch
-**App:** Farm to Flat · slug `farm-to-flat` · version `0.1.0` · id `in.farmtoflat.customer` (both platforms)
+**App:** Fooducia · slug `farm-to-flat` · version `0.2.0` · id `in.fooducia.customer` (both platforms)
 
 This is the plan we follow to get the app onto the Apple App Store and Google Play Store, plus what
 each teammate needs to provide. It also corrects two common misunderstandings (see §5).
@@ -52,7 +52,7 @@ Run all commands from **`apps/customer`**.
 
 ### Phase 1 — Configure the app (mostly done ✅)
 
-Already set in `app.json`: name, icon, splash, bundle id `in.farmtoflat.customer`, permissions,
+Already set in `app.json`: name, icon, splash, bundle id `in.fooducia.customer`, permissions,
 version `0.1.0`. `eas.json` build profiles are configured.
 
 ### Phase 2 — Log in the build tool

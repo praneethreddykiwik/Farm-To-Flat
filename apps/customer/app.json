@@ -10,7 +10,7 @@
     "backgroundColor": "#F3F5EF",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "in.farmtoflat.customer",
+      "bundleIdentifier": "in.fooducia.customer",
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["tez", "phonepe", "paytmmp"],
         "NSLocationWhenInUseUsageDescription": "We use your location once to check whether your community is serviceable.",
@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "package": "in.farmtoflat.customer",
+      "package": "in.fooducia.customer",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#0B1510",
