@@ -40,7 +40,7 @@ export function HarvestBanner({ nextWindow, onPress }) {
             </View>
             <Text style={styles.title}>Farm-fresh, delivered {when}.</Text>
             <Small color="rgba(243,245,239,0.78)" style={{ marginTop: 6, maxWidth: 240 }}>
-              Harvested after your order, never from a cold room. Minimum basket ₹500.
+              Harvested after your order, never from a cold room.
             </Small>
             <View style={[styles.row, { marginTop: 14 }]}>
               <View style={styles.cta}>

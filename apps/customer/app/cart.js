@@ -180,8 +180,9 @@ function MinimumBar({ subtotal, minimum, nextCoupon, availableCoupon, appliedCou
           built,
           more: rupeesTo(min),
           discount: firstReward.discountText,
+          min: Math.round(min / 100),
         })
-      : t('reachMinimum', lang, { built, more: rupeesTo(min) });
+      : t('reachMinimum', lang, { built, more: rupeesTo(min), min: Math.round(min / 100) });
   } else if (nextCoupon) {
     message = t('addMoreForOffer', lang, {
       more: rupeesTo(Number(nextCoupon.minOrderPaise)),

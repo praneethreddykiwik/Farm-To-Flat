@@ -62,7 +62,7 @@ export function CartBar({ bottom }) {
           more: rupeesTo(min),
           discount: firstReward.discountText,
         })
-      : t('addMoreToReachMin', lang, { more: rupeesTo(min) });
+      : t('addMoreToReachMin', lang, { more: rupeesTo(min), min: Math.round(min / 100) });
   } else if (nextCoupon) {
     nudge = t('addMoreForOffer', lang, {
       more: rupeesTo(Number(nextCoupon.minOrderPaise)),
