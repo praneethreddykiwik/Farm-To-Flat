@@ -194,10 +194,10 @@ export const HINDI_NAMES = {
   p_chana_sprout: 'अंकुरित काला चना',
   p_chana_soaked: 'भिगोया चना',
   p_almond_soaked: 'भिगोया बादाम',
-  p_chicken: 'चिकन',
-  p_mutton: 'मटन',
+  p_chicken: 'चिकन करी कट',
+  p_mutton: 'मटन करी कट',
   p_prawns: 'झींगा',
-  p_eggs: 'अंडे',
+  p_eggs: 'देसी अंडे',
 };
 
 /**
