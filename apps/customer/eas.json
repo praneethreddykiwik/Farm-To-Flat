@@ -44,6 +44,12 @@
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
+    "preview-sim": {
+      "extends": "preview-live",
+      "ios": {
+        "simulator": true
+      }
+    },
     "internal": {
       "channel": "preview-live",
       "autoIncrement": true,
