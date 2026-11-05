@@ -13,6 +13,13 @@ import ExcelJS from 'exceljs';
 
 const HEADER_FILL = 'FF1B3B2A'; // forest, matching the operator panel
 const HEADER_FONT = 'FFF3F5EF';
+// The purchase/delivery lists carry Hindi (Devanagari) and Telugu product names. The default
+// spreadsheet font (Calibri) has NO glyphs for these scripts, so every viewer substitutes — and on
+// several (Office-on-the-web, some Android previews) the substitution mis-shapes the conjuncts into
+// the "broken/overlapping" text the testers saw. Nirmala UI is the standard Indic font (ships on
+// Windows 8+, and Android/Google viewers fall back to their own Noto Indic when it is absent), so
+// naming it makes the Hindi/Telugu render correctly for the operator and the field buyer.
+const BODY_FONT = 'Nirmala UI';
 
 /**
  * @param {{ name: string, columns: {header:string, key:string, width?:number, money?:boolean, qty?:boolean}[], rows: any[] }[]} sheets
@@ -35,7 +42,7 @@ export async function buildWorkbook(sheets, meta = {}) {
     for (const r of sheet.rows) ws.addRow(r);
 
     const head = ws.getRow(1);
-    head.font = { bold: true, color: { argb: HEADER_FONT }, size: 11 };
+    head.font = { name: BODY_FONT, bold: true, color: { argb: HEADER_FONT }, size: 11 };
     head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
     head.alignment = { vertical: 'middle' };
     head.height = 22;
@@ -57,6 +64,14 @@ export async function buildWorkbook(sheets, meta = {}) {
       const col = ws.getColumn(i + 1);
       if (c.money) col.numFmt = '₹#,##0.00';
       if (c.qty) col.numFmt = '0.###';
+    });
+
+    // Apply the Indic-capable font to every cell (merging, so the header keeps bold/colour). Without
+    // this the data rows fall back to Calibri, which cannot draw Hindi/Telugu.
+    ws.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.font = { ...(cell.font || {}), name: BODY_FONT };
+      });
     });
   }
   return /** @type {Buffer} */ (await wb.xlsx.writeBuffer());

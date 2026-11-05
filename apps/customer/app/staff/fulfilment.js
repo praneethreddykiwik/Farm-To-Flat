@@ -488,7 +488,7 @@ export default function StaffFulfilment() {
               disabled={
                 busy === door.id || (door.order.deliveryOtpPending && door.otp.length !== 4)
               }
-              onPress={completeDelivery}
+              onPress={() => completeDelivery()}
             >
               <Text style={styles.doorConfirmText}>
                 {busy === door.id

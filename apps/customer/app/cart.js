@@ -251,9 +251,10 @@ export default function Cart() {
     if (navigating.current) return;
     if (!cart?.meetsMinimum) {
       haptic.warning();
+      const minR = Math.round(Number(cart?.minOrderValuePaise || 0) / 100);
       dispatch(
         showToast({
-          title: 'Minimum basket is ₹500',
+          title: minR ? `Minimum basket is ₹${minR}` : 'Minimum basket not reached',
           message: 'Add a little more and you’re there.',
           tone: 'neutral',
         }),

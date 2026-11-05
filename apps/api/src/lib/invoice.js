@@ -185,8 +185,12 @@ export function buildInvoicePdf(order) {
       doc.font('Helvetica').fontSize(9.5);
       let ry = ty;
       for (const [k, v] of orderRows) {
-        doc.fillColor(MUT).text(k, tx, ry, { width: cw * 0.42 });
-        doc.fillColor(INK).text(v, tx + cw * 0.42, ry, { width: cw * 0.58 - 14, align: 'right' });
+        doc.fillColor(MUT).text(k, tx, ry, { width: cw * 0.4, lineBreak: false });
+        // Right edge sits 14pt inside the card border — matching the 14pt left padding — so the
+        // values line up in a clean column instead of butting against the card edge.
+        doc
+          .fillColor(INK)
+          .text(v, tx + cw * 0.4, ry, { width: cw * 0.6 - 28, align: 'right', lineBreak: false });
         ry += 15;
       }
     });
