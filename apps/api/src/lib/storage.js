@@ -184,6 +184,26 @@ export async function uploadMealPhoto({ buffer, contentType, customerId }) {
 }
 
 /**
+ * Delete meal photos by storage key. Best-effort and never throws: used when a customer deletes a
+ * meal log or their account, and by the retention sweep. A file that is already gone is a success.
+ */
+export async function deleteMealPhotos(keys) {
+  const list = (keys || []).filter(Boolean);
+  if (!list.length) return 0;
+  try {
+    if (useS3()) {
+      // the S3 adapter has no delete yet; objects there expire by bucket lifecycle rule
+      return 0;
+    }
+    if (!supabase) return 0;
+    const { error } = await supabase.storage.from(MEAL_BUCKET).remove(list);
+    return error ? 0 : list.length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * How long a complaint-photo link lives. Long enough to look at it, short enough to be useless if
  * it leaks out of the panel into a chat or a screenshot.
  *

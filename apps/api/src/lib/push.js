@@ -40,7 +40,16 @@ const MESSAGES = {
 };
 
 /** POST a batch of messages to Expo's push service. Only well-formed Expo tokens are sent. */
-export async function sendExpoPush(tokens, { title, body, data }) {
+/**
+ * `replaceKey` makes a notification REPLACE the previous one with the same key instead of stacking
+ * under it: `collapseId` does that on iOS, `tag` on Android. An order's four status pushes share a
+ * key, so the phone shows one card that moves forward — placed, packed, on its way, delivered —
+ * even when the app is closed. `categoryId` attaches the action buttons the app registered for that
+ * category (lib/notificationRoutes.js in the app).
+ * @param {string[]} tokens
+ * @param {{ title: string, body: string, data?: any, replaceKey?: string, categoryId?: string }} message
+ */
+export async function sendExpoPush(tokens, { title, body, data, replaceKey, categoryId }) {
   const valid = (tokens || []).filter(
     (t) => typeof t === 'string' && t.startsWith('ExponentPushToken'),
   );
@@ -53,6 +62,8 @@ export async function sendExpoPush(tokens, { title, body, data }) {
     sound: 'default',
     channelId: 'orders',
     priority: 'high',
+    ...(replaceKey ? { collapseId: replaceKey, tag: replaceKey } : {}),
+    ...(categoryId ? { categoryId } : {}),
   }));
   try {
     await fetch(EXPO_PUSH_URL, {

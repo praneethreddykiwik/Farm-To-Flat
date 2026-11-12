@@ -25,6 +25,8 @@ import {
   updateCustomer,
 } from '../customer-store.js';
 
+import { deleteMealPhotos } from '../lib/storage.js';
+
 export const meRouter = Router();
 
 meRouter.get(
@@ -65,6 +67,8 @@ meRouter.delete(
   asyncHandler(async (req, res) => {
     const r = await deleteCustomerAccount(req.customerId);
     if (!r.ok) throw fail(404, 'NOT_FOUND', 'Account not found.');
+    // The meal photographs live in object storage, outside the database: remove the files too.
+    await deleteMealPhotos(r.mealPhotoKeys);
     res.json({ ok: true, walletBalancePaise: String(r.walletBalancePaise || 0) });
   }),
 );

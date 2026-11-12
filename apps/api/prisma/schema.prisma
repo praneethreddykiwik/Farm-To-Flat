@@ -93,6 +93,29 @@ model Product {
   @@index([isSeasonal])
 }
 
+/// What the operator has written about a product for the app's product page: its story, when it
+/// is best, how to keep it, a caution, a recipe — and which reference food its nutrient statements
+/// are computed from. One row per product that has been edited in the admin console; a product
+/// with no row shows the built-in text (apps/api/src/data/knowledge.js).
+///
+/// A table of its own, NOT a column on Product, on purpose. Prisma selects every column of a model,
+/// so a column the production database does not have yet makes `product.findMany()` throw — and
+/// that call is what loads the catalogue at boot. A missing TABLE fails only its own read, which
+/// is caught: the shop keeps running on the built-in text until the table is created.
+///
+///   CREATE TABLE IF NOT EXISTS "ProductKnowledge" (
+///     "productId" TEXT PRIMARY KEY,
+///     "data"      JSONB NOT NULL,
+///     "updatedBy" TEXT,
+///     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+///   );
+model ProductKnowledge {
+  productId String   @id
+  data      Json
+  updatedBy String?
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 model Community {
   id             String    @id @default(cuid())
   name           String

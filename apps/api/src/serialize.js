@@ -10,6 +10,7 @@ import { getProduct, listCategories } from './store.js';
 import { money } from './lib/money.js';
 import { proxyImageUrl } from './lib/public-image.js';
 import { categoryName, productName } from './lib/i18n.js';
+import { badgesFor } from './lib/knowledge.js';
 import { communityWindows } from './lib/windows.js';
 
 const rupees = (paise) => `₹${Math.round(Number(paise) / 100).toLocaleString('en-IN')}`;
@@ -99,6 +100,9 @@ export function productPublic(p) {
     isSeasonal: !!p.isSeasonal,
     isActive: p.isActive !== false,
     availability: p.availability || (p.isActive === false ? 'HIDDEN' : 'AVAILABLE'),
+    // Up to two computed nutrition badges ("Naturally high in vitamin C") for tiles and the seasonal
+    // rail. The full card — story, storage, recipe — is fetched per product from /catalog/:id/knowledge.
+    goodToKnow: badgesFor(p),
   };
 }
 
@@ -178,7 +182,11 @@ function orderItems(items) {
   }));
 }
 
-/** Customer view of a customer (contract shape). */
+/**
+ * Customer view of a customer (contract shape).
+ * @param {any} c
+ * @param {{ isNew?: boolean, hasAddress?: boolean }} [flags]
+ */
 export function customerPublic(c, { isNew, hasAddress } = {}) {
   return {
     id: c.id,

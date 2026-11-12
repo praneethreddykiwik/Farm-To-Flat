@@ -32,6 +32,7 @@ import {
   persistEnabled,
   drainPersistence,
 } from './persistence.js';
+import { replaceKnowledgeOverrides, setKnowledgeTableReady } from './lib/knowledge.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
@@ -328,7 +329,7 @@ app.use((err, req, res, _next) => {
 // fire-and-forget push (Expo unreachable) or a lost DB connection outside a request took the whole
 // API down and dropped every in-memory session. Log loudly, keep serving; exit only on a genuinely
 // unknown state (uncaught exception), where the host restarts us.
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', (/** @type {any} */ reason) => {
   reportError(reason, { kind: 'unhandledRejection' });
   // eslint-disable-next-line no-console
   console.error('[fatal-avoided] unhandled rejection:', reason?.stack || reason);
@@ -363,6 +364,10 @@ async function hydrateOnce() {
   const problem = masterDataProblem(data);
   if (problem) throw new Error(problem);
   hydrate(data);
+  // The operator's product-page text. `null` means the table does not exist yet: keep serving the
+  // built-in text, and let the admin console say so when someone tries to save.
+  replaceKnowledgeOverrides(data.productKnowledge || []);
+  setKnowledgeTableReady(data.productKnowledge !== null);
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);

@@ -56,6 +56,7 @@ import { buildWorkbook, rupees, sendWorkbook } from '../../lib/xlsx.js';
 
 export const adminOrdersRouter = Router();
 
+/** @type {[string, ...string[]]} */
 const STATUSES = [
   'PENDING_PAYMENT',
   'CONFIRMED',
@@ -400,7 +401,7 @@ adminOrdersRouter.get(
   '/issues',
   asyncHandler(async (req, res) => {
     const status = ['OPEN', 'RESOLVED', 'DECLINED'].includes(String(req.query.status))
-      ? String(req.query.status)
+      ? /** @type {'OPEN'|'RESOLVED'|'DECLINED'} */ (String(req.query.status))
       : undefined;
     const issues = listOrderIssues({ status, limit: Number(req.query.limit) || 200 }).map(
       issueAdmin,
@@ -491,12 +492,16 @@ function notifyCustomer(order) {
     waOrderCancelled(order, customer, 'If you paid, a refund has been initiated.');
   // Right after a delivery, invite feedback / a rating.
   if (order.status === 'DELIVERED') {
+    // In the feed, not a second push: the "Delivered" notification that fired a moment ago already
+    // carries "Rate this order" and "Something wrong?" as buttons. Two buzzes for one event, one
+    // second apart, is nagging — and the kind of repeated prompt the dark-pattern guidelines name.
     const fb = COPY.FEEDBACK_INVITE(order);
     emitNotification(order.customerId, {
       type: 'FEEDBACK_INVITE',
       title: fb.title,
       body: fb.body,
       data: { orderId: order.id, orderNumber: order.orderNumber, action: 'rate' },
+      push: false,
     });
     waOrderDelivered(order, customer);
     waFeedbackInvite(order, customer);

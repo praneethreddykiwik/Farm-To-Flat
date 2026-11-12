@@ -12,25 +12,34 @@ import { callVision } from './identify.js';
 
 export function mealVisionPrompt() {
   return [
-    'You are a nutrition assistant for an Indian meal-tracking app.',
-    'The photograph shows a COOKED meal — home-cooked Indian food is most common.',
-    'Identify the dishes and main ingredients, and estimate the calories for the portion SHOWN.',
+    'You are a careful food-logging assistant for an Indian meal-tracking app.',
+    'The photograph shows a COOKED meal — home-cooked Indian food is most common, often several dishes on one plate (a thali).',
+    'List EVERY separate dish or item you can see, and estimate the portion SHOWN for each.',
     'Answer with JSON only:',
-    '{"items":[{"name":"<dish or ingredient>","grams":<approx grams or null>,"kcal":<approx kcal integer>}],',
-    ' "totalKcal":<approx total kcal integer>,',
+    '{"items":[{"name":"<plain dish name, e.g. cooked rice, dal, sambar, roti, chicken curry>",',
+    '           "count":<number of pieces if countable (roti, idli, egg), else null>,',
+    '           "grams":<approx grams as eaten>,',
+    '           "kcal":<approx kcal integer>,"protein":<g>,"carbs":<g>,"fat":<g>}],',
     ' "confidence":"low"|"medium"|"high",',
-    ' "note":"<one short line — e.g. a caveat about the portion>"}',
+    ' "note":"<one short line: what was hard to judge, e.g. portion of rice hidden under curry>"}',
     '',
     'Rules:',
-    '- Use realistic Indian home portions: a katori of dal ~150 g, a cup of cooked rice ~150 g, one roti ~40 g.',
-    '- Be conservative and honest. If the plate is unclear or portions are ambiguous, use "low" confidence.',
-    '- totalKcal should roughly equal the sum of the item kcal values.',
-    '- If the image is not food, return items: [], totalKcal: 0, confidence: "low", and say so in note.',
+    '- Use realistic Indian home portions: a katori of dal or curry ~150 g, a cup of cooked rice ~150 g, one roti ~40 g, one idli ~45 g.',
+    '- Name dishes simply and in English with the common Indian word where there is one (dal, sambar, rasam, roti, poriyal, curd).',
+    '- Do NOT add cooking oil or ghee as a separate item; estimate each dish as normally cooked.',
+    '- Be honest about uncertainty. Mixed dishes, hidden layers or an unclear plate mean "low" or "medium" confidence, never "high".',
+    '- If the image is not food, return items: [], confidence: "low", and say so in note.',
     '- JSON only. No text outside the JSON.',
   ].join('\n');
 }
 
-/** Parse the model's JSON defensively — a malformed reply must never throw. */
+const numOrNull = (v) => (Number.isFinite(+v) && +v >= 0 ? +v : null);
+
+/**
+ * Parse the model's JSON defensively — a malformed reply must never throw. This only reads what the
+ * model said; lib/meal-analysis.js then checks it against the reference table before anything is
+ * stored or shown.
+ */
 export function parseMealReply(text) {
   let obj = {};
   try {
@@ -41,8 +50,12 @@ export function parseMealReply(text) {
   const items = Array.isArray(obj.items)
     ? obj.items.slice(0, 12).map((it) => ({
         name: String(it?.name || 'item').slice(0, 60),
-        grams: Number.isFinite(+it?.grams) ? Math.max(0, Math.round(+it.grams)) : null,
-        kcal: Number.isFinite(+it?.kcal) ? Math.max(0, Math.round(+it.kcal)) : null,
+        count: numOrNull(it?.count),
+        grams: numOrNull(it?.grams) != null ? Math.round(+it.grams) : null,
+        kcal: numOrNull(it?.kcal) != null ? Math.round(+it.kcal) : null,
+        protein: numOrNull(it?.protein),
+        carbs: numOrNull(it?.carbs),
+        fat: numOrNull(it?.fat),
       }))
     : [];
   let totalKcal = Number.isFinite(+obj.totalKcal) ? Math.max(0, Math.round(+obj.totalKcal)) : null;
@@ -63,7 +76,7 @@ export async function analyseMealPhoto(apiKey, { dataUrl, signal }) {
     prompt: mealVisionPrompt(),
     dataUrl,
     signal,
-    maxTokens: 1400,
+    maxTokens: 1800, // a thali can be six items, each now with macros
   });
   return parseMealReply(raw);
 }

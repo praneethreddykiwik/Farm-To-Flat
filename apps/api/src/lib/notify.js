@@ -12,16 +12,47 @@
 import { addNotification, getDevices } from '../customer-store.js';
 import { sendExpoPush } from './push.js';
 
-/** Record an event in the feed and push it. `data` travels to the app so it can deep-link. */
-export function emitNotification(customerId, { type, title, body, data = {} } = {}) {
+/**
+ * The four moments of an order that arrives. Their pushes share one replace-key, so the customer's
+ * phone shows a single card that advances rather than four that pile up, and each carries a row of
+ * dots so the stage reads at a glance even collapsed: "●●●○ Out for delivery".
+ */
+const ORDER_STEP = { ORDER_PLACED: 1, ORDER_PACKED: 2, ORDER_OUT: 3, ORDER_DELIVERED: 4 };
+const ORDER_STEPS = 4;
+export const progressDots = (step, total = ORDER_STEPS) =>
+  '●'.repeat(Math.max(0, Math.min(total, step))) + '○'.repeat(Math.max(0, total - step));
+
+/** How an event's push should behave on the phone (replace in place, action buttons). */
+export function pushShape(type, data = {}) {
+  const step = ORDER_STEP[type];
+  if (!step || !data.orderId) return {};
+  return {
+    replaceKey: `order-${data.orderId}`,
+    dots: progressDots(step),
+    // Delivered carries the buttons — "Rate this order" · "Something wrong?" — so the follow-up
+    // does not need a second notification a second later.
+    ...(type === 'ORDER_DELIVERED' ? { categoryId: 'orderdelivered' } : {}),
+  };
+}
+
+/**
+ * Record an event in the feed and push it. `data` travels to the app so it can deep-link.
+ * `push: false` records it in the feed only — for something worth keeping but not worth a buzz.
+ * @param {string} customerId
+ * @param {{ type?: string, title?: string, body?: string, data?: Record<string, any>, push?: boolean }} [event]
+ */
+export function emitNotification(customerId, { type, title, body, data = {}, push = true } = {}) {
   if (!customerId || !title) return null;
   const record = addNotification(customerId, { type, title, body, data });
   const tokens = getDevices(customerId);
-  if (tokens?.length) {
+  if (push && tokens?.length) {
+    const shape = pushShape(type, data);
     sendExpoPush(tokens, {
       title,
-      body,
+      body: shape.dots ? `${shape.dots}  ${body}` : body,
       data: { ...data, type, notificationId: record?.id },
+      replaceKey: shape.replaceKey,
+      categoryId: shape.categoryId,
     });
   }
   return record;

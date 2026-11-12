@@ -302,7 +302,7 @@ export function otpStatus() {
  *  - In production the code is RANDOM and is NEVER returned in the response (it must be delivered by
  *    WhatsApp via MSG91 — see lib/msg91.js). Only dev/test use the fixed 123456 for convenience.
  *  - Rate-limited per number (max 5 requests / 10 min) to stop SMS-bombing / abuse.
- * @returns {Promise<{ ok:true, expiresInSeconds:number, devOtp?:string } | { error:{status,code,message} }>}
+ * @returns {Promise<StoreResult<{ ok: true, expiresInSeconds: number, devOtp?: string }>>}
  */
 export async function requestOtp(mobile) {
   if (!IS_TEST) {
@@ -393,7 +393,7 @@ export async function requestOtp(mobile) {
  * standing in, which is exactly the bug: the app signed you out and you came back as a new user
  * with no addresses and no order history.
  *
- * @returns {{ ok: true } | { error: { status:number, code:string, message:string } }}
+ * @returns {StoreResult<{ ok: true }>}
  */
 export function checkOtpOnly(mobile, otp) {
   const rec = cs.otp.get(mobile);
@@ -430,7 +430,7 @@ export function checkOtpOnly(mobile, otp) {
 /**
  * Move an existing account onto a new mobile number, keeping the same customer id — so addresses,
  * orders, wallet and sessions all follow. Refuses a number another account already holds.
- * @returns {{ ok:true, customer:any } | { error:{ status:number, code:string, message:string } }}
+ * @returns {StoreResult<{ ok: true, customer: any }>}
  */
 export function changeCustomerMobile(customerId, newMobile) {
   const customer = cs.customers.get(customerId);
@@ -646,6 +646,14 @@ export async function deleteCustomerAccount(customerId) {
   logout(customerId); // revoke all sessions everywhere
 
   // PII collections — removed outright
+  // The meal history is the most personal thing we hold (what someone ate, with photographs), and
+  // nothing in tax or consumer law requires us to keep it. It goes first, and its photo keys are
+  // handed back so the route can delete the files from storage.
+  const mealPhotoKeys = deleteMealLogsForCustomer(customerId)
+    .map((m) => m.photoKey)
+    .filter(Boolean);
+  cs.notifications.delete(customerId);
+  await Promise.resolve(persist.notificationsDeleteForCustomer(customerId));
   cs.addresses.delete(customerId);
   cs.devices.delete(customerId);
   clearCart(customerId);
@@ -664,7 +672,7 @@ export async function deleteCustomerAccount(customerId) {
   // Durable: the account must actually be gone before we tell the client it is.
   await Promise.resolve(persist.customerUpsert(c));
 
-  return { ok: true, walletBalancePaise };
+  return { ok: true, walletBalancePaise, mealPhotoKeys };
 }
 
 // ── customer / addresses ──────────────────────────────────────────────────────
@@ -684,7 +692,7 @@ export const hasAddress = (cid) => (cs.addresses.get(cid) || []).length > 0;
 export const defaultAddress = (cid) =>
   (cs.addresses.get(cid) || []).find((a) => a.isDefault) || null;
 
-/** @returns {{ address:any } | { error:{status,code,message} }} */
+/** @returns {StoreResult<{ address: any }>} */
 export function addAddress(cid, body) {
   const communities = listCommunities();
   let community = communities.find((c) => c.id === body.communityId);
@@ -762,7 +770,7 @@ export function redeemedCodes(cid) {
   return new Set(redemptions(cid));
 }
 
-/** @returns {{ coupon:any } | { error:{status,code,message,details?} }} */
+/** @returns {StoreResult<{ coupon: any }>} */
 export function validateCoupon(cid, code, subtotal) {
   const c = listCoupons().find((x) => x.code.toLowerCase() === String(code).trim().toLowerCase());
   if (!c)
@@ -896,7 +904,7 @@ export function priceCart(cid) {
   };
 }
 
-/** @returns {{ ok:true } | { error:{status,code,message} }} */
+/** @returns {StoreResult<{ ok: true }>} */
 export function setCartItem(cid, { productId, quantity, note }) {
   const prod = getProduct(productId);
   if (!prod) return { error: { status: 404, code: 'NOT_FOUND', message: 'Product not found' } };
@@ -1058,6 +1066,10 @@ export function ledgerPush(cid, direction, amount, source, ref, note, opts = {})
 export const flushWallet = (cid) => drainChain(`customer:${cid}`);
 
 // ── payments (intents; the mock's /payments/verify doubles as the webhook) ──────
+/**
+ * @param {string} cid
+ * @param {{ purpose: string, orderId?: string, amountPaise: number }} intent  no order for a top-up
+ */
 export function createPayment(cid, { purpose, orderId, amountPaise }) {
   const paymentId = id('pay', 10);
   const payment = {
@@ -1204,11 +1216,13 @@ export function upsertMealLog(cid, fields) {
     mealName: fields.mealName ?? row.mealName ?? null,
     status: fields.status ?? row.status ?? 'FOLLOWED',
     plannedKcal: fields.plannedKcal ?? row.plannedKcal ?? null,
-    actualKcal: fields.actualKcal ?? row.actualKcal ?? null,
-    items: fields.items ?? row.items ?? null,
-    photoKey: fields.photoKey ?? row.photoKey ?? null,
-    note: fields.note ?? row.note ?? null,
-    confidence: fields.confidence ?? row.confidence ?? null,
+    // `undefined` keeps what is there; an explicit null clears it (a corrected or re-logged meal
+    // must be able to drop a stale estimate, not inherit it).
+    actualKcal: fields.actualKcal !== undefined ? fields.actualKcal : (row.actualKcal ?? null),
+    items: fields.items !== undefined ? fields.items : (row.items ?? null),
+    photoKey: fields.photoKey !== undefined ? fields.photoKey : (row.photoKey ?? null),
+    note: fields.note !== undefined ? fields.note : (row.note ?? null),
+    confidence: fields.confidence !== undefined ? fields.confidence : (row.confidence ?? null),
   });
   if (!existing) {
     list.push(row);
@@ -1218,12 +1232,52 @@ export function upsertMealLog(cid, fields) {
   return structuredClone(row);
 }
 
+/**
+ * Remove one meal log. Returns the removed row (so the caller can delete its photo) or null.
+ * The customer owns this record: deleting it is immediate and complete.
+ */
+export function deleteMealLog(cid, mid) {
+  const list = cs.mealLogs.get(cid) || [];
+  const i = list.findIndex((x) => x.id === mid);
+  if (i < 0) return null;
+  const [row] = list.splice(i, 1);
+  persist.mealLogDelete(row.id);
+  return structuredClone(row);
+}
+
+/** Every meal log of a customer, removed — account deletion, or "delete my food history". */
+export function deleteMealLogsForCustomer(cid) {
+  const list = cs.mealLogs.get(cid) || [];
+  cs.mealLogs.delete(cid);
+  for (const m of list) persist.mealLogDelete(m.id);
+  return list.map((m) => structuredClone(m));
+}
+
+/** Detach stored photos from logs older than `beforeDate` (YYYY-MM-DD); returns the storage keys to delete. */
+export function expireMealPhotos(beforeDate) {
+  const keys = [];
+  for (const list of cs.mealLogs.values()) {
+    for (const m of list) {
+      if (m.photoKey && m.date < beforeDate) {
+        keys.push(m.photoKey);
+        m.photoKey = null;
+        persist.mealLogUpsert(m);
+      }
+    }
+  }
+  return keys;
+}
+
 export function getMealLog(cid, mid) {
   const m = (cs.mealLogs.get(cid) || []).find((x) => x.id === mid);
   return m ? structuredClone(m) : null;
 }
 
-/** Logs for a customer, optionally within an inclusive [from, to] date range (YYYY-MM-DD). */
+/**
+ * Logs for a customer, optionally within an inclusive [from, to] date range (YYYY-MM-DD).
+ * @param {string} cid
+ * @param {{ from?: string, to?: string }} [range]
+ */
 export function listMealLogs(cid, { from, to } = {}) {
   let list = cs.mealLogs.get(cid) || [];
   if (from) list = list.filter((m) => m.date >= from);

@@ -211,14 +211,35 @@ async function findCommunities() {
 
 /** Read every master-data table and return in-memory-shaped collections + the settings row. */
 export async function loadAll() {
-  const [categories, products, communities, coupons, staff, config] = await Promise.all([
-    prisma.category.findMany(),
-    prisma.product.findMany(),
-    findCommunities(),
-    prisma.coupon.findMany(),
-    prisma.staff.findMany(),
-    prisma.appConfig.findUnique({ where: { id: 1 } }),
-  ]);
+  const [categories, products, communities, coupons, staff, config, productKnowledge] =
+    await Promise.all([
+      prisma.category.findMany(),
+      prisma.product.findMany(),
+      findCommunities(),
+      prisma.coupon.findMany(),
+      prisma.staff.findMany(),
+      prisma.appConfig.findUnique({ where: { id: 1 } }),
+      // The operator's product-page text. Optional by design: if the table has not been created
+      // yet the shop must still open, on the built-in text. `null` (not []) says "no table", which
+      // the admin console reports instead of pretending a save will stick.
+      // Inside an async function, so that EVERYTHING that can go wrong is caught — including a
+      // generated database client that predates this model, where `prisma.productKnowledge` is
+      // simply undefined and `.findMany()` would throw before any `.catch()` existed to catch it.
+      // That throw would take the whole catalogue load down with it.
+      (async () => {
+        try {
+          return await prisma.productKnowledge.findMany();
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error(
+            '[persist] ProductKnowledge table unavailable — product pages use the built-in text and ' +
+              'edits cannot be saved. Create it with the SQL in prisma/schema.prisma.',
+            e?.message,
+          );
+          return null;
+        }
+      })(),
+    ]);
   return {
     categories: categories.map(rowToCategory).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     products: products.map(rowToProduct),
@@ -226,6 +247,7 @@ export async function loadAll() {
     coupons: coupons.map(rowToCoupon),
     staff: staff.map(rowToStaff),
     config,
+    productKnowledge,
   };
 }
 
@@ -505,6 +527,56 @@ const wt =
     return keyOf ? serialize(`${op.split('.')[0]}:${keyOf(...args)}`, run) : run();
   };
 
+// ── the operator's product-page text ────────────────────────────────────────
+// NOT write-behind, unlike `persist` below. An operator presses Save, sees "Saved", and expects the
+// app to show it tomorrow. A queued write that is lost when the instance restarts would make that
+// a lie with no error anywhere — so these resolve only once the row is in the database, and they
+// THROW when it cannot be written, which the route turns into a message the operator can read.
+
+/** True when writes reach a database; false in a memory-only process (tests, local dev). */
+export const persistenceOn = () => enabled;
+
+/**
+ * Is the table there now? Asked when the console opens an editor after boot found it missing, so
+ * that creating the table takes effect without a restart.
+ * @returns {Promise<boolean>}
+ */
+export async function productKnowledgeTableExists() {
+  if (!enabled) return true; // memory-only: edits are kept in memory, which is all there is
+  try {
+    await prisma.productKnowledge.count();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** @returns {Promise<boolean>} true once stored; false when there is no database to store it in */
+export async function saveProductKnowledge(productId, data, updatedBy) {
+  // A database is configured but this process has lost it (boot-time hydration failed and has not
+  // recovered). Refuse: accepting the edit into memory would show it in the app until the next
+  // restart and then silently take it away.
+  if (!enabled && persistEnabled)
+    throw Object.assign(new Error('The database is unreachable.'), { code: 'DB_UNAVAILABLE' });
+  if (!enabled) return false;
+  const row = { data, updatedBy: updatedBy || null };
+  await prisma.productKnowledge.upsert({
+    where: { productId },
+    create: { productId, ...row },
+    update: row,
+  });
+  return true;
+}
+
+/** @returns {Promise<boolean>} */
+export async function deleteProductKnowledge(productId) {
+  if (!enabled && persistEnabled)
+    throw Object.assign(new Error('The database is unreachable.'), { code: 'DB_UNAVAILABLE' });
+  if (!enabled) return false;
+  await prisma.productKnowledge.deleteMany({ where: { productId } });
+  return true;
+}
+
 export const persist = {
   // ── master data (stage 1) ──
   productUpsert: wt(
@@ -603,6 +675,16 @@ export const persist = {
       return prisma.mealLog.upsert({ where: { id: m.id }, create: row, update: row });
     },
     (m) => m.id,
+  ),
+
+  // Account deletion: the feed is a readable history of what someone ordered and when.
+  notificationsDeleteForCustomer: wt('notification.deleteForCustomer', (customerId) =>
+    prisma.notification.deleteMany({ where: { customerId } }),
+  ),
+  mealLogDelete: wt(
+    'mealLog.delete',
+    (id) => prisma.mealLog.deleteMany({ where: { id } }),
+    (id) => id,
   ),
 
   // ── transactional (stage 2) ──

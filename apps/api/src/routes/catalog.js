@@ -3,6 +3,8 @@
  *   GET /catalog            categories + products
  *   GET /catalog/search?q=  alias search with misspelling tolerance
  *   GET /catalog/:id        one product
+ *   GET /catalog/:id/knowledge   what we say about it: computed nutrition statements, its story,
+ *                                how to keep it, and a recipe (see lib/knowledge.js)
  * Public routes never require auth and never emit cost/margin.
  */
 import { Router } from 'express';
@@ -12,6 +14,7 @@ import { validateQuery } from '../validate.js';
 import { categoryPublic, dietOf, productPublic } from '../serialize.js';
 import { getProduct, listCategories, listProducts, rawProducts } from '../store.js';
 import { search } from '../lib/search.js';
+import { knowledgeFor } from '../lib/knowledge.js';
 
 export const catalogRouter = Router();
 
@@ -30,7 +33,7 @@ catalogRouter.get(
   '/',
   validateQuery(ListQuery),
   asyncHandler(async (req, res) => {
-    // @ts-expect-error validatedQuery is attached by validateQuery
+    // validatedQuery is attached by validateQuery
     const { diet, seasonal } = req.validatedQuery;
     res.json({
       categories: listCategories()
@@ -55,13 +58,26 @@ catalogRouter.get(
   '/search',
   validateQuery(SearchQuery),
   asyncHandler(async (req, res) => {
-    // @ts-expect-error validatedQuery is attached by validateQuery
+    // validatedQuery is attached by validateQuery
     const { q, diet, seasonal } = req.validatedQuery;
     const results = search(rawProducts(), q)
       .filter((p) => p.isActive !== false)
       .filter(dietFilter(diet))
       .filter(seasonalFilter(seasonal === '1'));
     res.json({ products: results.map(productPublic) });
+  }),
+);
+
+catalogRouter.get(
+  '/:id/knowledge',
+  asyncHandler(async (req, res) => {
+    const product = getProduct(req.params.id);
+    if (!product || product.isActive === false) throw fail(404, 'NOT_FOUND', 'Product not found');
+    // null (not 404) when we simply have nothing written yet — the page then shows no section.
+    // A minute, not an hour: this text is now edited in the admin console, and an operator who
+    // fixes a recipe should see it in the app when they look, not after lunch.
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ productId: product.id, knowledge: knowledgeFor(product) });
   }),
 );
 
