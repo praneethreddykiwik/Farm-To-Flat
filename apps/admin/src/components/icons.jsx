@@ -112,6 +112,13 @@ export const IconEdit = (p) => (
     <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
   </S>
 );
+/** An open book — the product's story and recipe. */
+export const IconBook = (p) => (
+  <S {...p}>
+    <path d="M12 6.5C10.5 5 8.3 4.5 4 4.5v13c4.3 0 6.5.5 8 2 1.5-1.5 3.7-2 8-2v-13c-4.3 0-6.5.5-8 2z" />
+    <path d="M12 6.5v13" />
+  </S>
+);
 export const IconTrash = (p) => (
   <S {...p}>
     <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />

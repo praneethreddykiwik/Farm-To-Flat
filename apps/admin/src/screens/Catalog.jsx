@@ -7,7 +7,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Pager, TableSkeleton, Thumb } from '../components/ui.jsx';
-import { IconEdit, IconPlus, IconSearch, IconTrash } from '../components/icons.jsx';
+import { IconBook, IconEdit, IconPlus, IconSearch, IconTrash } from '../components/icons.jsx';
+import { ProductStoryDrawer } from './ProductStory.jsx';
 import { UNIT_LABEL, inr, noLead, num, toPaise, toRupees } from '../lib/format.js';
 
 const UNITS = ['KG', 'BUNCH', 'PIECE', 'DOZEN', 'PACK'];
@@ -26,6 +27,7 @@ export function Catalog() {
   const [cat, setCat] = useState('all');
   const [editing, setEditing] = useState(null); // product | 'new' | null
   const [availFor, setAvailFor] = useState(null); // product id whose availability menu is open
+  const [story, setStory] = useState(null); // product whose app page text is being edited
 
   const products = useMemo(() => data?.products || [], [data]);
   const categories = data?.categories || [];
@@ -194,14 +196,26 @@ export function Catalog() {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button
+                          className="btn btn--ghost btn--icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStory(p);
+                          }}
+                          aria-label={`Story and recipe for ${p.name}`}
+                          title="Story & recipe — what the app’s product page says"
+                        >
+                          <IconBook size={16} />
+                        </button>
                         <button
                           className="btn btn--ghost btn--icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditing(p);
                           }}
-                          aria-label="Edit"
+                          aria-label={`Edit ${p.name}`}
+                          title="Price, unit, availability"
                         >
                           <IconEdit size={16} />
                         </button>
@@ -225,13 +239,18 @@ export function Catalog() {
             setEditing(null);
             reload();
           }}
+          onEditStory={(p) => {
+            setEditing(null);
+            setStory(p);
+          }}
         />
       )}
+      {story && <ProductStoryDrawer product={story} onClose={() => setStory(null)} />}
     </>
   );
 }
 
-function ProductForm({ product, categories, onClose, onSaved }) {
+function ProductForm({ product, categories, onClose, onSaved, onEditStory }) {
   const isNew = !product;
   const [f, setF] = useState(() => ({
     name: product?.name || '',
@@ -622,6 +641,23 @@ function ProductForm({ product, categories, onClose, onSaved }) {
           Paste a URL or upload a file (PNG, JPEG, WebP, AVIF · max 5 MB).
         </p>
       </div>
+      {/* The words on the app's product page live in their own editor: they are long, they have a
+          preview, and they are checked against the food rules — none of which fits in this form. */}
+      {!isNew && (
+        <div className="field">
+          <label className="field__label">Product page in the app</label>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => onEditStory(product)}
+          >
+            <IconBook size={16} /> Edit story, storage &amp; recipe
+          </button>
+          <p className="field__hint">
+            Opens the page editor. Unsaved changes in this form are discarded.
+          </p>
+        </div>
+      )}
       <div className="field">
         <label className="field__label">Availability</label>
         <div className="seg">

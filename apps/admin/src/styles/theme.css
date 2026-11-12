@@ -751,6 +751,10 @@ table.data tbody tr:last-child td {
   transform: translateX(100%);
   animation: slidein 0.34s var(--ease-out) forwards;
 }
+/* A form and its preview side by side (the product page editor). */
+.drawer--wide {
+  width: min(1040px, 96vw);
+}
 .drawer__head {
   padding: 22px 24px 16px;
   border-bottom: 1px solid var(--hairline);
@@ -1751,5 +1755,257 @@ table.data tbody tr:hover {
   }
   50% {
     box-shadow: 0 0 18px var(--sprout);
+  }
+}
+
+/* ---------- product page editor (screens/ProductStory.jsx) --------------------
+   A form on the left, and on the right the page as the phone will draw it. The right column is
+   sticky so the preview stays in view while a long recipe is typed. */
+.story {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  align-items: start;
+}
+.story__side {
+  position: sticky;
+  top: 0;
+}
+.story__sidehead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: 0.01em;
+  margin-bottom: 8px;
+}
+.story__sidehead .muted {
+  font-weight: 400;
+}
+.story__status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-bottom: 18px;
+}
+.story__section {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 26px 0 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+}
+.story__area {
+  resize: vertical;
+  line-height: 1.5;
+  min-height: 46px;
+}
+.story__area.has-problem {
+  border-color: var(--tomato);
+  box-shadow: 0 0 0 3px var(--tomato-soft);
+}
+.story__count {
+  float: right;
+  font-weight: 400;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.story__count.is-near {
+  color: var(--amber);
+}
+.story__problems {
+  list-style: none;
+  margin: 7px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--tomato);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.story__warn,
+.story__blocked {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.story__warn {
+  background: var(--amber-soft);
+  color: var(--ink);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.story__warn svg {
+  color: var(--amber);
+  flex: none;
+  margin-top: 1px;
+}
+.story__blocked {
+  background: var(--tomato-soft);
+  color: var(--tomato);
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+.story__blocked svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* The phone. Type sizes and spacing follow the app's product page closely enough that a line which
+   wraps badly here wraps badly there. */
+.phone {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 28px;
+  padding: 20px 18px 22px;
+  box-shadow: var(--shadow-soft);
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.phone section + section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+}
+.phone__name {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.phone__tab {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--canvas-deep);
+  border-radius: var(--r-pill);
+  padding: 5px 12px;
+  margin-bottom: 12px;
+}
+.phone__empty {
+  color: var(--ink-3);
+  margin: 0;
+}
+.phone__claim {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.phone__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--sprout-deep);
+  margin-top: 6px;
+}
+.phone__strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+.phone__muted {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.phone__role,
+.phone__body {
+  color: var(--ink-2);
+}
+.phone__table {
+  background: var(--canvas);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-top: 4px;
+}
+.phone__per,
+.phone__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.phone__label {
+  margin-top: 14px;
+  margin-bottom: 3px;
+}
+.phone__cells {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 8px;
+  margin-top: 8px;
+}
+.phone__foot {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 10px 0 0;
+}
+.phone__story {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  margin: 0;
+}
+.phone__careful {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--amber-soft);
+  border-radius: var(--r-sm);
+  padding: 9px 11px;
+  margin-top: 14px;
+  color: var(--ink-2);
+}
+.phone__careful svg {
+  color: var(--amber);
+  flex: none;
+  margin-top: 1px;
+}
+.phone__dish {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.phone__needs,
+.phone__steps {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.phone__needs li,
+.phone__steps li {
+  margin-bottom: 4px;
+}
+.phone__steps li::marker {
+  color: var(--leaf-deep);
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  /* One column: the form, then the page it makes. */
+  .story {
+    grid-template-columns: 1fr;
+  }
+  .story__side {
+    position: static;
+  }
+  .phone {
+    max-height: none;
   }
 }

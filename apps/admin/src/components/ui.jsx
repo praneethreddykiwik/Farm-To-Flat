@@ -59,6 +59,7 @@ export const CountRupee = ({ paise, decimals = 0 }) => (
   <CountUp value={Number(paise)} format={(v) => inr(v, { decimals })} />
 );
 
+/** @param {{ icon: any, value: any, label: any, delta?: { kind?: string, text: any }, tint?: string }} props */
 export function Stat({ icon, value, label, delta, tint = 'leaf' }) {
   return (
     <div className="glass stat reveal">
@@ -114,6 +115,7 @@ function thumbUrl(url, width = 120) {
   return `${IMG_API}/api/v1/img/${key}?w=${width}&v=2`;
 }
 
+/** @param {{ name: string, image?: string|null, tint?: string, width?: number }} props */
 export function Thumb({ name, image, tint, width = 120 }) {
   const [broke, setBroke] = useState(false);
   if (image && !broke) {
@@ -135,7 +137,7 @@ export function Thumb({ name, image, tint, width = 120 }) {
 }
 
 /** Right-hand slide-in drawer. */
-export function Drawer({ title, subtitle, onClose, children, footer }) {
+export function Drawer({ title, subtitle, onClose, children, footer, wide = false }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -144,7 +146,8 @@ export function Drawer({ title, subtitle, onClose, children, footer }) {
   return (
     <>
       <div className="drawer-scrim" onClick={onClose} />
-      <aside className="drawer" role="dialog" aria-modal="true">
+      {/* `wide` is for an editor that needs a form AND a preview side by side. */}
+      <aside className={`drawer${wide ? ' drawer--wide' : ''}`} role="dialog" aria-modal="true">
         <div className="drawer__head">
           <div>
             <h3 className="card__title" style={{ fontSize: 20 }}>
