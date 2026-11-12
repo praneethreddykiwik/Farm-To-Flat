@@ -20,19 +20,53 @@ concurrency:
 permissions:
   contents: read
 
+# pnpm's version comes from "packageManager" in package.json, and ONLY from there.
+#
+# Every job here used to pass `version: 11` to pnpm/action-setup as well. The action refuses to run
+# when the version is given in two places ("Multiple versions of pnpm specified"), so each job died
+# in its setup step, six seconds in, before a single line of ours was linted or tested — on every
+# push for weeks, with the run marked failed and nobody the wiser as to why. One source of truth.
 jobs:
-  check:
+  # ESLint over the customer app. Blocking.
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 11 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm typecheck
+
+  # Unit and API tests (apps/api + apps/customer). Blocking.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter api exec prisma generate
       - run: pnpm test
+
+  # Type check (tsc over the customer app, the API and the admin panel). Blocking.
+  #
+  # All three run `checkJs` without `strict` — the level each of them passes at, with third-party
+  # source left unchecked (`maxNodeModuleJsDepth: 0`). To tighten, turn on one flag at a time in an
+  # app's jsconfig.json; installing `@types/express` and `@types/react-dom` first removes most of
+  # what `strict` would otherwise report.
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # As in the test job: the API is checked against the generated Prisma client's real types.
+      - run: pnpm --filter api exec prisma generate
+      - run: pnpm typecheck
 
   # Does the admin site still build? It is deployed by Vercel on the same push, and a broken build
   # there is a broken operator console — the place refunds are issued from.
@@ -41,7 +75,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 11 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
