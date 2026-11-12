@@ -46,3 +46,39 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter admin exec vite build
+
+  # Playwright drives a real browser through the public pages (privacy / terms / account-deletion)
+  # and fails on broken layouts, dead content or console errors. The e2e/ package lives OUTSIDE the
+  # pnpm workspace on purpose, so it installs on its own. Target: the E2E_BASE_URL repo variable if
+  # set (point it at a Vercel preview / staging), else the config default — the read-only public
+  # pages, which are safe to hit from anywhere. It never signs in and never touches prod data.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install e2e deps
+        working-directory: e2e
+        run: npm install
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+        run: npm test
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
