@@ -10,8 +10,9 @@
  * 1. **It must never send personal data.** We handle names, phone numbers, flat numbers and
  *    delivery addresses. Under the DPDP Act those are personal data and a third-party error
  *    tracker is a processor; the cheapest way to stay on the right side of that is to not send
- *    them at all. `sendDefaultPii` is off, and `beforeSend` strips request bodies, query strings,
- *    cookies and auth headers before anything leaves the process.
+ *    them at all. `dataCollection` switches off every category the SDK would otherwise gather
+ *    from a request, and `beforeSend` strips request bodies, query strings, cookies and auth
+ *    headers from error events as a second line before anything leaves the process.
  *
  * 2. **It must be inert without a DSN.** Local development, tests and anyone running this without
  *    a Sentry account should see exactly the behaviour they had before — no network calls, no
@@ -58,8 +59,23 @@ export function initSentry() {
     // Which commit is actually serving. Without this a stack trace points at a line number in a
     // file that has since changed, which is worse than no stack trace because it misleads.
     release: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || undefined,
-    // Never attach the user's IP, cookies or headers automatically.
-    sendDefaultPii: false,
+    // Never attach the user's IP, cookies, headers, query string or request body automatically.
+    //
+    // Sentry 11 collects every one of these unless told not to — the old `sendDefaultPii: false`
+    // is no longer read at all — and trace spans never pass through `beforeSend` below. So this
+    // block, not the scrubber, is what keeps a customer's address out of a sampled trace.
+    dataCollection: {
+      userInfo: false, // no IP address, no user.*
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      databaseQueryData: false,
+      stackFrameVariables: false,
+      queues: false,
+      genAI: { inputs: false, outputs: false },
+      graphQL: { document: false, variables: false },
+    },
     // One Sentry project serves all three surfaces, so every event says which one it came from.
     // Filter with `service:api` in the issue search.
     initialScope: { tags: { service: 'api' } },

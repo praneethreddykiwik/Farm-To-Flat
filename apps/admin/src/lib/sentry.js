@@ -22,7 +22,24 @@ export function initSentry() {
     // Vercel exposes the deploy's commit. Without a release, a stack trace points at a line in a
     // bundle that no longer exists.
     release: import.meta.env.VITE_VERCEL_GIT_COMMIT_SHA?.slice(0, 8) || undefined,
-    sendDefaultPii: false,
+    // Collect nothing about the operator or the page beyond the error itself: no IP address (this
+    // is what stops Sentry inferring one from the connection), no cookies, and no headers — the
+    // Referer is a console URL, and a console URL can carry a customer's phone number.
+    //
+    // Sentry 11 gathers all of these unless told not to; the old `sendDefaultPii: false` is no
+    // longer read at all.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      databaseQueryData: false,
+      stackFrameVariables: false,
+      queues: false,
+      genAI: { inputs: false, outputs: false },
+      graphQL: { document: false, variables: false },
+    },
     initialScope: { tags: { service: 'admin' } },
     // Deliberately NOT enabling Session Replay. It would record a video of a screen full of
     // customers' names, phones and addresses and send it to a third party.
