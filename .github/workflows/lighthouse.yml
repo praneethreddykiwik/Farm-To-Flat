@@ -1,0 +1,26 @@
+name: lighthouse
+
+# Performance + accessibility scores for the public pages. Runs on changes to the admin/marketing
+# surface, on a weekly schedule to catch drift, and on demand. Accessibility is a hard gate (>=0.90);
+# performance/SEO are warnings so a slow third-party never blocks a merge — see .lighthouserc.json.
+on:
+  pull_request:
+    paths: ['apps/admin/**', '.lighthouserc.json', '.github/workflows/lighthouse.yml']
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Run Lighthouse CI
+        run: |
+          npm install -g @lhci/cli@0.14.0
+          lhci autorun --config=.lighthouserc.json

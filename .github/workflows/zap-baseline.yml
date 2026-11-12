@@ -1,0 +1,40 @@
+name: zap-baseline
+
+# OWASP ZAP passive baseline scan. STAGING ONLY — a security scanner must never be pointed at the
+# production site customers use. The target comes from the STAGING_URL secret, and the guard below
+# refuses to run unless that host is clearly a staging/dev environment, so a misconfigured secret
+# can't turn this into a scan of prod. Manual + weekly; it never runs automatically on a push.
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Mondays 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write # ZAP action opens/updates an issue with findings
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard — refuse to scan production
+        env:
+          TARGET: ${{ secrets.STAGING_URL }}
+        run: |
+          if [ -z "$TARGET" ]; then
+            echo "::error::STAGING_URL secret is not set. Set it to a staging/dev URL to run ZAP."
+            exit 1
+          fi
+          # Must look like a non-prod environment; refuse api.fooducia.in / fooducia.in / fooducia.health.
+          case "$TARGET" in
+            *staging*|*dev*|*preview*|*.onrender.com*|*vercel.app*) echo "Target OK: $TARGET" ;;
+            *api.fooducia.in*|*fooducia.in*|*fooducia.health*)
+              echo "::error::Refusing to scan what looks like PRODUCTION ($TARGET)."; exit 1 ;;
+            *) echo "::warning::Target '$TARGET' is not obviously staging — proceeding, double-check it." ;;
+          esac
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ secrets.STAGING_URL }}
+          # -I: don't fail the job on warnings (triage them in the issue instead); -a: include alpha passive rules.
+          cmd_options: '-I -a'

@@ -1,0 +1,14 @@
+{
+  "name": "f2f-e2e",
+  "private": true,
+  "description": "Playwright end-to-end smoke tests — clicks through real pages and catches broken layouts and console errors. Runs against a URL (staging by default), never bundled into the app.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "install-browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
+  }
+}
