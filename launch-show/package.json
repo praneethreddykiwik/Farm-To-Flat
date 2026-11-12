@@ -1,0 +1,55 @@
+{
+  "name": "launch-show",
+  "version": "1.0.0",
+  "description": "Fooducia app-launch show: animated scenes, the live stage runner, and the film render",
+  "repository": {},
+  "license": "UNLICENSED",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "private": true,
+  "dependencies": {
+    "@fontsource-variable/anek-telugu": "^5.3.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@remotion/cli": "4.0.543",
+    "@remotion/fonts": "4.0.543",
+    "@remotion/media": "4.0.543",
+    "@remotion/player": "4.0.543",
+    "@remotion/transitions": "4.0.543",
+    "qrcode": "^1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.543"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.543",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/web": "0.0.166",
+    "@vitejs/plugin-react": "^6.3.0",
+    "eslint": "10.12.0",
+    "prettier": "3.8.1",
+    "sharp": "^0.35.5",
+    "typescript": "5.9.3",
+    "vite": "^8.3.8",
+    "vite-plugin-singlefile": "^2.3.4"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "studio": "remotion studio",
+    "stage": "vite",
+    "stage:build": "vite build",
+    "build": "remotion bundle",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc",
+    "audio": "node scripts/make-audio.mjs && ffmpeg -y -loglevel error -i src/assets/launch.wav -codec:a libmp3lame -b:a 160k src/assets/launch.mp3 && rm src/assets/launch.wav",
+    "render": "remotion render LaunchFilm out/fooducia-launch-film.mp4",
+    "render:moment": "remotion render LaunchMoment out/fooducia-launch-moment.mp4"
+  },
+  "allowScripts": {
+    "esbuild": false
+  }
+}
