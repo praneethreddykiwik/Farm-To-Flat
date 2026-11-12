@@ -135,6 +135,7 @@ const RAW_PRODUCTS = [
     dailyCap: 50,
     farm: 'Chevella',
     image: null,
+    isSeasonal: true,
   },
   {
     id: 'p_coriander',
@@ -564,6 +565,7 @@ const RAW_PRODUCTS = [
     dailyCap: 40,
     farm: 'Shamshabad belt',
     image: null,
+    isSeasonal: true,
   },
   {
     id: 'p_pomegranate',

@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useScreenFocused } from '../../src/hooks/useScreenFocused';
 import Animated, {
   Easing,
   FadeInDown,
@@ -53,6 +55,10 @@ function Burst() {
 }
 
 export default function OrderSuccess() {
+  // Light status text only while THIS screen is the one on show. It stays mounted underneath
+  // the screens pushed over it, and a status-bar setting from a hidden screen still applies —
+  // which left white clock digits on the pale screen that came next.
+  const focused = useScreenFocused();
   const lang = useSelector(selectLanguage);
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -61,6 +67,8 @@ export default function OrderSuccess() {
 
   return (
     <Screen variant="night" edges={['top', 'bottom']}>
+      {/* A night screen: the clock and battery need to be light to be seen on it. */}
+      <StatusBar style={focused ? 'light' : 'dark'} />
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Burst />
         <Animated.View

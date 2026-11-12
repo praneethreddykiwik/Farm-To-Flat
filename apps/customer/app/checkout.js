@@ -68,8 +68,11 @@ function Card({
               <Text variant="bodyMedium" numberOfLines={1}>
                 {title}
               </Text>
+              {/* Two lines, not one: "No balance yet. Everything goes via Razorpay." was being cut
+                  to "Everything goes…" — the half of the sentence that says where the money goes —
+                  and the Hindi and Telugu lines are longer still. */}
               {subtitle ? (
-                <Small muted numberOfLines={1}>
+                <Small muted numberOfLines={2}>
                   {subtitle}
                 </Small>
               ) : null}

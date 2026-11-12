@@ -30,6 +30,8 @@ describe('the mocks switch', () => {
   });
 
   it('is OFF for anything else — "true", "yes", a typo', () => {
+    // `useMocksFor` is a plain function, not a React hook — the name is the verb "use".
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     for (const v of ['true', 'yes', 'TRUE', 'on', '2', 'mock']) expect(useMocksFor(v)).toBe(false);
   });
 });

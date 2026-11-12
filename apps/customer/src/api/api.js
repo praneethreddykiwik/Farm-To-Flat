@@ -9,7 +9,17 @@ import { KV_KEYS, kv } from '../lib/kv';
 export const api = createApi({
   reducerPath: 'api',
   baseQuery,
-  tagTypes: ['Me', 'Addresses', 'Catalog', 'Cart', 'Windows', 'Orders', 'Wallet', 'Notifications'],
+  tagTypes: [
+    'Me',
+    'Addresses',
+    'Catalog',
+    'Cart',
+    'Windows',
+    'Orders',
+    'Wallet',
+    'Notifications',
+    'Meals',
+  ],
   endpoints: (b) => ({
     // ---- auth ----
     requestOtp: b.mutation({
@@ -59,6 +69,14 @@ export const api = createApi({
     }),
     searchCatalog: b.query({ query: (q) => `/catalog/search?q=${encodeURIComponent(q)}` }),
     getProduct: b.query({ query: (id) => `/catalog/${id}` }),
+    // What we say about a product beyond its price: computed nutrition statements, its story, how to
+    // keep it, a recipe. Changes only when we publish new content, so it is held for an hour.
+    getProductKnowledge: b.query({
+      query: (id) => `/catalog/${id}/knowledge`,
+      // Five minutes, not an hour: the words are edited in the admin console, and a phone that
+      // held yesterday's recipe for an hour would make a correction look like it had not saved.
+      keepUnusedDataFor: 300,
+    }),
     // Available coupons + their terms. Pass the cart subtotal (paise) so each carries an accurate
     // "Add ₹X more to unlock" line.
     getCoupons: b.query({ query: (subtotalPaise = 0) => `/coupons?subtotal=${subtotalPaise}` }),
@@ -205,22 +223,52 @@ export const api = createApi({
     // ---- lens: a photograph in, a product from our catalogue out ----
     aiIdentify: b.mutation({ query: (body) => ({ url: '/ai/identify', method: 'POST', body }) }),
 
-    // ---- meal-plan adherence (super-admin only server-side) ----
-    mealDay: b.query({ query: (date) => `/meals/day?date=${encodeURIComponent(date)}` }),
+    // ---- meal tracking (super-admin only server-side, for now) ----
+    // One meal in, by photo, by picking foods, as "had my planned meal", or as skipped.
+    mealDay: b.query({
+      query: (date) => `/meals/day?date=${encodeURIComponent(date)}`,
+      providesTags: ['Meals'],
+    }),
+    mealLog: b.mutation({
+      query: (body) => ({ url: '/meals/log', method: 'POST', body }),
+      invalidatesTags: ['Meals'],
+    }),
+    // "Bigger portion", "how much oil", "that item is wrong".
+    mealCorrect: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/meals/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Meals'],
+    }),
+    mealDelete: b.mutation({
+      query: (id) => ({ url: `/meals/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Meals'],
+    }),
+    mealStreak: b.query({
+      query: (today) => `/meals/streak?today=${encodeURIComponent(today)}`,
+      providesTags: ['Meals'],
+    }),
+    mealFoods: b.query({
+      query: (q = '') => `/meals/foods?q=${encodeURIComponent(q)}`,
+      keepUnusedDataFor: 3600,
+    }),
+    // the original two-step flow, still used by the plan-adherence card
     mealCheckin: b.mutation({
       query: (body) => ({ url: '/meals/checkin', method: 'POST', body }),
+      invalidatesTags: ['Meals'],
     }),
     mealPhoto: b.mutation({
       query: ({ id, ...body }) => ({ url: `/meals/${id}/photo`, method: 'POST', body }),
+      invalidatesTags: ['Meals'],
     }),
     mealAdherence: b.query({
+      /** @param {{ from?: string, to?: string }} [range]  both ends optional, as is the range itself */
       query: ({ from, to } = {}) => {
-        const qs = new URLSearchParams();
-        if (from) qs.set('from', from);
-        if (to) qs.set('to', to);
-        const s = qs.toString();
+        const q = new URLSearchParams();
+        if (from) q.set('from', from);
+        if (to) q.set('to', to);
+        const s = q.toString();
         return `/meals/adherence${s ? `?${s}` : ''}`;
       },
+      providesTags: ['Meals'],
     }),
   }),
 });
@@ -244,6 +292,7 @@ export const {
   useSearchCatalogQuery,
   useLazySearchCatalogQuery,
   useGetProductQuery,
+  useGetProductKnowledgeQuery,
   useGetCartQuery,
   useSetCartItemMutation,
   useRemoveCartItemMutation,
@@ -267,6 +316,11 @@ export const {
   useAiPlanMutation,
   useAiIdentifyMutation,
   useMealDayQuery,
+  useMealLogMutation,
+  useMealCorrectMutation,
+  useMealDeleteMutation,
+  useMealStreakQuery,
+  useMealFoodsQuery,
   useMealCheckinMutation,
   useMealPhotoMutation,
   useMealAdherenceQuery,

@@ -57,6 +57,22 @@ export const env = {
    * to fail in. Turning mocks on takes a deliberate `=1`.
    */
   useMocks: process.env.EXPO_PUBLIC_USE_MOCKS === '1',
+  /**
+   * Which staff role the mock session has — read ONLY when mocks are on, and ignored otherwise.
+   * Empty means an ordinary customer. Set EXPO_PUBLIC_MOCK_ROLE=SUPER_ADMIN to work on the screens
+   * that only a super admin can open (the meal planner and the calorie tracker).
+   */
+  mockRole:
+    process.env.EXPO_PUBLIC_USE_MOCKS === '1' ? process.env.EXPO_PUBLIC_MOCK_ROLE || null : null,
+  /**
+   * The business's FSSAI licence / registration number — 14 digits. A food business selling online
+   * must show it to the customer; the app shows it under About once this is set, and shows nothing
+   * (rather than a placeholder) until then. Anything that is not exactly 14 digits is ignored, so a
+   * typo cannot put a wrong licence number in front of customers.
+   */
+  fssaiLicence: /^\d{14}$/.test(process.env.EXPO_PUBLIC_FSSAI_LICENCE || '')
+    ? process.env.EXPO_PUBLIC_FSSAI_LICENCE
+    : null,
   aiProvider: (process.env.EXPO_PUBLIC_AI_PROVIDER || 'groq').toLowerCase(),
   groqKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || null,
   groqModel: process.env.EXPO_PUBLIC_GROQ_MODEL || 'openai/gpt-oss-120b',

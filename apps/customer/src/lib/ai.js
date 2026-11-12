@@ -85,7 +85,7 @@ function systemPrompt({ profile, targets, horizon, products, lang }) {
       : profile.region === 'both'
         ? 'both North-Indian and South-Indian / Telangana'
         : 'South-Indian / Telangana';
-  return `You are a careful dietitian assistant for a farm-to-flat grocery in Hyderabad, India.
+  return `You are a careful meal-planning assistant for a farm-to-flat grocery in Hyderabad, India.
 You plan meals ONLY from the catalog below. Every figure the customer sees is computed by the app
 from the per-100 g nutrition given here, so never invent products, never add ingredients that are not
 in the catalog (staples like rice, dal, oil, curd, spices may be MENTIONED in steps as pantry items but
@@ -373,7 +373,7 @@ export function normalisePlan(raw, products, /** @type {any} */ targets, horizon
 }
 
 /**
- * @param {{ profile: object, request: string, horizon: 'meal'|'day'|'week'|'month', products: any[], provider?: 'groq'|'gemini', onProgress?: (stage: string) => void }} args
+ * @param {{ profile: object, request: string, horizon: 'meal'|'day'|'week'|'month', products: any[], lang?: string, provider?: 'groq'|'gemini', onProgress?: (stage: string) => void, serverPlan?: (body: object) => Promise<any> }} args
  */
 export async function generatePlan({
   profile,

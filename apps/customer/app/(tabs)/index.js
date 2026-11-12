@@ -20,6 +20,7 @@ import { StatusScrim } from '../../src/components/StatusScrim';
 import { CategoryChips } from '../../src/components/CategoryChips';
 import { HarvestBanner } from '../../src/components/HarvestBanner';
 import { ConfirmBanner } from '../../src/components/ConfirmBanner';
+import { LiveOrderCard } from '../../src/components/LiveOrderCard';
 import { ProductCard } from '../../src/components/ProductCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { CartBar } from '../../src/components/CartBar';
@@ -130,6 +131,9 @@ export default function Home() {
       {/* The three languages we serve, drifting past. It is the cue that a Telugu or Hindi reader
           can switch — sitting where they are already looking rather than buried in a setting. */}
       <LanguageRail />
+      {/* An order on its way outranks everything else on this screen: it is the one thing the
+          customer is actually waiting for. */}
+      <LiveOrderCard style={{ paddingHorizontal: 20, marginBottom: 12 }} />
       <ConfirmBanner style={{ paddingHorizontal: 20, marginBottom: 12 }} />
       <View style={{ marginTop: 4 }}>
         <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />

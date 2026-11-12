@@ -453,6 +453,13 @@ export default function Profile() {
         <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('aboutLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>
           <Small muted>Fooducia · v{env.appVersion}</Small>
+          {/* The food-business licence number, where a customer can find it. Appears once
+              EXPO_PUBLIC_FSSAI_LICENCE is set; until then there is deliberately no placeholder. */}
+          {env.fssaiLicence ? (
+            <Small muted selectable>
+              FSSAI Lic. No. {env.fssaiLicence}
+            </Small>
+          ) : null}
           {/* Carry the reader's language to the web page, which renders in all three. */}
           <Pressy
             onPress={() =>

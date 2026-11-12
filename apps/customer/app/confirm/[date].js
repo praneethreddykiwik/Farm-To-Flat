@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,11 +19,17 @@ import {
   useSetCartItemMutation,
   useVerifyPaymentMutation,
 } from '../../src/api/api';
-import { dayOrdered, selectScheduled } from '../../src/features/plan/planSlice';
+import { dayOrdered, daySkipped, selectScheduled } from '../../src/features/plan/planSlice';
 import { selectCustomer } from '../../src/features/auth/authSlice';
 import { showToast } from '../../src/features/ui/uiSlice';
 import { orderQuantityFor } from '../../src/lib/nutrition';
-import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
+import {
+  formatDateShort,
+  relativeDayLabel,
+  todayISO,
+  windowHours,
+  windowLabel,
+} from '../../src/lib/dates';
 import { idempotencyKey } from '../../src/lib/ids';
 import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
@@ -36,7 +42,7 @@ import { colors, radius } from '../../src/theme';
  * order, so the customer never has to rebuild the basket by hand.
  */
 export default function ConfirmDay() {
-  const { date } = useLocalSearchParams();
+  const { date, do: doParam } = useLocalSearchParams();
   const dateISO = String(date);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -104,6 +110,51 @@ export default function ConfirmDay() {
   const balance = Number(wallet.data?.balancePaise || 0);
   const walletApplied = Math.min(balance, subtotal);
   const gateway = Math.max(0, subtotal - walletApplied);
+  // Nothing to confirm: no plan covers this date, or the plan's day has no produce in it. Decided
+  // only once the catalogue is in — before that every line is "unknown product" and the day would
+  // flash as empty.
+  // A reminder can be opened days late. A day that has gone cannot be harvested for; offering the
+  // "nearest window" instead would quietly turn last week's plan into an order for this week.
+  const past = dateISO < todayISO();
+  const empty = past || (!!catalog.data && (!plan || lines.length === 0));
+  const dayWord = relativeDayLabel(dateISO);
+  const isNear = dayWord === 'Today' || dayWord === 'Tomorrow';
+  // The server refuses an order under the minimum. Say so here, with the gap, rather than let the
+  // customer press Confirm and learn it from an error.
+  const minOrder = Number(cart.data?.cart?.minOrderValuePaise || 0);
+  const belowMin = !empty && minOrder > 0 && subtotal > 0 && subtotal < minOrder;
+  const rupees = (paise) => Math.round(paise / 100).toLocaleString('en-IN');
+
+  /**
+   * "Skip this day": order nothing for it, and stop asking. Skipping is exactly as easy as
+   * confirming — one tap, from here or straight from the reminder's own button — because a plan the
+   * customer cannot step out of for a day is a subscription trap, not a convenience.
+   */
+  const skip = () => {
+    if (!plan) return;
+    haptic.soft();
+    dispatch(daySkipped({ id: plan.id, date: dateISO }));
+    dispatch(
+      showToast({
+        title: `Skipped ${formatDateShort(dateISO)}`,
+        message: 'Nothing was ordered and nothing was charged.',
+        tone: 'neutral',
+      }),
+    );
+    if (router.canGoBack()) router.back();
+    else router.replace('/calendar');
+  };
+
+  // Arrived from the reminder's "Skip this day" button: do it, once. ("Confirm & pay" needs no
+  // special handling — it lands here with the amount in view and one button to press. The order is
+  // never placed from the notification itself.)
+  const acted = useRef(false);
+  useEffect(() => {
+    if (acted.current || doParam !== 'skip' || !plan) return;
+    acted.current = true;
+    skip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doParam, plan]);
 
   const finish = (order) => {
     haptic.success();
@@ -147,6 +198,33 @@ export default function ConfirmDay() {
     }
   };
 
+  /** Make the server basket exactly this day's produce — nothing left over from earlier shopping. */
+  const fillBasket = async () => {
+    const planIds = new Set(lines.map((l) => l.p.id));
+    for (const l of lines)
+      await setCartItem({ productId: l.p.id, quantity: String(l.qty) }).unwrap();
+    // Reconcile the server cart to exactly the plan lines so pre-existing basket
+    // items are not charged silently alongside this order.
+    const current = await cart.refetch().unwrap();
+    for (const it of current?.cart?.items || []) {
+      if (!planIds.has(it.productId))
+        await setCartItem({ productId: it.productId, quantity: '0' }).unwrap();
+    }
+  };
+
+  /** Under the minimum: put the day's produce in the basket and let the customer add to it there. */
+  const toBasket = async () => {
+    setBusy(true);
+    try {
+      await fillBasket();
+      router.push('/cart');
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || 'Could not open the basket', tone: 'error' }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const confirm = async () => {
     if (!plan || lines.length === 0) {
       dispatch(showToast({ title: 'Nothing to order for that day', tone: 'neutral' }));
@@ -170,16 +248,7 @@ export default function ConfirmDay() {
     setBusy(true);
     haptic.soft();
     try {
-      const planIds = new Set(lines.map((l) => l.p.id));
-      for (const l of lines)
-        await setCartItem({ productId: l.p.id, quantity: String(l.qty) }).unwrap();
-      // Reconcile the server cart to exactly the plan lines so pre-existing basket
-      // items are not charged silently alongside this order.
-      const current = await cart.refetch().unwrap();
-      for (const it of current?.cart?.items || []) {
-        if (!planIds.has(it.productId))
-          await setCartItem({ productId: it.productId, quantity: '0' }).unwrap();
-      }
+      await fillBasket();
       const res = await placeOrder({
         idempotencyKey: idem.current,
         addressId: address.id,
@@ -245,13 +314,42 @@ export default function ConfirmDay() {
         </View>
 
         <Animated.View entering={FadeInDown.duration(360).springify().damping(18)}>
-          <Label>Tomorrow’s plan</Label>
+          <Label>{isNear ? `${dayWord}’s plan` : 'Plan for'}</Label>
           <Display style={{ marginTop: 2 }}>{formatDateShort(dateISO)}</Display>
-          <Small muted style={{ marginTop: 4 }}>
-            {plan?.title || 'Your plan'} · {(meals || []).length} meals · harvested tonight if you
-            confirm now
-          </Small>
+          {empty ? null : (
+            <Small muted style={{ marginTop: 4 }}>
+              {plan?.title || 'Your plan'} · {(meals || []).length}{' '}
+              {(meals || []).length === 1 ? 'meal' : 'meals'} · harvested for you once you confirm
+            </Small>
+          )}
         </Animated.View>
+
+        {/* Reached from an old reminder, or for a day the plan no longer covers. It used to show
+            "0 meals · 0 products" over a live "Confirm order ₹0" button. */}
+        {empty ? (
+          <Animated.View entering={FadeInDown.delay(60).duration(320)} style={{ marginTop: 20 }}>
+            <Glass radius={radius.lg} innerStyle={{ padding: 20 }}>
+              <Text variant="bodyMedium">
+                {past ? 'This day has passed' : 'Nothing is planned for this day'}
+              </Text>
+              <Small muted style={{ marginTop: 4 }}>
+                There is no order to confirm and nothing will be charged. Plan the day, or pick what
+                you want from today’s harvest.
+              </Small>
+              <Button
+                title="Open the planner"
+                onPress={() => router.replace('/(tabs)/plan')}
+                style={{ marginTop: 16 }}
+              />
+              <Button
+                title="Shop instead"
+                variant="ghost"
+                onPress={() => router.replace('/(tabs)')}
+                style={{ marginTop: 6 }}
+              />
+            </Glass>
+          </Animated.View>
+        ) : null}
 
         {alreadyOrdered ? (
           <Animated.View entering={FadeInDown.delay(60).duration(320)} style={{ marginTop: 16 }}>
@@ -264,74 +362,116 @@ export default function ConfirmDay() {
           </Animated.View>
         ) : null}
 
-        <Animated.View entering={FadeInDown.delay(80).duration(360)} style={{ marginTop: 16 }}>
-          <Glass radius={radius.lg} innerStyle={styles.row}>
-            <View style={styles.rowIcon}>
-              <MapPin size={18} color={colors.ink} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text variant="bodyMedium">
-                {address ? `${address.block} · ${address.flat}` : 'Add a delivery address'}
-              </Text>
-              <Small muted>{address?.communityName}</Small>
-            </View>
-          </Glass>
-          <View style={{ height: 10 }} />
-          <Glass radius={radius.lg} innerStyle={styles.row}>
-            <View style={styles.rowIcon}>
-              <Sunrise size={18} color={colors.ink} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text variant="bodyMedium">
-                {slot
-                  ? `${slotIsOnDay ? '' : `${formatDateShort(slot.date)} · `}${windowLabel(slot.window, slot)}`
-                  : 'No window available'}
-              </Text>
-              <Small muted={slotIsOnDay} color={slotIsOnDay ? undefined : colors.amber}>
-                {!slot
-                  ? 'No delivery window is open right now'
-                  : slotIsOnDay
-                    ? windowHours(slot.window, slot)
-                    : `We don’t deliver on ${formatDateShort(dateISO)} — nearest window shown`}
-              </Small>
-            </View>
-          </Glass>
-        </Animated.View>
+        {empty ? null : (
+          <>
+            <Animated.View entering={FadeInDown.delay(80).duration(360)} style={{ marginTop: 16 }}>
+              <Glass radius={radius.lg} innerStyle={styles.row}>
+                <View style={styles.rowIcon}>
+                  <MapPin size={18} color={colors.ink} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyMedium">
+                    {address ? `${address.block} · ${address.flat}` : 'Add a delivery address'}
+                  </Text>
+                  <Small muted>{address?.communityName}</Small>
+                </View>
+              </Glass>
+              <View style={{ height: 10 }} />
+              <Glass radius={radius.lg} innerStyle={styles.row}>
+                <View style={styles.rowIcon}>
+                  <Sunrise size={18} color={colors.ink} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyMedium">
+                    {slot
+                      ? `${slotIsOnDay ? '' : `${formatDateShort(slot.date)} · `}${windowLabel(slot.window, slot)}`
+                      : 'No window available'}
+                  </Text>
+                  <Small muted={slotIsOnDay} color={slotIsOnDay ? undefined : colors.amber}>
+                    {!slot
+                      ? 'No delivery window is open right now'
+                      : slotIsOnDay
+                        ? windowHours(slot.window, slot)
+                        : `We don’t deliver on ${formatDateShort(dateISO)} — nearest window shown`}
+                  </Small>
+                </View>
+              </Glass>
+            </Animated.View>
 
-        <Label style={{ marginTop: 24, marginBottom: 8 }}>What you’ll cook</Label>
-        <View style={{ gap: 10 }}>
-          {(meals || []).map((m, i) => (
-            <MealCard key={i} meal={m} productsById={productsById} index={i} compact />
-          ))}
-        </View>
+            <Label style={{ marginTop: 24, marginBottom: 8 }}>What you’ll cook</Label>
+            <View style={{ gap: 10 }}>
+              {(meals || []).map((m, i) => (
+                <MealCard key={i} meal={m} productsById={productsById} index={i} compact />
+              ))}
+            </View>
 
-        <Label style={{ marginTop: 24, marginBottom: 8 }}>What we’ll harvest</Label>
-        <PlanShoppingList shopping={shopping} productsById={productsById} compact />
+            <Label style={{ marginTop: 24, marginBottom: 8 }}>What we’ll harvest</Label>
+            <PlanShoppingList shopping={shopping} productsById={productsById} compact />
+
+            {plan && !alreadyOrdered ? (
+              <Button
+                title="Skip this day — order nothing"
+                variant="ghost"
+                onPress={skip}
+                style={{ marginTop: 18 }}
+              />
+            ) : null}
+            {belowMin ? (
+              <Glass radius={radius.lg} innerStyle={{ padding: 14 }} style={{ marginTop: 14 }}>
+                <Text variant="smallMedium">
+                  Orders start at ₹{rupees(minOrder)}. This day comes to ₹{rupees(subtotal)}.
+                </Text>
+                <Small muted style={{ marginTop: 2 }}>
+                  Add ₹{rupees(minOrder - subtotal)} more in the basket and order from there.
+                </Small>
+              </Glass>
+            ) : null}
+            <Small muted center style={{ marginTop: 10, fontSize: 11.5 }}>
+              You pay only when you press the button below. Prices are the ones shown; anything sold
+              by weight is billed on what is actually packed.
+            </Small>
+          </>
+        )}
       </ScrollView>
 
-      <View
-        pointerEvents="box-none"
-        style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}
-      >
-        <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.footerInner}>
-          <View style={{ flex: 1 }}>
-            <Small color="rgba(243,245,239,0.65)">
-              {gateway > 0
-                ? `Wallet ₹${Math.round(walletApplied / 100)} + pay`
-                : 'Covered by wallet'}
-            </Small>
-            <Money paise={gateway} animated color={colors.inkOnDark} variant="h2" />
-          </View>
-          <Button
-            title={alreadyOrdered ? 'Order again' : 'Confirm order'}
-            variant="accent"
-            size="md"
-            full={false}
-            loading={busy}
-            onPress={confirm}
-          />
-        </Glass>
-      </View>
+      {/* One bar, one button. The big number is what the order COSTS; the line above it says where
+          the money comes from; the button says exactly what pressing it will charge. The old bar
+          showed only the part left after the wallet, so an order the wallet covered read "₹0". */}
+      {empty ? null : (
+        <View
+          pointerEvents="box-none"
+          style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}
+        >
+          <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.footerInner}>
+            <View style={{ flex: 1 }}>
+              <Small color="rgba(243,245,239,0.65)" numberOfLines={1}>
+                {gateway === 0
+                  ? 'Paid from your wallet'
+                  : walletApplied > 0
+                    ? `Wallet ₹${rupees(walletApplied)} + ₹${rupees(gateway)} to pay`
+                    : 'UPI, card or netbanking'}
+              </Small>
+              <Money paise={subtotal} animated color={colors.inkOnDark} variant="h2" />
+            </View>
+            <Button
+              title={
+                belowMin
+                  ? 'Open basket'
+                  : gateway > 0
+                    ? `Pay ₹${rupees(gateway)}`
+                    : alreadyOrdered
+                      ? 'Order again'
+                      : 'Confirm order'
+              }
+              variant="accent"
+              size="md"
+              full={false}
+              loading={busy}
+              onPress={belowMin ? toBasket : confirm}
+            />
+          </Glass>
+        </View>
+      )}
 
       <PaymentSimulator
         ref={simSheet}

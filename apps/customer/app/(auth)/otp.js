@@ -25,6 +25,9 @@ export default function OtpScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { pendingMobile } = useSelector(selectAuth);
+  // Signing in clears pendingMobile a beat before this screen leaves, and for that beat the line
+  // below read "Sent to +91 ." Remember the number we were opened with and keep showing that.
+  const [shownMobile] = useState(pendingMobile);
   const [code, setCode] = useState('');
   const [error, setError] = useState(null);
   const [seconds, setSeconds] = useState(30);
@@ -130,7 +133,7 @@ export default function OtpScreen() {
           <Small muted>STEP 2 OF 2</Small>
           <Display style={{ marginTop: 6 }}>Enter the code</Display>
           <Body muted style={{ marginTop: 8 }}>
-            Sent to +91 {pendingMobile?.replace(/(\d{5})(\d{5})/, '$1 $2')}.{' '}
+            Sent to +91 {(pendingMobile || shownMobile)?.replace(/(\d{5})(\d{5})/, '$1 $2')}.{' '}
             <Text variant="bodyMedium" color={colors.leafDeep} onPress={() => router.back()}>
               Change
             </Text>

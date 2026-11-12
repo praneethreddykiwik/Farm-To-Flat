@@ -1,7 +1,7 @@
 import '../global.css';
 import { initSentry } from '../src/lib/sentry';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -31,16 +31,20 @@ import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
 import { useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
 import {
+  ROLE_META,
   roleResolved,
   roleResolveFailed,
   selectEffectiveRole,
   selectRoleState,
 } from '../src/features/role/roleSlice';
 import { adminApi } from '../src/lib/adminApi';
+import { env } from '../src/lib/env';
 import { configureNotifications, registerForPush } from '../src/lib/notifications';
 import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
+import { useMealReminders } from '../src/hooks/useMealReminders';
+import { routeForNotification } from '../src/lib/notificationRoutes';
 import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
 
 // ESM imports are hoisted, so this still runs before any component renders — which is the point:
@@ -91,6 +95,26 @@ function AuthGate({ ready }) {
   // fall back to customer after several genuine failures — a staff login survives a cold start.
   useEffect(() => {
     if (auth.status !== 'signedIn' || roleState.resolved || !auth.customer?.mobile) return;
+    // On mocks there is no server to ask, and the real one must not be asked on a mock session's
+    // behalf: it answered 401 four times over ten seconds while the app sat on "Signing you in…".
+    // The role comes from EXPO_PUBLIC_MOCK_ROLE instead (nothing set = a customer).
+    if (env.useMocks) {
+      const role = ROLE_META[env.mockRole] ? env.mockRole : null;
+      dispatch(
+        roleResolved(
+          role
+            ? {
+                isStaff: true,
+                role,
+                roleLabel: ROLE_META[role].label,
+                sections: ROLE_META[role].sections,
+                aiAccess: ROLE_META[role].ai,
+              }
+            : { isStaff: false },
+        ),
+      );
+      return;
+    }
     let alive = true;
     const withTimeout = (p, ms) =>
       Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
@@ -112,17 +136,44 @@ function AuthGate({ ready }) {
     };
   }, [auth.status, auth.customer, roleState.resolved, dispatch]);
 
-  // Tapping a push takes you straight to the thing it's about: an admin's buffer alert opens the cost
-  // approvals; an order update opens that order. Guard runs after, so a signed-out tap still routes safely.
+  // Tapping a notification — or one of its action buttons ("Snap my plate", "Confirm & pay", "Skip
+  // this day") — takes you straight to the thing it's about. The table lives in
+  // lib/notificationRoutes.js. Guard runs after, so a signed-out tap still routes safely.
+  //
+  // Two paths, because a tap can arrive two ways: while the app is alive (the listener), or as the
+  // thing that launched it from cold (the "last response", read once the app is ready to navigate).
+  // The evening-before "Confirm tomorrow's order" reminder used to fall through both: its payload
+  // carries a date, not an order id, so tapping it opened the app and went nowhere.
+  const handled = useRef(null);
+  const here = useRef(segments);
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
-      const data = resp?.notification?.request?.content?.data || {};
-      if (data.kind === 'PROCUREMENT_BUFFER') router.push('/staff/approvals');
-      else if (data.kind === 'MEAL_CHECKIN') router.push('/meal-checkin');
-      else if (data.orderId) router.push(`/order/${data.orderId}`);
-    });
+    here.current = segments;
+  }, [segments]);
+  useEffect(() => {
+    const go = (resp) => {
+      const id = resp?.notification?.request?.identifier;
+      const key = `${id}|${resp?.actionIdentifier}|${resp?.notification?.date}`;
+      if (!resp || handled.current === key) return;
+      handled.current = key;
+      const target = routeForNotification({
+        actionIdentifier: resp.actionIdentifier,
+        data: resp.notification?.request?.content?.data,
+      });
+      if (!target) return;
+      // Already looking at that kind of screen (the tracker is open and "Skipped it" is pressed on
+      // a reminder)? Swap it rather than stack a second copy on top — Back should leave the
+      // tracker, not reveal an older tracker underneath.
+      const sameScreen = here.current?.[0] === String(target.pathname).split('/')[1];
+      if (sameScreen) router.replace(/** @type {any} */ (target));
+      else router.push(/** @type {any} */ (target));
+    };
+    const sub = Notifications.addNotificationResponseReceivedListener(go);
+    if (ready && auth.status === 'signedIn' && role.resolved)
+      Notifications.getLastNotificationResponseAsync()
+        .then(go)
+        .catch(() => {});
     return () => sub.remove();
-  }, [router]);
+  }, [router, ready, auth.status, role.resolved]);
 
   useEffect(() => {
     if (!ready || auth.status === 'booting') return;
@@ -177,12 +228,41 @@ function AuthGate({ ready }) {
   return null;
 }
 
+/**
+ * The cover shown while a signed-in number's role is being looked up, so a staff phone never
+ * flashes the shop before landing on its own tools.
+ *
+ * It lifts by itself after a few seconds. The lookup retries for up to two minutes when the
+ * network is bad, and a customer on a weak signal should get their shop — with whatever is cached —
+ * rather than a spinner for that long. The lookup carries on underneath; a staff number is still
+ * routed the moment it answers.
+ */
+function SigningInCover() {
+  const [lifted, setLifted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLifted(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+  if (lifted) return null;
+  return (
+    <View
+      style={styles.signingIn}
+      accessibilityRole="progressbar"
+      accessibilityLabel="Signing you in"
+    >
+      <ActivityIndicator color={colors.leaf} size="large" />
+      <Text style={styles.signingInText}>Signing you in…</Text>
+    </View>
+  );
+}
+
 function Root() {
   // Scoped to this component: AuthGate has its own `segments`, which is not in scope here.
   const rootSegments = /** @type {any} */ (useSegments());
   useSessionBootstrap();
   useReducedMotionSync();
   useOrderLiveNotification(); // Android: keep the live order card in sync (iOS Live Activities later)
+  useMealReminders(); // meal-time "snap your plate" reminders, re-armed as the plan and logs change
   const [fontsLoaded, fontError] = /** @type {any} */ (
     useFonts({
       Fraunces_500Medium_Italic,
@@ -258,17 +338,17 @@ function Root() {
           />
         </Stack>
       ) : null}
-      {signingIn ? (
-        <View style={styles.signingIn}>
-          <ActivityIndicator color={colors.leaf} size="large" />
-          <Text style={styles.signingInText}>Signing you in…</Text>
-        </View>
-      ) : null}
+      {signingIn ? <SigningInCover /> : null}
       {/* Every scrolling screen starts its content at the top safe-area inset, so without this the
           content travels up through the transparent status bar and collides with the clock and
           battery icons. Mounted once here rather than on each screen. Skipped for (auth), whose
-          onboarding is a full-bleed dark scene that scrolls under the status bar on purpose. */}
-      {rootSegments[0] !== '(auth)' ? <StatusScrim /> : null}
+          onboarding is a full-bleed dark scene that scrolls under the status bar on purpose, and for
+          the "Locked in." screen, which is dark to its top edge — a pale strip across it looked
+          like a rendering fault. */}
+      {rootSegments[0] === '(auth)' ||
+      (rootSegments[0] === 'order' && rootSegments[1] === 'success') ? null : (
+        <StatusScrim />
+      )}
       <ToastHost />
       <KeyboardDoneBar />
     </View>
@@ -292,7 +372,14 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   signingIn: {
-    ...StyleSheet.absoluteFillObject,
+    // Spelled out. This used to spread StyleSheet.absoluteFillObject, which React Native 0.86 no
+    // longer has: spreading undefined adds nothing, so the "cover the screen" overlay laid out in
+    // flow instead — a strip under the app that shoved the tab bar up the page.
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: colors.canvas,
     alignItems: 'center',
     justifyContent: 'center',

@@ -683,8 +683,24 @@ const styles = StyleSheet.create({
   },
   noticeText: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: colors.inkOnDark },
   noticeDismiss: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.sprout, marginLeft: 12 },
-  doorWrap: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
-  doorScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,21,16,0.45)' },
+  // Both spelled out: StyleSheet.absoluteFillObject is gone in React Native 0.86, and spreading it
+  // silently left these two in flow — no dimmed backdrop, and the card at the top, not the bottom.
+  doorWrap: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: 'flex-end',
+  },
+  doorScrim: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(11,21,16,0.45)',
+  },
   doorCard: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 22,

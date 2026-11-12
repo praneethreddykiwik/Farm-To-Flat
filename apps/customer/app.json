@@ -16,8 +16,8 @@
         "NSLocationWhenInUseUsageDescription": "We use your location once to check whether your community is serviceable.",
         "NSSpeechRecognitionUsageDescription": "Fooducia converts your speech to text to search the catalog.",
         "NSMicrophoneUsageDescription": "Fooducia uses the microphone so you can search the catalog by voice.",
-        "NSCameraUsageDescription": "Fooducia uses the camera so you can photograph anything wrong with your delivery.",
-        "NSPhotoLibraryUsageDescription": "Fooducia lets you attach a photo of anything wrong with your delivery."
+        "NSCameraUsageDescription": "Fooducia uses the camera so you can photograph a vegetable to find it, a meal to log it, or a problem with a delivery.",
+        "NSPhotoLibraryUsageDescription": "Fooducia lets you choose a photo of a vegetable to find, a meal to log, or a problem with a delivery."
       }
     },
     "android": {
@@ -83,8 +83,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Fooducia uses your photos so you can show us a vegetable or attach a photo to a complaint.",
-          "cameraPermission": "Fooducia uses the camera so you can photograph a vegetable to find it, or show us a problem with an order."
+          "photosPermission": "Fooducia lets you choose a photo of a vegetable to find, a meal to log, or a problem with a delivery.",
+          "cameraPermission": "Fooducia uses the camera so you can photograph a vegetable to find it, a meal to log it, or a problem with a delivery."
         }
       ],
       [

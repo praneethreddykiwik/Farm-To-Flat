@@ -32,6 +32,8 @@ import { colors, fonts, radius, tintOf } from '../../src/theme';
 import { useSelector } from 'react-redux';
 import { selectLanguage } from '../../src/features/ui/uiSlice';
 import { productLabel } from '../../src/lib/i18n';
+import { DietMark } from '../../src/components/DietMark';
+import { ProductKnowledge } from '../../src/components/ProductKnowledge';
 
 const { width: W } = Dimensions.get('window');
 const HERO = W * 1.05;
@@ -76,6 +78,20 @@ export default function ProductDetail() {
   }));
   const titleBar = useAnimatedStyle(() => ({
     opacity: interpolate(y.value, [HERO - 160, HERO - 80], [0, 1], Extrapolation.CLAMP),
+  }));
+  // The small title in the bar used to fade in on the same curve as the bar itself, which put it
+  // on screen while the big product name was still sliding underneath — two copies of the name,
+  // one on top of the other. It now waits until the big one has gone under the bar. `nameEnd` is
+  // the scroll offset of the bottom edge of the big name, measured, not guessed.
+  const nameEnd = useSharedValue(HERO);
+  const barHeight = insets.top + 6 + 44 + 8;
+  const titleText = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      y.value,
+      [nameEnd.value - barHeight - 6, nameEnd.value - barHeight + 18],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
   }));
 
   if (!product) {
@@ -132,12 +148,24 @@ export default function ProductDetail() {
         >
           <Glass radius={radius.xxl} innerStyle={styles.sheet}>
             <View style={styles.pills}>
+              {/* The veg / non-veg declaration is mandatory on every food listing, eggs and meat
+                  included — shape as well as colour, so it never relies on colour alone. */}
               <GlassPill>
-                <Sprout size={13} color={colors.leafDeep} />
-                <Small color={colors.leafDeep} style={{ fontFamily: fonts.bodyMedium }}>
-                  {product.farm}
+                <DietMark diet={product.diet} size={14} />
+                <Small color={colors.ink2} style={{ fontFamily: fonts.bodyMedium }}>
+                  {product.diet === 'NONVEG' ? 'Non-vegetarian' : 'Vegetarian'}
                 </Small>
               </GlassPill>
+              {/* A product added from the console may have no farm recorded; an empty pill with a
+                  lone leaf icon looked like a rendering fault. */}
+              {product.farm ? (
+                <GlassPill>
+                  <Sprout size={13} color={colors.leafDeep} />
+                  <Small color={colors.leafDeep} style={{ fontFamily: fonts.bodyMedium }}>
+                    {product.farm}
+                  </Small>
+                </GlassPill>
+              ) : null}
               {product.variableWeight ? (
                 <GlassPill>
                   <Scale size={13} color={colors.ink2} />
@@ -147,7 +175,15 @@ export default function ProductDetail() {
                 </GlassPill>
               ) : null}
             </View>
-            <Text style={styles.name}>{label}</Text>
+            <Text
+              style={styles.name}
+              onLayout={(e) => {
+                // y is measured from the top of the sheet; the sheet starts HERO - 90 down the page.
+                nameEnd.value = HERO - 90 + e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+              }}
+            >
+              {label}
+            </Text>
             <View style={styles.aliasRow}>
               {aliases.map((a) => (
                 <View key={a} style={[styles.alias, { backgroundColor: t.bg }]}>
@@ -164,22 +200,34 @@ export default function ProductDetail() {
             </View>
 
             <View style={styles.divider} />
-            <Label>Why it’s good</Label>
+            {/* States what WE do, and nothing about anyone else's produce: a line like "never sits in
+                a cold room, never waxed" casts doubt on other food, which the FSS claims regulations
+                (reg 10(5), 10(7)) do not allow. */}
+            <Label>How it reaches you</Label>
             <Text variant="body" color={colors.ink2} style={{ marginTop: 6 }}>
               {product.variableWeight
-                ? 'Cut fresh on the morning of delivery. The packer records the actual weight and your bill adjusts to it, within ±10%.'
-                : `Picked from ${product.farm} after the cut-off, so it never sits in a cold room. Washed once, never waxed.`}
+                ? 'Cut on the morning of delivery. The packer records the actual weight and your bill adjusts to it, within ±10%.'
+                : product.farm
+                  ? `Harvested after the order cut-off (${product.farm}) and delivered the next morning.`
+                  : 'Harvested after the order cut-off and delivered the next morning.'}
             </Text>
             {product.variableWeight ? (
               <View style={{ marginTop: 6 }}>
                 <VariableWeightNote />
               </View>
             ) : null}
-            <View style={styles.facts}>
+            <ProductKnowledge productId={product.id} />
+            <View style={styles.divider} />
+            <View style={[styles.facts, { marginTop: 0 }]}>
               {[
                 ['Category', product.categoryName],
                 ['Sold by', product.unit === 'KG' ? 'weight' : product.unit.toLowerCase()],
-                ['Daily cap', `${product.dailyCap} ${product.unit === 'KG' ? 'kg' : ''}`.trim()],
+                // "Daily cap" was our own word for it. What it means to a customer: we harvest only
+                // so much of this a day, so it can run out.
+                [
+                  'Harvested a day',
+                  `up to ${product.dailyCap}${product.unit === 'KG' ? ' kg' : ''}`,
+                ],
               ].map(([k, v]) => (
                 <View key={k} style={styles.fact}>
                   <Small muted>{k}</Small>
@@ -193,16 +241,20 @@ export default function ProductDetail() {
 
       {/* Top chrome */}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + 6 }]}>
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, titleBar]}>
-          <Glass radius={0} elevated={false} innerStyle={{ flex: 1, borderWidth: 0 }} />
-        </Animated.View>
+        {/* A solid bar, not glass. Frosted glass under a fading parent does not blur on iOS (the
+            effect view gives up while its opacity is animating), so the page text ran, perfectly
+            sharp, straight through the title. Same canvas as the status-bar scrim above it. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, styles.topFill, titleBar]}
+        />
         <View style={styles.topRow}>
           <Pressy onPress={() => router.back()} haptics="select" accessibilityLabel="Back">
             <Glass tone="dark" radius={radius.pill} innerStyle={styles.iconBtn}>
               <ArrowLeft size={20} color={colors.inkOnDark} />
             </Glass>
           </Pressy>
-          <Animated.View style={[{ flex: 1, alignItems: 'center' }, titleBar]}>
+          <Animated.View style={[{ flex: 1, alignItems: 'center' }, titleText]}>
             <Title numberOfLines={1}>{label}</Title>
           </Animated.View>
           <Pressy onPress={() => router.push('/cart')} haptics="select" accessibilityLabel="Basket">
@@ -272,6 +324,11 @@ const styles = StyleSheet.create({
   facts: { flexDirection: 'row', marginTop: 18, gap: 10 },
   fact: { flex: 1, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: radius.md, padding: 12 },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingBottom: 8 },
+  topFill: {
+    backgroundColor: colors.canvas,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
+  },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   bottom: { position: 'absolute', left: 16, right: 16, bottom: 0 },

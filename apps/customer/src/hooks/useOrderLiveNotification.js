@@ -4,7 +4,8 @@ import { useSelector } from 'react-redux';
 import { useGetOrdersQuery } from '../api/api';
 import { selectAuth } from '../features/auth/authSlice';
 import { windowLabel } from '../lib/dates';
-import { isLiveStatus, presentOrderLive, dismissOrderLive } from '../lib/notifications';
+import { presentOrderLive, dismissOrderLive } from '../lib/notifications';
+import { pickLiveOrder } from '../lib/liveOrder';
 
 /**
  * Keeps ONE Android "live order" notification in sync with the customer's active order — the closest
@@ -33,12 +34,9 @@ export function useOrderLiveNotification() {
 
   useEffect(() => {
     if (!enabled) return;
-    const orders = data?.orders || [];
-    // The active order = the one that's moving. If several, take the earliest delivery date so the
-    // card tracks the order arriving next.
-    const active = orders
-      .filter((o) => isLiveStatus(o.status))
-      .sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)))[0];
+    // The active order = the one that's moving; with several, the one arriving next. The same
+    // choice the home screen's live card makes (lib/liveOrder.js), so the two always agree.
+    const active = pickLiveOrder(data?.orders);
 
     if (!active) {
       if (shownKey.current) {

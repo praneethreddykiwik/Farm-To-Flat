@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -19,7 +19,6 @@ import {
   ArrowRight,
   Utensils,
 } from 'lucide-react-native';
-import { scheduleMealReminders } from '../../src/lib/mealReminders';
 import {
   Ambient,
   Button,
@@ -97,11 +96,6 @@ export default function Plan() {
   const draft = useSelector(selectDraft);
   const scheduled = useSelector(selectScheduled);
 
-  // Once a plan is on the calendar, arm the daily meal-time reminders (super-admin only for now).
-  // scheduleMealReminders clears + re-schedules, so running it on change is safe and idempotent.
-  useEffect(() => {
-    if (aiVisible && scheduled.length) scheduleMealReminders();
-  }, [aiVisible, scheduled.length]);
   const catalog = useGetCatalogQuery();
   const products = useMemo(() => catalog.data?.products || [], [catalog.data]);
   const [aiPlan] = useAiPlanMutation();
@@ -221,9 +215,13 @@ export default function Plan() {
         >
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Display>Your dietitian</Display>
+              {/* Not "Your dietitian": dietitian and nutritionist are protected professional titles
+                  (National Commission for Allied and Healthcare Professions Act, 2021). This is a
+                  planning tool, and it says so. */}
+              <Display>Meal planner</Display>
               <Small muted style={{ marginTop: 4 }}>
-                Plans built only from what we harvest. Every number is computed, not guessed.
+                Plans built only from what we harvest. Every number is computed from reference
+                tables, not guessed. General guidance, not medical advice.
               </Small>
             </View>
             <Pressy

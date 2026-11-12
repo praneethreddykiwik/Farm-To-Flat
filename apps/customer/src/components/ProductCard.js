@@ -8,6 +8,7 @@ import { useCartLine } from '../hooks/useCart';
 import { useSelector } from 'react-redux';
 import { selectLanguage } from '../features/ui/uiSlice';
 import { productLabel } from '../lib/i18n';
+import { DietMark } from './DietMark';
 
 const UNIT_SUFFIX = { KG: '/kg', BUNCH: '/bunch', PIECE: '/pc', DOZEN: '/dozen', PACK: '/pack' };
 
@@ -67,6 +68,7 @@ function ProductCardBase({ product, index = 0, width }) {
                 recyclingKey={product.id}
               />
             </View>
+            <DietMark diet={product.diet} size={15} style={styles.diet} />
             {product.variableWeight && !soldOut ? (
               <View style={styles.tag}>
                 <Small style={{ fontSize: 10, color: colors.inkOnDark }}>WEIGHED</Small>
@@ -151,6 +153,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.md,
   },
+  // Top-right, so it never collides with the WEIGHED tag on the left. Elevated for the same Android
+  // paint-order reason as the overlays below.
+  diet: { position: 'absolute', top: 8, right: 8, zIndex: 2, elevation: 2 },
   tag: {
     position: 'absolute',
     top: 8,

@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSelector, createSlice } from '@reduxjs/toolkit';
 
 /**
  * Staff role for the app experience. Mirrors apps/api/src/lib/roles.js. A phone number assigned a
@@ -55,20 +55,26 @@ const roleSlice = createSlice({
 export const { roleResolved, roleResolveFailed, setDevRole, roleCleared } = roleSlice.actions;
 export default roleSlice.reducer;
 
-/** Effective role: a local preview override wins, else the resolved server role. */
-export const selectEffectiveRole = (s) => {
-  const dev = s.role.devRole;
+export const selectRoleState = (s) => s.role;
+/**
+ * Effective role: a local preview override wins, else the resolved server role.
+ *
+ * Memoised. It used to build a fresh object on every call, so every component reading it — the
+ * route guard included — re-rendered on EVERY store update, cart taps and all, whether or not the
+ * role had changed. The same slice in now gives the same object out.
+ */
+export const selectEffectiveRole = createSelector([selectRoleState], (r) => {
+  const dev = r.devRole;
   if (dev) return { role: dev, ...ROLE_META[dev], resolved: true, aiAccess: ROLE_META[dev].ai };
   return {
-    role: s.role.role,
-    label: s.role.roleLabel,
-    sections: s.role.sections,
-    ai: ROLE_META[s.role.role]?.ai,
-    aiAccess: s.role.aiAccess,
-    resolved: s.role.resolved,
+    role: r.role,
+    label: r.roleLabel,
+    sections: r.sections,
+    ai: ROLE_META[r.role]?.ai,
+    aiAccess: r.aiAccess,
+    resolved: r.resolved,
   };
-};
-export const selectRoleState = (s) => s.role;
+});
 export const selectIsStaff = (s) => !!selectEffectiveRole(s).role;
 // AI is super-admin only. Customers never see it, and neither do admin / procurement / fulfilment —
 // the whole AI planner (Dietitian tab, profile entry, plan features) is hidden for everyone else.

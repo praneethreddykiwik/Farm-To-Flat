@@ -2,6 +2,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { env } from './env';
 import { kv } from './kv';
+import { CATEGORY_ACTIONS } from './notificationRoutes';
+import { LIVE_STEPS, isLiveStatus } from './liveOrder';
 
 // Remembers that we have already shown the OS notification prompt once and been turned down, so a
 // cold start doesn't ask again. Android only stops offering the dialog after two refusals, which
@@ -24,6 +26,26 @@ export function configureNotifications() {
   // Create the Android channels up front so the live-order card can be presented before the user has
   // gone through push registration. Fire-and-forget; no-op off Android.
   ensureAndroidChannels().catch(() => {});
+  registerCategories().catch(() => {});
+}
+
+/**
+ * Action buttons under a notification: "Snap my plate" on a meal reminder, "Confirm & pay" / "Skip
+ * this day" on the evening-before prompt, "Rate" / "Something wrong?" once an order is delivered.
+ * A notification opts in by carrying the category id. Every action opens the app on the right
+ * screen (lib/notificationRoutes.js) — none acts silently in the background.
+ */
+export async function registerCategories() {
+  for (const [id, actions] of Object.entries(CATEGORY_ACTIONS)) {
+    await Notifications.setNotificationCategoryAsync(
+      id,
+      actions.map((a) => ({
+        identifier: a.identifier,
+        buttonTitle: a.buttonTitle,
+        options: { opensAppToForeground: true, isDestructive: !!a.destructive },
+      })),
+    );
+  }
 }
 
 /**
@@ -94,15 +116,20 @@ export async function notifyLocal(title, body, data = {}) {
 
 // The four steps of a live order, in order, so the card can show "step 2 of 4" progress. PENDING and
 // terminal states are handled by the caller (the card only exists for an order that's actually moving).
-const LIVE_STEPS = ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 const LIVE_COPY = {
   CONFIRMED: ['Order confirmed 🌱', 'We’ll harvest it fresh for your window.'],
   PACKING: ['Packing your order 📦', 'Weighed and bagged this morning.'],
   OUT_FOR_DELIVERY: ['On its way 🛵', 'Your order is heading to your block.'],
 };
 
-/** True when a status deserves the live card (moving, not finished). */
-export const isLiveStatus = (s) => s === 'CONFIRMED' || s === 'PACKING' || s === 'OUT_FOR_DELIVERY';
+/** "●●○○" — where the order is, at a glance, even in a collapsed notification. */
+export const progressDots = (step, total = 4) =>
+  '●'.repeat(Math.max(0, Math.min(total, step))) + '○'.repeat(Math.max(0, total - step));
+
+// Which statuses are "live", and their order, live in lib/liveOrder.js — shared with the home
+// screen's live card so the two can never disagree. Re-exported for the callers that import it
+// from here.
+export { isLiveStatus };
 
 /**
  * Android's closest thing to an iOS Live Activity: one ongoing (sticky) notification that updates in
@@ -123,7 +150,7 @@ export async function presentOrderLive(order) {
       content: {
         title: `${title}`,
         body: order.windowLabel ? `${body} · ${order.windowLabel}` : body,
-        subtitle: `${order.orderNumber} · Step ${step} of 4`,
+        subtitle: `${progressDots(step)}  ${order.orderNumber} · step ${step} of 4`,
         data: { orderId: order.orderId, status: order.status },
         color: '#1E7A4C',
         sticky: true, // ongoing — the customer can't swipe it away while the order is live
@@ -132,6 +159,20 @@ export async function presentOrderLive(order) {
       },
       trigger: { channelId: ORDER_LIVE_CHANNEL }, // Android: channel lives on the trigger, not content
     });
+    // The server also pushes each status change (so the customer hears about it with the app
+    // closed). While the app is open the live card says the same thing, so clear those pushed
+    // copies for this order rather than showing the same news twice.
+    const shown = await Notifications.getPresentedNotificationsAsync();
+    await Promise.all(
+      shown
+        .filter(
+          (n) =>
+            n.request.identifier !== ORDER_LIVE_ID &&
+            n.request.content?.data?.orderId === order.orderId &&
+            n.request.content?.data?.status !== 'DELIVERED',
+        )
+        .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})),
+    );
   } catch {}
 }
 

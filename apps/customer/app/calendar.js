@@ -258,7 +258,7 @@ export default function Calendar() {
         {dayMeals.length === 0 ? (
           <EmptyState
             title="Nothing planned"
-            message="Build a plan on the Dietitian tab and add it here. Each day shows its meals, steps and what to order."
+            message="Build a plan on the Planner tab and add it here. Each day shows its meals, steps and what to order."
             action={{ title: 'Build a plan', onPress: () => router.replace('/(tabs)/plan') }}
           />
         ) : (

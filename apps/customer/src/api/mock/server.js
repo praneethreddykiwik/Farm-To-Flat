@@ -20,6 +20,7 @@ import {
 } from './data';
 import { addDaysISO, todayISO, weekdayOf } from '../../lib/dates';
 import { shortId } from '../../lib/ids';
+import { handleMeals, resetMockMeals } from './meals';
 
 const DEV_OTP = '123456';
 const LATENCY_MS = [180, 420];
@@ -82,6 +83,7 @@ function persist() {
 
 /** Test/dev helper: wipe persisted mock state. */
 export function resetMockState() {
+  resetMockMeals();
   state.customer = null;
   state.addresses = [];
   state.cart = { items: [], couponCode: null };
@@ -122,9 +124,85 @@ function serialiseProduct(p) {
     image: p.image,
     blurhash: p.blurhash || null,
     variableWeight: !!p.variableWeight,
+    diet: p.category === 'cat_meat' ? 'NONVEG' : 'VEG',
+    isSeasonal: !!p.isSeasonal,
+    goodToKnow: MOCK_KNOWLEDGE[p.id]?.goodToKnow.map((c) => c.text).slice(0, 2) || [],
     isActive: true,
   };
 }
+
+// A small sample of the real API's /catalog/:id/knowledge, so the product page can be worked on
+// against mocks. The real content and the claims engine live in apps/api (data/knowledge.js,
+// lib/claims.js); nothing here is shown to customers.
+const MOCK_KNOWLEDGE = {
+  p_guava: {
+    goodToKnow: [
+      {
+        text: 'Naturally high in vitamin C',
+        level: 'high',
+        amount: '228 mg per 100 g',
+        pctDaily: 285,
+        role: 'Vitamin C helps the body absorb iron from plant foods.',
+      },
+      {
+        text: 'A natural source of fibre',
+        level: 'source',
+        amount: '5.4 g per 100 g',
+        pctDaily: null,
+        role: null,
+      },
+    ],
+    nutrition: {
+      per: '100 g, raw edible portion',
+      rows: [
+        { label: 'Energy', value: '68 kcal' },
+        { label: 'Protein', value: '2.6 g' },
+        { label: 'Carbohydrate', value: '14.3 g' },
+        { label: 'Fat', value: '1 g' },
+        { label: 'Fibre', value: '5.4 g' },
+      ],
+      source: 'USDA FoodData Central, SR Legacy',
+    },
+    footnote:
+      'Reference values for the raw edible portion; real produce varies with the harvest. Part of a varied, balanced diet. This is general information, not medical advice.',
+    story:
+      'Jama kaya with salt and chilli is the taste of the school gate. The winter crop is the sweetest.',
+    best: 'Winter',
+    keep: 'Ripens in a day or two at room temperature. Refrigerate once it smells sweet.',
+    careful: null,
+    recipe: {
+      name: 'Guava chaat',
+      mins: 5,
+      serves: 2,
+      needs: ['2 guavas, cut in wedges', 'salt', 'chilli powder', 'squeeze of lime'],
+      steps: [
+        'Sprinkle the wedges with salt, chilli powder and lime.',
+        'Eat at once, skin and all.',
+      ],
+    },
+  },
+  p_gongura: {
+    goodToKnow: [],
+    nutrition: null,
+    footnote: null,
+    story:
+      'Gongura is the sour leaf of Andhra and Telangana. Its sharpness is why gongura pachadi tastes like nothing else.',
+    best: 'Monsoon through winter',
+    keep: 'Do not wash until you cook. Wrap loosely in a cotton cloth and refrigerate. Best within two days.',
+    careful: null,
+    recipe: {
+      name: 'Gongura pachadi',
+      mins: 25,
+      serves: 6,
+      needs: ['2 bunches gongura leaves', '8 dried red chillies', '6 cloves garlic', 'salt, oil'],
+      steps: [
+        'Roast the chillies in a little oil and set aside.',
+        'Fry the leaves until they collapse into a dark paste.',
+        'Grind coarsely with garlic and salt.',
+      ],
+    },
+  },
+};
 
 function normalise(s) {
   return String(s || '')
@@ -223,6 +301,10 @@ function couponDiscount(c, subtotal) {
   return 0;
 }
 
+/**
+ * Either the coupon, or the error response to send back as it is — callers branch on `status`.
+ * @returns {{ status?: number, body?: any, coupon?: any }}
+ */
 function validateCoupon(code, subtotal) {
   const c = COUPONS.find((x) => x.code.toLowerCase() === String(code).trim().toLowerCase());
   if (!c)
@@ -457,6 +539,11 @@ async function route(method, path, body, headers = {}) {
     });
   }
   if (method === 'GET' && p === '/catalog/search') return ok({ products: searchProducts(query.q) });
+  if (method === 'GET' && p.startsWith('/catalog/') && p.endsWith('/knowledge')) {
+    const id = p.slice('/catalog/'.length, -'/knowledge'.length);
+    if (!PRODUCTS.find((x) => x.id === id)) return err(404, 'NOT_FOUND', 'Product not found');
+    return ok({ productId: id, knowledge: MOCK_KNOWLEDGE[id] || null });
+  }
   if (method === 'GET' && p.startsWith('/catalog/')) {
     const prod = PRODUCTS.find((x) => x.id === p.slice('/catalog/'.length));
     if (!prod) return err(404, 'NOT_FOUND', 'Product not found');
@@ -769,6 +856,10 @@ async function route(method, path, body, headers = {}) {
     return ok({ status: 'CAPTURED', order: o ? serialiseOrder(o) : null });
   }
   if (method === 'POST' && p === '/devices') return ok({ ok: true });
+
+  // meal tracking — its own file, it is a small world of its own
+  const meals = handleMeals(method, p, query, body);
+  if (meals) return meals;
 
   return err(404, 'NOT_FOUND', `No mock route for ${method} ${p}`);
 }

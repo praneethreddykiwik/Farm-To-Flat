@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { Image, Dimensions, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useScreenFocused } from '../../src/hooks/useScreenFocused';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -205,6 +207,10 @@ function CtaGlow({ children }) {
 }
 
 export default function Welcome() {
+  // Light status text only while THIS screen is the one on show. It stays mounted underneath
+  // the screens pushed over it, and a status-bar setting from a hidden screen still applies —
+  // which left white clock digits on the pale screen that came next.
+  const focused = useScreenFocused();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // Live serviceable-community count (public endpoint) — this was a hard-coded "3" while the admin
@@ -224,6 +230,10 @@ export default function Welcome() {
     2;
   return (
     <View style={styles.root}>
+      {/* The only night-coloured screen in the app. The root layout asks for dark status-bar text,
+          which is right everywhere else and invisible here: the clock and battery vanished into
+          the sky. Unmounting this screen hands the bar back to the root's setting. */}
+      <StatusBar style={focused ? 'light' : 'dark'} />
       <Field />
       <View
         style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]}
@@ -250,8 +260,8 @@ export default function Welcome() {
             color="rgba(243,245,239,0.72)"
             style={{ marginTop: 14, maxWidth: 300, lineHeight: 20 }}
           >
-            Vegetables, greens and meat harvested after you order, delivered to your flat in a
-            window you choose.
+            Vegetables and greens harvested after you order, meat cut that morning, delivered to
+            your flat in a window you choose.
           </Small>
         </Animated.View>
 

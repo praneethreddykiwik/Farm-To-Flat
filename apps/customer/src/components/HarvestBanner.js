@@ -12,10 +12,12 @@ import { relativeDayLabel, windowLabel } from '../lib/dates';
  * @param {{ nextWindow?: { date: string, window: string }|null, onPress: () => void }} props
  */
 export function HarvestBanner({ nextWindow, onPress }) {
-  // Lower-cased because it reads as part of a sentence ("Tomorrow morning"), and taken from the
-  // window itself so a community that runs an afternoon slot doesn't get called an evening one.
+  // Lower-cased because it reads as part of a sentence ("delivered tomorrow morning"), and taken
+  // from the window itself so a community that runs an afternoon slot doesn't get called an evening
+  // one. "Today"/"Tomorrow" drop their capital mid-sentence; a weekday ("Sat 15") keeps its own.
+  const day = nextWindow ? relativeDayLabel(nextWindow.date) : '';
   const when = nextWindow
-    ? `${relativeDayLabel(nextWindow.date)} ${windowLabel(nextWindow.window, nextWindow).toLowerCase()}`
+    ? `${/^(Today|Tomorrow)$/.test(day) ? day.toLowerCase() : day} ${windowLabel(nextWindow.window, nextWindow).toLowerCase()}`
     : 'this week';
   return (
     <Animated.View entering={FadeInDown.duration(420).springify().damping(18)} style={styles.wrap}>
@@ -40,7 +42,8 @@ export function HarvestBanner({ nextWindow, onPress }) {
             </View>
             <Text style={styles.title}>Farm-fresh, delivered {when}.</Text>
             <Small color="rgba(243,245,239,0.78)" style={{ marginTop: 6, maxWidth: 240 }}>
-              Harvested after your order, never from a cold room.
+              {/* Says what we do. "Never from a cold room" said what others do, by implication. */}
+              Nothing is picked until you order it.
             </Small>
             <View style={[styles.row, { marginTop: 14 }]}>
               <View style={styles.cta}>

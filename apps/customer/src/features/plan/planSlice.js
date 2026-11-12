@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { KV_KEYS, kv } from '../../lib/kv';
+import { todayISO } from '../../lib/dates';
 
 /**
  * Diet planner state: the customer's profile + standing instructions, the last generated plan,
@@ -60,7 +61,23 @@ const planSlice = createSlice({
       const sch = state.scheduled.find((x) => x.id === action.payload.id);
       if (!sch) return;
       sch.ordered = [...new Set([...(sch.ordered || []), action.payload.date])];
+      sch.skipped = (sch.skipped || []).filter((d) => d !== action.payload.date);
       sch.orderIds = { ...(sch.orderIds || {}), [action.payload.date]: action.payload.orderId };
+      persist(state);
+    },
+    // "Skip this day": the customer decided not to order for one planned day. Remembered so the
+    // banner and the evening prompt stop asking about it — skipping must be as easy as confirming,
+    // and must stay skipped. Ordering later un-skips it.
+    daySkipped(state, action) {
+      const sch = state.scheduled.find((x) => x.id === action.payload.id);
+      if (!sch) return;
+      sch.skipped = [...new Set([...(sch.skipped || []), action.payload.date])];
+      persist(state);
+    },
+    dayUnskipped(state, action) {
+      const sch = state.scheduled.find((x) => x.id === action.payload.id);
+      if (!sch) return;
+      sch.skipped = (sch.skipped || []).filter((d) => d !== action.payload.date);
       persist(state);
     },
     dayToggled(state, action) {
@@ -101,6 +118,8 @@ export const {
   providerSet,
   dayToggled,
   dayOrdered,
+  daySkipped,
+  dayUnskipped,
 } = planSlice.actions;
 export default planSlice.reducer;
 
@@ -119,11 +138,31 @@ export const selectMealsOn = (dateISO) => (s) =>
 
 /** The next planned day that has not been ordered yet, used for the confirm banner. */
 export const selectNextUnordered = (s) => {
-  const today = new Date().toISOString().slice(0, 10);
+  // IST, not UTC: before 5:30 am the UTC date is still yesterday, which made "tomorrow" wrong.
+  const today = todayISO();
   const rows = s.plan.scheduled.flatMap((p) =>
     p.days
-      .filter((d) => d.date > today && !(p.ordered || []).includes(d.date))
+      .filter(
+        (d) =>
+          d.date > today &&
+          !(p.ordered || []).includes(d.date) &&
+          !(p.skipped || []).includes(d.date),
+      )
       .map((d) => ({ date: d.date, planId: p.id, title: p.title, meals: d.meals.length })),
   );
   return rows.sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
+};
+
+/** What the plan has on each of the given dates, in the shape the meal reminders want. */
+export const selectMealsByDate = (dates) => (s) => {
+  const out = {};
+  for (const date of dates) {
+    const meals = s.plan.scheduled.flatMap((p) =>
+      p.days
+        .filter((d) => d.date === date)
+        .flatMap((d) => d.meals.map((m) => ({ slot: m.slot, name: m.name, kcal: m.totals?.kcal }))),
+    );
+    if (meals.length) out[date] = meals;
+  }
+  return out;
 };

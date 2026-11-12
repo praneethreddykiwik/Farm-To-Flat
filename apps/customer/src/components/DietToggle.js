@@ -4,15 +4,20 @@ import { useDispatch, useSelector } from 'react-redux';
 import { selectDietPref, setDietPref } from '../features/ui/uiSlice';
 import { haptic } from '../lib/haptics';
 import { colors, fonts } from '../theme';
+import { DietMark } from './DietMark';
 
-// Veg / non-veg preference, shared across the shop and search. Green dot = veg, red dot = non-veg
-// (the familiar Indian packaged-food marks), so it reads at a glance.
+// Veg / non-veg preference, shared across the shop and search. The filter wears the SAME mark the
+// product cards do — green circle for veg, brown triangle for non-veg, each in its square. It used
+// to draw its own (a red dot in a red box for non-veg), so the filter and the thing it filtered
+// disagreed about what non-veg looks like, and red-versus-green alone is the pair a colour-blind
+// customer cannot tell apart.
 const OPTIONS = [
-  { key: 'ALL', label: 'All', dot: null },
-  { key: 'VEG', label: 'Veg', dot: colors.leaf },
-  { key: 'NONVEG', label: 'Non-veg', dot: '#c0392b' },
+  { key: 'ALL', label: 'All', mark: false, a11y: 'All products' },
+  { key: 'VEG', label: 'Veg', mark: true, a11y: 'Vegetarian only' },
+  { key: 'NONVEG', label: 'Non-veg', mark: true, a11y: 'Non-vegetarian only' },
 ];
 
+/** @param {{ style?: any }} props */
 export function DietToggle({ style }) {
   const dispatch = useDispatch();
   const pref = useSelector(selectDietPref);
@@ -28,14 +33,13 @@ export function DietToggle({ style }) {
               haptic.select();
               dispatch(setDietPref(o.key));
             }}
+            // The pill is 31pt tall by design; the slop brings what a thumb can hit up to 44.
+            hitSlop={{ top: 7, bottom: 7 }}
             accessibilityRole="button"
+            accessibilityLabel={o.a11y}
             accessibilityState={{ selected: active }}
           >
-            {o.dot ? (
-              <View style={[styles.dotBox, { borderColor: o.dot }]}>
-                <View style={[styles.dot, { backgroundColor: o.dot }]} />
-              </View>
-            ) : null}
+            {o.mark ? <DietMark diet={o.key} size={14} /> : null}
             <Text style={[styles.txt, active && styles.txtOn]}>{o.label}</Text>
           </Pressable>
         );
@@ -69,15 +73,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  dotBox: {
-    width: 13,
-    height: 13,
-    borderRadius: 3,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dot: { width: 6, height: 6, borderRadius: 3 },
   txt: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink3 },
   txtOn: { fontFamily: fonts.bodySemi, color: colors.ink },
 });
