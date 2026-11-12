@@ -168,6 +168,7 @@ export function Carrot() {
 }
 
 export function Broccoli() {
+  /** @type {[number, number, number, string][]} */
   const florets = [
     [34, 36, 15, '#2b8347'],
     [66, 36, 15, '#2b8347'],

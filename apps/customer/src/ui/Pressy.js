@@ -9,7 +9,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 /**
  * Pressable with the "premium" press: scale to 0.97 on a spring, optional haptic.
  * Use everywhere instead of TouchableOpacity.
- * @param {{ scale?: number, haptics?: 'tap'|'soft'|'select'|'none', style?: any, onPress?: any, children?: any } & import('react-native').PressableProps} props
+ * @param {{ scale?: number, haptics?: keyof typeof haptic | 'none', style?: any, onPress?: any, children?: any } & import('react-native').PressableProps} props
  */
 export function Pressy({
   scale = 0.97,

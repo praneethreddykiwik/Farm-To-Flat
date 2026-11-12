@@ -3,6 +3,7 @@
  * so a change to the look lands on all four, and so a page split out of Terms cannot drift away
  * from it visually.
  */
+/** @type {{ page: import('react').CSSProperties }} */
 export const s = {
   page: {
     minHeight: '100vh',

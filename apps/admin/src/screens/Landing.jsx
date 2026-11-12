@@ -178,6 +178,8 @@ const IcMic = (p) => (
  * sits BEHIND it and the metal, the buttons, the bezel curve and the Dynamic Island are all real
  * rather than approximated in CSS. The aperture's position was measured out of the asset's alpha
  * channel (see the percentages in landing.css), which is why the screen lines up with it exactly.
+ *
+ * @param {{ src: string, alt: string, small?: boolean, float?: boolean, children?: any, className?: string }} props
  */
 function Phone({ src, alt, small, float, children, className = '' }) {
   return (
@@ -467,7 +469,9 @@ function useParallax() {
     let items = [];
     const measure = () => {
       const sy = window.scrollY;
-      items = Array.from(document.querySelectorAll('[data-par]')).map((el) => {
+      items = Array.from(
+        /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-par]')),
+      ).map((el) => {
         el.style.transform = ''; // read the untransformed base position
         const r = el.getBoundingClientRect();
         return { el, mid: r.top + sy + r.height / 2, speed: parseFloat(el.dataset.par) || 0 };
@@ -813,7 +817,7 @@ export function Landing() {
   // lean toward the pointer. Written to CSS custom properties so there is no per-frame re-render,
   // and skipped entirely for anyone who prefers reduced motion or is on a touch device.
   useEffect(() => {
-    const hero = document.querySelector('.lp-hero');
+    const hero = /** @type {HTMLElement|null} */ (document.querySelector('.lp-hero'));
     if (!hero) return undefined;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
@@ -842,7 +846,7 @@ export function Landing() {
       const doc = document.documentElement;
       const max = doc.scrollHeight - window.innerHeight;
       doc.style.setProperty('--lp-progress', max > 0 ? (y / max).toFixed(4) : '0');
-      const stage = document.querySelector('.lp-hero__stage');
+      const stage = /** @type {HTMLElement|null} */ (document.querySelector('.lp-hero__stage'));
       if (stage) stage.style.setProperty('--lp-par', `${Math.min(y, 900) * 0.07}px`);
       const rail = railRef.current;
       const fillEl = fillRef.current;
@@ -1341,7 +1345,7 @@ export function Landing() {
                   'A four-digit code read out at handover closes the order — the difference between “marked delivered” and actually delivered.',
                   'var(--lp-leaf-soft)',
                 ],
-              ].map(([Icon, t, p, bg], i) => (
+              ].map((/** @type {any[]} */ [Icon, t, p, bg], i) => (
                 <article className={`lp-card lp-rv${i === 0 ? ' lp-card--feature' : ''}`} key={t}>
                   {i === 0 && (
                     <div className="lp-card__art" aria-hidden="true">
@@ -1500,7 +1504,10 @@ export function Landing() {
   );
 }
 
-/** The two store badges, drawn as vectors so they stay sharp and match the page's weight. */
+/**
+ * The two store badges, drawn as vectors so they stay sharp and match the page's weight.
+ * @param {{ onDark?: boolean }} props
+ */
 function StoreBadges({ onDark }) {
   const items = [
     {

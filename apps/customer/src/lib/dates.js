@@ -112,6 +112,7 @@ export const WINDOWS = {
  * What to call a delivery window.
  * @param {string} key      the window key stored on the order, e.g. MORNING, AFTERNOON
  * @param {any} [w]         the window object from the API, when we have one (it carries `label`)
+ * @param {string} [lang]   reader's language code; English when omitted
  */
 export function windowLabel(key, w, lang) {
   // Translate the familiar windows, but never overwrite a name the operator chose themselves.

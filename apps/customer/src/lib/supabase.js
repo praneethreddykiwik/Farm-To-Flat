@@ -104,6 +104,7 @@ export function storagePublicUrl(path, bucket = DEFAULT_BUCKET) {
  * (empty, or a path with Supabase unconfigured) returns null so the caller shows its fallback.
  * @param {string|null|undefined} value
  * @param {string} [bucket]
+ * @param {number} [width]  device pixels the image is drawn at; omitted serves the original
  * @returns {string|null}
  */
 export function resolveStorageImage(value, bucket = DEFAULT_BUCKET, width) {

@@ -334,6 +334,7 @@ function ProcureItem({ item, onSubmitted, canApprove, buffer }) {
   );
 }
 
+/** @param {{ value: any, label: string, big?: boolean }} props */
 function Kpi({ value, label, big }) {
   return (
     <View style={[styles.kpi, big && styles.kpiBig]}>

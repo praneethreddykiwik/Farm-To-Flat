@@ -60,7 +60,7 @@ windowsRouter.get(
   '/',
   validateQuery(WindowsQuery),
   asyncHandler(async (req, res) => {
-    // @ts-expect-error validatedQuery attached by middleware
+    // validatedQuery attached by middleware
     const { communityId, addressId, date } = req.validatedQuery;
     const community = resolveCommunity(req, { communityId, addressId });
     if (!community) throw fail(404, 'NOT_FOUND', 'No serviceable community.');

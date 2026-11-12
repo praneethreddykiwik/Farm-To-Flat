@@ -568,7 +568,7 @@ export function Fulfilment() {
                   if (overCol !== col.status) setOverCol(col.status);
                 }}
                 onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget))
+                  if (!e.currentTarget.contains(/** @type {Node} */ (e.relatedTarget)))
                     setOverCol((s) => (s === col.status ? null : s));
                 }}
                 onDrop={() => onDrop(col.status)}

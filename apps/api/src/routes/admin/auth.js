@@ -17,7 +17,7 @@ import { fail } from '../../http.js';
  *      SUPER_ADMIN. With no ADMIN_TOKEN set it stays open in dev (also SUPER_ADMIN) but fails CLOSED
  *      in production.
  * Sets `req.staff = { role, ... }` for adminAuthorize below.
- * @type {import('express').RequestHandler}
+ * @type {ExpressHandler}
  */
 export function adminAuth(req, res, next) {
   // 1) a Google-signed-in operator.
@@ -164,7 +164,7 @@ export function roleMayAccess(role, path, method) {
   return rule.sections.some((s) => mine.includes(s));
 }
 
-/** @type {import('express').RequestHandler} */
+/** @type {ExpressHandler} */
 export function adminAuthorize(req, _res, next) {
   const role = req.staff?.role;
   if (!roleMayAccess(role, req.path, req.method))

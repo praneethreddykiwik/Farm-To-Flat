@@ -3,7 +3,11 @@
  * into rupees here, for display — never stored or sent back as a float.
  */
 
-/** "3600" (paise) -> "₹36" ; keeps paise if non-round. */
+/**
+ * "3600" (paise) -> "₹36" ; keeps paise if non-round.
+ * @param {number|string} paise
+ * @param {{ decimals?: number }} [opts]
+ */
 export function inr(paise, { decimals } = {}) {
   const n = Number(paise) / 100;
   const d = decimals ?? (Number.isInteger(n) ? 0 : 2);

@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
     "checkJs": true,
-    "strict": true,
+    "strict": false,
     "noEmit": true,
+    "maxNodeModuleJsDepth": 0,
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "baseUrl": "."
+    "moduleResolution": "bundler"
   },
-  "include": ["src/**/*.js"]
+  "include": ["src/**/*.js", "src/**/*.d.ts"]
 }

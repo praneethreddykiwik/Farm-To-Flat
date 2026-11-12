@@ -128,7 +128,10 @@ export function clearToken() {
   write(null);
 }
 
-/** Subscribe to sign-in/sign-out. Returns an unsubscribe. */
+/**
+ * Subscribe to sign-in/sign-out. Returns an unsubscribe.
+ * @returns {() => void}
+ */
 export function onAuthChange(fn) {
   subs.add(fn);
   return () => subs.delete(fn);

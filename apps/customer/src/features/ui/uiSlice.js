@@ -63,9 +63,11 @@ const uiSlice = createSlice({
   },
   // dietPref is a per-account preference, not a device setting — reset it on sign-out so the
   // next account starts at the default filter instead of inheriting the last user's choice.
-  // String action type avoids a circular import with authSlice.
+  // String action type avoids a circular import with authSlice — which is also why the payload
+  // shape is restated here instead of being inferred from the action creator.
+  /** @typedef {import('@reduxjs/toolkit').PayloadAction<{ reason: 'user'|'expired' } | undefined, 'auth/signedOut'>} SignedOut */
   extraReducers: (builder) => {
-    builder.addCase('auth/signedOut', (state, action) => {
+    builder.addCase('auth/signedOut', (state, /** @type {SignedOut} */ action) => {
       state.dietPref = initialState.dietPref;
       // Language used to survive sign-out, on the reasoning that it is how the DEVICE reads rather
       // than how an account does. In testing that read as a bug: signing out of a Telugu account and

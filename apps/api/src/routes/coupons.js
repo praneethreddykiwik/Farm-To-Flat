@@ -22,7 +22,7 @@ couponsRouter.get(
   optionalAuth,
   validateQuery(Query),
   asyncHandler(async (req, res) => {
-    // @ts-expect-error validatedQuery is attached by validateQuery
+    // validatedQuery is attached by validateQuery
     const subtotal = req.validatedQuery.subtotal ?? 0;
     const now = Date.now();
     // A coupon this customer has already spent used to render with a live Apply button and then

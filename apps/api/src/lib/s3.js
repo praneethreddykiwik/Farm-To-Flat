@@ -28,7 +28,8 @@ export const uriEncode = (str, keepSlash = false) =>
  * Sign a request the way AWS Signature Version 4 requires.
  *
  * Exported so the test can drive it with AWS's own published vectors; nothing else should call it.
- * @returns {{ headers: Record<string,string> }}
+ * @param {{ method: string, host: string, path: string, query?: string, payload?: any, region: string, service?: string, accessKeyId: string, secretAccessKey: string, sessionToken?: string, now?: Date, contentType?: string, extraHeaders?: Record<string,string> }} request
+ * @returns {{ headers: Record<string,string>, canonicalRequest: string, stringToSign: string, signature: string }}
  */
 export function signV4({
   method,

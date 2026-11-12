@@ -468,6 +468,7 @@ export function Charges() {
   );
 }
 
+/** @param {{ label: any, value: any, strong?: boolean }} props */
 function Row({ label, value, strong }) {
   return (
     <div className="hstack" style={{ justifyContent: 'space-between', gap: 12 }}>

@@ -22,7 +22,7 @@ const HEADER_FONT = 'FFF3F5EF';
 const BODY_FONT = 'Nirmala UI';
 
 /**
- * @param {{ name: string, columns: {header:string, key:string, width?:number, money?:boolean, qty?:boolean}[], rows: any[] }[]} sheets
+ * @param {{ name: string, columns: {header:string, key:string, width?:number, money?:boolean, qty?:boolean}[], rows: any[], filter?: boolean }[]} sheets
  * @param {{ title?: string, subtitle?: string }} [meta]
  * @returns {Promise<Buffer>}
  */
@@ -74,7 +74,7 @@ export async function buildWorkbook(sheets, meta = {}) {
       });
     });
   }
-  return /** @type {Buffer} */ (await wb.xlsx.writeBuffer());
+  return /** @type {Buffer} */ (/** @type {unknown} */ (await wb.xlsx.writeBuffer()));
 }
 
 /** Send a workbook as a download. */

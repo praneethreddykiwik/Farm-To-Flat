@@ -31,6 +31,8 @@ const { width: W, height: H } = Dimensions.get('window');
  * per frame. Honours the OS "reduce motion" setting by rendering the same scene completely still.
  */
 
+/** @typedef {import('react-native').ViewStyle} ViewStyle */
+
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const INK = '#022416'; // silhouette fill, sampled from the reference figures
@@ -133,6 +135,9 @@ function useGait(period, delay, reduced) {
  *
  * Travels RIGHT. The ridge behind it was flipped to match: when the two disagree, the figures are
  * walking against their own ground, which is what made the procession look wrong at the start.
+ *
+ * A lane either runs its own clock (`duration`) or follows someone else's (`x`).
+ * @param {{ duration?: number, reduced: boolean, render: (key: string, laneX: any) => any, opacity?: number, x?: any }} props
  */
 function Lane({ duration, reduced, render, opacity = 1, x: driven }) {
   const own = useSharedValue(0);
@@ -243,6 +248,7 @@ function Limbs({ w, h, phase, reach, lineWidth }) {
   );
 }
 
+/** @param {{ w: number, h: number, phase: any, reach: number, hat?: boolean, load?: boolean, skirt?: boolean, shirt?: string }} props */
 function Person({ w, h, phase, reach, hat, load, skirt, shirt }) {
   return (
     <>
@@ -511,10 +517,12 @@ function Firefly({ left, top, drift, period, delay, reduced }) {
       withRepeat(withTiming(1, { duration: period, easing: Easing.inOut(Easing.sin) }), -1, true),
     );
   }, [t, period, delay, reduced]);
-  const style = useAnimatedStyle(() => ({
-    opacity: 0.18 + t.value * 0.38,
-    transform: [{ translateY: -t.value * 14 }, { translateX: t.value * drift }],
-  }));
+  const style = useAnimatedStyle(
+    /** @returns {ViewStyle} */ () => ({
+      opacity: 0.18 + t.value * 0.38,
+      transform: [{ translateY: -t.value * 14 }, { translateX: t.value * drift }],
+    }),
+  );
   if (reduced) return null;
   return (
     <Animated.View
@@ -579,13 +587,15 @@ function Bird({ reduced }) {
       false,
     );
   }, [b, reduced]);
-  const style = useAnimatedStyle(() => ({
-    opacity: Math.sin(Math.PI * b.value) * 0.3,
-    transform: [
-      { translateX: -24 + b.value * (W + 48) },
-      { translateY: Math.sin(b.value * Math.PI * 3) * 9 },
-    ],
-  }));
+  const style = useAnimatedStyle(
+    /** @returns {ViewStyle} */ () => ({
+      opacity: Math.sin(Math.PI * b.value) * 0.3,
+      transform: [
+        { translateX: -24 + b.value * (W + 48) },
+        { translateY: Math.sin(b.value * Math.PI * 3) * 9 },
+      ],
+    }),
+  );
   if (reduced) return null;
   return (
     <Animated.View
@@ -611,6 +621,7 @@ function Bird({ reduced }) {
  * One villager, owning its own gait clock so the line never marches in lockstep. `pace` nudges the
  * cadence either side of the lane's true speed — enough that some walk briskly and others amble,
  * not enough for anyone to look like they are skating.
+ * @param {{ kind: string, left: number, baseY: number, w: number, h: number, speed: number, pace?: number, delay?: number, reduced: boolean, opacity?: number, laneX?: any, ground?: any }} props
  */
 function Villager({
   kind,

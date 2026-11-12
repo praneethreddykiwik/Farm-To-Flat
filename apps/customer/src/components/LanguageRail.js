@@ -63,7 +63,10 @@ export function LanguageRail({ speed = 42 }) {
   );
 }
 
-/** One pass of the words. Rendered twice — see the loop note above. */
+/**
+ * One pass of the words. Rendered twice — see the loop note above.
+ * @param {{ items: string[], onLayout?: (e: any) => void, ariaHidden?: boolean }} props
+ */
 function RailCopy({ items, onLayout, ariaHidden }) {
   return (
     <View

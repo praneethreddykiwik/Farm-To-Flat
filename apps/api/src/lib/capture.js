@@ -24,7 +24,7 @@ import {
 
 /**
  * @param {{ paymentId?: string, razorpayOrderId?: string, razorpayPaymentId?: string,
- *           source?: 'client'|'webhook', amountPaise?: number|string, currency?: string }} args
+ *           source?: 'client'|'webhook'|'reconcile', amountPaise?: number|string, currency?: string }} args
  * @returns {Promise<{ outcome: 'already'|'captured'|'orphaned'|'unknown'|'mismatch',
  *                     payment?: any, order?: any, expectedPaise?: string, gotPaise?: string }>}
  */

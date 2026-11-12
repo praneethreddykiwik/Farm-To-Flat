@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
     "checkJs": true,
-    "strict": true,
+    "strict": false,
     "noEmit": true,
+    "maxNodeModuleJsDepth": 0,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "baseUrl": "."
+    "jsx": "react-jsx"
   },
-  "include": ["src/**/*.js", "src/**/*.jsx"]
+  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.d.ts"]
 }

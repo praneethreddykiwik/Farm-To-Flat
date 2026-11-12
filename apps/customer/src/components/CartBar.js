@@ -16,6 +16,7 @@ import { t } from '../lib/i18n';
  * Floating "view basket" bar that slides up above the tab bar the moment the basket has anything in it.
  * Total rolls digit by digit as quantities change. The subline tracks LIVE toward the next reward as
  * items are added — the ₹500 minimum first, then each coupon tier (unlock 10% → 15% → 20% off).
+ * @param {{ bottom?: number }} props  `bottom` overrides the default offset above the tab bar
  */
 export function CartBar({ bottom }) {
   const router = useRouter();

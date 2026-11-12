@@ -6,6 +6,7 @@ import { createSlice } from '@reduxjs/toolkit';
  * @property {string|null} accessToken
  * @property {object|null} customer   // { id, mobile, name?, hasAddress }
  * @property {string|null} pendingMobile
+ * @property {'user'|'expired'} [signOutReason]  why the last sign-out happened; unset until one does
  */
 
 /** @type {AuthState} */
@@ -39,7 +40,8 @@ const authSlice = createSlice({
       state.customer = { ...(state.customer || {}), ...action.payload };
     },
     /**
-     * @param {{ payload?: { reason?: 'user'|'expired' } }} action  'user' = they tapped Sign out,
+     * @param {AuthState} state
+     * @param {import('@reduxjs/toolkit').PayloadAction<{ reason: 'user'|'expired' } | undefined>} action  'user' = they tapped Sign out,
      * 'expired' = the refresh token was rejected. Only the first is a decision about the account;
      * the second is the network telling us the session aged out, and device preferences must not be
      * thrown away over it.

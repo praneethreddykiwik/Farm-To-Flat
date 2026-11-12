@@ -32,7 +32,7 @@ export default function ChangeMobile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const current = useSelector((s) => s.auth.customer?.mobile);
+  const current = useSelector((/** @type {any} */ s) => s.auth.customer?.mobile);
 
   const [step, setStep] = useState('NUMBER'); // NUMBER → CODE
   const [next, setNext] = useState('');

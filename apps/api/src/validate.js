@@ -35,7 +35,7 @@ export function validateQuery(schema) {
         error: { code: 'VALIDATION', message: 'Invalid query.', details: r.error.issues },
       });
     }
-    // @ts-expect-error augmenting the request
+    // augmenting the request
     req.validatedQuery = r.data;
     next();
   };

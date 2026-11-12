@@ -9,6 +9,7 @@
  * statistics — plus 'ai' for the planner button and 'customer' for the shopping side).
  */
 
+/** @type {[string, ...string[]]} */
 export const ROLES = ['SUPER_ADMIN', 'ADMIN', 'PROCUREMENT', 'FULFILMENT'];
 
 const ALL_OPERATOR = [

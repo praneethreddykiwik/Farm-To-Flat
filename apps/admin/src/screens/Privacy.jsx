@@ -294,6 +294,7 @@ export function Privacy() {
   );
 }
 
+/** @type {{ page: import('react').CSSProperties }} */
 const s = {
   page: {
     minHeight: '100vh',

@@ -835,6 +835,8 @@ export function updateOrderStatus(oid, status) {
  *
  * Both halves are checked before anything is written, so a wrong code cannot bank the money and a
  * short payment cannot mark the order delivered.
+ * @param {string} oid
+ * @param {{ otp?: string, collectedPaise?: number|string }} [proof]
  */
 export function completeDelivery(oid, { otp, collectedPaise } = {}) {
   const o = db.orders.find((x) => x.id === oid);

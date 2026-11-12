@@ -41,7 +41,7 @@ export const listStaff = () => [...staff.values()].sort((a, b) => a.role.localeC
 export const getStaff = (sid) => staff.get(sid) || null;
 export const findStaffByMobile = (mobile) => byMobile(mobile) || null;
 
-/** @returns {{ staff:any } | { error:{status,code,message} }} */
+/** @returns {StoreResult<{ staff: any }>} */
 export function addStaff({ mobile, role, name, aiAccess }) {
   if (!/^[6-9]\d{9}$/.test(String(mobile)))
     return {

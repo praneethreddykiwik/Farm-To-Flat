@@ -65,6 +65,7 @@ const listeners = new Set();
 export function toast(message, kind = 'ok') {
   listeners.forEach((l) => l({ id: Math.random().toString(36).slice(2), message, kind }));
 }
+/** @returns {() => void} unsubscribe */
 export function onToast(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);

@@ -17,7 +17,7 @@ export { numberFor, prettyNumber, toDialable } from './phone';
 /**
  * Open the dialer. Returns a reason when it could not, rather than failing silently — the caller
  * shows it, so there is always an explanation and the number stays visible to dial by hand.
- * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
+ * @returns {Promise<{ ok: boolean, reason?: string }>}  `reason` is set whenever `ok` is false
  */
 export async function dial(raw) {
   const num = toDialable(raw);

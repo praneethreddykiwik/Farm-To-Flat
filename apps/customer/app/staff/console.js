@@ -211,6 +211,7 @@ export default function StaffConsole() {
   );
 }
 
+/** @param {{ value: any, label: string, big?: boolean }} props */
 function Kpi({ value, label, big }) {
   return (
     <View style={[styles.kpi, big && { flex: 1.3 }]}>

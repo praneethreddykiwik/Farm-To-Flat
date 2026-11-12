@@ -7,6 +7,9 @@ import { Text } from './Text';
 import { fonts, tintOf } from '../theme';
 import { resolveStorageImage } from '../lib/supabase';
 
+/** Constant so every <Image> shares one object and React does not re-fetch on identity change. */
+const ACCEPT_WEBP = { Accept: 'image/webp,image/avif,image/*,*/*' };
+
 /**
  * Product photograph with a designed fallback. When the admin has not uploaded a photo yet
  * (or it fails to load) we render a botanical tile: category tint, a leaf mark and the initial.
@@ -14,9 +17,6 @@ import { resolveStorageImage } from '../lib/supabase';
  *
  * @param {{ uri?: string|null, blurhash?: string|null, tint?: string, name?: string, size?: number|'fill', radius?: number, style?: any, recyclingKey?: string, priority?: 'low'|'normal'|'high', renderWidth?: number }} props
  */
-/** Constant so every <Image> shares one object and React does not re-fetch on identity change. */
-const ACCEPT_WEBP = { Accept: 'image/webp,image/avif,image/*,*/*' };
-
 export function ProductImage({
   uri,
   blurhash,

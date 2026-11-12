@@ -53,6 +53,7 @@ const CreateCoupon = z
 
 // PERCENT stores basis points (valueBp); the form sends a whole percent — convert here.
 function toStored(body) {
+  /** @type {Record<string, any>} */
   const row = {
     code: body.code,
     label: body.label,
