@@ -46,6 +46,7 @@ import { selectLanguage } from '../../src/features/ui/uiSlice';
 import { productLabel } from '../../src/lib/i18n';
 import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
+import { orderBillRows } from '../../src/lib/bill';
 import { useSelector } from 'react-redux';
 
 // In-app banner shown when the ops board advances THIS order while the screen is open. Works with no
@@ -144,6 +145,7 @@ export default function OrderDetail() {
       Number(order.couponDiscountPaise) > 0
         ? `Coupon ${order.couponCode}   −${rupees(order.couponDiscountPaise)}`
         : null,
+      ...orderBillRows(order).map((r) => `${r.label}   ${rupees(r.paise)}`),
       Number(order.walletAppliedPaise) > 0
         ? `Paid from wallet   −${rupees(order.walletAppliedPaise)}`
         : null,
@@ -415,6 +417,11 @@ export default function OrderDetail() {
                       color={colors.leafDeep}
                     />
                   ) : null}
+                  {/* Every fee the shop has set and the tax, by the names it gave them — the same
+                      rows the basket showed before this order was placed. */}
+                  {orderBillRows(order).map((r) => (
+                    <Row key={r.key} label={r.label} paise={r.paise} />
+                  ))}
                   {Number(order.walletAppliedPaise) > 0 ? (
                     <Row
                       label="Paid from wallet"

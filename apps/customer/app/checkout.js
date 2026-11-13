@@ -23,6 +23,7 @@ import { WindowPicker } from '../src/components/WindowPicker';
 import { OrderTerms } from '../src/components/OrderTerms';
 import { PaymentSimulator } from '../src/components/PaymentSimulator';
 import { useCart } from '../src/hooks/useCart';
+import { taxRowLabel } from '../src/lib/bill';
 import {
   useGetAddressesQuery,
   useGetWalletQuery,
@@ -604,7 +605,7 @@ export default function Checkout() {
                 <SummaryRow key={l.id} label={l.label} paise={l.amountPaise} />
               ))}
             {Number(cart.taxPaise) > 0 ? (
-              <SummaryRow label={cart.taxLabel || 'GST'} paise={cart.taxPaise} />
+              <SummaryRow label={taxRowLabel(cart.taxLabel, cart.taxRates)} paise={cart.taxPaise} />
             ) : null}
             {walletApplied > 0 ? (
               <SummaryRow

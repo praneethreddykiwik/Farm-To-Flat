@@ -428,6 +428,13 @@ function serialiseOrder(o) {
     subtotalPaise: money(o.subtotal),
     couponDiscountPaise: money(o.discount),
     deliveryChargePaise: money(o.delivery),
+    // Same shape the server sends: delivery is one of the fee lines when it was charged. The mock
+    // shop sets no other fee and no tax.
+    chargeLines:
+      o.delivery > 0 ? [{ id: 'l0', label: 'Delivery fee', amountPaise: money(o.delivery) }] : [],
+    taxLabel: 'GST',
+    taxPaise: money(0),
+    taxRates: null,
     totalPaise: money(o.total),
     walletAppliedPaise: money(o.walletApplied),
     gatewayAmountPaise: money(o.gatewayAmount),

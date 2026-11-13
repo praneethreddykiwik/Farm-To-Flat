@@ -18,6 +18,9 @@ const targets = new Map();
 let order = 0;
 /** @type {null | ((flight: any) => void)} */
 let host = null;
+/** The least time between two flights setting off. */
+export const MIN_GAP_MS = 280;
+let lastFlightAt = 0;
 
 /**
  * Say where a basket is, or (with `null`) that it has gone.
@@ -55,6 +58,11 @@ export const canFly = () => !!host;
  */
 export function flyToBag(flight) {
   if (!host || !flight?.from) return false;
+  // One photo in the air says "added". A volley of them, one for each of a run of quick taps, says
+  // nothing more, and costs the frames those taps need to register.
+  const now = Date.now();
+  if (now - lastFlightAt < MIN_GAP_MS) return false;
+  lastFlightAt = now;
   host(flight);
   return true;
 }
@@ -72,4 +80,5 @@ export function _resetFlights() {
   targets.clear();
   order = 0;
   host = null;
+  lastFlightAt = 0;
 }

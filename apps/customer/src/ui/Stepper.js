@@ -1,12 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-  FadeOut,
-  LinearTransition,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut } from 'react-native-reanimated';
 import { Minus, Plus } from 'lucide-react-native';
 import { Pressy } from './Pressy';
 import { Mono, Small, Text } from './Text';
@@ -51,20 +45,35 @@ export function Stepper({
     setRising(value > seen);
     setSeen(value);
   }
+  // The figure the next tap counts from. Not `value`: two taps can arrive before the screen has
+  // redrawn with the first, and both would then count up from the same number — tap twice, get
+  // one. So each tap moves this on itself, and it is brought back in step whenever the value
+  // changes for any other reason.
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
   const dec = useCallback(() => {
-    const next = Math.max(0, Math.round((value - inc) * 1000) / 1000);
+    const next = Math.max(0, Math.round((latest.current - inc) * 1000) / 1000);
+    latest.current = next;
     haptic.select();
     onChange(next);
-  }, [inc, onChange, value]);
+  }, [inc, onChange]);
   const add = useCallback(() => {
-    const next = Math.round((value + inc) * 1000) / 1000;
+    const next = Math.round((latest.current + inc) * 1000) / 1000;
     if (next > max) {
       haptic.warning();
       return;
     }
+    latest.current = next;
     haptic.tap();
     onChange(next);
-  }, [inc, max, onChange, value]);
+  }, [inc, max, onChange]);
+  // The figure sits in a box of one fixed width, and shrinks to fit when it is a long one. The box
+  // used to grow with the words — "1 bunch", "2 bunches", "10 bunches" — which slid the plus
+  // button along under the thumb, so the next tap landed on the label; and past ten it pushed the
+  // button off the edge of a product card.
+  const valueW = size === 'sm' ? 64 : 86;
 
   if (value <= 0) {
     return (
@@ -89,7 +98,6 @@ export function Stepper({
     <Animated.View
       entering={FadeIn.duration(160)}
       exiting={FadeOut.duration(120)}
-      layout={LinearTransition.springify().damping(18)}
       style={[
         styles.wrap,
         { height: h, backgroundColor: dark ? 'rgba(255,255,255,0.12)' : colors.night },
@@ -104,13 +112,19 @@ export function Stepper({
       >
         <Minus size={16} color={colors.inkOnDark} strokeWidth={2.5} />
       </Pressy>
-      <View style={styles.value}>
+      <View style={[styles.value, { width: valueW }]}>
         {/* Keyed by the value: each change mounts a fresh figure, which is what lets it animate in. */}
         <Animated.View
           key={String(value)}
           entering={(rising ? FadeInDown : FadeInUp).duration(170)}
         >
-          <Mono color={colors.sprout} style={{ fontSize: size === 'sm' ? 12 : 13 }}>
+          <Mono
+            color={colors.sprout}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            style={{ fontSize: size === 'sm' ? 12 : 13, width: valueW, textAlign: 'center' }}
+          >
             {formatQty(value, unit)}
           </Mono>
         </Animated.View>
@@ -144,7 +158,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   btn: { height: '100%', alignItems: 'center', justifyContent: 'center' },
-  value: { minWidth: 58, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  value: { alignItems: 'center', justifyContent: 'center' },
   addPill: {
     flexDirection: 'row',
     alignItems: 'center',

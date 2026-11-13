@@ -30,6 +30,7 @@ import {
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useCart, useCartLine } from '../src/hooks/useCart';
+import { taxRowLabel } from '../src/lib/bill';
 import {
   useGetCatalogQuery,
   useGetCouponsQuery,
@@ -397,7 +398,10 @@ export default function Cart() {
                         <Row key={l.id} label={l.label} paise={l.amountPaise} />
                       ))}
                     {Number(cart.taxPaise) > 0 ? (
-                      <Row label={cart.taxLabel || 'GST'} paise={cart.taxPaise} />
+                      <Row
+                        label={taxRowLabel(cart.taxLabel, cart.taxRates)}
+                        paise={cart.taxPaise}
+                      />
                     ) : null}
                     <MinimumBar
                       subtotal={cart.subtotalPaise}

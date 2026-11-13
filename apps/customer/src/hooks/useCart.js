@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useGetCartQuery, useSetCartItemMutation } from '../api/api';
+import { api, useGetCartQuery } from '../api/api';
 import { pulseBag, showToast } from '../features/ui/uiSlice';
 import { selectIsSignedIn } from '../features/auth/authSlice';
+import { pendingQty, requestQuantity, watchLine } from '../lib/cartWrites';
 
 /** Current server cart with derived totals. */
 export function useCart() {
@@ -26,25 +27,27 @@ export function useCart() {
 }
 
 /**
- * Quantity for one product, with a debounced write so rapid taps become one request.
- * Optimistic locally; the server cart is authoritative on settle.
- * @param {{ id: string, name: string, dailyCap?: number }} product
+ * Quantity for one product: instant on screen, written to the server a moment later.
+ *
+ * The figure shown is the shopper's own while it is ahead of the server's, and the server's
+ * otherwise — see lib/cartWrites.js for why that figure is kept by product and not by card.
+ *
+ * It reads only its own line out of the basket. Every card used to take the whole basket, so one
+ * tap redrew every card on screen, and the next tap had to wait for that.
+ * @param {{ id: string, name?: string, dailyCap?: number }} product
  */
 export function useCartLine(product) {
-  const { cart } = useCart();
+  const id = product.id;
   const dispatch = useDispatch();
-  const [setCartItem] = useSetCartItemMutation();
-  const serverQty = useMemo(
-    () => Number(cart?.items?.find((i) => i.productId === product.id)?.quantity || 0),
-    [cart, product.id],
-  );
-  const [local, setLocal] = useState(serverQty);
-  const pending = useRef(null);
-  const timer = useRef(null);
-
-  useEffect(() => {
-    if (pending.current === null) setLocal(serverQty);
-  }, [serverQty]);
+  const signedIn = useSelector(selectIsSignedIn);
+  const { serverQty } = useGetCartQuery(undefined, {
+    skip: !signedIn,
+    selectFromResult: ({ data }) => ({
+      serverQty: Number(data?.cart?.items?.find((i) => i.productId === id)?.quantity || 0),
+    }),
+  });
+  const watch = useCallback((fn) => watchLine(id, fn), [id]);
+  const mine = useSyncExternalStore(watch, () => pendingQty(id));
 
   const setQuantity = useCallback(
     /**
@@ -54,24 +57,24 @@ export function useCartLine(product) {
      *   answers a moment later reads as a glitch.
      */
     (qty, { pulse = true } = {}) => {
-      const wasZero = local === 0;
-      setLocal(qty);
-      pending.current = qty;
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(async () => {
-        const q = pending.current;
-        pending.current = null;
-        try {
-          await setCartItem({ productId: product.id, quantity: String(q) }).unwrap();
-          if (pulse && wasZero && q > 0) dispatch(pulseBag());
-        } catch (e) {
-          setLocal(serverQty);
-          dispatch(showToast({ title: e?.message || 'Could not update basket', tone: 'error' }));
-        }
-      }, 320);
+      // New to the basket, as far as the server has said: that is what earns the bounce.
+      const fresh = serverQty === 0;
+      requestQuantity(id, qty, {
+        send: async (q) => {
+          const write = api.endpoints.setCartItem.initiate({ productId: id, quantity: String(q) });
+          const res = await /** @type {any} */ (dispatch)(write).unwrap();
+          if (!res?.cart) return q;
+          return Number(res.cart.items?.find((i) => i.productId === id)?.quantity || 0);
+        },
+        onSaved: (saved) => {
+          if (pulse && fresh && saved > 0) dispatch(pulseBag());
+        },
+        onError: (e) =>
+          dispatch(showToast({ title: e?.message || 'Could not update basket', tone: 'error' })),
+      });
     },
-    [dispatch, local, product.id, serverQty, setCartItem],
+    [dispatch, id, serverQty],
   );
 
-  return { quantity: local, setQuantity };
+  return { quantity: mine ?? serverQty, setQuantity };
 }

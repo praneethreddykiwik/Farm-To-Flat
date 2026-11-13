@@ -5,6 +5,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQuery } from './baseQuery';
 import { KV_KEYS, kv } from '../lib/kv';
+import { forgetSettledLines } from '../lib/cartWrites';
 
 export const api = createApi({
   reducerPath: 'api',
@@ -139,7 +140,12 @@ export const api = createApi({
           }),
         );
         try {
-          await queryFulfilled;
+          // The reply IS the basket after this change. Use it, rather than showing the old one
+          // until a second request has fetched the same thing: that is one round trip sooner for
+          // every tap, and it is what lets a newly added line appear without a refetch at all.
+          // (The basket is still refetched once everything in flight has landed, as the check.)
+          const { data } = await queryFulfilled;
+          if (data?.cart) dispatch(api.util.updateQueryData('getCart', undefined, () => data));
         } catch {
           patch.undo();
         }
@@ -148,6 +154,11 @@ export const api = createApi({
     removeCartItem: b.mutation({
       query: (id) => ({ url: `/cart/items/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Cart'],
+      // A line taken out by its own button: any figure still being held for it would put it back
+      // on screen for a moment.
+      onQueryStarted() {
+        forgetSettledLines();
+      },
     }),
     applyCoupon: b.mutation({
       query: (code) => ({ url: '/cart/coupon', method: 'POST', body: { code } }),
