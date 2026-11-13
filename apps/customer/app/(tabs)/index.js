@@ -89,6 +89,16 @@ export default function Home() {
       if (visible !== prev) runOnJS(setStickyVisible)(visible);
     },
   );
+  // The drifting words stop once they have scrolled out of sight — see LanguageRail. Where that
+  // happens is read from the strip's own place in the header (its bottom edge, below the list's
+  // top padding), not guessed: the header above it is not the same height on every phone.
+  const railEnd = useSharedValue(240);
+  const onRailLayout = useCallback(
+    (e) => {
+      railEnd.value = 8 + e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+    },
+    [railEnd],
+  );
   const stickyStyle = useAnimatedStyle(() => ({
     opacity: interpolate(y.value, [120, 180], [0, 1], Extrapolation.CLAMP),
     transform: [{ translateY: interpolate(y.value, [120, 180], [-12, 0], Extrapolation.CLAMP) }],
@@ -130,7 +140,9 @@ export default function Home() {
       </Animated.View>
       {/* The three languages we serve, drifting past. It is the cue that a Telugu or Hindi reader
           can switch — sitting where they are already looking rather than buried in a setting. */}
-      <LanguageRail />
+      <View onLayout={onRailLayout}>
+        <LanguageRail scrollY={y} endY={railEnd} />
+      </View>
       {/* An order on its way outranks everything else on this screen: it is the one thing the
           customer is actually waiting for. */}
       <LiveOrderCard style={{ paddingHorizontal: 20, marginBottom: 12 }} />

@@ -8,6 +8,7 @@ export { Stepper, formatQty, VariableWeightNote } from './Stepper';
 export { Screen, Ambient } from './Screen';
 export { Skeleton } from './Skeleton';
 export { Sheet } from './Sheet';
+export { PopupSheet } from './PopupSheet';
 export { Chip } from './Chip';
 export { ProductImage } from './ProductImage';
 export { EmptyState } from './EmptyState';

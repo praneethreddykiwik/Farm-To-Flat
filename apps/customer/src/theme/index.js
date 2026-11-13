@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { lowEnd } from '../lib/deviceTier';
 import tokens, {
   colors,
   fonts,
@@ -59,15 +60,26 @@ function withAlpha(hex, alpha) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
+/**
+ * The shadows that sit under things there are MANY of — every card in a list, every stepper.
+ *
+ * On a phone to go easy on (lib/deviceTier) they are left off. A blurred shadow is worked out again
+ * on every frame the thing above it is drawn, and a scrolling grid of cards is dozens of them a
+ * frame: on a low-spec emulator they were half of the slow frames in a scroll. A card there keeps
+ * its hairline edge, which is what separates it from the page. The shadows under the few things that
+ * float — the tab bar, the basket bar, the main button — stay everywhere.
+ */
+const many = (s, android) => (lowEnd ? {} : platformShadow(s, android));
+
 export const shadow = {
   /** Cards, chips, the stepper. */
-  soft: platformShadow(shadowTokens.soft, { y: 6, blur: 16, alpha: 0.1 }),
+  soft: many(shadowTokens.soft, { y: 6, blur: 16, alpha: 0.1 }),
   /** Dark chrome and the primary button. */
   lift: platformShadow(shadowTokens.lift, { y: 10, blur: 24, alpha: 0.2 }),
   /** The green accent button. */
   glow: platformShadow(shadowTokens.glow, { y: 8, blur: 20, alpha: 0.3 }),
   /** The selected segment inside a segmented control: a hairline of lift, no more. */
-  seg: platformShadow(
+  seg: many(
     {
       shadowColor: '#0E1B14',
       shadowOpacity: 0.09,

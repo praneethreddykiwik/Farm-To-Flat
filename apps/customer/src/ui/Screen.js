@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -21,7 +21,12 @@ import { selectReducedMotion } from '../features/ui/uiSlice';
  * @param {{ variant?: 'canvas'|'night', intensity?: number }} props
  */
 export function Ambient({ variant = 'canvas', intensity = 1 }) {
-  const reduced = useSelector(selectReducedMotion);
+  // Still on Android, as it is for someone who has asked for less motion. This drift touches the
+  // whole screen, so while it runs every frame is a full redraw — sixty or a hundred and twenty a
+  // second with nobody touching the phone, on every screen that has this background. Measured, it
+  // was one of the two things that kept an idle screen from ever being idle; a drift this slow is
+  // not worth that on any Android phone, and a cheap one cannot spare it at all.
+  const reduced = useSelector(selectReducedMotion) || Platform.OS === 'android';
   const focused = useIsFocused();
   const t = useSharedValue(0);
   useEffect(() => {

@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, {
@@ -68,6 +75,10 @@ export default function OtpScreen() {
     try {
       const res = await verify({ mobile: pendingMobile, otp }).unwrap();
       await saveRefreshToken(res.refreshToken);
+      // Put the keyboard away before this screen goes. On Android a keyboard whose field has been
+      // taken off screen can stay up, and the first thing a new customer saw of the shop was the
+      // bottom half of it under a keyboard with nothing to type into.
+      Keyboard.dismiss();
       haptic.success();
       dispatch(signedIn({ accessToken: res.accessToken, customer: res.customer }));
       // AuthGate routes to address capture or home

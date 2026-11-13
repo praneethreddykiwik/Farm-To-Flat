@@ -312,12 +312,15 @@ function Root() {
           <Stack.Screen
             name="cart"
             options={{
-              presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
+              // A sheet over the page you came from, on both. iPhone has the system's; Android
+              // gets a see-through screen and the sheet is drawn in it (ui/PopupSheet), which
+              // brings its own slide and dimming — so the route itself does not animate.
+              presentation: Platform.OS === 'ios' ? 'formSheet' : 'transparentModal',
               sheetAllowedDetents: [0.92],
               sheetGrabberVisible: false,
               sheetCornerRadius: 32,
               contentStyle: { backgroundColor: 'transparent' },
-              animation: 'slide_from_bottom',
+              animation: Platform.OS === 'ios' ? 'slide_from_bottom' : 'none',
             }}
           />
           <Stack.Screen name="checkout" options={{ animation: 'slide_from_right' }} />

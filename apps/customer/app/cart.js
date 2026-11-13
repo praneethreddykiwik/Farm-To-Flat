@@ -19,6 +19,7 @@ import {
   EmptyState,
   Glass,
   Money,
+  PopupSheet,
   Pressy,
   ProductImage,
   Skeleton,
@@ -230,7 +231,8 @@ export default function Cart() {
     return eligible.sort((a, b) => Number(b.minOrderPaise) - Number(a.minOrderPaise))[0] || null;
   }, [couponData]);
   const items = cart?.items || [];
-  const isSheet = Platform.OS === 'ios';
+  // iPhone presents this route as a native form sheet. Android has it drawn — see PopupSheet.
+  const drawnSheet = Platform.OS === 'android';
   const lang = useSelector(selectLanguage);
   // productId → catalog product, so each basket line can be named in the shopper's language. The
   // catalog is already cached from the shelf they picked from, so this costs nothing.
@@ -238,6 +240,9 @@ export default function Cart() {
   const byId = useMemo(() => new Map((catalog?.products || []).map((p) => [p.id, p])), [catalog]);
 
   const navigating = useRef(false);
+  // On Android the sheet is drawn by PopupSheet, which takes itself off screen before the route
+  // goes; closing asks it to, rather than cutting straight to the dismissal.
+  const sheet = useRef(/** @type {{ close: () => void } | null} */ (null));
   // The basket is a native form sheet pushed from the tab bar; dismiss() is the reliable way out.
   const close = () => {
     if (router.canDismiss()) router.dismiss();
@@ -245,8 +250,10 @@ export default function Cart() {
     else router.replace('/(tabs)');
   };
   const browse = () => {
-    close();
-    setTimeout(() => router.navigate('/(tabs)'), 50);
+    // On Android the drawn sheet slides away first and then closes the route itself.
+    if (Platform.OS === 'android' && sheet.current) sheet.current.close();
+    else close();
+    setTimeout(() => router.navigate('/(tabs)'), Platform.OS === 'android' ? 220 : 50);
   };
   const checkout = () => {
     if (navigating.current) return;
@@ -267,174 +274,195 @@ export default function Cart() {
     router.replace('/checkout');
   };
 
+  const header = (
+    <View style={[styles.header, { paddingTop: drawnSheet ? 12 : 18 }]}>
+      <View style={{ flex: 1 }}>
+        <Display>{t('yourBasket', lang)}</Display>
+        <Small muted style={{ marginTop: 2 }}>
+          {items.length
+            ? `${items.length} ${items.length === 1 ? t('item', lang) : t('items', lang)} · ${t('pricesLock', lang)}`
+            : t('nothingYet', lang)}
+        </Small>
+      </View>
+      <Pressy
+        onPress={drawnSheet ? () => sheet.current?.close() : close}
+        haptics="select"
+        accessibilityLabel={t('close', lang)}
+      >
+        <Glass radius={radius.pill} innerStyle={styles.close}>
+          <X size={20} color={colors.ink} />
+        </Glass>
+      </Pressy>
+    </View>
+  );
+
+  const body = (
+    <>
+      {isLoading && !cart ? (
+        <View style={{ paddingHorizontal: 20, gap: 12 }}>
+          <Skeleton height={88} />
+          <Skeleton height={88} />
+        </View>
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={<ShoppingBasket size={30} color={colors.ink2} />}
+          title={t('emptyBasket', lang)}
+          message={t('emptyBasketSub', lang)}
+          action={{ title: t('browse', lang), onPress: browse }}
+        />
+      ) : (
+        <>
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 220 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Animated.View entering={FadeInDown.duration(360).springify().damping(18)}>
+              <Glass radius={radius.lg} innerStyle={{ paddingHorizontal: 14 }}>
+                {items.map((it) => (
+                  <Line key={it.id} item={it} catalogProduct={byId.get(it.productId)} />
+                ))}
+              </Glass>
+            </Animated.View>
+
+            {/* Getting back to the catalog meant closing the basket by hand and finding your
+                    place again. Same destination as the empty state's Browse, one tap from here. */}
+            <Animated.View
+              entering={FadeInDown.delay(60).duration(360).springify().damping(18)}
+              style={{ marginTop: 12 }}
+            >
+              <Pressy
+                onPress={browse}
+                haptics="soft"
+                scale={0.985}
+                accessibilityLabel={t('addMoreItems', lang)}
+              >
+                <Glass radius={radius.lg} innerStyle={styles.addMore}>
+                  <Plus size={17} color={colors.leafDeep} />
+                  <Text variant="bodyMedium" color={colors.leafDeep}>
+                    {t('addMoreItems', lang)}
+                  </Text>
+                </Glass>
+              </Pressy>
+            </Animated.View>
+
+            <Animated.View
+              entering={FadeInDown.delay(80).duration(360).springify().damping(18)}
+              style={{ marginTop: 14 }}
+            >
+              <Pressy
+                onPress={() => (cart.coupon ? removeCoupon() : router.push('/coupon'))}
+                haptics="soft"
+                scale={0.985}
+              >
+                <Glass radius={radius.lg} innerStyle={styles.coupon}>
+                  <View
+                    style={[
+                      styles.couponIcon,
+                      { backgroundColor: cart.coupon ? colors.leafSoft : colors.butter },
+                    ]}
+                  >
+                    <Ticket size={18} color={cart.coupon ? colors.leafDeep : '#7A5A00'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="bodyMedium">
+                      {cart.coupon ? cart.coupon.code : t('addCoupon', lang)}
+                    </Text>
+                    <Small muted>
+                      {cart.coupon
+                        ? `${cart.coupon.label} · ${t('tapToRemove', lang)}`
+                        : t('couponSource', lang)}
+                    </Small>
+                  </View>
+                  {cart.coupon ? (
+                    <Money
+                      paise={-Number(cart.coupon.discountPaise)}
+                      variant="bodyMedium"
+                      color={colors.leafDeep}
+                    />
+                  ) : null}
+                </Glass>
+              </Pressy>
+            </Animated.View>
+
+            <Animated.View
+              entering={FadeInDown.delay(140).duration(360).springify().damping(18)}
+              style={{ marginTop: 14 }}
+            >
+              <Glass radius={radius.lg} innerStyle={{ padding: 16 }}>
+                <Row label={t('subtotal', lang)} paise={cart.subtotalPaise} />
+                {Number(cart.couponDiscountPaise) > 0 ? (
+                  <Row
+                    label={t('coupon', lang)}
+                    paise={-Number(cart.couponDiscountPaise)}
+                    color={colors.leafDeep}
+                  />
+                ) : null}
+                {/* Delivery keeps its own row so ₹0 can still read as FREE — the charge
+                        lines from the API omit anything that costs nothing. */}
+                <Row label={t('delivery', lang)} paise={cart.deliveryChargePaise} free />
+                {(cart.chargeLines || [])
+                  .filter((l) => l.id !== 'delivery')
+                  .map((l) => (
+                    <Row key={l.id} label={l.label} paise={l.amountPaise} />
+                  ))}
+                {Number(cart.taxPaise) > 0 ? (
+                  <Row label={taxRowLabel(cart.taxLabel, cart.taxRates)} paise={cart.taxPaise} />
+                ) : null}
+                <MinimumBar
+                  subtotal={cart.subtotalPaise}
+                  minimum={cart.minOrderValuePaise}
+                  nextCoupon={nextCoupon}
+                  availableCoupon={availableCoupon}
+                  appliedCoupon={cart.coupon}
+                />
+              </Glass>
+            </Animated.View>
+          </ScrollView>
+
+          <View
+            pointerEvents="box-none"
+            style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}
+          >
+            <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.footerInner}>
+              <View style={{ flex: 1 }}>
+                <Small color="rgba(243,245,239,0.65)">{t('total', lang)}</Small>
+                <Money paise={cart.totalPaise} animated color={colors.inkOnDark} variant="h2" />
+              </View>
+              <Button
+                title={t('checkout', lang)}
+                variant="accent"
+                size="md"
+                full={false}
+                onPress={checkout}
+              />
+            </Glass>
+          </View>
+        </>
+      )}
+    </>
+  );
+
   // A native form sheet is its own UIViewController: it needs its own gesture root AND portal host,
   // otherwise sheets presented from inside it (the coupon sheet) never appear.
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView style={drawnSheet ? styles.clear : styles.root}>
       <BottomSheetModalProvider>
-        <View style={[styles.root, isSheet && styles.sheetRoot]}>
-          <Ambient intensity={0.7} />
-          <View style={[styles.header, { paddingTop: isSheet ? 18 : insets.top + 12 }]}>
-            <View style={{ flex: 1 }}>
-              <Display>{t('yourBasket', lang)}</Display>
-              <Small muted style={{ marginTop: 2 }}>
-                {items.length
-                  ? `${items.length} ${items.length === 1 ? t('item', lang) : t('items', lang)} · ${t('pricesLock', lang)}`
-                  : t('nothingYet', lang)}
-              </Small>
-            </View>
-            <Pressy onPress={close} haptics="select" accessibilityLabel={t('close', lang)}>
-              <Glass radius={radius.pill} innerStyle={styles.close}>
-                <X size={20} color={colors.ink} />
-              </Glass>
-            </Pressy>
+        {drawnSheet ? (
+          <PopupSheet
+            ref={sheet}
+            onClose={close}
+            background={<Ambient intensity={0.7} />}
+            header={header}
+          >
+            {body}
+          </PopupSheet>
+        ) : (
+          <View style={[styles.root, styles.sheetRoot]}>
+            <Ambient intensity={0.7} />
+            {header}
+            {body}
           </View>
-
-          {isLoading && !cart ? (
-            <View style={{ paddingHorizontal: 20, gap: 12 }}>
-              <Skeleton height={88} />
-              <Skeleton height={88} />
-            </View>
-          ) : items.length === 0 ? (
-            <EmptyState
-              icon={<ShoppingBasket size={30} color={colors.ink2} />}
-              title={t('emptyBasket', lang)}
-              message={t('emptyBasketSub', lang)}
-              action={{ title: t('browse', lang), onPress: browse }}
-            />
-          ) : (
-            <>
-              <ScrollView
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 220 }}
-                showsVerticalScrollIndicator={false}
-              >
-                <Animated.View entering={FadeInDown.duration(360).springify().damping(18)}>
-                  <Glass radius={radius.lg} innerStyle={{ paddingHorizontal: 14 }}>
-                    {items.map((it) => (
-                      <Line key={it.id} item={it} catalogProduct={byId.get(it.productId)} />
-                    ))}
-                  </Glass>
-                </Animated.View>
-
-                {/* Getting back to the catalog meant closing the basket by hand and finding your
-                    place again. Same destination as the empty state's Browse, one tap from here. */}
-                <Animated.View
-                  entering={FadeInDown.delay(60).duration(360).springify().damping(18)}
-                  style={{ marginTop: 12 }}
-                >
-                  <Pressy
-                    onPress={browse}
-                    haptics="soft"
-                    scale={0.985}
-                    accessibilityLabel={t('addMoreItems', lang)}
-                  >
-                    <Glass radius={radius.lg} innerStyle={styles.addMore}>
-                      <Plus size={17} color={colors.leafDeep} />
-                      <Text variant="bodyMedium" color={colors.leafDeep}>
-                        {t('addMoreItems', lang)}
-                      </Text>
-                    </Glass>
-                  </Pressy>
-                </Animated.View>
-
-                <Animated.View
-                  entering={FadeInDown.delay(80).duration(360).springify().damping(18)}
-                  style={{ marginTop: 14 }}
-                >
-                  <Pressy
-                    onPress={() => (cart.coupon ? removeCoupon() : router.push('/coupon'))}
-                    haptics="soft"
-                    scale={0.985}
-                  >
-                    <Glass radius={radius.lg} innerStyle={styles.coupon}>
-                      <View
-                        style={[
-                          styles.couponIcon,
-                          { backgroundColor: cart.coupon ? colors.leafSoft : colors.butter },
-                        ]}
-                      >
-                        <Ticket size={18} color={cart.coupon ? colors.leafDeep : '#7A5A00'} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="bodyMedium">
-                          {cart.coupon ? cart.coupon.code : t('addCoupon', lang)}
-                        </Text>
-                        <Small muted>
-                          {cart.coupon
-                            ? `${cart.coupon.label} · ${t('tapToRemove', lang)}`
-                            : t('couponSource', lang)}
-                        </Small>
-                      </View>
-                      {cart.coupon ? (
-                        <Money
-                          paise={-Number(cart.coupon.discountPaise)}
-                          variant="bodyMedium"
-                          color={colors.leafDeep}
-                        />
-                      ) : null}
-                    </Glass>
-                  </Pressy>
-                </Animated.View>
-
-                <Animated.View
-                  entering={FadeInDown.delay(140).duration(360).springify().damping(18)}
-                  style={{ marginTop: 14 }}
-                >
-                  <Glass radius={radius.lg} innerStyle={{ padding: 16 }}>
-                    <Row label={t('subtotal', lang)} paise={cart.subtotalPaise} />
-                    {Number(cart.couponDiscountPaise) > 0 ? (
-                      <Row
-                        label={t('coupon', lang)}
-                        paise={-Number(cart.couponDiscountPaise)}
-                        color={colors.leafDeep}
-                      />
-                    ) : null}
-                    {/* Delivery keeps its own row so ₹0 can still read as FREE — the charge
-                        lines from the API omit anything that costs nothing. */}
-                    <Row label={t('delivery', lang)} paise={cart.deliveryChargePaise} free />
-                    {(cart.chargeLines || [])
-                      .filter((l) => l.id !== 'delivery')
-                      .map((l) => (
-                        <Row key={l.id} label={l.label} paise={l.amountPaise} />
-                      ))}
-                    {Number(cart.taxPaise) > 0 ? (
-                      <Row
-                        label={taxRowLabel(cart.taxLabel, cart.taxRates)}
-                        paise={cart.taxPaise}
-                      />
-                    ) : null}
-                    <MinimumBar
-                      subtotal={cart.subtotalPaise}
-                      minimum={cart.minOrderValuePaise}
-                      nextCoupon={nextCoupon}
-                      availableCoupon={availableCoupon}
-                      appliedCoupon={cart.coupon}
-                    />
-                  </Glass>
-                </Animated.View>
-              </ScrollView>
-
-              <View
-                pointerEvents="box-none"
-                style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}
-              >
-                <Glass tone="dark" radius={radius.xl} liquid innerStyle={styles.footerInner}>
-                  <View style={{ flex: 1 }}>
-                    <Small color="rgba(243,245,239,0.65)">{t('total', lang)}</Small>
-                    <Money paise={cart.totalPaise} animated color={colors.inkOnDark} variant="h2" />
-                  </View>
-                  <Button
-                    title={t('checkout', lang)}
-                    variant="accent"
-                    size="md"
-                    full={false}
-                    onPress={checkout}
-                  />
-                </Glass>
-              </View>
-            </>
-          )}
-        </View>
+        )}
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
@@ -459,6 +487,7 @@ function Row({ label, paise, color = undefined, free = false }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
+  clear: { flex: 1, backgroundColor: 'transparent' },
   sheetRoot: { borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' },
   header: {
     flexDirection: 'row',
