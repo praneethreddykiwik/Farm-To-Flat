@@ -199,3 +199,51 @@ The current tab is a pill with its icon and name; the others are icons. Colours 
 - **GST on items is set to 18% in the console.** Fresh vegetables, fruit and meat are nil-rated; at 18% a ₹500 basket carries ₹90 of tax on the produce itself. The app charges and prints whatever is set — the rate is the owner's (and their accountant's) to confirm.
 - **The invoice is titled "Tax invoice".** A GST tax invoice also needs the seller's GSTIN, and HSN/SAC codes per line. The GSTIN prints once `SELLER_GSTIN` is set on the server; HSN codes are not built.
 - Fast taps were measured on an emulator and an iPhone simulator, not on the owner's phone.
+
+## Fourth pass — the basket as a popup on Android, and low-cost phones, 13 November
+
+Asked for by the owner: the basket opens as a popup over the page on iPhone and as a full page on Android — make Android match; and the app must not lag on lower-cost Android phones.
+
+### Changed — the basket is a popup on Android too
+
+It rises over the page you came from, which stays in view above it, dimmed. It closes by its ✕, a tap on the dimmed page, the back button, or by dragging its top downwards. iPhone keeps the system's own sheet; nothing changed there.
+
+![Basket popup on Android](screens/pass-2/basket-popup-android.jpg)
+
+### Measured — what made a slow phone slow
+
+Android's own frame statistics, on an emulator set to two cores and 2.5 GB of memory, running the app's production JavaScript against a local server. The emulator draws in software, so the absolute times are far worse than a real phone's; the comparisons are what matter.
+
+|                                                     | As shipped                              | After     |
+| --------------------------------------------------- | --------------------------------------- | --------- |
+| Home, nobody touching it: frames drawn in 6 seconds | about 380 (redrawing 60 times a second) | 0         |
+| Home, scrolling: slow frames                        | 60–74%                                  | 19–23%    |
+| Home, scrolling: typical frame                      | 61–73 ms                                | 38–40 ms  |
+| JavaScript held up during a scroll                  | 3.5–4.6 s                               | 0.8–1.0 s |
+
+Three causes, found by switching each off in turn:
+
+- **The words drifting past at the top of Home never stopped** — not scrolled far down the catalog, not with another tab in front. On every phone they now move only while they are on screen.
+- **The slow drift of the background** touched the whole screen, so every frame was a full redraw. On Android the background is now still. (Stopping this alone changed nothing while the words kept moving; both had to stop before an idle screen was idle.)
+- **The soft shadow under every card** was drawn again on every frame of a scroll: half of the remaining slow frames. Switching off the cards' entrance animation, by contrast, changed nothing, so it stays.
+
+### Changed — a lighter mode for low-cost Android phones
+
+A phone with 4 GB of memory or less, or a screen 720 pixels wide or narrower, gets:
+
+- the words at the top of Home shown still, not drifting;
+- no blurred shadow under cards and steppers — each keeps its hairline edge. The few things that float (tab bar, basket bar, main button) keep theirs.
+
+Everything else is the same. The app logs which way a phone was judged (`[f2f] device → easy mode` or `full mode`), so a tester can say.
+
+![Home in the lighter mode](screens/pass-2/home-easy-mode-android.jpg)
+
+### Fixed along the way
+
+- **The keyboard stayed up over Home after signing in** on Android. It is now put away when the code is accepted.
+
+### Open after this pass
+
+- All of this was measured on an emulator, not on a low-cost phone. The direction is not in doubt; how much a real phone gains is.
+- On the two sign-in screens the main button sits under the Android keyboard; people continue with the keyboard's ✓ key, and the six-digit code submits itself. Lifting the button above the keyboard is a change to how the whole app handles the keyboard, and needs a store build to do properly.
+- "Device year" was tried as a third sign of a low-cost phone and dropped: its scale stops at 2016, so it called a 6 GB phone old.
