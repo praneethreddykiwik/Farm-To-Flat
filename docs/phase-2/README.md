@@ -137,8 +137,70 @@ The app talks to new server routes. If the app update goes out first, the tracke
 
    Use this statement, not `prisma db push` — the persistence code warns that `db push` drops columns the schema does not carry. Until the table exists the shop is unaffected (product pages show the built-in text) and the editor says, in words, that it cannot save yet. It notices the table by itself once it is there; no restart.
 
+   **And the three tables behind community locations and the Demand page** (added 13 November). Same rules: paste once into the database's SQL editor, safe to run twice, touches nothing else. Until they exist the shop is unaffected; "Use my location" in the app recognises no community, a customer who asks to be told is shown "we could not save that", and the admin console shows this same SQL instead of a Save that cannot stick. No restart needed afterwards.
+
+   ```sql
+   CREATE TABLE IF NOT EXISTS "CommunityGeo" (
+     "communityId" TEXT PRIMARY KEY,
+     "lat"         DOUBLE PRECISION NOT NULL,
+     "lng"         DOUBLE PRECISION NOT NULL,
+     "radiusM"     INTEGER NOT NULL DEFAULT 600,
+     "updatedBy"   TEXT,
+     "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+   );
+   ALTER TABLE "CommunityGeo" ENABLE ROW LEVEL SECURITY;
+
+   CREATE TABLE IF NOT EXISTS "DemandArea" (
+     "key"         TEXT PRIMARY KEY,
+     "label"       TEXT NOT NULL,
+     "pincode"     TEXT,
+     "locality"    TEXT,
+     "city"        TEXT,
+     "lat"         DOUBLE PRECISION,
+     "lng"         DOUBLE PRECISION,
+     "checks"      INTEGER NOT NULL DEFAULT 0,
+     "checksByDay" JSONB NOT NULL DEFAULT '{}'::jsonb,
+     "firstAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     "lastAt"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     "status"      TEXT NOT NULL DEFAULT 'OPEN',
+     "note"        TEXT,
+     "notifiedAt"  TIMESTAMP(3),
+     "updatedBy"   TEXT,
+     "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+   );
+   ALTER TABLE "DemandArea" ENABLE ROW LEVEL SECURITY;
+
+   CREATE TABLE IF NOT EXISTS "DemandSubscription" (
+     "id"            TEXT PRIMARY KEY,
+     "customerId"    TEXT NOT NULL,
+     "name"          TEXT,
+     "mobile"        TEXT,
+     "areaKey"       TEXT NOT NULL,
+     "areaLabel"     TEXT NOT NULL,
+     "lat"           DOUBLE PRECISION,
+     "lng"           DOUBLE PRECISION,
+     "pincode"       TEXT,
+     "locality"      TEXT,
+     "city"          TEXT,
+     "communityName" TEXT,
+     "source"        TEXT NOT NULL DEFAULT 'location',
+     "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     "updatedAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     "notifiedAt"    TIMESTAMP(3)
+   );
+   CREATE UNIQUE INDEX IF NOT EXISTS "DemandSubscription_customerId_areaKey_key"
+     ON "DemandSubscription" ("customerId", "areaKey");
+   CREATE INDEX IF NOT EXISTS "DemandSubscription_areaKey_idx"
+     ON "DemandSubscription" ("areaKey");
+   ALTER TABLE "DemandSubscription" ENABLE ROW LEVEL SECURITY;
+   ```
+
+   The `ENABLE ROW LEVEL SECURITY` lines matter: `DemandSubscription` holds names and mobile numbers, and without that line Supabase would serve the table to anyone holding the public key. With it and no policy, only the API can read it — the same default-deny the other tables have.
+
+   **Then set each community's location**: admin → Communities → "Set location" on each card. In Google Maps, right-click the community's main gate and click the two numbers at the top to copy them; paste them into the Coordinates box. Until a community has one, the app cannot recognise it by location and the list flags it "No location".
+
 4. **Create the `MealLog` table on the production database, if it is not there yet.** This has been on your list since October (the first meal check-in release). The table's columns have not changed in this work. Create it with SQL written from `apps/api/prisma/schema.prisma` rather than `db push`, for the reason above. Without it the tracker runs but forgets: logs live in memory and vanish on a restart — and a streak that resets itself overnight is worse than no streak.
-5. **Promote the API on Render.** New routes: product knowledge (public and admin), meal logging, streak, food search.
+5. **Promote the API on Render.** New routes: product knowledge (public and admin), meal logging, streak, food search, and — from 13 November — community locations and demand (`/demand/*` for the app, `/admin/demand` for the console).
 6. **The admin website** deploys itself from the same push (Vercel). Its editor needs step 5 to be live.
 7. **Then** publish the over-the-air update to the app.
 8. Optional, before step 7: set `EXPO_PUBLIC_FSSAI_LICENCE` in the EAS environment (see the register).
