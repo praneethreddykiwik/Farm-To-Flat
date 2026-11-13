@@ -41,6 +41,7 @@ import { emitNotification, COPY } from '../../lib/notify.js';
 import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
 import { listActions, recordAction } from '../../lib/audit.js';
+import { orderNumbers } from '../../lib/customer-history.js';
 import { IS_PROD } from '../../lib/env.js';
 
 // Orders snapshot the customer name at order time; show the customer's CURRENT name in the operator
@@ -138,9 +139,26 @@ adminOrdersRouter.get(
       (o) => o.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(o.status),
     ).length;
     counts.STALE = all.filter((o) => orderIsStale(o, today)).length;
+    // Which of the customer's orders each one is — 1st, 2nd, 12th — worked out across the WHOLE
+    // book, not the filtered slice, so a number means the same thing on every tab.
+    //
+    // `firstOrder` (the "new customer" badge) is taken from the same count rather than from the flag
+    // frozen on the order when it was created. That flag asks "was there any earlier order?", and an
+    // abandoned checkout is an earlier order to it — so a customer whose first payment failed, and
+    // who tried again and succeeded, was never marked new and never got their welcome. Counting
+    // only orders that were really placed gives the badge to the right one.
+    const nos = orderNumbers(all);
     res.json({
       orders: linkOrderIssuePhotos(
-        filtered.map((o) => orderAdmin(liveName(o))),
+        filtered.map((o) => {
+          const no = nos.get(o.id);
+          return {
+            ...orderAdmin(liveName(o)),
+            firstOrder: no?.n === 1,
+            customerOrderNo: no?.n ?? null,
+            customerOrders: no?.of ?? null,
+          };
+        }),
         baseUrlOf(req),
       ),
       total: filtered.length,

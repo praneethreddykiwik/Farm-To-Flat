@@ -33,6 +33,8 @@ import {
   drainPersistence,
 } from './persistence.js';
 import { replaceKnowledgeOverrides, setKnowledgeTableReady } from './lib/knowledge.js';
+import { demandDb } from './demand-db.js';
+import { hydrateDemand } from './demand-store.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
@@ -55,6 +57,7 @@ import { devicesRouter } from './routes/devices.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { aiRouter } from './routes/ai.js';
 import { mealsRouter } from './routes/meals.js';
+import { demandRouter } from './routes/demand.js';
 // Side-effect import: starts the 10-minute gateway reconciliation pass. The third leg, after the
 // client callback and the webhook — the one that notices when neither of those happened.
 import './lib/reconcile.js';
@@ -62,6 +65,8 @@ import './lib/reconcile.js';
 import { adminAuth, adminAuthorize } from './routes/admin/auth.js';
 import { adminProductsRouter } from './routes/admin/products.js';
 import { adminCommunitiesRouter } from './routes/admin/communities.js';
+import { adminDemandRouter } from './routes/admin/demand.js';
+import { adminCustomersRouter } from './routes/admin/customers.js';
 import { adminOrdersRouter } from './routes/admin/orders.js';
 import { adminMetricsRouter } from './routes/admin/metrics.js';
 import { adminAnalyticsRouter } from './routes/admin/analytics.js';
@@ -263,6 +268,7 @@ app.use(`${v1}/devices`, requireAuth, devicesRouter);
 app.use(`${v1}/notifications`, requireAuth, notificationsRouter);
 app.use(`${v1}/ai`, requireAuth, aiRouter);
 app.use(`${v1}/meals`, requireAuth, mealsRouter);
+app.use(`${v1}/demand`, requireAuth, demandRouter);
 
 // ── admin (operator panel) ─────────────────────────────────────────────────
 // Sign-in FIRST, and deliberately outside the authenticated router below: these are the routes you
@@ -275,6 +281,8 @@ admin.use(adminAuth);
 admin.use(adminAuthorize); // per-route role check — any staff is NOT full admin
 admin.use(adminProductsRouter);
 admin.use(adminCommunitiesRouter);
+admin.use(adminDemandRouter);
+admin.use(adminCustomersRouter);
 admin.use(adminOrdersRouter);
 admin.use(adminMetricsRouter);
 admin.use(adminAnalyticsRouter);
@@ -368,6 +376,10 @@ async function hydrateOnce() {
   // built-in text, and let the admin console say so when someone tries to save.
   replaceKnowledgeOverrides(data.productKnowledge || []);
   setKnowledgeTableReady(data.productKnowledge !== null);
+  // Community locations and expansion demand: three optional tables, each read defensively. After
+  // hydrate() on purpose — that replaced the community list, and the saved locations have to be
+  // laid back over the new one. A missing table leaves that feature unable to save, and says so.
+  hydrateDemand(await demandDb.loadAll());
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);

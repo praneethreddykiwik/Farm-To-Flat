@@ -116,6 +116,134 @@ model ProductKnowledge {
   updatedAt DateTime @default(now()) @updatedAt
 }
 
+/// Where a community is: a pin on its gate and how far from it still counts as "inside". This is
+/// what lets the app's "Use my location" recognise a community — the app does the matching on the
+/// phone, from these, so the customer's own location never has to leave it.
+///
+/// A table of its own, NOT lat/lng columns on Community, for the same reason as ProductKnowledge:
+/// `community.findMany()` loads the communities at boot, and a column the production database does
+/// not have yet would take that down. A missing TABLE only means locations cannot be saved yet.
+/// No foreign key, so creating it touches nothing else.
+///
+/// Row-level security is switched on with no policy on all three tables below: on Supabase that is
+/// "nobody but the owner", which keeps them out of reach of the public REST endpoint while the API
+/// (which connects as the owner) is unaffected.
+///
+///   CREATE TABLE IF NOT EXISTS "CommunityGeo" (
+///     "communityId" TEXT PRIMARY KEY,
+///     "lat"         DOUBLE PRECISION NOT NULL,
+///     "lng"         DOUBLE PRECISION NOT NULL,
+///     "radiusM"     INTEGER NOT NULL DEFAULT 600,
+///     "updatedBy"   TEXT,
+///     "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+///   );
+///   ALTER TABLE "CommunityGeo" ENABLE ROW LEVEL SECURITY;
+model CommunityGeo {
+  communityId String   @id
+  lat         Float
+  lng         Float
+  radiusM     Int      @default(600)
+  updatedBy   String?
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+/// One row per AREA people have asked us to deliver to — a PIN code, or a ~1 km grid cell where the
+/// phone gave no PIN. `checks` is a count of anonymous "Use my location" presses from outside every
+/// served community, with `checksByDay` ({"2026-11-13": 3, …}, last 60 days) for the trend.
+///
+/// There is deliberately NO customer column here. A check is counted, never attributed: it cannot
+/// be traced to a person because there is nowhere to write who it was. `lat`/`lng` are rounded to
+/// two decimals — about a kilometre. `status` and `note` are the operator's.
+///
+///   CREATE TABLE IF NOT EXISTS "DemandArea" (
+///     "key"         TEXT PRIMARY KEY,
+///     "label"       TEXT NOT NULL,
+///     "pincode"     TEXT,
+///     "locality"    TEXT,
+///     "city"        TEXT,
+///     "lat"         DOUBLE PRECISION,
+///     "lng"         DOUBLE PRECISION,
+///     "checks"      INTEGER NOT NULL DEFAULT 0,
+///     "checksByDay" JSONB NOT NULL DEFAULT '{}'::jsonb,
+///     "firstAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+///     "lastAt"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+///     "status"      TEXT NOT NULL DEFAULT 'OPEN',
+///     "note"        TEXT,
+///     "notifiedAt"  TIMESTAMP(3),
+///     "updatedBy"   TEXT,
+///     "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+///   );
+///   ALTER TABLE "DemandArea" ENABLE ROW LEVEL SECURITY;
+model DemandArea {
+  key         String    @id
+  label       String
+  pincode     String?
+  locality    String?
+  city        String?
+  lat         Float?
+  lng         Float?
+  checks      Int       @default(0)
+  checksByDay Json      @default("{}")
+  firstAt     DateTime  @default(now())
+  lastAt      DateTime  @default(now())
+  status      String    @default("OPEN")
+  note        String?
+  notifiedAt  DateTime?
+  updatedBy   String?
+  updatedAt   DateTime  @default(now()) @updatedAt
+}
+
+/// One row per person who pressed "tell me when you deliver here". PERSONAL DATA, given by that
+/// explicit act and used for one thing — the message when delivery starts in their area. The
+/// customer can delete it (DELETE /demand/subscriptions/:id) and deleting the account deletes it.
+/// `lat`/`lng` are rounded to three decimals (about 100 m): which gate, never which door.
+/// No foreign key to Customer, so creating the table touches nothing else.
+///
+///   CREATE TABLE IF NOT EXISTS "DemandSubscription" (
+///     "id"            TEXT PRIMARY KEY,
+///     "customerId"    TEXT NOT NULL,
+///     "name"          TEXT,
+///     "mobile"        TEXT,
+///     "areaKey"       TEXT NOT NULL,
+///     "areaLabel"     TEXT NOT NULL,
+///     "lat"           DOUBLE PRECISION,
+///     "lng"           DOUBLE PRECISION,
+///     "pincode"       TEXT,
+///     "locality"      TEXT,
+///     "city"          TEXT,
+///     "communityName" TEXT,
+///     "source"        TEXT NOT NULL DEFAULT 'location',
+///     "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+///     "updatedAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+///     "notifiedAt"    TIMESTAMP(3)
+///   );
+///   CREATE UNIQUE INDEX IF NOT EXISTS "DemandSubscription_customerId_areaKey_key"
+///     ON "DemandSubscription" ("customerId", "areaKey");
+///   CREATE INDEX IF NOT EXISTS "DemandSubscription_areaKey_idx"
+///     ON "DemandSubscription" ("areaKey");
+///   ALTER TABLE "DemandSubscription" ENABLE ROW LEVEL SECURITY;
+model DemandSubscription {
+  id            String    @id
+  customerId    String
+  name          String?
+  mobile        String?
+  areaKey       String
+  areaLabel     String
+  lat           Float?
+  lng           Float?
+  pincode       String?
+  locality      String?
+  city          String?
+  communityName String?
+  source        String    @default("location")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+  notifiedAt    DateTime?
+
+  @@unique([customerId, areaKey])
+  @@index([areaKey])
+}
+
 model Community {
   id             String    @id @default(cuid())
   name           String

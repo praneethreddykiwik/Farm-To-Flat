@@ -714,6 +714,24 @@ export function deleteCoupon(code) {
 }
 
 // ── community writes (admin) ────────────────────────────────────────────────
+/**
+ * Lay each community's saved location over it. Locations are stored in a table of their own
+ * (CommunityGeo — see demand-db.js), so the community rows arrive from the database without one;
+ * this is called after every hydration to put them back. A community with no row keeps whatever it
+ * had: on a database that is nothing, in the in-memory seed it is the seeded pin.
+ * @param {{ communityId: string, lat: number, lng: number, radiusM?: number }[]} rows
+ */
+export function applyCommunityGeo(rows) {
+  const byId = new Map((rows || []).map((r) => [r.communityId, r]));
+  for (const c of db.communities) {
+    const g = byId.get(c.id);
+    if (!g) continue;
+    c.lat = g.lat;
+    c.lng = g.lng;
+    c.radiusM = g.radiusM;
+  }
+}
+
 export function updateCommunity(cid, patch) {
   const c = db.communities.find((x) => x.id === cid);
   if (!c) return null;

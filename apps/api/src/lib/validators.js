@@ -39,11 +39,17 @@ export const flat = z
   // A purely numeric flat must be > 0 — rejects "0" / "00".
   .refine((v) => !/^\d+$/.test(v) || Number(v) > 0, 'Flat number must be greater than 0');
 
-// Optional; when given it must be a POSITIVE number — empty is fine, but "0" and negatives are rejected.
+// A whole number from 0 up; negatives and "007" are rejected. 0 IS a floor here: it is how a
+// ground-floor flat is written, and refusing it left those residents no honest answer once the app
+// started asking everyone for their floor.
+//
+// Still optional at this layer, on purpose. The app now insists on a floor, but the builds already
+// on phones send none when the field is left blank, and a rule tightened here would stop those
+// customers saving an address at all until they update.
 export const floor = z
   .string()
   .trim()
   .max(3)
-  .regex(/^([1-9]\d*)?$/, 'Floor must be a positive number');
+  .regex(/^(0|[1-9]\d*)?$/, 'Floor must be a number — 0 for the ground floor');
 
 export const shortText = (max = 80) => z.string().trim().max(max);

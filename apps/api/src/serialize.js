@@ -12,6 +12,8 @@ import { proxyImageUrl } from './lib/public-image.js';
 import { categoryName, productName } from './lib/i18n.js';
 import { badgesFor } from './lib/knowledge.js';
 import { communityWindows } from './lib/windows.js';
+import { DEFAULT_RADIUS_M, communityGeo } from './lib/geo.js';
+import { geoTableReady } from './demand-store.js';
 
 const rupees = (paise) => `₹${Math.round(Number(paise) / 100).toLocaleString('en-IN')}`;
 
@@ -149,14 +151,24 @@ export function communityPublic(c) {
       start: w.start,
       end: w.end,
     })),
+    // Where the community is: a pin and how far it reaches. Public on purpose — these are the
+    // addresses of apartment complexes, and sending them lets the app answer "am I in one of
+    // these?" ON THE PHONE, without the customer's location ever leaving it. Null until an
+    // operator sets it, and then the app simply cannot recognise this community by location.
+    geo: communityGeo(c),
   };
 }
 
 export function communityAdmin(c) {
+  const geo = communityGeo(c);
   return {
     ...communityPublic(c),
-    lat: c.lat,
-    lng: c.lng,
+    lat: geo ? geo.lat : null,
+    lng: geo ? geo.lng : null,
+    radiusM: geo ? geo.radiusM : DEFAULT_RADIUS_M,
+    // False only when a database is connected and its CommunityGeo table has not been created:
+    // the console says so instead of offering a Save that cannot stick.
+    canSaveLocation: geoTableReady(),
     // Operator view carries the cut-off too — that is the field the admin edits.
     windows: communityWindows(c),
     orderLeadDays: c.orderLeadDays ?? 1,

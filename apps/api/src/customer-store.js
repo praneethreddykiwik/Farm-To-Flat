@@ -17,6 +17,9 @@ import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist, drainChain } from './persistence.js';
+import { deleteSubscriptionsForCustomer } from './demand-store.js';
+import { servingCommunity } from './lib/geo.js';
+import { reportError } from './lib/sentry.js';
 import { priceBreakdown } from './lib/charges.js';
 import { productName } from './lib/i18n.js';
 
@@ -652,6 +655,16 @@ export async function deleteCustomerAccount(customerId) {
   const mealPhotoKeys = deleteMealLogsForCustomer(customerId)
     .map((m) => m.photoKey)
     .filter(Boolean);
+  // "Tell me when you deliver here" — their name, number and rough location, kept for one message
+  // that an account which no longer exists can never receive. A failure here must not strand the
+  // rest of the erasure half-done, so it is reported loudly instead of thrown.
+  try {
+    await deleteSubscriptionsForCustomer(customerId);
+  } catch (e) {
+    reportError(e, { scope: 'erasure', table: 'DemandSubscription' });
+    // eslint-disable-next-line no-console
+    console.error('[erasure] demand subscriptions not removed from the database:', e?.message);
+  }
   cs.notifications.delete(customerId);
   await Promise.resolve(persist.notificationsDeleteForCustomer(customerId));
   cs.addresses.delete(customerId);
@@ -697,13 +710,18 @@ export function addAddress(cid, body) {
   const communities = listCommunities();
   let community = communities.find((c) => c.id === body.communityId);
   if (!community && typeof body.lat === 'number' && typeof body.lng === 'number') {
-    community = communities.find((c) => Math.hypot(c.lat - body.lat, c.lng - body.lng) < 0.02);
+    // Metres against each community's own radius — the same test the app and /demand/checks use.
+    // This was a 0.02-degree box (about 2 km, and lopsided) around coordinates that only the demo
+    // data ever had.
+    community = servingCommunity(communities, body.lat, body.lng)?.community;
     if (!community)
       return {
         error: {
           status: 422,
           code: 'ADDRESS_NOT_SERVICEABLE',
-          message: "We don't deliver to this location yet. We've noted it for expansion.",
+          // It used to add "We've noted it for expansion", and noted nothing. Being told when we
+          // arrive is now something the customer asks for (POST /demand/subscriptions).
+          message: "We don't deliver to this location yet.",
         },
       };
   }
@@ -752,6 +770,89 @@ export function setDefaultAddress(cid, addrId) {
   list.forEach((a) => (a.isDefault = a.id === addrId));
   list.forEach((a) => persist.addressUpsert(a, cid));
   return list;
+}
+
+const notYours = {
+  error: { status: 404, code: 'NOT_FOUND', message: 'That address is not on your account.' },
+};
+
+/**
+ * Edit one of the customer's OWN saved addresses. Only the keys present in `patch` change.
+ *
+ * An order keeps the address it was placed with — orders store a snapshot, by design, so the bag
+ * that is already packed for flat 1204 is not silently re-labelled for 1402. This changes where
+ * FUTURE orders go, and nothing else.
+ *
+ * The community/block pair is re-checked against the masters exactly as on create: an edit must
+ * not be a way to save a block the community does not have. A community may only be CHANGED to an
+ * active one; an address whose community has since been switched off can still have its flat or
+ * landmark corrected.
+ * @param {string} cid
+ * @param {string} addrId
+ * @param {{ communityId?: string, block?: string, flat?: string, floor?: string|null, landmark?: string|null, recipientName?: string, contactNumber?: string }} patch
+ */
+export function updateAddress(cid, addrId, patch) {
+  const list = cs.addresses.get(cid) || [];
+  const address = list.find((a) => a.id === addrId);
+  if (!address) return notYours;
+
+  const moving = patch.communityId !== undefined && patch.communityId !== address.communityId;
+  const community = listCommunities().find(
+    (c) => c.id === (moving ? patch.communityId : address.communityId),
+  );
+  if (!community || (moving && community.isActive === false))
+    return { error: { status: 422, code: 'VALIDATION', message: 'Choose your community.' } };
+  const block = patch.block !== undefined ? patch.block : address.block;
+  if (!community.blocks.includes(block))
+    return {
+      error: { status: 422, code: 'VALIDATION', message: 'Choose your block from the list.' },
+    };
+
+  address.communityId = community.id;
+  address.communityName = community.name;
+  address.area = community.area;
+  address.block = block;
+  if (patch.flat !== undefined) address.flat = String(patch.flat).trim();
+  if (patch.floor !== undefined) address.floor = patch.floor || null;
+  if (patch.landmark !== undefined) address.landmark = patch.landmark || null;
+  if (patch.recipientName !== undefined) address.recipientName = patch.recipientName;
+  if (patch.contactNumber !== undefined) address.contactNumber = patch.contactNumber;
+  persist.addressUpsert(address, cid);
+  return { address, addresses: list };
+}
+
+/**
+ * Remove one of the customer's OWN saved addresses.
+ *
+ * The last one cannot be removed: an account with no address has nowhere to deliver, and the app
+ * treats that as "not finished signing up" — the customer would be thrown back into onboarding in
+ * the middle of using the shop. They add the new address first, then remove the old one.
+ *
+ * If the default goes, the first remaining address takes over, so there is never a moment with no
+ * default (which reads in the app as "no delivery address" and blocks checkout). Past and in-flight
+ * orders are untouched: each carries its own snapshot of where it was going.
+ * @param {string} cid
+ * @param {string} addrId
+ */
+export function deleteAddress(cid, addrId) {
+  const list = cs.addresses.get(cid) || [];
+  const i = list.findIndex((a) => a.id === addrId);
+  if (i < 0) return notYours;
+  if (list.length === 1)
+    return {
+      error: {
+        status: 409,
+        code: 'LAST_ADDRESS',
+        message: 'This is your only address. Add another one before removing it.',
+      },
+    };
+  const [removed] = list.splice(i, 1);
+  persist.addressDelete(removed.id);
+  if (removed.isDefault) {
+    list[0].isDefault = true;
+    persist.addressUpsert(list[0], cid);
+  }
+  return { addresses: list };
 }
 
 // ── coupons ───────────────────────────────────────────────────────────────────

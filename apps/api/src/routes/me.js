@@ -10,18 +10,20 @@ import { customerPublic } from '../serialize.js';
 import { money } from '../lib/money.js';
 import {
   addAddress,
+  cartCount,
   changeCustomerMobile,
   checkOtpOnly,
-  deleteCustomerAccount,
-  getCustomerIdByMobile,
-  requestOtp,
-  cartCount,
   defaultAddress,
+  deleteAddress,
+  deleteCustomerAccount,
   getCustomer,
+  getCustomerIdByMobile,
   getWallet,
   hasAddress,
   listAddresses,
+  requestOtp,
   setDefaultAddress,
+  updateAddress,
   updateCustomer,
 } from '../customer-store.js';
 
@@ -155,5 +157,41 @@ addressesRouter.post(
     const list = setDefaultAddress(req.customerId, req.params.id);
     if (!list) throw fail(404, 'NOT_FOUND', 'That address is not on your account.');
     res.json({ addresses: list });
+  }),
+);
+
+// An edit sends only what changed. Community and block travel together from the app (a block only
+// means something inside its community), but each is optional here so a caller correcting just a
+// landmark does not have to restate the rest. `lat`/`lng`/`isDefault` are deliberately absent: the
+// default has its own endpoint, and an edit is not a serviceability check.
+const AddressPatch = z
+  .object({
+    communityId: z.string().min(1).max(60),
+    block: z.string().trim().min(1).max(40),
+    flat,
+    floor: floor.nullable(),
+    landmark: shortText(80).nullable(),
+    recipientName: personName,
+    contactNumber: mobile,
+  })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, { message: 'Nothing to change.' });
+
+addressesRouter.patch(
+  '/:id',
+  validateBody(AddressPatch),
+  asyncHandler(async (req, res) => {
+    const r = updateAddress(req.customerId, req.params.id, req.body);
+    if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    res.json({ address: r.address, addresses: r.addresses });
+  }),
+);
+
+addressesRouter.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const r = deleteAddress(req.customerId, req.params.id);
+    if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    res.json({ addresses: r.addresses });
   }),
 );

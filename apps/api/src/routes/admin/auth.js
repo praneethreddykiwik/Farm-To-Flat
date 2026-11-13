@@ -137,6 +137,13 @@ const RULES = [
   { when: (p) => p.startsWith('/procurement'), sections: ['procurement'] },
   { when: (p) => p.startsWith('/products'), sections: ['products'] },
   { when: (p) => p.startsWith('/communities'), sections: ['communities'] },
+  // Where to deliver next is the communities decision seen from the other side — and this list
+  // carries the names and mobile numbers of people who asked, so it is deliberately NOT open to the
+  // delivery or purchasing roles.
+  { when: (p) => p.startsWith('/demand'), sections: ['communities'] },
+  // Every customer's order history in one place. Admins only: the packer and the buyer see the
+  // orders they have to act on, on their own boards, and have no need of the whole book.
+  { when: (p) => p.startsWith('/customers'), roles: ADMIN_UP },
   { when: (p) => p.startsWith('/analytics'), sections: ['statistics'] },
   { when: (p) => p.startsWith('/access'), roles: ADMIN_UP },
   { when: (p) => p.startsWith('/coupons'), roles: ADMIN_UP },

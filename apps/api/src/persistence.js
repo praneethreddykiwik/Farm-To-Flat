@@ -735,10 +735,24 @@ export const persist = {
       }),
     (cid) => cid,
   ),
-  addressUpsert: wt('address.upsert', (a, cid) => {
-    const row = addressToRow(a, cid);
-    return prisma.address.upsert({ where: { id: a.id }, create: row, update: row });
-  }),
+  // Both address writes are keyed by the address id, so an edit and a removal of the SAME address
+  // reach the database in the order they were made. Unordered, a slow upsert could land after the
+  // delete and bring a removed address back on the next restart.
+  addressUpsert: wt(
+    'address.upsert',
+    (a, cid) => {
+      const row = addressToRow(a, cid);
+      return prisma.address.upsert({ where: { id: a.id }, create: row, update: row });
+    },
+    (a) => a.id,
+  ),
+  // deleteMany, not delete: removing a row that is already gone (a retry, or an address that only
+  // ever existed in memory) is a no-op rather than a P2025.
+  addressDelete: wt(
+    'address.delete',
+    (id) => prisma.address.deleteMany({ where: { id } }),
+    (id) => id,
+  ),
   orderUpsert: wt(
     'order.upsert',
     (o) => {
