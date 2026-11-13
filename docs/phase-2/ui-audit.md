@@ -152,3 +152,50 @@ A new section, **Customers**, answers "is this their first order, their second, 
 - **Built to the DPDP Act:** admins only; a masked number in the list and no address; the full number shown only for a stated reason; every history opened and every number shown is recorded; no export; a deleted account keeps its orders and loses its name and number. Detail in the [compliance register](india-compliance-register.md) §4.
 
 Nothing new is stored and no database change is needed for this section.
+
+## Third pass — tab bar, quick taps, and the bill, 13 November
+
+Reported by the owner from a phone on the Play build: basket photos showing a letter instead of the picture, taps "not responding as expected" under heavier use, and an order of ₹602.99 on a ₹500 basket with nothing between the subtotal and the total — in the app and on the invoice — although a platform fee and GST had been set in the console.
+
+### Fixed — the bill
+
+- **The fee and tax lines of an order were never saved.** They were worked out on every order and kept in memory only, so they were gone at the next restart of the server. They are now written with the order.
+- **The order the app receives did not carry them.** It now does, in the same shape the basket uses, so a placed order prints the rows it was quoted with: each fee by the name given in the console, then the tax with what it is a percentage of ("GST 18%", "GST 18% on fees").
+- **Shown in:** the app's order screen and shared receipt, the invoice (with the working: "18% on items Rs. 122.40, 18% on fees Rs. 1.98"), and the order drawer on the admin website. Basket and checkout already showed them; the tax row there now names its rate too.
+- **The invoice printed the delivery fee twice** when an order had its lines. One function now produces the lines for every place a bill is shown.
+- **Orders already saved without their lines:** where the saved fee and tax settings give an order its own total to the paisa, the lines are put back at start-up and marked as recovered. Where they do not (the settings have changed since), the bill shows the difference as one line, "Fees and taxes", so it adds up.
+
+![Order bill on Android](screens/pass-2/order-bill-fees-gst-android.jpg)
+![Invoice](screens/pass-2/invoice-fees-gst.png)
+
+### Fixed — basket photos
+
+The basket sent each photo's storage address; every other screen sends it through the app's own image route. The basket now gives the same address the catalogue does, so the photo is already on the phone by the time the basket opens.
+
+![Basket on Android](screens/pass-2/basket-photos-and-bill-android.jpg)
+
+### Fixed — quick taps
+
+Measured on the Android emulator before the change: 6 fast taps on "+" counted as 5; 5 alternating taps on two products counted as 3 and 4. After: 10 of 10, 6 and 6 of 6 and 6, and a mixed run of minus and plus exact — on screen and on the server.
+
+- **Two taps before the screen redrew both counted up from the same number.** Each tap now counts from the last tap.
+- **The "+" moved.** The stepper grew with its label ("1 bunch", "2 bunches", "10 bunches"), sliding the button along under the thumb, and past ten it ran off the edge of a product card. The figure now sits in a box of fixed width and shrinks to fit.
+- **A late reply from the server could undo a tap,** and **a quantity could show on a product that was never touched** after a fast scroll, because the figure was kept by the card and the grid reuses its cards. The figure is now kept by product, one request at a time per product, and held briefly after it is saved.
+- **Every card redrew on every change to the basket.** A card now redraws only when its own line changes.
+- One photo flies to the basket per burst of taps rather than one per tap.
+
+![Stepper on Android](screens/pass-2/stepper-fixed-width-android.jpg)
+![Stepper on iPhone](screens/pass-2/stepper-fixed-width-ios.jpg)
+
+### Changed — tab bar
+
+The current tab is a pill with its icon and name; the others are icons. Colours unchanged. For staff with the planner, it is a separate round button to the right of the bar.
+
+![Tab bar, Android](screens/pass-2/tabbar-android-customer.jpg)
+![Tab bar with the planner, Android](screens/pass-2/tabbar-android-superadmin.jpg)
+
+### Open after this pass
+
+- **GST on items is set to 18% in the console.** Fresh vegetables, fruit and meat are nil-rated; at 18% a ₹500 basket carries ₹90 of tax on the produce itself. The app charges and prints whatever is set — the rate is the owner's (and their accountant's) to confirm.
+- **The invoice is titled "Tax invoice".** A GST tax invoice also needs the seller's GSTIN, and HSN/SAC codes per line. The GSTIN prints once `SELLER_GSTIN` is set on the server; HSN codes are not built.
+- Fast taps were measured on an emulator and an iPhone simulator, not on the owner's phone.
