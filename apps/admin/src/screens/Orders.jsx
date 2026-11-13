@@ -9,7 +9,7 @@ import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Pager, StatusBadge, TableSkeleton } from '../components/ui.jsx';
 import { IconDownload, IconSearch } from '../components/icons.jsx';
 import { CloseStaleDialog } from '../components/CloseStaleDialog.jsx';
-import { inr, shortDate, titleCase } from '../lib/format.js';
+import { inr, shortDate, titleCase, ordinal } from '../lib/format.js';
 
 /** Mirrors the server's fulfilment state machine (routes/admin/orders.js). */
 const NEXT = {
@@ -232,6 +232,16 @@ export function Orders() {
                               ★ New
                             </span>
                           )}
+                          {/* Which of their orders this is, for everyone past the first. The first
+                              keeps its own louder badge, because it is the one to act on. */}
+                          {!o.firstOrder && o.customerOrderNo ? (
+                            <span
+                              className="order-no"
+                              title={`This customer's ${ordinal(o.customerOrderNo)} order of ${o.customerOrders}`}
+                            >
+                              {ordinal(o.customerOrderNo)} order
+                            </span>
+                          ) : null}
                         </div>
                         <div className="muted" style={{ fontSize: 12 }}>
                           {o.address?.communityName} · {o.address?.block} {o.address?.flat}

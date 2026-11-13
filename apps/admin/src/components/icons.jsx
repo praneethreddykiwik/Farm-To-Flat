@@ -54,6 +54,21 @@ export const IconMap = (p) => (
     <circle cx="12" cy="10" r="2.5" />
   </S>
 );
+/** A map pin — one place, as against IconMap's folded map of many. */
+export const IconPin = (p) => (
+  <S {...p}>
+    <path d="M12 21s-6.5-5.6-6.5-10.6a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z" />
+    <circle cx="12" cy="10.4" r="2.4" />
+  </S>
+);
+/** Two people — the customers themselves, as against an order, a place or a product. */
+export const IconUsers = (p) => (
+  <S {...p}>
+    <circle cx="9" cy="8.5" r="3.2" />
+    <path d="M3 19.5c.4-3.3 2.9-5.2 6-5.2s5.6 1.9 6 5.2" />
+    <path d="M15.6 5.7a3.2 3.2 0 0 1 0 5.8M17.8 14.8c1.9.7 3 2.3 3.2 4.7" />
+  </S>
+);
 export const IconReceipt = (p) => (
   <S {...p}>
     <path d="M5 3v18l2-1.4L9 21l2-1.4L13 21l2-1.4L17 21l2-1.4V3l-2 1.4L15 3l-2 1.4L11 3 9 4.4 7 3 5 4.4z" />

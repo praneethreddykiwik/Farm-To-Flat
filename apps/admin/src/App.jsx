@@ -12,6 +12,8 @@ import { Dashboard } from './screens/Dashboard.jsx';
 import { Catalog } from './screens/Catalog.jsx';
 import { Pricing } from './screens/Pricing.jsx';
 import { Communities } from './screens/Communities.jsx';
+import { Demand } from './screens/Demand.jsx';
+import { Customers } from './screens/Customers.jsx';
 import { Orders } from './screens/Orders.jsx';
 import { Fulfilment } from './screens/Fulfilment.jsx';
 import { Complaints } from './screens/Complaints.jsx';
@@ -76,6 +78,8 @@ function AdminShell() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/coupons" element={<Coupons />} />
             <Route path="/communities" element={<Communities />} />
+            <Route path="/demand" element={<Demand />} />
+            <Route path="/customers" element={<Customers />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/procurement" element={<Procurement />} />
             <Route path="/fulfilment" element={<Fulfilment />} />
@@ -107,6 +111,8 @@ const ADMIN_PATHS = new Set([
   '/pricing',
   '/coupons',
   '/communities',
+  '/demand',
+  '/customers',
   '/orders',
   '/procurement',
   '/fulfilment',

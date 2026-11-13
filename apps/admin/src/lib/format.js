@@ -75,3 +75,50 @@ export function num(v, { max = Infinity, integer = false } = {}) {
 }
 /** Trim leading whitespace — for name/label fields (blocks leading-space-only values). */
 export const noLead = (v) => String(v ?? '').replace(/^\s+/, '');
+
+/**
+ * Read a coordinate pair the way people paste one. Google Maps copies "17.4645, 78.3062"; a
+ * spreadsheet gives "17.4645\t78.3062"; someone typing adds brackets or a degree sign. All of those
+ * are the same two numbers, so all of them are accepted.
+ * @param {string} text
+ * @returns {{ lat: number, lng: number } | null} null until it reads as a real place
+ */
+export function parseLatLng(text) {
+  const m = String(text || '')
+    .replace(/[()°]/g, ' ')
+    .match(/(-?\d{1,3}(?:\.\d+)?)\s*[\s,;]\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) return null;
+  return { lat, lng };
+}
+
+/** "17.4645, 78.3062" — five decimals is about a metre, which is more than a gate needs. */
+export const latLngText = (lat, lng) =>
+  typeof lat === 'number' && typeof lng === 'number'
+    ? `${Number(lat.toFixed(5))}, ${Number(lng.toFixed(5))}`
+    : '';
+
+/** A link that opens the point in Google Maps, so a pasted pin can be checked by eye. */
+export const mapUrl = (lat, lng) =>
+  `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`;
+
+/** "3 Oct, 4:05 pm" */
+export function dateTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+/** 1 → "1st", 2 → "2nd", 11 → "11th", 22 → "22nd". */
+export function ordinal(n) {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+}

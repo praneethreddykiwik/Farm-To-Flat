@@ -15,13 +15,20 @@
  *
  * There is no capacity/booking-count limit — a window only closes when its cut-off clock time
  * passes for that delivery date.
+ *
+ * LOCATION. Each community has a pin (where its gate is) and a radius (how far from the pin still
+ * counts as inside). That circle is what the app's "Use my location" checks a customer against, on
+ * their own phone. A community with no pin still works — residents pick it from the list — but the
+ * app cannot recognise it by location. And while ANY community has no pin the app counts no
+ * out-of-area requests at all (Demand stays empty): a miss could be someone standing in that
+ * community's lobby. The list flags the ones still to do.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useResource, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote } from '../components/ui.jsx';
-import { IconMap, IconPlus } from '../components/icons.jsx';
-import { noLead, shortDate } from '../lib/format.js';
+import { IconMap, IconPin, IconPlus } from '../components/icons.jsx';
+import { latLngText, mapUrl, noLead, num, parseLatLng, shortDate } from '../lib/format.js';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAYNAME = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -31,6 +38,7 @@ export function Communities() {
   const communities = useMemo(() => data?.communities || [], [data]);
   const [selId, setSelId] = useState(null);
   const [adding, setAdding] = useState(false);
+  const unlocated = communities.filter((c) => !hasLocation(c)).length;
 
   useEffect(() => {
     if (!selId && communities.length) setSelId(communities[0].id);
@@ -56,7 +64,10 @@ export function Communities() {
       <header className="topbar">
         <div>
           <h1 className="page-title">Communities & windows</h1>
-          <p className="page-sub">{communities.length} serviceable · delivery days and windows</p>
+          <p className="page-sub">
+            {communities.length} serviceable · delivery days, windows and location
+            {unlocated > 0 && <span className="warn-text"> · {unlocated} without a location</span>}
+          </p>
         </div>
         <button className="btn btn--primary" onClick={() => setAdding(true)}>
           <IconPlus size={18} /> New community
@@ -108,10 +119,26 @@ export function Communities() {
                       </div>
                     </div>
                   </div>
-                  <span className={`badge ${c.isActive ? 'st-CONFIRMED' : 'st-CANCELLED'}`}>
-                    <span className="badge__dot" />
-                    {c.isActive ? 'Active' : 'Paused'}
-                  </span>
+                  <div
+                    className="hstack"
+                    style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}
+                  >
+                    <span
+                      className={`badge ${hasLocation(c) ? 'badge--located' : 'badge--unlocated'}`}
+                      title={
+                        hasLocation(c)
+                          ? 'The app can recognise this community from a customer’s location'
+                          : '“Use my location” in the app cannot recognise this community yet'
+                      }
+                    >
+                      <IconPin size={13} />
+                      {hasLocation(c) ? 'Location set' : 'No location'}
+                    </span>
+                    <span className={`badge ${c.isActive ? 'st-CONFIRMED' : 'st-CANCELLED'}`}>
+                      <span className="badge__dot" />
+                      {c.isActive ? 'Active' : 'Paused'}
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: 16 }} onClick={(e) => e.stopPropagation()}>
@@ -140,6 +167,10 @@ export function Communities() {
 
                 <div style={{ marginTop: 14 }} onClick={(e) => e.stopPropagation()}>
                   <BlocksEditor community={c} onSaved={reload} />
+                </div>
+
+                <div style={{ marginTop: 14 }} onClick={(e) => e.stopPropagation()}>
+                  <LocationEditor community={c} onSaved={reload} />
                 </div>
 
                 <div style={{ marginTop: 14 }} onClick={(e) => e.stopPropagation()}>
@@ -311,6 +342,231 @@ function cutoffMeaning(w) {
 }
 
 const DEFAULT_NEW_WINDOW = { label: 'Afternoon', cutoff: '09:30', start: '14:00', end: '17:00' };
+
+const hasLocation = (c) => typeof c.lat === 'number' && typeof c.lng === 'number';
+const RADIUS = { min: 100, max: 5000, standard: 600 };
+
+/** What is wrong with a typed radius, or null. Blank means "the standard 600 m". */
+function radiusProblem(text) {
+  if (String(text).trim() === '') return null;
+  const n = Number(text);
+  if (!Number.isInteger(n)) return 'Radius is a whole number of metres.';
+  if (n < RADIUS.min || n > RADIUS.max)
+    return `Radius is between ${RADIUS.min} and ${RADIUS.max} metres.`;
+  return null;
+}
+
+/**
+ * The two fields a location is made of, shared by the editor on each card and the create form.
+ *
+ * ONE coordinates box, not two. The numbers come from Google Maps — right-click the gate, click the
+ * coordinates, and "17.4645, 78.3062" is on the clipboard — so a single box that takes that paste
+ * whole is the whole job. Two boxes would have the operator splitting it by hand and, sooner or
+ * later, swapping them. What was read is echoed back in words so a bad paste is seen before Save.
+ */
+function LocationFields({ coords, radius, onCoords, onRadius, autoFocus = false }) {
+  const pin = parseLatLng(coords);
+  const badRadius = radiusProblem(radius);
+  return (
+    <>
+      <div className="field__row field__row--coords">
+        <div className="field" style={{ margin: 0 }}>
+          <label className="field__label">Coordinates</label>
+          <input
+            className="field__input mono"
+            value={coords}
+            onChange={(e) => onCoords(e.target.value.slice(0, 80))}
+            placeholder="17.4645, 78.3062"
+            inputMode="text"
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus={autoFocus}
+            aria-label="Coordinates: latitude, longitude"
+          />
+        </div>
+        <div className="field" style={{ margin: 0 }}>
+          <label className="field__label">Radius (metres)</label>
+          <input
+            className="field__input mono"
+            value={radius}
+            onChange={(e) => onRadius(num(e.target.value, { max: 99999, integer: true }))}
+            placeholder={String(RADIUS.standard)}
+            inputMode="numeric"
+            aria-label="Radius in metres"
+          />
+        </div>
+      </div>
+      <p
+        className="field__hint"
+        style={{ margin: '6px 0 0', color: coords.trim() && !pin ? 'var(--tomato)' : undefined }}
+      >
+        {pin ? (
+          <>
+            Read as latitude {pin.lat}, longitude {pin.lng}.{' '}
+            <a href={mapUrl(pin.lat, pin.lng)} target="_blank" rel="noopener noreferrer">
+              Check on map
+            </a>{' '}
+            — the pin should sit on the main gate.
+          </>
+        ) : coords.trim() ? (
+          'That does not read as a location. Paste both numbers, latitude first: 17.4645, 78.3062'
+        ) : (
+          'In Google Maps, right-click the community’s main gate and click the two numbers at the top — that copies them. Paste here.'
+        )}
+      </p>
+      {badRadius ? (
+        <p className="field__hint" style={{ margin: '4px 0 0', color: 'var(--tomato)' }}>
+          {badRadius}
+        </p>
+      ) : (
+        <p className="field__hint" style={{ margin: '4px 0 0' }}>
+          How far from the pin still counts as inside. {RADIUS.standard} m suits most gated
+          communities; widen it for a large township, narrow it where two communities share a wall.
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * Where a community is. Collapsed, it says whether the app can recognise the community by location
+ * and offers the map; expanded, it is the two fields above. Saved by its own PATCH, and durably:
+ * the server refuses rather than accept a location it cannot store, and that refusal is shown here
+ * in full — it names the one thing to run — instead of in a toast that is gone in three seconds.
+ */
+function LocationEditor({ community, onSaved }) {
+  const set = hasLocation(community);
+  const [editing, setEditing] = useState(false);
+  const [coords, setCoords] = useState('');
+  const [radius, setRadius] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [refused, setRefused] = useState('');
+
+  function open() {
+    setCoords(set ? latLngText(community.lat, community.lng) : '');
+    setRadius(set ? String(community.radiusM ?? RADIUS.standard) : '');
+    setRefused('');
+    setEditing(true);
+  }
+
+  const pin = parseLatLng(coords);
+  const invalid = !pin || !!radiusProblem(radius);
+
+  async function send(body, done) {
+    setSaving(true);
+    setRefused('');
+    try {
+      await api.patch(`/admin/communities/${community.id}`, body);
+      toast(`${community.name} · ${done}`);
+      setEditing(false);
+      onSaved?.();
+    } catch (e) {
+      // NOT_READY carries the statement that creates the missing table. Keep it on screen.
+      if (e.code === 'NOT_READY') setRefused(e.message);
+      else toast(e.message || 'Could not save the location', 'err');
+    } finally {
+      setSaving(false);
+    }
+  }
+  const save = () =>
+    send(
+      { lat: pin.lat, lng: pin.lng, radiusM: radius.trim() ? Number(radius) : RADIUS.standard },
+      'location saved',
+    );
+  const clear = () => {
+    if (
+      !confirm(
+        `Remove ${community.name}’s location? The app will stop recognising it from a customer’s location. Residents can still pick it from the list.`,
+      )
+    )
+      return;
+    send({ geo: null }, 'location removed');
+  };
+
+  if (!editing) {
+    return (
+      <div className="vstack" style={{ gap: 8 }}>
+        <div className="hstack" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="field__label" style={{ margin: 0 }}>
+            Location
+          </span>
+          <button className="btn btn--ghost btn--sm" onClick={open}>
+            {set ? 'Edit location' : 'Set location'}
+          </button>
+        </div>
+        {set ? (
+          <div className="hstack" style={{ gap: 10, flexWrap: 'wrap', fontSize: 12.5 }}>
+            <span className="mono">{latLngText(community.lat, community.lng)}</span>
+            <span className="muted">reaches {community.radiusM ?? RADIUS.standard} m</span>
+            <a
+              href={mapUrl(community.lat, community.lng)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Check on map
+            </a>
+          </div>
+        ) : (
+          <p className="located-note">
+            Not set — “Use my location” in the app cannot recognise this community yet. And while
+            any community is without a location, the app does not count requests from outside our
+            area: it cannot tell someone who is outside from someone standing in this lobby.
+          </p>
+        )}
+        {community.canSaveLocation === false && (
+          <p className="located-note">
+            Locations cannot be saved yet: the database is missing a table. Press “
+            {set ? 'Edit location' : 'Set location'}” and Save to see the one statement that creates
+            it.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="vstack" style={{ gap: 0 }}>
+      <span className="field__label" style={{ margin: '0 0 8px' }}>
+        Location
+      </span>
+      <LocationFields
+        coords={coords}
+        radius={radius}
+        onCoords={setCoords}
+        onRadius={setRadius}
+        autoFocus
+      />
+      {refused && (
+        <div className="refusal" role="alert">
+          <strong>Not saved.</strong> {refused}
+        </div>
+      )}
+      <div className="hstack" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <button
+          className="btn btn--primary btn--sm"
+          onClick={save}
+          disabled={saving || invalid}
+          title={invalid ? 'Paste the coordinates first' : 'Save'}
+        >
+          {saving ? 'Saving…' : 'Save location'}
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+        {set && (
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={clear}
+            disabled={saving}
+            style={{ marginLeft: 'auto', color: 'var(--tomato)' }}
+          >
+            Remove location
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Add / edit / re-time / remove a community's delivery windows.
@@ -597,6 +853,10 @@ function CommunityForm({ onClose, onSaved }) {
     name: '',
     area: '',
     blocks: '',
+    // Optional at creation — it can be set from the card afterwards — but a community added
+    // without one is invisible to "Use my location" until it is.
+    coords: '',
+    radius: '',
     // Seeded with the pair almost every community runs; the operator adds, renames or removes
     // before saving, exactly as they would afterwards.
     windows: [
@@ -629,16 +889,31 @@ function CommunityForm({ onClose, onSaved }) {
     if (f.windows.length === 0) return toast('Add at least one delivery window.', 'err');
     if (f.windows.some((w) => !w.label.trim()))
       return toast('Every delivery window needs a name.', 'err');
+    const pin = parseLatLng(f.coords);
+    if (f.coords.trim() && !pin)
+      return toast('The coordinates do not read as a location. Fix or clear them.', 'err');
+    if (radiusProblem(f.radius)) return toast(radiusProblem(f.radius), 'err');
+    if (f.radius.trim() && !pin) return toast('Paste the coordinates before the radius.', 'err');
     setSaving(true);
     try {
-      const { community } = await api.post('/admin/communities', {
+      const { community, locationNotSaved } = await api.post('/admin/communities', {
         name: f.name.trim(),
         area: f.area.trim(),
         blocks,
         windows: f.windows,
         deliveryDays: f.deliveryDays,
+        ...(pin
+          ? {
+              lat: pin.lat,
+              lng: pin.lng,
+              radiusM: f.radius.trim() ? Number(f.radius) : RADIUS.standard,
+            }
+          : {}),
       });
       toast(`${community.name} added — live in the app`);
+      // The community exists; only its pin did not stick. Say so, and where to put it right.
+      if (locationNotSaved)
+        toast('Its location was not saved — set it from the community’s card.', 'err');
       onSaved(community);
     } catch (e) {
       toast(e.message || 'Could not create', 'err');
@@ -693,6 +968,15 @@ function CommunityForm({ onClose, onSaved }) {
           maxLength={200}
         />
         <p className="field__hint">Residents pick their block when adding an address in the app.</p>
+      </div>
+      <div className="field">
+        <label className="field__label">Location (optional — can be set later)</label>
+        <LocationFields
+          coords={f.coords}
+          radius={f.radius}
+          onCoords={(coords) => setF((s) => ({ ...s, coords }))}
+          onRadius={(radius) => setF((s) => ({ ...s, radius }))}
+        />
       </div>
       <div className="field">
         <label className="field__label">Delivery days</label>

@@ -11,7 +11,7 @@
  */
 import { useSupportEmail } from '../lib/publicSupport.js';
 
-const UPDATED = '3 November 2026';
+const UPDATED = '13 November 2026';
 const EFFECTIVE = '3 November 2026';
 
 // Registered legal entity, office address, and named Grievance Officer (DPDP Act / IT Rules).
@@ -49,8 +49,12 @@ const SECTIONS = (CONTACT) => [
         'payments are processed by Razorpay. We receive only a confirmation and a payment reference; we never see or store your full card number, UPI PIN, CVV, or bank credentials.',
       ],
       [
-        'Approximate location',
-        'only when you tap to check whether your community is serviceable. It is used once, in the foreground; we do not track your location in the background.',
+        'Your location, once, when you ask',
+        'only when you tap “Use my location” to check whether we deliver to you. The check is made on your phone: the app compares where you are with the communities we serve, and if you are in one of them your location goes no further. If you are not, the app sends it to us once so we can count a request from your area. We keep only the area — a PIN code, or a square about a kilometre across — and a running count. We do not keep your name, your number, your account or your exact position with it, so that count cannot be traced back to you. We never track your location in the background.',
+      ],
+      [
+        'A request to be told when we reach your area',
+        'only if you tap “Tell me when you deliver here”. We then keep your name, your mobile number, your approximate area (to about a hundred metres, never your door) and the name of your community if you typed it — so that we can send you one message when delivery starts there. It is used for that message and nothing else. You can remove it at any time in the app under Profile, and it is deleted when you delete your account.',
       ],
       [
         'Camera and photos',
@@ -78,7 +82,7 @@ const SECTIONS = (CONTACT) => [
     list: [
       [
         'Location (approximate/precise)',
-        'a one-time, foreground check of whether we deliver to your community.',
+        'a one-time, foreground check of whether we deliver to your community, made when you tap “Use my location” and at no other time.',
       ],
       ['Camera', 'to photograph a vegetable to find it, or to show us a problem with an order.'],
       ['Photos / media', 'to attach a photo you choose to a search or a complaint.'],
@@ -102,6 +106,10 @@ const SECTIONS = (CONTACT) => [
     ],
     list: [
       ['Run your orders', 'take, pack, deliver, and support the orders you place.'],
+      [
+        'Know you when you come back',
+        'see which of your orders each one is — your first, your second, and so on — so that we can serve and support you properly. This is not used to advertise to you.',
+      ],
       ['Sign you in', 'verify your number and keep you signed in securely.'],
       ['Keep you informed', 'send order-status notifications you can turn off any time.'],
       ['Take payment', 'process and reconcile payments through our payment partner.'],
@@ -150,12 +158,13 @@ const SECTIONS = (CONTACT) => [
     h: '9. How long we keep it',
     p: [
       'We keep your account and order information for as long as your account is active and as needed to provide the Service. Order and payment records are retained for the period required by Indian tax and accounting law (generally up to eight years). When you ask us to delete your account, we delete or anonymise your personal data except where we must keep certain records to meet a legal obligation or resolve disputes.',
+      'A request to be told when we reach your area is kept until you remove it or delete your account. The count of requests from an area holds no personal data and is kept as long as it is useful for planning where we deliver.',
     ],
   },
   {
     h: '10. How we protect it',
     p: [
-      'We follow reasonable security practices and procedures as required by the SPDI Rules. Access to the app requires a one-time password sent to your number. Data travels over encrypted (HTTPS/TLS) connections and is stored with a reputable cloud provider using access controls and row-level security. Payment details are handled by our PCI-DSS-compliant payment partner and never pass through our own systems. We restrict internal access to personal data to staff who need it. No method of transmission or storage is perfectly secure, but we work to protect your information and will notify you and the authorities of a personal-data breach as required by law.',
+      'We follow reasonable security practices and procedures as required by the SPDI Rules. Access to the app requires a one-time password sent to your number. Data travels over encrypted (HTTPS/TLS) connections and is stored with a reputable cloud provider using access controls and row-level security. Payment details are handled by our PCI-DSS-compliant payment partner and never pass through our own systems. We restrict internal access to personal data to staff who need it. The people who pack and deliver see the orders they are handling; a customer’s whole order history is open only to our administrators, with the mobile number hidden until one is needed for a delivery, a complaint or a payment query, and each time a history is opened or a number is shown, that is recorded. No method of transmission or storage is perfectly secure, but we work to protect your information and will notify you and the authorities of a personal-data breach as required by law.',
     ],
   },
   {
@@ -183,6 +192,7 @@ const SECTIONS = (CONTACT) => [
     h: '12. Withdrawing your consent',
     p: [
       `You can withdraw your consent to our processing of your personal data at any time by emailing ${CONTACT} or by deleting your account in the app. Withdrawing consent does not affect processing already carried out, and because we need certain data to deliver your orders, withdrawing it may mean we can no longer provide the Service.`,
+      'A request to be told when we reach your area can be withdrawn on its own, without touching the rest of your account: remove it in the app under Profile, and we delete it at once.',
     ],
   },
   {
