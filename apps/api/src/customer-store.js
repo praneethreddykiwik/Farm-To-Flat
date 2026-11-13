@@ -20,7 +20,8 @@ import { persist, drainChain } from './persistence.js';
 import { deleteSubscriptionsForCustomer } from './demand-store.js';
 import { servingCommunity } from './lib/geo.js';
 import { reportError } from './lib/sentry.js';
-import { priceBreakdown } from './lib/charges.js';
+import { priceBreakdown, taxRatesOf } from './lib/charges.js';
+import { proxyImageUrl } from './lib/public-image.js';
 import { productName } from './lib/i18n.js';
 
 const DEV_OTP = '123456';
@@ -953,7 +954,11 @@ export function priceCart(cid) {
       },
       unit: p.unit,
       increment: p.increment,
-      image: p.image,
+      // Through the image route like every other photo the app shows — and the very same address
+      // the catalogue gave for this product, so the photo the shopper just tapped is already on
+      // the phone. This sent the storage address itself: the full-size original, from a host the
+      // rest of the app never talks to, which is why basket rows fell back to a letter.
+      image: proxyImageUrl(p.image),
       blurhash: p.blurhash || null,
       tint: p.tint,
       variableWeight: !!p.variableWeight,
@@ -997,6 +1002,7 @@ export function priceCart(cid) {
     chargesTotalPaise: String(b.chargesTotalPaise),
     taxLabel: b.taxLabel,
     taxPaise: String(b.taxPaise),
+    taxRates: taxRatesOf(b.taxPaise, b.taxBreakdown),
     totalPaise: String(b.totalPaise),
     minOrderValuePaise: String(k.minOrderValuePaise),
     meetsMinimum: subtotal >= k.minOrderValuePaise,

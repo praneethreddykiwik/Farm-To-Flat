@@ -279,7 +279,7 @@ const addressToRow = (a, customerId) => ({
   contactNumber: a.contactNumber ?? null,
   isDefault: !!a.isDefault,
 });
-const orderToRow = (o) => ({
+export const orderToRow = (o) => ({
   id: o.id,
   orderNumber: o.orderNumber,
   status: o.status,
@@ -294,6 +294,12 @@ const orderToRow = (o) => ({
   couponCode: o.couponCode ?? null,
   couponDiscountPaise: o.couponDiscountPaise ?? 0,
   deliveryChargePaise: o.deliveryChargePaise ?? 0,
+  // The fee lines and tax this order was placed with. These were computed on every order and never
+  // written here, so they lived until the next restart and then the bill was a subtotal and a
+  // larger total with nothing in between. Left out when absent (an order from before fees) rather
+  // than sent as null: Prisma refuses a bare null on a JSON column, and a snapshot is never unset.
+  ...(o.chargeBreakdown ? { chargeBreakdown: o.chargeBreakdown } : {}),
+  taxPaise: Math.max(0, Math.round(Number(o.taxPaise) || 0)),
   totalPaise: o.totalPaise,
   walletAppliedPaise: o.walletAppliedPaise ?? 0,
   gatewayAmountPaise: o.gatewayAmountPaise ?? 0,

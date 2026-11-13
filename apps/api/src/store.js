@@ -24,7 +24,7 @@ import { communityWindows, keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
 import { persist } from './persistence.js';
-import { breakdownSnapshot, priceBreakdown } from './lib/charges.js';
+import { breakdownSnapshot, priceBreakdown, reconstructSnapshot } from './lib/charges.js';
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -261,6 +261,15 @@ export function hydrateOrders(rows) {
         issues: r.issues || [],
       }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    // Orders saved before the fee lines were written to the database. Where the saved settings
+    // still reproduce the order's total exactly, put the lines back and keep them this time.
+    for (const o of db.orders) {
+      const snap = reconstructSnapshot(o, db.constants);
+      if (!snap) continue;
+      o.chargeBreakdown = snap;
+      o.taxPaise = snap.taxPaise;
+      persist.orderUpsert(o);
+    }
   } else if (IS_PROD) {
     // Production must start clean — never push the fake demo orders (Imran Khan, Anjali, …) into a
     // real database. Only dev/local gets example data. (IS_PROD also covers a Render service that was

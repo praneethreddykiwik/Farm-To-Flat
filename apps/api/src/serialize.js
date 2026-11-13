@@ -9,6 +9,7 @@
 import { getProduct, listCategories } from './store.js';
 import { money } from './lib/money.js';
 import { proxyImageUrl } from './lib/public-image.js';
+import { orderBill, taxRatesOf } from './lib/charges.js';
 import { categoryName, productName } from './lib/i18n.js';
 import { badgesFor } from './lib/knowledge.js';
 import { communityWindows } from './lib/windows.js';
@@ -252,6 +253,26 @@ function orderItemsCustomer(items) {
   }));
 }
 
+/**
+ * The fee lines and tax of an order, in the shape the basket already uses for a quote, so the app
+ * prints a placed order's bill with the same rows it printed before the order was placed.
+ * Delivery, when charged, is one of the lines.
+ */
+function billFields(o) {
+  const b = orderBill(o);
+  return {
+    chargeLines: b.lines.map((l, i) => ({
+      id: `l${i}`,
+      label: l.label,
+      amountPaise: money(l.amountPaise),
+    })),
+    taxLabel: b.taxLabel,
+    taxPaise: money(b.taxPaise),
+    // The rates the tax was worked out at, so the bill can say what the figure is a percentage of.
+    taxRates: taxRatesOf(b.taxPaise, b.taxBreakdown),
+  };
+}
+
 /** Customer-facing order (contract Order shape). No cost/margin fields. */
 export function orderCustomer(o) {
   return {
@@ -262,6 +283,7 @@ export function orderCustomer(o) {
     subtotalPaise: money(o.subtotalPaise),
     couponDiscountPaise: money(o.couponDiscountPaise || 0),
     deliveryChargePaise: money(o.deliveryChargePaise || 0),
+    ...billFields(o),
     totalPaise: money(o.totalPaise),
     walletAppliedPaise: money(o.walletAppliedPaise || 0),
     gatewayAmountPaise: money(o.gatewayAmountPaise || 0),
@@ -346,6 +368,7 @@ export function orderAdmin(o, today = new Date().toISOString().slice(0, 10)) {
     subtotalPaise: money(o.subtotalPaise),
     couponDiscountPaise: money(o.couponDiscountPaise || 0),
     deliveryChargePaise: money(o.deliveryChargePaise || 0),
+    ...billFields(o),
     totalPaise: money(o.totalPaise),
     couponCode: o.couponCode || null,
     deliveryDate: o.deliveryDate,

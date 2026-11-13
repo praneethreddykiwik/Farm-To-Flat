@@ -14,6 +14,7 @@
 import PDFDocument from 'pdfkit';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { orderBill } from './charges.js';
 
 // Brand palette (matches the app / landing).
 const BRAND = '#1E7A4C';
@@ -51,6 +52,18 @@ const rs = (paise) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+const pct = (bps) => `${Number((Number(bps) / 100).toFixed(2))}%`;
+
+/** What the tax figure is a percentage of — "18% on items Rs. 90.00, 18% on fees Rs. 1.98". */
+export function taxNote(bill) {
+  const tb = bill?.taxBreakdown;
+  if (!tb) return '';
+  const parts = [];
+  if (tb.goodsPaise > 0) parts.push(`${pct(tb.goodsRateBps)} on items ${rs(tb.goodsPaise)}`);
+  if (tb.feesPaise > 0) parts.push(`${pct(tb.feeRateBps)} on fees ${rs(tb.feesPaise)}`);
+  return parts.join(', ');
+}
 
 const dateStr = (iso) => {
   const d = iso ? new Date(iso) : new Date();
@@ -262,11 +275,22 @@ export function buildInvoicePdf(order) {
         GREEN_TEXT,
         GREEN_TEXT,
       );
-    if (Number(order.deliveryChargePaise) > 0)
-      sumRow('Delivery fee', rs(order.deliveryChargePaise));
-    for (const l of order.chargeBreakdown?.lines || []) sumRow(l.label, rs(l.amountPaise));
-    if (Number(order.taxPaise) > 0)
-      sumRow(order.chargeBreakdown?.taxLabel || 'GST', rs(order.taxPaise));
+    // Every fee and the tax, from the order's own record of them — the same lines the app shows.
+    // (This printed the delivery fee from the order AND again from the snapshot, which lists it.)
+    const bill = orderBill(order);
+    for (const l of bill.lines) sumRow(l.label, rs(l.amountPaise));
+    if (bill.taxPaise > 0) {
+      sumRow(bill.taxLabel, rs(bill.taxPaise));
+      const note = taxNote(bill);
+      if (note) {
+        doc
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor(MUT)
+          .text(note, sumX, y - 4, { width: R - sumX });
+        y += 10;
+      }
+    }
 
     // total band
     y += 4;
