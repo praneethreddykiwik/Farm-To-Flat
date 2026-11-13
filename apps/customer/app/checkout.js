@@ -24,6 +24,7 @@ import { OrderTerms } from '../src/components/OrderTerms';
 import { PaymentSimulator } from '../src/components/PaymentSimulator';
 import { useCart } from '../src/hooks/useCart';
 import { taxRowLabel } from '../src/lib/bill';
+import { FamilyCheck } from '../src/components/FamilyHint';
 import {
   useGetAddressesQuery,
   useGetWalletQuery,
@@ -574,6 +575,7 @@ export default function Checkout() {
           entering={FadeInDown.delay(240).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
         >
+          <FamilyCheck items={cart.items} byId={byId} style={{ marginBottom: 20 }} />
           <Label>{t('summary', lang)}</Label>
           <Glass radius={radius.lg} innerStyle={{ padding: 16, marginTop: 8 }}>
             {cart.items.map((it) => (

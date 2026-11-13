@@ -10,6 +10,7 @@ import { useFonts } from 'expo-font';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { hydrateHousehold } from '../src/features/household/householdSlice';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
   Fraunces_500Medium_Italic,
@@ -74,6 +75,7 @@ function AuthGate({ ready }) {
   useEffect(() => {
     const saved = readSavedLanguage();
     if (saved) dispatch(hydrateLanguage(saved));
+    dispatch(hydrateHousehold());
   }, [dispatch]);
 
   // Register this phone for order push-notifications once after sign-in (asks permission, gets the

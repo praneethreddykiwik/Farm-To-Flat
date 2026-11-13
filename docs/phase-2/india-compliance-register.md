@@ -127,3 +127,9 @@ Not a single statute so much as good practice with the Rights of Persons with Di
 | The interface in English, Hindi and Telugu                                                                            | **Done** (already so)                                       |
 | Product stories and recipes in Hindi and Telugu                                                                       | **Not built**                                               |
 | The new Hindi and Telugu lines written in this work (three short sentences)                                           | Written by me, not by a native speaker — **have them read** |
+
+## Kitchen guide and family size (added 13 November 2026)
+
+- **Family size (adults, children).** Personal data in the plain sense, so it is kept to the minimum that does the job: two counts, no names or ages, stored on the phone only and never transmitted. The purpose is stated where it is asked ("so we can tell you when a quantity looks light for your family"); it is optional, changeable, and cleared on sign-out. Nothing is collected from or about a child — only how many there are.
+- **Kitchen guide.** The reasons shown for an ingredient are about cooking. Nutrition wording comes only from the product's computed badge (FSSAI Schedule I thresholds, same engine as the product page); a unit test rejects any hand-written line that names a nutrient or a health benefit. No language model is involved, so nothing unreviewed can be said to a customer.
+- **Portion figures** are a rule of thumb for one meal and are worded as such ("about", "may be light"). They are not dietary advice and are not presented as a recommendation of intake.

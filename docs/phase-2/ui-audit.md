@@ -247,3 +247,43 @@ Everything else is the same. The app logs which way a phone was judged (`[f2f] d
 - All of this was measured on an emulator, not on a low-cost phone. The direction is not in doubt; how much a real phone gains is.
 - On the two sign-in screens the main button sits under the Android keyboard; people continue with the keyboard's ✓ key, and the six-digit code submits itself. Lifting the button above the keyboard is a change to how the whole app handles the keyboard, and needs a store build to do properly.
 - "Device year" was tried as a third sign of a low-cost phone and dropped: its scale stops at 2016, so it called a 6 GB phone old.
+
+## New — the kitchen guide and the family size, 13 November
+
+Two features asked for by the owner.
+
+### "What are you cooking?" (in the basket)
+
+A card in the basket asks what the shopper is cooking. They type a dish — "tomato curry", "sambar", "kodi kura" — or tap one of the ideas drawn from what is already in the basket. The answer is a row of cards from today's shelf: first what the dish **needs**, then what **makes it better**, each with one line saying why, its price, and an Add button. What is already in the basket is ticked, with a count ("1 of 4 in your basket"), and one button adds everything still missing.
+
+![The guide on iPhone](screens/pass-2/cooking-guide-ios.jpg)
+![The guide on Android](screens/pass-2/cooking-guide-android.jpg)
+
+How it works, and why that way:
+
+- **It is a written cookbook in the app, not a language model.** 34 everyday dishes, known by their English, Telugu and Hindi names. It answers at once, works offline, costs nothing per question, and can only suggest what is on the shelf and available today.
+- **The lines about taste are written by hand; the lines about nutrition are not written here at all.** Where a card says "Naturally high in vitamin A", that is the product's own badge, computed on the server from published composition data against the FSSAI thresholds. A test fails the build if any hand-written line mentions a nutrient or a health benefit.
+- **A dish it does not know** is built around whatever the words name that we sell ("drumstick leaves fry"), or else offers the base most curries start from — and says that is what it is doing.
+- Someone shopping vegetarian is not offered meat or eggs.
+
+Not built: asking a language model for dishes outside the book; Telugu and Hindi wording for the reasons (the dish names are understood in all three, the reasons are in English).
+
+### Family size, and "is this enough?"
+
+The first time a shopper reaches the shop after signing in, a sheet asks **who's eating at home**: a number of adults and a number of children. It can be skipped, and changed later from Profile or the basket.
+
+![The question](screens/pass-2/household-sheet-ios.jpg)
+
+With that set, the app speaks up when a quantity looks light for the household — and only then:
+
+- **On adding** something for the first time: a note, once ("250 g of Drumstick — about 500 g covers one meal").
+- **In the basket:** a line under the item with one tap to top up ("May be light for 4 · make it 500 g").
+- **At checkout:** a card, "Enough for everyone?", listing the light items with a button each.
+
+![Note on adding](screens/pass-2/family-toast-android.jpg)
+![In the basket](screens/pass-2/family-hint-android.jpg)
+![At checkout](screens/pass-2/family-checkout-android.jpg)
+
+The rule is a kitchen rule of thumb for **one meal**, per adult, with a child counted as half: 125 g of a vegetable, 100 g or a third of a bunch of greens, 150 g of fruit or meat, two eggs, a quarter of a whole cabbage or cauliflower. It rounds up to a quantity the product is sold in, never comments on herbs, and never adds anything by itself. These figures are mine, chosen to be unsurprising; they are in one file (`apps/customer/src/lib/household.js`) and are the owner's to change.
+
+**Privacy:** the two numbers are kept on the phone only and are never sent to the server — nothing in the service needs them. No names, no ages. Signing out clears them. The cost is that a new phone asks again.

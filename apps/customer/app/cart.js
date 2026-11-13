@@ -11,7 +11,15 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { NotebookPen, Plus, ShoppingBasket, Ticket, Trash2, X } from 'lucide-react-native';
+import {
+  NotebookPen,
+  Plus,
+  ShoppingBasket,
+  Ticket,
+  Trash2,
+  UsersRound,
+  X,
+} from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -43,6 +51,11 @@ import { showToast, selectLanguage } from '../src/features/ui/uiSlice';
 import { productLabel, t } from '../src/lib/i18n';
 import { colors, fonts, motion, radius } from '../src/theme';
 import { haptic } from '../src/lib/haptics';
+import { CookingGuide } from '../src/components/CookingGuide';
+import { FamilyHint } from '../src/components/FamilyHint';
+import { HouseholdSheet } from '../src/components/HouseholdSheet';
+import { householdLabel } from '../src/lib/household';
+import { selectHousehold } from '../src/features/household/householdSlice';
 
 function Line({ item, catalogProduct }) {
   const { quantity, setQuantity } = useCartLine({ id: item.productId, name: item.name });
@@ -93,6 +106,14 @@ function Line({ item, catalogProduct }) {
             size="sm"
           />
         </View>
+        <FamilyHint
+          product={catalogProduct}
+          quantity={quantity}
+          onTopUp={(q) => {
+            haptic.success();
+            setQuantity(q);
+          }}
+        />
         {noteOpen ? (
           <TextInput
             value={note}
@@ -240,6 +261,10 @@ export default function Cart() {
   const byId = useMemo(() => new Map((catalog?.products || []).map((p) => [p.id, p])), [catalog]);
 
   const navigating = useRef(false);
+  const scroller = useRef(/** @type {any} */ (null));
+  const guideY = useRef(0);
+  const householdSheet = useRef(/** @type {any} */ (null));
+  const household = useSelector(selectHousehold);
   // On Android the sheet is drawn by PopupSheet, which takes itself off screen before the route
   // goes; closing asks it to, rather than cutting straight to the dismissal.
   const sheet = useRef(/** @type {{ close: () => void } | null} */ (null));
@@ -313,8 +338,11 @@ export default function Cart() {
       ) : (
         <>
           <ScrollView
+            ref={scroller}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 220 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
           >
             <Animated.View entering={FadeInDown.duration(360).springify().damping(18)}>
               <Glass radius={radius.lg} innerStyle={{ paddingHorizontal: 14 }}>
@@ -344,6 +372,40 @@ export default function Cart() {
                 </Glass>
               </Pressy>
             </Animated.View>
+
+            {/* Who the basket is for. Tapping it changes the numbers; with none entered it asks. */}
+            <Pressy
+              onPress={() => householdSheet.current?.present()}
+              haptics="select"
+              scale={0.985}
+              style={styles.family}
+              accessibilityLabel="Who is eating at home"
+            >
+              <UsersRound size={15} color={colors.leafDeep} strokeWidth={2.2} />
+              <Small color={colors.leafDeep} style={{ flex: 1 }} numberOfLines={1}>
+                {household
+                  ? `Shopping for ${householdLabel(household)}`
+                  : 'Tell us who’s eating — we’ll flag what looks light'}
+              </Small>
+              <Small color={colors.leafDeep} style={{ textDecorationLine: 'underline' }}>
+                {household ? 'Change' : 'Add'}
+              </Small>
+            </Pressy>
+
+            <View
+              style={{ marginTop: 14 }}
+              onLayout={(e) => {
+                guideY.current = e.nativeEvent.layout.y;
+              }}
+            >
+              <CookingGuide
+                products={catalog?.products || []}
+                basket={items}
+                onReveal={() =>
+                  scroller.current?.scrollTo({ y: Math.max(0, guideY.current - 8), animated: true })
+                }
+              />
+            </View>
 
             <Animated.View
               entering={FadeInDown.delay(80).duration(360).springify().damping(18)}
@@ -463,6 +525,7 @@ export default function Cart() {
             {body}
           </View>
         )}
+        <HouseholdSheet ref={householdSheet} />
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
@@ -525,6 +588,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
+  },
+  family: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(191,233,208,0.45)',
   },
   coupon: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   couponIcon: {

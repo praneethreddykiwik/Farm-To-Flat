@@ -1,3 +1,5 @@
+import { lightFor } from './FamilyHint';
+import { selectHousehold } from '../features/household/householdSlice';
 import React, { memo, useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -5,8 +7,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Glass, Money, Pressy, ProductImage, Small, Stepper, Text } from '../ui';
 import { colors, motion, radius, stackAbove } from '../theme';
 import { useCartLine } from '../hooks/useCart';
-import { useSelector } from 'react-redux';
-import { selectLanguage } from '../features/ui/uiSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { selectLanguage, showToast } from '../features/ui/uiSlice';
 import { productLabel } from '../lib/i18n';
 import { DietMark } from './DietMark';
 import { canFly, flyToBag } from '../lib/flyToBag';
@@ -26,6 +28,8 @@ function ProductCardBase({ product, index = 0, width }) {
     [product.id, router],
   );
   const lang = useSelector(selectLanguage);
+  const dispatch = useDispatch();
+  const household = useSelector(selectHousehold);
   const label = productLabel(product, lang);
   // The romanised alias under the name. In English it is the local word for the produce; once the
   // name itself is already Telugu or Hindi it would just repeat, so show the English name instead —
@@ -64,8 +68,14 @@ function ProductCardBase({ product, index = 0, width }) {
             });
         });
       setQuantity(next, { pulse: !flies });
+      // The first time something goes in, if that amount looks light for the household, say so —
+      // once. Tapping up from there is the shopper deciding, and is left alone.
+      if (quantity === 0 && next > 0) {
+        const light = lightFor(product, next, household);
+        if (light) dispatch(showToast({ title: light.title, message: light.message }));
+      }
     },
-    [label, product.blurhash, product.image, product.tint, quantity, setQuantity],
+    [dispatch, household, label, product, quantity, setQuantity],
   );
 
   return (

@@ -15,6 +15,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  UsersRound,
   Pencil,
   Phone,
   Plus,
@@ -42,6 +43,9 @@ import { customerUpdated, selectCustomer } from '../src/features/auth/authSlice'
 import { profileUpdated, selectProfile } from '../src/features/plan/planSlice';
 import { selectAiVisible } from '../src/features/role/roleSlice';
 import { showToast, selectLanguage } from '../src/features/ui/uiSlice';
+import { HouseholdSheet } from '../src/components/HouseholdSheet';
+import { householdLabel } from '../src/lib/household';
+import { selectHousehold } from '../src/features/household/householdSlice';
 import { useSignOut } from '../src/hooks/useSession';
 import { LanguagePicker } from '../src/components/LanguagePicker';
 import { t } from '../src/lib/i18n';
@@ -156,6 +160,8 @@ export default function Profile() {
   const [busy, setBusy] = useState(false);
   const [field, setField] = useState(null);
   const editSheet = useRef(null);
+  const householdSheet = useRef(/** @type {any} */ (null));
+  const household = useSelector(selectHousehold);
 
   const addresses = useMemo(() => data?.addresses || [], [data]);
 
@@ -335,6 +341,13 @@ export default function Profile() {
                 </Small>
               </View>
             }
+          />
+          <Row
+            icon={<UsersRound size={18} color={colors.ink} />}
+            label="Who’s eating at home"
+            value={household ? householdLabel(household) : null}
+            hint="Add adults and children"
+            onPress={() => householdSheet.current?.present()}
           />
           <Row
             icon={<Mail size={18} color={colors.ink} />}
@@ -700,6 +713,7 @@ export default function Profile() {
       </ScrollView>
 
       <EditFieldSheet ref={editSheet} field={field} onSave={save} saving={saving} />
+      <HouseholdSheet ref={householdSheet} />
     </View>
   );
 }

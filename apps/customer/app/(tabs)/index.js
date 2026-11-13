@@ -23,6 +23,7 @@ import { ConfirmBanner } from '../../src/components/ConfirmBanner';
 import { LiveOrderCard } from '../../src/components/LiveOrderCard';
 import { ProductCard } from '../../src/components/ProductCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
+import { HouseholdPrompt } from '../../src/components/HouseholdPrompt';
 import { CartBar } from '../../src/components/CartBar';
 import { DietToggle } from '../../src/components/DietToggle';
 import { SeasonalRail } from '../../src/components/SeasonalRail';
@@ -237,6 +238,7 @@ export default function Home() {
         </Glass>
       </Animated.View>
       <CartBar />
+      <HouseholdPrompt />
       <LensResult
         result={lens}
         onClose={() => setLens(null)}

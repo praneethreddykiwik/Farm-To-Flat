@@ -5,6 +5,7 @@ import authReducer from '../features/auth/authSlice';
 import uiReducer from '../features/ui/uiSlice';
 import planReducer from '../features/plan/planSlice';
 import roleReducer from '../features/role/roleSlice';
+import householdReducer from '../features/household/householdSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     ui: uiReducer,
     plan: planReducer,
     role: roleReducer,
+    household: householdReducer,
     [api.reducerPath]: api.reducer,
   },
   middleware: (getDefault) =>
