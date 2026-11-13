@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ import { useGetCouponsQuery } from '../api/api';
 import { useSelector } from 'react-redux';
 import { selectLanguage } from '../features/ui/uiSlice';
 import { t } from '../lib/i18n';
+import { useBagBounce, useBagTarget } from './FlyToBag';
 
 /**
  * Floating "view basket" bar that slides up above the tab bar the moment the basket has anything in it.
@@ -42,7 +43,13 @@ export function CartBar({ bottom }) {
     return eligible[0] || null;
   }, [couponData]);
 
-  if (!cart || count === 0) return null;
+  // Once the bar is showing it is where an added product's photo lands, and its bag takes the
+  // bounce. Withdrawn the moment the basket empties, so nothing flies at a bar that is not there.
+  const showing = !!cart && count > 0;
+  const [bagRef, bagLayout] = useBagTarget(`cartbar${useId()}`, 1, showing);
+  const bounce = useBagBounce(1.22);
+
+  if (!showing) return null;
   // Sit clearly ABOVE the floating tab bar (its pill is ~68 tall on top of the safe-area padding),
   // with a real gap so the two glass bars never touch/merge.
   const barBottom = bottom ?? Math.max(insets.bottom, 12) + 68 + 16;
@@ -94,9 +101,14 @@ export function CartBar({ bottom }) {
         accessibilityLabel={t('viewBasket', lang)}
       >
         <Glass tone="dark" radius={radius.lg} innerStyle={styles.inner}>
-          <View style={styles.iconWrap}>
+          <Animated.View
+            ref={bagRef}
+            onLayout={bagLayout}
+            collapsable={false}
+            style={[styles.iconWrap, bounce]}
+          >
             <ShoppingBag size={20} color={colors.ink} strokeWidth={2.3} />
-          </View>
+          </Animated.View>
           <View style={{ flex: 1 }}>
             <Text variant="bodyMedium" color={colors.inkOnDark}>
               {count} {count === 1 ? t('item', lang) : t('items', lang)} {t('inYourBasket', lang)}

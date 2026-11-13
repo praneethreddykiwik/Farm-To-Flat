@@ -79,6 +79,10 @@ export function routeForNotification({ actionIdentifier, data } = {}) {
     return { pathname: '/confirm/[date]', params };
   }
 
+  // "we now deliver in your area" — sent to people who asked to be told. The useful next step is
+  // the one they could not take before: adding their address.
+  if (d.type === 'AREA_LAUNCHED' || d.areaKey) return { pathname: '/address/new' };
+
   // order updates
   if (d.orderId) {
     /** @type {Record<string, string>} */

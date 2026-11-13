@@ -1,14 +1,15 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Glass, Money, Pressy, ProductImage, Small, Stepper, Text } from '../ui';
-import { colors, motion, radius } from '../theme';
+import { colors, motion, radius, stackAbove } from '../theme';
 import { useCartLine } from '../hooks/useCart';
 import { useSelector } from 'react-redux';
 import { selectLanguage } from '../features/ui/uiSlice';
 import { productLabel } from '../lib/i18n';
 import { DietMark } from './DietMark';
+import { canFly, flyToBag } from '../lib/flyToBag';
 
 const UNIT_SUFFIX = { KG: '/kg', BUNCH: '/bunch', PIECE: '/pc', DOZEN: '/dozen', PACK: '/pack' };
 
@@ -42,6 +43,31 @@ function ProductCardBase({ product, index = 0, width }) {
   // of simply seeing that it had run out.
   const soldOut = !!product.availability && product.availability !== 'AVAILABLE';
 
+  // Adding sends the photo itself into the basket. It leaves from wherever the picture is on screen
+  // at that moment, so it is measured on the tap rather than remembered from layout — the card may
+  // have scrolled since. When a flight will bounce the basket on landing, the cart hook is told not
+  // to bounce it again.
+  const photo = useRef(/** @type {any} */ (null));
+  const change = useCallback(
+    (next) => {
+      const adding = next > quantity;
+      const flies = adding && canFly();
+      if (flies)
+        photo.current?.measureInWindow?.((x, y, w, h) => {
+          if (w > 0 && h > 0)
+            flyToBag({
+              from: { x: x + w / 2, y: y + h / 2 },
+              uri: product.image,
+              blurhash: product.blurhash,
+              tint: product.tint,
+              name: label,
+            });
+        });
+      setQuantity(next, { pulse: !flies });
+    },
+    [label, product.blurhash, product.image, product.tint, quantity, setQuantity],
+  );
+
   return (
     <Animated.View
       entering={FadeInDown.delay(Math.min(index, 8) * motion.stagger)
@@ -57,7 +83,9 @@ function ProductCardBase({ product, index = 0, width }) {
           scale={0.985}
           accessibilityLabel={`${label}, ${alias || ''}`}
         >
-          <View style={styles.imageWrap}>
+          {/* collapsable={false}: Android flattens a plain wrapper out of the native tree, and a
+              view that is not there cannot be measured for the flight to start from. */}
+          <View ref={photo} collapsable={false} style={styles.imageWrap}>
             <View style={styles.imageClip}>
               <ProductImage
                 uri={product.image}
@@ -110,7 +138,7 @@ function ProductCardBase({ product, index = 0, width }) {
                 increment={product.increment}
                 unit={product.unit}
                 max={product.dailyCap}
-                onChange={setQuantity}
+                onChange={change}
                 size="sm"
               />
             )}
@@ -139,6 +167,9 @@ const styles = StyleSheet.create({
   // overflow:hidden is dropped by the parent's clip, so putting the clip HERE made the veil vanish
   // all over again. The clip therefore wraps the photo alone; the overlays sit outside it, in a
   // parent that never clips, and round their own corners to match.
+  //
+  // And the elevation must cast no shadow: `stackAbove()` keeps the paint order and hides it. Under
+  // the see-through veil the shadow showed as a pale square box inset in every sold-out photo.
   imageWrap: {
     aspectRatio: 1,
     width: '100%',
@@ -155,7 +186,7 @@ const styles = StyleSheet.create({
   },
   // Top-right, so it never collides with the WEIGHED tag on the left. Elevated for the same Android
   // paint-order reason as the overlays below.
-  diet: { position: 'absolute', top: 8, right: 8, zIndex: 2, elevation: 2 },
+  diet: { position: 'absolute', top: 8, right: 8, ...stackAbove(2) },
   tag: {
     position: 'absolute',
     top: 8,
@@ -163,8 +194,7 @@ const styles = StyleSheet.create({
     // Never wider than the image it sits on, so a long label stays on the photo instead of
     // spilling across the text below.
     maxWidth: '90%',
-    zIndex: 2,
-    elevation: 2,
+    ...stackAbove(2),
     backgroundColor: colors.glassDark,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -184,8 +214,7 @@ const styles = StyleSheet.create({
     // Matches the photo's own corners, so the wash does not sit square over a rounded image.
     borderRadius: radius.md,
     // Android orders overlapping siblings by elevation, not by which is written last.
-    zIndex: 2,
-    elevation: 2,
+    ...stackAbove(2),
   },
   soldOutPill: {
     backgroundColor: colors.glassDark,

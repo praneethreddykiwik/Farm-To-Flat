@@ -167,3 +167,16 @@ describe('meal reminders that know when to stay quiet', () => {
     expect(planReminders({ now: dawn, dates })).toEqual([]);
   });
 });
+
+describe('routeForNotification — "now delivering in your area"', () => {
+  it('opens the add-address screen, from the shade or from the in-app list', () => {
+    expect(routeForNotification({ data: { areaKey: 'pin:500084', communityId: 'com_x' } })).toEqual(
+      {
+        pathname: '/address/new',
+      },
+    );
+    expect(routeForNotification({ data: { type: 'AREA_LAUNCHED' } })).toEqual({
+      pathname: '/address/new',
+    });
+  });
+});

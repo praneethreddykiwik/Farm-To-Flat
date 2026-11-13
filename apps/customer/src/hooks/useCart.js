@@ -47,7 +47,13 @@ export function useCartLine(product) {
   }, [serverQty]);
 
   const setQuantity = useCallback(
-    (qty) => {
+    /**
+     * @param {number} qty
+     * @param {{ pulse?: boolean }} [opts]  `pulse: false` when something else acknowledges the add —
+     *   a photo flying into the basket bounces it on landing, and a second bounce when the server
+     *   answers a moment later reads as a glitch.
+     */
+    (qty, { pulse = true } = {}) => {
       const wasZero = local === 0;
       setLocal(qty);
       pending.current = qty;
@@ -57,7 +63,7 @@ export function useCartLine(product) {
         pending.current = null;
         try {
           await setCartItem({ productId: product.id, quantity: String(q) }).unwrap();
-          if (wasZero && q > 0) dispatch(pulseBag());
+          if (pulse && wasZero && q > 0) dispatch(pulseBag());
         } catch (e) {
           setLocal(serverQty);
           dispatch(showToast({ title: e?.message || 'Could not update basket', tone: 'error' }));

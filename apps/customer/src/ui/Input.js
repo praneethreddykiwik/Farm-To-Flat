@@ -1,7 +1,9 @@
-import React, { forwardRef, useState } from 'react';
+import React, { forwardRef, useContext, useState } from 'react';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Glass } from './Glass';
+import { InSheet } from './Sheet';
 import { Small, Text } from './Text';
 import { KEYBOARD_DONE_ID } from './KeyboardDone';
 import { colors, fonts, motion, radius } from '../theme';
@@ -29,6 +31,9 @@ export const Input = /** @type {any} */ (
     },
     ref,
   ) {
+    // Inside a bottom sheet, the sheet's own field — it is the one the sheet moves for when the
+    // keyboard opens. Everywhere else, the ordinary one.
+    const Field = /** @type {any} */ (useContext(InSheet) ? BottomSheetTextInput : TextInput);
     const [focused, setFocused] = useState(false);
     const focus = useSharedValue(0);
     const ring = useAnimatedStyle(() => ({
@@ -50,7 +55,7 @@ export const Input = /** @type {any} */ (
           <Glass radius={radius.md} elevated={false} innerStyle={styles.inner}>
             <View style={styles.row}>
               {leading ? <View style={styles.adorn}>{leading}</View> : null}
-              <TextInput
+              <Field
                 ref={ref}
                 placeholderTextColor={colors.ink3}
                 selectionColor={colors.leaf}

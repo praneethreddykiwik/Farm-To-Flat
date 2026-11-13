@@ -1,6 +1,12 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  FadeOut,
+  LinearTransition,
+} from 'react-native-reanimated';
 import { Minus, Plus } from 'lucide-react-native';
 import { Pressy } from './Pressy';
 import { Mono, Small, Text } from './Text';
@@ -35,6 +41,16 @@ export function Stepper({
   const dark = tone === 'dark';
   const h = size === 'sm' ? 34 : 42;
 
+  // Which way the figure last moved, so the new one can arrive from the right side: up from below
+  // when adding, down from above when taking away. A counter that ticks, rather than a label that
+  // is silently replaced. Worked out from the value itself (adjusted during render, as React
+  // recommends for derived state), so it is right however the quantity changed.
+  const [seen, setSeen] = useState(value);
+  const [rising, setRising] = useState(true);
+  if (seen !== value) {
+    setRising(value > seen);
+    setSeen(value);
+  }
   const dec = useCallback(() => {
     const next = Math.max(0, Math.round((value - inc) * 1000) / 1000);
     haptic.select();
@@ -89,9 +105,15 @@ export function Stepper({
         <Minus size={16} color={colors.inkOnDark} strokeWidth={2.5} />
       </Pressy>
       <View style={styles.value}>
-        <Mono color={colors.sprout} style={{ fontSize: size === 'sm' ? 12 : 13 }}>
-          {formatQty(value, unit)}
-        </Mono>
+        {/* Keyed by the value: each change mounts a fresh figure, which is what lets it animate in. */}
+        <Animated.View
+          key={String(value)}
+          entering={(rising ? FadeInDown : FadeInUp).duration(170)}
+        >
+          <Mono color={colors.sprout} style={{ fontSize: size === 'sm' ? 12 : 13 }}>
+            {formatQty(value, unit)}
+          </Mono>
+        </Animated.View>
       </View>
       <Pressy
         onPress={add}

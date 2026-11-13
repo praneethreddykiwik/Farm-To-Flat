@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BellOff,
   CheckCircle2,
+  MapPin,
   MessageSquare,
   Package,
   PackageCheck,
@@ -23,6 +24,7 @@ import {
   useMarkNotificationReadMutation,
 } from '../src/api/api';
 import { colors, fonts, motion, radius } from '../src/theme';
+import { routeForNotification } from '../src/lib/notificationRoutes';
 
 /** Icon + tint per notification type, so the feed scans at a glance. */
 const LOOK = {
@@ -35,6 +37,7 @@ const LOOK = {
   REFUND_INITIATED: { Icon: Wallet, tint: colors.leaf },
   FEEDBACK_INVITE: { Icon: Star, tint: colors.amber || '#d89b1a' },
   COMPLAINT_REPLY: { Icon: MessageSquare, tint: colors.leaf },
+  AREA_LAUNCHED: { Icon: MapPin, tint: colors.leaf },
   INFO: { Icon: CheckCircle2, tint: colors.ink2 },
 };
 
@@ -67,8 +70,10 @@ export default function Notifications() {
 
   const open = (n) => {
     if (!n.readAt) markRead(n.id);
-    const orderId = n.data?.orderId;
-    if (orderId) router.push({ pathname: '/order/[id]', params: { id: orderId } });
+    // One table decides where every notification leads, whether it is tapped here or in the
+    // system shade. This screen used to know about orders only, so anything else did nothing.
+    const to = routeForNotification({ data: { ...(n.data || {}), type: n.type } });
+    if (to) router.push(/** @type {any} */ (to));
   };
 
   return (

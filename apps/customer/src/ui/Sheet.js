@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -12,16 +12,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius } from '../theme';
 import { Title, Small } from './Text';
 
+/**
+ * True for anything rendered inside a Sheet. `Input` reads it to swap in the sheet's own text
+ * field: a bottom sheet only lifts itself clear of the keyboard for a field it knows about, and
+ * with a plain TextInput the keyboard simply rose over the field being typed in and the button
+ * under it.
+ */
+export const InSheet = React.createContext(false);
+
+// A sheet is frosted on iOS, where the blur underneath is real. Android has no blur behind a view,
+// so the same 86% fill left the screen below perfectly readable THROUGH the sheet — field labels and
+// the Save button showing between the community names. There the sheet is simply solid.
+const FROSTED = Platform.OS === 'ios';
+
 function GlassBackground({ style }) {
   return (
     <View style={[style, styles.bg]}>
-      <BlurView
-        intensity={50}
-        tint="light"
-        blurMethod="dimezisBlurView"
-        style={StyleSheet.absoluteFill}
+      {FROSTED ? <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} /> : null}
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: FROSTED ? 'rgba(247,249,244,0.86)' : 'rgb(247,249,244)' },
+        ]}
       />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(247,249,244,0.86)' }]} />
       <LinearGradient
         pointerEvents="none"
         colors={['rgba(255,255,255,0.9)', 'rgba(255,255,255,0)']}
@@ -94,7 +107,9 @@ export const Sheet = /** @type {any} */ (
               ) : null}
             </View>
           ) : null}
-          <View style={{ paddingBottom: scroll ? 0 : insets.bottom + 16 }}>{children}</View>
+          <View style={{ paddingBottom: scroll ? 0 : insets.bottom + 16 }}>
+            <InSheet.Provider value={true}>{children}</InSheet.Provider>
+          </View>
         </Body>
       </BottomSheetModal>
     );

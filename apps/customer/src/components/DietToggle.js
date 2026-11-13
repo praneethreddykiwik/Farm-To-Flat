@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectDietPref, setDietPref } from '../features/ui/uiSlice';
 import { haptic } from '../lib/haptics';
-import { colors, fonts } from '../theme';
+import { colors, fonts, shadow } from '../theme';
 import { DietMark } from './DietMark';
 
 // Veg / non-veg preference, shared across the shop and search. The filter wears the SAME mark the
@@ -65,14 +65,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
   },
-  segOn: {
-    backgroundColor: colors.white,
-    shadowColor: '#0e1b14',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+  segOn: { backgroundColor: colors.white, ...shadow.seg },
   txt: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink3 },
   txtOn: { fontFamily: fonts.bodySemi, color: colors.ink },
 });

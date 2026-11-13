@@ -5,29 +5,35 @@ import * as Notifications from 'expo-notifications';
 import { kv } from '../src/lib/kv';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import {
   ArrowLeft,
   Bell,
+  BellRing,
   ChevronRight,
   Leaf,
   LogOut,
   Mail,
   MapPin,
+  Pencil,
   Phone,
   Plus,
   ShieldCheck,
   Sparkles,
   Star,
+  Trash2,
   UserRound,
 } from 'lucide-react-native';
 import { Ambient, Button, Display, Glass, Label, Pressy, Small, Text } from '../src/ui';
 import { EditFieldSheet } from '../src/components/EditFieldSheet';
 import { checkEmail, checkName } from '../src/lib/validators';
 import {
+  useDeleteAddressMutation,
   useGetAddressesQuery,
+  useGetDemandSubscriptionsQuery,
   useGetSupportQuery,
   useRegisterDeviceMutation,
+  useRemoveDemandSubscriptionMutation,
   useSetDefaultAddressMutation,
   useUpdateMeMutation,
   useDeleteAccountMutation,
@@ -45,7 +51,7 @@ import { env } from '../src/lib/env';
 
 /**
  * One tappable row in a settings group.
- * @param {{ icon: any, label: string, value?: any, hint?: string, onPress?: () => void, right?: any, last?: boolean }} props
+ * @param {{ icon: any, label: string, value?: any, hint?: string, onPress?: () => void, right?: any, last?: boolean, lines?: number }} props
  */
 function Row({
   icon,
@@ -55,6 +61,9 @@ function Row({
   onPress = undefined,
   right = undefined,
   last = false,
+  // Most values are one thing (a name, a number) and should never wrap. A value that is a sentence
+  // says so, and gets the second line it needs instead of being cut off mid-word.
+  lines = 1,
 }) {
   // Its own subscription: Row is a sibling component, not a child of Profile's scope.
   const lang = useSelector(selectLanguage);
@@ -64,7 +73,7 @@ function Row({
         <View style={styles.rowIcon}>{icon}</View>
         <View style={{ flex: 1 }}>
           <Small muted>{label}</Small>
-          <Text variant="bodyMedium" numberOfLines={1} color={value ? colors.ink : colors.ink3}>
+          <Text variant="bodyMedium" numberOfLines={lines} color={value ? colors.ink : colors.ink3}>
             {value || hint || t('notSet', lang)}
           </Text>
         </View>
@@ -90,6 +99,12 @@ export default function Profile() {
   const { data: supportData } = useGetSupportQuery();
   const support = supportData?.support;
   const [setDefault] = useSetDefaultAddressMutation();
+  const [deleteAddress] = useDeleteAddressMutation();
+  // "Tell me when you deliver here" requests. Listed here because this is where the form said they
+  // could be removed; the section does not exist until there is one.
+  const { data: requestData } = useGetDemandSubscriptionsQuery();
+  const [removeRequest] = useRemoveDemandSubscriptionMutation();
+  const requests = requestData?.subscriptions || [];
   const [registerDevice] = useRegisterDeviceMutation();
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
   const [deleteAccount, { isLoading: deleting }] = useDeleteAccountMutation();
@@ -143,6 +158,54 @@ export default function Profile() {
   const editSheet = useRef(null);
 
   const addresses = useMemo(() => data?.addresses || [], [data]);
+
+  const makeDefault = async (a) => {
+    try {
+      await setDefault(a.id).unwrap();
+      dispatch(showToast({ title: t('defaultChanged', lang), tone: 'success' }));
+    } catch (e) {
+      dispatch(showToast({ title: e?.message || t('couldNotSave', lang), tone: 'error' }));
+    }
+  };
+
+  // Removing needs a second, deliberate tap — and the last address cannot go at all, because an
+  // account with nowhere to deliver is thrown back into sign-up. The server enforces both; saying
+  // so here first saves the customer a round trip to find out.
+  const removeAddress = (a) => {
+    if (addresses.length <= 1) {
+      Alert.alert(t('onlyAddressTitle', lang), t('onlyAddressBody', lang), [
+        { text: t('close', lang), style: 'cancel' },
+        { text: t('addAnotherAddress', lang), onPress: () => router.push('/address/new') },
+      ]);
+      return;
+    }
+    Alert.alert(
+      t('removeAddressTitle', lang),
+      t('removeAddressBody', lang, { label: `${a.block} · ${a.flat}` }),
+      [
+        { text: t('keepAddress', lang), style: 'cancel' },
+        {
+          text: t('removeAddress', lang),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAddress(a.id).unwrap();
+              dispatch(showToast({ title: t('addressRemoved', lang), tone: 'success' }));
+            } catch (e) {
+              dispatch(showToast({ title: e?.message || t('couldNotSave', lang), tone: 'error' }));
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const floorText = (floor) =>
+    floor === null || floor === undefined || floor === ''
+      ? null
+      : String(floor) === '0'
+        ? t('floorGround', lang)
+        : t('floorN', lang, { n: floor });
 
   const edit = (f) => {
     setField(f);
@@ -295,7 +358,12 @@ export default function Profile() {
           <Row
             icon={<Leaf size={18} color={colors.ink} />}
             label={t('foodPreference', lang)}
-            value={dietProfile.diet}
+            // Stored lower-case; shown like every other value on this screen.
+            value={
+              dietProfile.diet
+                ? dietProfile.diet[0].toUpperCase() + dietProfile.diet.slice(1)
+                : null
+            }
             onPress={() => {
               const i = DIETS.indexOf(dietProfile.diet);
               const next = DIETS[(i + 1) % DIETS.length];
@@ -312,13 +380,16 @@ export default function Profile() {
         </View>
         <View style={{ gap: 10 }}>
           {addresses.map((a, i) => (
-            <Animated.View key={a.id} entering={FadeInDown.delay(60 + i * 50).duration(320)}>
-              <Pressy
-                onPress={() => !a.isDefault && setDefault(a.id)}
-                haptics="select"
-                scale={0.99}
-              >
-                <Glass radius={radius.lg} blur={false} innerStyle={styles.addr}>
+            <Animated.View
+              key={a.id}
+              entering={FadeInDown.delay(60 + i * 50).duration(320)}
+              // A removed address fades and the ones below close the gap, rather than the list
+              // snapping shut under the confirmation the customer has just dismissed.
+              exiting={FadeOut.duration(180)}
+              layout={LinearTransition.springify().damping(20)}
+            >
+              <Glass radius={radius.lg} blur={false}>
+                <View style={styles.addr}>
                   <View
                     style={[styles.addrIcon, a.isDefault && { backgroundColor: colors.sprout }]}
                   >
@@ -328,12 +399,18 @@ export default function Profile() {
                     <Text variant="bodyMedium">
                       {a.block} · {a.flat}
                     </Text>
-                    <Small muted>
-                      {a.communityName}, {a.area}
+                    <Small muted numberOfLines={1}>
+                      {[a.communityName, a.area].filter(Boolean).join(', ')}
                     </Small>
-                    {a.recipientName || a.contactNumber ? (
+                    {/* Floor, then who and how to reach them — one line of small print, so a long
+                        community name wraps on its own line rather than orphaning "12". */}
+                    {floorText(a.floor) || a.recipientName || a.contactNumber ? (
                       <Small muted style={{ fontSize: 11, marginTop: 2 }}>
-                        {[a.recipientName, a.contactNumber && `+91 ${a.contactNumber}`]
+                        {[
+                          floorText(a.floor),
+                          a.recipientName,
+                          a.contactNumber && `+91 ${a.contactNumber}`,
+                        ]
                           .filter(Boolean)
                           .join(' · ')}
                       </Small>
@@ -346,11 +423,56 @@ export default function Profile() {
                         {t('defaultBadge', lang)}
                       </Small>
                     </View>
-                  ) : (
-                    <Small color={colors.ink3}>{t('setDefault', lang)}</Small>
+                  ) : null}
+                </View>
+                {/* What can be done with it, in words. The card used to be one silent tap target
+                    that only ever set the default: there was no way to correct a flat number or
+                    drop an old address short of deleting the whole account. */}
+                <View style={styles.addrActions}>
+                  <Pressy
+                    onPress={() => router.push({ pathname: '/address/[id]', params: { id: a.id } })}
+                    haptics="select"
+                    style={styles.addrAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('editAddress', lang)} ${a.block} ${a.flat}`}
+                  >
+                    <Pencil size={15} color={colors.leafDeep} />
+                    <Small color={colors.leafDeep} style={styles.addrActionText}>
+                      {t('editAddress', lang)}
+                    </Small>
+                  </Pressy>
+                  <View style={styles.addrActionRule} />
+                  <Pressy
+                    onPress={() => removeAddress(a)}
+                    haptics="select"
+                    style={styles.addrAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('removeAddress', lang)} ${a.block} ${a.flat}`}
+                  >
+                    <Trash2 size={15} color={colors.tomato} />
+                    <Small color={colors.tomato} style={styles.addrActionText}>
+                      {t('removeAddress', lang)}
+                    </Small>
+                  </Pressy>
+                  {a.isDefault ? null : (
+                    <>
+                      <View style={styles.addrActionRule} />
+                      <Pressy
+                        onPress={() => makeDefault(a)}
+                        haptics="select"
+                        style={styles.addrAction}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t('makeDefault', lang)} ${a.block} ${a.flat}`}
+                      >
+                        <Star size={15} color={colors.ink2} />
+                        <Small color={colors.ink2} style={styles.addrActionText}>
+                          {t('makeDefault', lang)}
+                        </Small>
+                      </Pressy>
+                    </>
                   )}
-                </Glass>
-              </Pressy>
+                </View>
+              </Glass>
             </Animated.View>
           ))}
           <Button
@@ -362,12 +484,57 @@ export default function Profile() {
           />
         </View>
 
+        {requests.length ? (
+          <>
+            <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('deliveryRequests', lang)}</Label>
+            <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
+              {requests.map((r, i) => (
+                <Row
+                  key={r.id}
+                  icon={<BellRing size={18} color={colors.ink} />}
+                  label={r.communityName || t('deliveryRequestNote', lang)}
+                  value={r.areaLabel}
+                  last={i === requests.length - 1}
+                  right={
+                    <Pressy
+                      onPress={async () => {
+                        try {
+                          await removeRequest(r.id).unwrap();
+                          dispatch(
+                            showToast({ title: t('requestRemoved', lang), tone: 'success' }),
+                          );
+                        } catch (e) {
+                          dispatch(
+                            showToast({
+                              title: e?.message || t('couldNotSave', lang),
+                              tone: 'error',
+                            }),
+                          );
+                        }
+                      }}
+                      haptics="select"
+                      style={styles.requestRemove}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t('removeAddress', lang)} ${r.areaLabel}`}
+                    >
+                      <Small color={colors.tomato} style={styles.addrActionText}>
+                        {t('removeAddress', lang)}
+                      </Small>
+                    </Pressy>
+                  }
+                />
+              ))}
+            </Glass>
+          </>
+        ) : null}
+
         <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('preferencesLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
           <Row
             icon={<Bell size={18} color={colors.ink} />}
             label={t('orderWalletUpdates', lang)}
             value={t('orderWalletUpdatesHint', lang)}
+            lines={2}
             right={
               <Switch
                 value={push}
@@ -583,4 +750,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   defaultTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addrActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+  },
+  // 44 points tall each: these are the smallest things on the screen that have to be hit.
+  addrAction: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 6,
+  },
+  addrActionText: { fontFamily: fonts.bodyMedium },
+  addrActionRule: { width: StyleSheet.hairlineWidth, height: 20, backgroundColor: colors.hairline },
+  requestRemove: { minHeight: 44, justifyContent: 'center', paddingLeft: 12 },
 });

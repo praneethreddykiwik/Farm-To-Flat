@@ -79,17 +79,27 @@ export function checkFlat(raw) {
   return null;
 }
 
-// ── Floor (positive number; blank = not given. Negatives and 0 are rejected.) ──────────────────
+// ── Floor (required; a whole number, 0 = ground floor. Negatives cannot be typed.) ─────────────
+// Required because the rider needs it: "flat 1204" says floor 12 in one tower and nothing at all in
+// a block numbered by wing. It used to be optional AND refuse 0, so a ground-floor resident could
+// only leave it blank — the one answer that tells the rider nothing.
 export const cleanFloor = (raw) =>
   String(raw || '')
     .replace(/\D/g, '') // strips any "-", so a negative can't be entered
+    .replace(/^0+(?=\d)/, '') // "07" → "7", but a lone "0" stays: that is the ground floor
     .slice(0, 3);
 export function checkFloor(raw) {
   const v = cleanFloor(raw);
-  if (!v) return null; // floor is optional
-  if (Number(v) <= 0) return 'Enter a valid floor';
+  if (!v) return 'Enter your floor';
   return null;
 }
+/** "0" → "Ground floor", "12" → "Floor 12". Null when there is none on record. */
+export const floorLabel = (floor) =>
+  floor === null || floor === undefined || floor === ''
+    ? null
+    : String(floor) === '0'
+      ? 'Ground floor'
+      : `Floor ${floor}`;
 
 // ── Free text (landmark, notes) ───────────────────────────────────────────────
 export const cleanText = (raw, max = 80) =>

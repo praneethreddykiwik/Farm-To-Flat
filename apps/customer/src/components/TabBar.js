@@ -25,6 +25,7 @@ import { selectBagPulse } from '../features/ui/uiSlice';
 import { useGetCartQuery } from '../api/api';
 import { selectIsSignedIn } from '../features/auth/authSlice';
 import { selectAiVisible } from '../features/role/roleSlice';
+import { useBagTarget } from './FlyToBag';
 
 const ICONS = {
   index: Home,
@@ -99,6 +100,9 @@ export function TabBar({ state, descriptors, navigation }) {
       );
   }, [pulse, bagScale]);
   const bagStyle = useAnimatedStyle(() => ({ transform: [{ scale: bagScale.value }] }));
+  // Where an added product's photo lands. The lowest priority: a basket bar or a screen's own
+  // basket button, when one is showing, is the nearer and more informative place to arrive.
+  const [bagRef, bagLayout] = useBagTarget('tabs', 0);
 
   const [w, setW] = React.useState(0);
   const slot = visible.length ? w / visible.length : 0;
@@ -148,7 +152,12 @@ export function TabBar({ state, descriptors, navigation }) {
                 style={styles.tab}
                 scale={0.92}
               >
-                <Animated.View style={isBag ? bagStyle : undefined}>
+                <Animated.View
+                  ref={isBag ? bagRef : undefined}
+                  onLayout={isBag ? bagLayout : undefined}
+                  collapsable={false}
+                  style={isBag ? bagStyle : undefined}
+                >
                   <TabIcon name={route.name} focused={focused} color={color} />
                   {isBag && count > 0 ? (
                     <View style={styles.badge}>

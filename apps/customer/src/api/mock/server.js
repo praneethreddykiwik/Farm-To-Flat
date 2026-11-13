@@ -21,6 +21,7 @@ import {
 import { addDaysISO, todayISO, weekdayOf } from '../../lib/dates';
 import { shortId } from '../../lib/ids';
 import { handleMeals, resetMockMeals } from './meals';
+import { handlePlaces, mockGeo, resetMockPlaces } from './places';
 
 const DEV_OTP = '123456';
 const LATENCY_MS = [180, 420];
@@ -84,6 +85,7 @@ function persist() {
 /** Test/dev helper: wipe persisted mock state. */
 export function resetMockState() {
   resetMockMeals();
+  resetMockPlaces();
   state.customer = null;
   state.addresses = [];
   state.cart = { items: [], couponCode: null };
@@ -522,12 +524,14 @@ async function route(method, path, body, headers = {}) {
   // ---------- PUBLIC ----------
   if (method === 'GET' && p === '/communities') {
     return ok({
-      communities: COMMUNITIES.map(({ id, name, area, blocks, deliveryDays }) => ({
-        id,
-        name,
-        area,
-        blocks,
-        deliveryDays,
+      communities: COMMUNITIES.map((c) => ({
+        id: c.id,
+        name: c.name,
+        area: c.area,
+        blocks: c.blocks,
+        deliveryDays: c.deliveryDays,
+        // Gate coordinates + radius, for the on-phone "am I in one of these?" check.
+        geo: mockGeo(c),
       })),
     });
   }
@@ -578,11 +582,7 @@ async function route(method, path, body, headers = {}) {
     if (!community && typeof lat === 'number' && typeof lng === 'number') {
       community = COMMUNITIES.find((c) => Math.hypot(c.lat - lat, c.lng - lng) < 0.02);
       if (!community)
-        return err(
-          422,
-          'ADDRESS_NOT_SERVICEABLE',
-          "We don't deliver to this location yet. We've noted it for expansion.",
-        );
+        return err(422, 'ADDRESS_NOT_SERVICEABLE', "We don't deliver to this location yet.");
     }
     if (!community) return err(422, 'VALIDATION', 'Choose your community.');
     if (!community.blocks.includes(block))
@@ -612,6 +612,13 @@ async function route(method, path, body, headers = {}) {
     state.addresses.forEach((a) => (a.isDefault = a.id === id));
     return ok({ addresses: state.addresses });
   }
+  // Editing / removing an address, and the "come and deliver here" routes.
+  const places = handlePlaces(method, p, body, {
+    addresses: state.addresses,
+    customer: state.customer,
+    communities: COMMUNITIES,
+  });
+  if (places) return places;
 
   // ---------- CART ----------
   if (method === 'GET' && p === '/cart') return ok({ cart: priceCart() });

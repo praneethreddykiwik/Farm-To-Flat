@@ -12,6 +12,7 @@ export const api = createApi({
   tagTypes: [
     'Me',
     'Addresses',
+    'Demand',
     'Catalog',
     'Cart',
     'Windows',
@@ -55,6 +56,36 @@ export const api = createApi({
     setDefaultAddress: b.mutation({
       query: (id) => ({ url: `/addresses/${id}/default`, method: 'POST', body: {} }),
       invalidatesTags: ['Addresses', 'Me', 'Windows'],
+    }),
+    // Editing changes where FUTURE orders go; an order already placed keeps its own snapshot.
+    updateAddress: b.mutation({
+      query: ({ id, ...body }) => ({ url: `/addresses/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Addresses', 'Me', 'Windows'],
+    }),
+    // The server refuses to remove the last address (409 LAST_ADDRESS) and hands the default on.
+    deleteAddress: b.mutation({
+      query: (id) => ({ url: `/addresses/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Addresses', 'Me', 'Windows'],
+    }),
+
+    // ---- "come and deliver here" ----
+    // An out-of-area location check. Counted with NO identity attached: the server stores a
+    // rounded area and nothing about who asked.
+    checkDemand: b.mutation({
+      query: (body) => ({ url: '/demand/checks', method: 'POST', body }),
+    }),
+    // The opt-in half: "tell me when you deliver here". This one does carry the account.
+    getDemandSubscriptions: b.query({
+      query: () => '/demand/subscriptions',
+      providesTags: ['Demand'],
+    }),
+    subscribeDemand: b.mutation({
+      query: (body) => ({ url: '/demand/subscriptions', method: 'POST', body }),
+      invalidatesTags: ['Demand'],
+    }),
+    removeDemandSubscription: b.mutation({
+      query: (id) => ({ url: `/demand/subscriptions/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Demand'],
     }),
 
     // ---- catalog ----
@@ -286,6 +317,12 @@ export const {
   useGetAddressesQuery,
   useCreateAddressMutation,
   useSetDefaultAddressMutation,
+  useUpdateAddressMutation,
+  useDeleteAddressMutation,
+  useCheckDemandMutation,
+  useGetDemandSubscriptionsQuery,
+  useSubscribeDemandMutation,
+  useRemoveDemandSubscriptionMutation,
   useGetCatalogQuery,
   useGetCouponsQuery,
   useGetSupportQuery,

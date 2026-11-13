@@ -37,11 +37,16 @@ export function Glass({
   // "none", so a translucent fill would let the ambient colour blobs bleed through and the surface
   // reads as muddy. There we skip the (ineffective) BlurView and use a near-opaque frosted fill so
   // every card, sheet and bar reads as a clean surface — matching the frosted look iOS gets for free.
+  //
+  // The dark tone is fully opaque there. It is the chrome that floats OVER scrolling content (the
+  // tab bar, the basket bar), and at 94% a white card passing underneath still read through it:
+  // product names and "Add" buttons ghosting across the tab bar. Without blur, anything short of
+  // solid is legible.
   const isIOS = Platform.OS === 'ios';
   const fill = isDark
     ? isIOS
       ? colors.glassDark
-      : 'rgba(13,25,18,0.94)'
+      : 'rgb(13,25,18)'
     : isClear
       ? isIOS
         ? 'rgba(255,255,255,0.28)'

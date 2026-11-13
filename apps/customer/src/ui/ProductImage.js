@@ -15,7 +15,7 @@ const ACCEPT_WEBP = { Accept: 'image/webp,image/avif,image/*,*/*' };
  * (or it fails to load) we render a botanical tile: category tint, a leaf mark and the initial.
  * Never a broken image, never a grey box.
  *
- * @param {{ uri?: string|null, blurhash?: string|null, tint?: string, name?: string, size?: number|'fill', radius?: number, style?: any, recyclingKey?: string, priority?: 'low'|'normal'|'high', renderWidth?: number }} props
+ * @param {{ uri?: string|null, blurhash?: string|null, tint?: string, name?: string, size?: number|'fill', radius?: number, style?: any, recyclingKey?: string, priority?: 'low'|'normal'|'high', renderWidth?: number, transition?: number, onDisplay?: () => void }} props
  */
 export function ProductImage({
   uri,
@@ -31,6 +31,10 @@ export function ProductImage({
   // of the original. A numeric `size` knows its own width; 'fill' does not, so it takes a default
   // suited to a card and the few places that draw bigger (the product hero) pass their own.
   renderWidth,
+  // Cross-fade in from the placeholder. 0 for something that must be there on its first frame.
+  transition = 260,
+  // Called once the photograph is actually on screen (not merely fetched).
+  onDisplay,
 }) {
   // A transient blip (image proxy cold-start, a dropped frame on a flaky mobile connection) makes
   // expo-image fire onError exactly once and never retry — which is why a photo would render one
@@ -136,11 +140,12 @@ export function ProductImage({
         placeholder={blurhash ? { blurhash } : undefined}
         placeholderContentFit="cover"
         contentFit="cover"
-        transition={260}
+        transition={transition}
         cachePolicy="memory-disk"
         recyclingKey={recyclingKey}
         priority={priority}
         onError={() => setErrored(true)}
+        onDisplay={onDisplay}
         style={StyleSheet.absoluteFill}
       />
     </View>

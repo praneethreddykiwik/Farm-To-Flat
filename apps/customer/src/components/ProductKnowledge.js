@@ -4,7 +4,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { AlertTriangle, Clock, Users } from 'lucide-react-native';
 import { Label, Pressy, Skeleton, Small, Text } from '../ui';
 import { useGetProductKnowledgeQuery } from '../api/api';
-import { colors, fonts, radius } from '../theme';
+import { colors, fonts, radius, shadow } from '../theme';
 
 /**
  * What we know about a product, in three short tabs: what it naturally contains, its story, and a
@@ -249,14 +249,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: 6,
   },
-  tabOn: {
-    backgroundColor: colors.white,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+  tabOn: { backgroundColor: colors.white, ...shadow.seg },
   claim: { flexDirection: 'row', gap: 12, paddingVertical: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.sproutDeep, marginTop: 6 },
   table: { backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: radius.md, padding: 12 },

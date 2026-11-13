@@ -27,6 +27,7 @@ import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
 import { StatusScrim } from '../src/components/StatusScrim';
+import { FlyToBagHost } from '../src/components/FlyToBag';
 import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
 import { useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
@@ -336,9 +337,15 @@ function Root() {
             name="address/new"
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
           />
+          <Stack.Screen
+            name="address/[id]"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
         </Stack>
       ) : null}
       {signingIn ? <SigningInCover /> : null}
+      {/* "Added to basket" flights. Above the screens, below the toasts. */}
+      <FlyToBagHost />
       {/* Every scrolling screen starts its content at the top safe-area inset, so without this the
           content travels up through the transparent status bar and collides with the clock and
           battery icons. Mounted once here rather than on each screen. Skipped for (auth), whose

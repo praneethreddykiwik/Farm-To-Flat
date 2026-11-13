@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +34,9 @@ import { selectLanguage } from '../../src/features/ui/uiSlice';
 import { productLabel } from '../../src/lib/i18n';
 import { DietMark } from '../../src/components/DietMark';
 import { ProductKnowledge } from '../../src/components/ProductKnowledge';
+import { useBagBounce, useBagTarget } from '../../src/components/FlyToBag';
+import { canFly, flyToBag } from '../../src/lib/flyToBag';
+import { useScreenFocused } from '../../src/hooks/useScreenFocused';
 
 const { width: W } = Dimensions.get('window');
 const HERO = W * 1.05;
@@ -58,6 +61,32 @@ export default function ProductDetail() {
   const detail = useGetProductQuery(id, { skip: !!cachedProduct });
   const product = cachedProduct || detail.data?.product;
   const { quantity, setQuantity } = useCartLine(product || { id });
+
+  // Adding sends the photo up into the basket button in the bar. That button is the landing spot
+  // only while this screen is the one on show; covered, it hands back to whatever is underneath.
+  const focused = useScreenFocused();
+  const [bagRef, bagLayout] = useBagTarget('product-page', 2, focused);
+  const bagBounce = useBagBounce();
+  const hero = useRef(/** @type {any} */ (null));
+  const change = useCallback(
+    (next) => {
+      const flies = next > quantity && !!product && canFly();
+      if (flies)
+        hero.current?.measureInWindow?.((x, y, w, h) => {
+          flyToBag({
+            // From the middle of the photo — or, once it has scrolled away, from just under the bar.
+            from: { x: x + w / 2, y: Math.max(y + h / 2, insets.top + 120) },
+            uri: product.image,
+            blurhash: product.blurhash,
+            tint: product.tint,
+            name: product.name,
+            renderWidth: 960,
+          });
+        });
+      setQuantity(next, { pulse: !flies });
+    },
+    [insets.top, product, quantity, setQuantity],
+  );
   const y = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
@@ -114,7 +143,7 @@ export default function ProductDetail() {
 
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.hero, heroStyle]}>
+      <Animated.View ref={hero} collapsable={false} style={[styles.hero, heroStyle]}>
         {/* Without a recycling key expo-image keeps the PREVIOUS product's bitmap in this view when
             one detail screen replaces another — which is why opening Karela showed Banana. */}
         <ProductImage
@@ -258,9 +287,11 @@ export default function ProductDetail() {
             <Title numberOfLines={1}>{label}</Title>
           </Animated.View>
           <Pressy onPress={() => router.push('/cart')} haptics="select" accessibilityLabel="Basket">
-            <Glass tone="dark" radius={radius.pill} innerStyle={styles.iconBtn}>
-              <ShoppingBag size={19} color={colors.inkOnDark} />
-            </Glass>
+            <Animated.View ref={bagRef} onLayout={bagLayout} collapsable={false} style={bagBounce}>
+              <Glass tone="dark" radius={radius.pill} innerStyle={styles.iconBtn}>
+                <ShoppingBag size={19} color={colors.inkOnDark} />
+              </Glass>
+            </Animated.View>
           </Pressy>
         </View>
       </View>
@@ -289,7 +320,7 @@ export default function ProductDetail() {
               increment={product.increment}
               unit={product.unit}
               max={product.dailyCap}
-              onChange={setQuantity}
+              onChange={change}
               tone="dark"
             />
           )}
