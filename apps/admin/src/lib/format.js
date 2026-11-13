@@ -122,3 +122,45 @@ export function ordinal(n) {
   if (tens >= 11 && tens <= 13) return `${n}th`;
   return `${n}${['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 }
+
+const pct = (bps) => `${Number((Number(bps) / 100).toFixed(2))}%`;
+
+/** "GST 18%", "GST 18% on fees", "GST 5% on items, 18% on fees" — what the tax is a percentage of. */
+export function taxRowLabel(label, rates) {
+  const name = label || 'GST';
+  if (!rates) return name;
+  const goods = Number(rates.goodsPaise) > 0;
+  const fees = Number(rates.feesPaise) > 0;
+  if (goods && fees)
+    return Number(rates.goodsBps) === Number(rates.feeBps)
+      ? `${name} ${pct(rates.goodsBps)}`
+      : `${name} ${pct(rates.goodsBps)} on items, ${pct(rates.feeBps)} on fees`;
+  if (goods) return `${name} ${pct(rates.goodsBps)} on items`;
+  if (fees) return `${name} ${pct(rates.feeBps)} on fees`;
+  return name;
+}
+
+/**
+ * An order's bill above its total: subtotal, coupon, every fee line, tax. Amounts in paise as
+ * numbers; a negative one is money off.
+ */
+export function billRows(o) {
+  const rows = [{ key: 'subtotal', label: 'Subtotal', paise: Number(o.subtotalPaise) || 0 }];
+  if (Number(o.couponDiscountPaise) > 0)
+    rows.push({
+      key: 'coupon',
+      label: o.couponCode ? `Coupon ${o.couponCode}` : 'Coupon',
+      paise: -Number(o.couponDiscountPaise),
+    });
+  (o.chargeLines || []).forEach((l, i) => {
+    if (Number(l.amountPaise) > 0)
+      rows.push({ key: `fee${i}`, label: l.label, paise: Number(l.amountPaise) });
+  });
+  if (Number(o.taxPaise) > 0)
+    rows.push({
+      key: 'tax',
+      label: taxRowLabel(o.taxLabel, o.taxRates),
+      paise: Number(o.taxPaise),
+    });
+  return rows;
+}

@@ -9,7 +9,7 @@ import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Pager, StatusBadge, TableSkeleton } from '../components/ui.jsx';
 import { IconDownload, IconSearch } from '../components/icons.jsx';
 import { CloseStaleDialog } from '../components/CloseStaleDialog.jsx';
-import { inr, shortDate, titleCase, ordinal } from '../lib/format.js';
+import { billRows, inr, shortDate, titleCase, ordinal } from '../lib/format.js';
 
 /** Mirrors the server's fulfilment state machine (routes/admin/orders.js). */
 const NEXT = {
@@ -616,6 +616,20 @@ export function OrderDrawer({ id, onClose, onChanged }) {
                     {inr(it.lineTotalPaise)}
                   </span>
                 </div>
+              </div>
+            ))}
+          </div>
+
+          {/* The bill as the customer sees it: every fee and the tax this order was placed with. */}
+          <div className="vstack" style={{ gap: 6, padding: '4px 0 10px' }}>
+            {billRows(o).map((r) => (
+              <div
+                key={r.key}
+                className="hstack"
+                style={{ justifyContent: 'space-between', fontSize: 13.5 }}
+              >
+                <span className="muted">{r.label}</span>
+                <span className="rupee">{r.paise < 0 ? `− ${inr(-r.paise)}` : inr(r.paise)}</span>
               </div>
             ))}
           </div>
