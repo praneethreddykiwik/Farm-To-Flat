@@ -1,3 +1,4 @@
+import { farmShort } from '../lib/farm';
 import React, { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -79,7 +80,7 @@ export function SeasonalRail({ products }) {
       <Sheet
         ref={sheet}
         title={peek ? productLabel(peek, lang) : ''}
-        subtitle={peek?.farm ? `From ${peek.farm}` : undefined}
+        subtitle={peek?.farm ? `From ${farmShort(peek.farm)}` : undefined}
         snapPoints={['72%']}
         scroll
       >

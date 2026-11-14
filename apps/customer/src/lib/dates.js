@@ -161,3 +161,19 @@ export function greeting() {
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
+
+/**
+ * When an order arrives, as the end of a sentence: "Arrives this morning." / "Arrives tomorrow
+ * morning." / "Arrives Sat, 14 Nov, morning." A window the operator has given a name of its own
+ * ("Early run") keeps it: "today, early run" rather than the odd "this early run".
+ * @param {string} iso  delivery date
+ * @param {string} slot  the window's label, any case
+ */
+export function arrivalPhrase(iso, slot) {
+  const s = String(slot || '').toLowerCase();
+  const plain = /^(morning|afternoon|evening|night)$/.test(s);
+  const day = relativeDayLabel(iso);
+  if (day === 'Today') return plain ? `this ${s}` : `today, ${s}`;
+  if (day === 'Tomorrow') return plain ? `tomorrow ${s}` : `tomorrow, ${s}`;
+  return `${formatDateShort(iso)}, ${s}`;
+}

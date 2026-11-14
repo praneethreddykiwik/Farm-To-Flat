@@ -1,3 +1,4 @@
+import { farmShort } from '../lib/farm';
 import { lightFor } from './FamilyHint';
 import { selectHousehold } from '../features/household/householdSlice';
 import React, { memo, useCallback, useRef } from 'react';
@@ -128,7 +129,7 @@ function ProductCardBase({ product, index = 0, width }) {
                 separator on every product with no farm recorded ("chepalu ·"), and an empty line
                 when neither is set. */}
             <Small muted numberOfLines={1} style={{ marginTop: 1 }}>
-              {[alias, product.farm].filter(Boolean).join(' · ')}
+              {[alias, farmShort(product.farm)].filter(Boolean).join(' · ')}
             </Small>
           </View>
         </Pressy>

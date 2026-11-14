@@ -7,7 +7,7 @@ import { Check, ChevronRight } from 'lucide-react-native';
 import { Glass, Mono, Pressy, Small, Text } from '../ui';
 import { useGetOrdersQuery } from '../api/api';
 import { selectAuth } from '../features/auth/authSlice';
-import { formatDateShort, relativeDayLabel, windowLabel } from '../lib/dates';
+import { arrivalPhrase, windowLabel } from '../lib/dates';
 import { LIVE_HEADLINE, STEP_LABELS, liveStep, pickLiveOrder } from '../lib/liveOrder';
 import { colors, radius } from '../theme';
 
@@ -39,12 +39,8 @@ export function LiveOrderCard({ style }) {
 
   const step = liveStep(order.status);
   const [headline, next] = LIVE_HEADLINE[order.status] || ['Your order', ''];
-  // Reads as the end of a sentence: "Arrives tomorrow morning." / "Arrives Sat, 14 Nov, morning."
-  const day = relativeDayLabel(order.deliveryDate);
-  const slot = windowLabel(order.window, order).toLowerCase();
-  const when = /^(Today|Tomorrow)$/.test(day)
-    ? `${day.toLowerCase()} ${slot}`
-    : `${formatDateShort(order.deliveryDate)}, ${slot}`;
+  // Reads as the end of a sentence: "Arrives this morning." / "Arrives Sat, 14 Nov, morning."
+  const when = arrivalPhrase(order.deliveryDate, windowLabel(order.window, order));
 
   return (
     <Animated.View entering={FadeInDown.duration(320).springify().damping(18)} style={style}>
