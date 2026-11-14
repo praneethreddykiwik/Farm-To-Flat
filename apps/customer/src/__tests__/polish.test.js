@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/i18n', () => ({ t: (k) => k }));
-const { arrivalPhrase, todayISO, addDaysISO } = await import('../lib/dates');
+const { arrivalPhrase, friendlyHours, todayISO, addDaysISO } = await import('../lib/dates');
 const { farmShort } = await import('../lib/farm');
 
 describe('when an order arrives', () => {
@@ -32,5 +32,15 @@ describe('a farm name on a card', () => {
   it('is empty for nothing', () => {
     expect(farmShort(null)).toBe('');
     expect(farmShort('  ')).toBe('');
+  });
+});
+
+describe('delivery hours', () => {
+  it('reads 24-hour times as am/pm', () => {
+    expect(friendlyHours('6:00 – 12:00')).toBe('6 am – 12 pm');
+    expect(friendlyHours('17:30 – 20:00')).toBe('5:30 pm – 8 pm');
+  });
+  it('leaves times that already say am or pm alone', () => {
+    expect(friendlyHours('6:00 am – 12:00 pm')).toBe('6:00 am – 12:00 pm');
   });
 });

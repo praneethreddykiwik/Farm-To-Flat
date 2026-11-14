@@ -19,6 +19,7 @@ import {
   Money,
   Pressy,
   ProductImage,
+  EmptyState,
   Skeleton,
   Small,
   Stepper,
@@ -26,7 +27,9 @@ import {
   Title,
   VariableWeightNote,
 } from '../../src/ui';
-import { useGetCatalogQuery, useGetProductQuery } from '../../src/api/api';
+import { useGetCartQuery, useGetCatalogQuery, useGetProductQuery } from '../../src/api/api';
+import { selectIsSignedIn } from '../../src/features/auth/authSlice';
+import { farmShort } from '../../src/lib/farm';
 import { useCartLine } from '../../src/hooks/useCart';
 import { colors, fonts, radius, tintOf } from '../../src/theme';
 import { useSelector } from 'react-redux';
@@ -48,11 +51,27 @@ const UNIT_SUFFIX = {
   PACK: 'per pack',
 };
 
+/** "60 bunches", "1 kg", "12 pieces" — the daily limit in the words the product is sold in. */
+const unitPlural = (unit, n) => {
+  const one = Number(n) === 1;
+  if (unit === 'KG') return 'kg';
+  if (unit === 'BUNCH') return one ? 'bunch' : 'bunches';
+  if (unit === 'PIECE') return one ? 'piece' : 'pieces';
+  if (unit === 'DOZEN') return 'dozen';
+  if (unit === 'PACK') return one ? 'pack' : 'packs';
+  return String(unit || '').toLowerCase();
+};
+
 export default function ProductDetail() {
   const { id } = useLocalSearchParams();
   const lang = useSelector(selectLanguage);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const signedIn = useSelector(selectIsSignedIn);
+  const { basketCount } = useGetCartQuery(undefined, {
+    skip: !signedIn,
+    selectFromResult: ({ data }) => ({ basketCount: data?.cart?.items?.length || 0 }),
+  });
   const catalog = useGetCatalogQuery();
   const cachedProduct = useMemo(
     () => catalog.data?.products?.find((p) => p.id === id),
@@ -123,6 +142,23 @@ export default function ProductDetail() {
     ),
   }));
 
+  // A link to something no longer in the shop (an old share, a removed product) used to sit on a
+  // loading skeleton for ever. Once both the catalogue and the direct lookup have answered without
+  // it, say so and offer the way back.
+  const gone =
+    !product && !catalog.isFetching && !detail.isFetching && (detail.isError || detail.isSuccess);
+  if (gone) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top + 60, paddingHorizontal: 20 }]}>
+        <EmptyState
+          icon={<Sprout size={30} color={colors.ink2} />}
+          title="Not in the shop today"
+          message="This item has been taken off the list, or the link is old. Today’s harvest is a tap away."
+          action={{ title: 'See today’s list', onPress: () => router.replace('/(tabs)') }}
+        />
+      </View>
+    );
+  }
   if (!product) {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 60, paddingHorizontal: 20 }]}>
@@ -237,8 +273,8 @@ export default function ProductDetail() {
               {product.variableWeight
                 ? 'Cut on the morning of delivery. The packer records the actual weight and your bill adjusts to it, within ±10%.'
                 : product.farm
-                  ? `Harvested after the order cut-off (${product.farm}) and delivered the next morning.`
-                  : 'Harvested after the order cut-off and delivered the next morning.'}
+                  ? `Picked at ${farmShort(product.farm)} after the evening cut-off, and at your door the next morning.`
+                  : 'Picked after the evening cut-off, and at your door the next morning.'}
             </Text>
             {product.variableWeight ? (
               <View style={{ marginTop: 6 }}>
@@ -254,8 +290,8 @@ export default function ProductDetail() {
                 // "Daily cap" was our own word for it. What it means to a customer: we harvest only
                 // so much of this a day, so it can run out.
                 [
-                  'Harvested a day',
-                  `up to ${product.dailyCap}${product.unit === 'KG' ? ' kg' : ''}`,
+                  'Per day',
+                  `up to ${product.dailyCap} ${unitPlural(product.unit, product.dailyCap)}`,
                 ],
               ].map(([k, v]) => (
                 <View key={k} style={styles.fact}>
@@ -291,6 +327,14 @@ export default function ProductDetail() {
               <Glass tone="dark" radius={radius.pill} innerStyle={styles.iconBtn}>
                 <ShoppingBag size={19} color={colors.inkOnDark} />
               </Glass>
+              {/* How many lines are in the basket, so the button says what it opens. */}
+              {basketCount > 0 ? (
+                <View style={styles.bagCount} pointerEvents="none">
+                  <Text variant="micro" color={colors.ink} style={{ fontSize: 10 }}>
+                    {basketCount}
+                  </Text>
+                </View>
+              ) : null}
             </Animated.View>
           </Pressy>
         </View>
@@ -362,6 +406,20 @@ const styles = StyleSheet.create({
   },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  bagCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: colors.sprout,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.night,
+  },
   bottom: { position: 'absolute', left: 16, right: 16, bottom: 0 },
   bar: {
     flexDirection: 'row',

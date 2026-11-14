@@ -97,7 +97,9 @@ function Line({ item, catalogProduct }) {
           {item.unit === 'KG' ? '/kg' : `/${item.unit.toLowerCase()}`}
         </Small>
         {item.variableWeight ? <VariableWeightNote /> : null}
-        <View style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+        {/* The stepper and the note button share a row: a basket of nine things used to need nine
+            extra lines just to say "Add a note" under each. */}
+        <View style={styles.controls}>
           <Stepper
             value={quantity}
             increment={item.increment}
@@ -105,6 +107,16 @@ function Line({ item, catalogProduct }) {
             onChange={setQuantity}
             size="sm"
           />
+          {!noteOpen && !item.note ? (
+            <Pressy
+              onPress={() => setNoteOpen(true)}
+              haptics="soft"
+              style={styles.noteIcon}
+              accessibilityLabel={t('addNote', lang)}
+            >
+              <NotebookPen size={15} color={colors.leafDeep} />
+            </Pressy>
+          ) : null}
         </View>
         <FamilyHint
           product={catalogProduct}
@@ -126,19 +138,19 @@ function Line({ item, catalogProduct }) {
             returnKeyType="done"
             style={styles.noteInput}
           />
-        ) : (
+        ) : item.note ? (
           <Pressy
             onPress={() => setNoteOpen(true)}
             haptics="soft"
             style={styles.noteBtn}
-            accessibilityLabel={item.note ? t('editNote', lang) : t('addNote', lang)}
+            accessibilityLabel={t('editNote', lang)}
           >
             <NotebookPen size={13} color={colors.leafDeep} />
-            <Small color={item.note ? colors.ink2 : colors.leafDeep} numberOfLines={1}>
-              {item.note ? `“${item.note}”` : t('addNote', lang)}
+            <Small color={colors.ink2} numberOfLines={1}>
+              “{item.note}”
             </Small>
           </Pressy>
-        )}
+        ) : null}
       </View>
       <View
         style={{ alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch' }}
@@ -489,6 +501,16 @@ export default function Cart() {
               <View style={{ flex: 1 }}>
                 <Small color="rgba(243,245,239,0.65)">{t('total', lang)}</Small>
                 <Money paise={cart.totalPaise} animated color={colors.inkOnDark} variant="h2" />
+                {/* Said here, beside the button, so a tap on Checkout is never a surprise. */}
+                {!cart.meetsMinimum ? (
+                  <Small color={colors.sprout} style={{ marginTop: 2 }} numberOfLines={1}>
+                    ₹
+                    {Math.ceil(
+                      (Number(cart.minOrderValuePaise) - Number(cart.subtotalPaise)) / 100,
+                    )}{' '}
+                    more to check out
+                  </Small>
+                ) : null}
               </View>
               <Button
                 title={t('checkout', lang)}
@@ -568,6 +590,15 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
   },
   trash: { padding: 6, marginRight: -6, marginBottom: -4 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+  noteIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(191,233,208,0.55)',
+  },
   noteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, maxWidth: 180 },
   noteInput: {
     marginTop: 8,

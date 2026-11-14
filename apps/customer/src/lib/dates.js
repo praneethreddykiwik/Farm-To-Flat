@@ -137,8 +137,25 @@ export function windowLabel(key, w, lang) {
  * case for a past order whose window the operator has since removed. Callers render nothing rather
  * than guessing, because a wrong time at the door is worse than no time.
  */
+/**
+ * "6:00 – 12:00" → "6 am – 12 pm". Some windows come with 24-hour times and no am/pm, which reads
+ * like a railway timetable on a delivery slot. Times already marked am/pm are left exactly as
+ * they are.
+ */
+export function friendlyHours(hours) {
+  const s = String(hours || '');
+  if (!s || /\b(am|pm)\b/i.test(s)) return s;
+  return s.replace(/\b(\d{1,2}):(\d{2})\b/g, (_, h, m) => {
+    const H = Number(h);
+    if (H > 23 || Number(m) > 59) return `${h}:${m}`;
+    const suffix = H >= 12 && H < 24 ? 'pm' : 'am';
+    const h12 = H % 12 === 0 ? 12 : H % 12;
+    return m === '00' ? `${h12} ${suffix}` : `${h12}:${m} ${suffix}`;
+  });
+}
+
 export function windowHours(key, w, lang) {
-  const hours = w?.hours || WINDOWS[key]?.hours || '';
+  const hours = friendlyHours(w?.hours || WINDOWS[key]?.hours || '');
   if (!hours || !lang || lang === 'en') return hours;
   // Only the am/pm markers are words; the digits and the dash read the same in every script.
   return hours.replace(/\bam\b/gi, t('amShort', lang)).replace(/\bpm\b/gi, t('pmShort', lang));
