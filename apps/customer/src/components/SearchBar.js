@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -42,7 +42,9 @@ export function SearchBar({
   onChangeText,
   onPress,
   autoFocus,
-  placeholder = 'Search "tamata", "karela", "palak"…',
+  placeholder = Platform.OS === 'android'
+    ? 'Search "tamata", "palak"…'
+    : 'Search "tamata", "karela", "palak"…',
   style,
   editable = true,
   onSubmit,
@@ -82,6 +84,11 @@ export function SearchBar({
         onSubmitEditing={onSubmit}
         autoCorrect={false}
         autoCapitalize="none"
+        // Android does not cut a long hint short: it wraps it, and the field — one line tall —
+        // showed the top of a second line under the first, sliced through. One line, always, and
+        // on Android a hint short enough to fit beside the two buttons.
+        multiline={false}
+        numberOfLines={1}
         style={styles.input}
         accessibilityLabel="Search products"
       />
@@ -147,7 +154,18 @@ export function SearchBar({
 
 const styles = StyleSheet.create({
   inner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 50 },
-  input: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink, paddingVertical: 0 },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.ink,
+    paddingVertical: 0,
+    // Android pads text for accents above and below; inside a fixed-height pill that pushed the
+    // line off-centre and let a wrapped hint show.
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   mic: {
     width: 32,
     height: 32,
