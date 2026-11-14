@@ -50,6 +50,7 @@ import {
   totalsOf,
 } from '../lib/meal-analysis.js';
 import { startMealRetention } from '../lib/meal-retention.js';
+import { addDaysISO, todayISO } from '../lib/dates.js';
 import {
   allowedImageTypes,
   assertRealImage,
@@ -74,6 +75,14 @@ function requireMealAccess(req, _res, next) {
 mealsRouter.use(requireMealAccess);
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a YYYY-MM-DD date.');
+/**
+ * The day a meal was eaten — never more than a day ahead (a phone in another timezone can be one
+ * ahead of IST). The retention sweep deletes photos by this date, so a log dated 2099 would keep
+ * its photo for ever.
+ */
+const MEAL_DATE = DATE.refine((d) => d <= addDaysISO(todayISO(), 1), {
+  message: 'That day has not happened yet.',
+});
 const SLOT = z.enum(['breakfast', 'lunch', 'snack', 'dinner']);
 const IMAGE_TYPE = z.enum(/** @type {[string, ...string[]]} */ (allowedImageTypes));
 const MAX_BASE64 = 9_000_000; // ~6.5 MB image after base64 — matches the storage limit
@@ -150,7 +159,7 @@ async function analysePhoto(req, { imageBase64, contentType }) {
 
 const LogMeal = z
   .object({
-    date: DATE,
+    date: MEAL_DATE,
     slot: SLOT,
     mode: z.enum(['photo', 'pick', 'planned', 'skipped']),
     mealName: z.string().max(80).optional(),
@@ -222,8 +231,11 @@ mealsRouter.post(
     }
 
     if (append && Array.isArray(existing?.items)) items = [...existing.items, ...items];
-    // a new photo replaces the old one — delete the file we no longer point at
-    if (photoKey && existing?.photoKey && !append) await deleteMealPhotos([existing.photoKey]);
+    // A new photo replaces the old one — delete the file we no longer point at. That holds when
+    // appending too: the log keeps ONE photo key, so the earlier photo would otherwise be left in
+    // storage with nothing pointing at it, out of reach of the retention sweep and of account
+    // deletion, kept for ever.
+    if (photoKey && existing?.photoKey) await deleteMealPhotos([existing.photoKey]);
 
     const log = upsertMealLog(req.customerId, {
       ...base,
@@ -329,7 +341,7 @@ mealsRouter.post(
   '/checkin',
   validateBody(
     z.object({
-      date: DATE,
+      date: MEAL_DATE,
       slot: SLOT,
       mealName: z.string().max(80).optional(),
       status: z.enum(['FOLLOWED', 'SKIPPED', 'DEVIATED']),

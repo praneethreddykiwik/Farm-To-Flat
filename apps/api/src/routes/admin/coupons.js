@@ -23,33 +23,38 @@ export const adminCouponsRouter = Router();
 
 const paise = z.number().int().nonnegative();
 
-// One schema, three shapes — the discount type decides which value field is required.
-const CreateCoupon = z
-  .object({
-    code: z
-      .string()
-      .trim()
-      .min(3)
-      .max(24)
-      .regex(/^[A-Za-z0-9-]+$/, 'Letters, numbers and dashes only.'),
-    label: z.string().max(60).optional(),
-    type: z.enum(['PERCENT', 'FLAT', 'FREE_ITEM']),
-    percentOff: z.number().min(1).max(100).optional(), // for PERCENT (whole %)
-    valuePaise: paise.optional(), // for FLAT (₹ off)
-    freeProductId: z.string().optional(), // for FREE_ITEM
-    minOrderPaise: paise.default(0),
-    expiresAt: z.string().optional(),
-    globalCap: z.number().int().positive().nullable().optional(),
-    isActive: z.boolean().optional(),
-  })
-  .superRefine((v, ctx) => {
+// One set of fields, three shapes — the discount type decides which value field is required.
+// The fields are kept apart from the create rules because an UPDATE is built from them: deriving it
+// from the create schema carried `minOrderPaise: 0` (the create default) into every edit under
+// zod 4, so toggling a coupon off would have wiped its minimum spend.
+const CouponFields = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(3)
+    .max(24)
+    .regex(/^[A-Za-z0-9-]+$/, 'Letters, numbers and dashes only.'),
+  label: z.string().max(60).optional(),
+  type: z.enum(['PERCENT', 'FLAT', 'FREE_ITEM']),
+  percentOff: z.number().min(1).max(100).optional(), // for PERCENT (whole %)
+  valuePaise: paise.optional(), // for FLAT (₹ off)
+  freeProductId: z.string().optional(), // for FREE_ITEM
+  minOrderPaise: paise.optional(),
+  expiresAt: z.string().optional(),
+  globalCap: z.number().int().positive().nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+const CreateCoupon = CouponFields.extend({ minOrderPaise: paise.default(0) }).superRefine(
+  (v, ctx) => {
     if (v.type === 'PERCENT' && v.percentOff == null)
       ctx.addIssue({ code: 'custom', message: 'Set a percentage (1–100).', path: ['percentOff'] });
     if (v.type === 'FLAT' && v.valuePaise == null)
       ctx.addIssue({ code: 'custom', message: 'Set the ₹ amount off.', path: ['valuePaise'] });
     if (v.type === 'FREE_ITEM' && !v.freeProductId)
       ctx.addIssue({ code: 'custom', message: 'Pick the free product.', path: ['freeProductId'] });
-  });
+  },
+);
 
 // PERCENT stores basis points (valueBp); the form sends a whole percent — convert here.
 function toStored(body) {
@@ -89,7 +94,8 @@ adminCouponsRouter.post(
   }),
 );
 
-const UpdateCoupon = CreateCoupon._def.schema.partial();
+// Only what was sent: no defaults, so an edit never resets a field nobody touched.
+const UpdateCoupon = CouponFields.partial();
 
 adminCouponsRouter.patch(
   '/coupons/:code',

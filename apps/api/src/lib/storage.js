@@ -4,7 +4,7 @@
 import { shortId } from './ids.js';
 import { createClient } from '@supabase/supabase-js';
 import { mediaUrl } from './media.js';
-import { s3Enabled, s3Get, s3Put } from './s3.js';
+import { s3Delete, s3Enabled, s3Get, s3Put } from './s3.js';
 
 /**
  * Which object store is in use.
@@ -26,9 +26,9 @@ const ISSUE_BUCKET = 'order-issues';
 const MEAL_BUCKET = 'meal-photos';
 
 export const storageEnabled = !!(URL && KEY) || (DRIVER === 's3' && s3Enabled());
-const supabase = storageEnabled
-  ? createClient(URL, KEY, { auth: { persistSession: false } })
-  : null;
+// Only when Supabase itself is configured. Keyed off `storageEnabled` instead, an S3-only setup
+// (STORAGE_DRIVER=s3, no SUPABASE_URL) called createClient with no URL and the API died at boot.
+const supabase = URL && KEY ? createClient(URL, KEY, { auth: { persistSession: false } }) : null;
 
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' };
 export const allowedImageTypes = Object.keys(EXT);
@@ -192,8 +192,12 @@ export async function deleteMealPhotos(keys) {
   if (!list.length) return 0;
   try {
     if (useS3()) {
-      // the S3 adapter has no delete yet; objects there expire by bucket lifecycle rule
-      return 0;
+      // One request per object. Relying on a bucket lifecycle rule meant a deleted meal or a deleted
+      // account left its photos behind until whatever rule the bucket happened to have, if any.
+      const gone = await Promise.all(
+        list.map((k) => s3Delete(`${MEAL_BUCKET}/${k}`).catch(() => false)),
+      );
+      return gone.filter(Boolean).length;
     }
     if (!supabase) return 0;
     const { error } = await supabase.storage.from(MEAL_BUCKET).remove(list);

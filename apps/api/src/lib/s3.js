@@ -148,3 +148,19 @@ export async function s3Put(key, buffer, contentType) {
   if (!res.ok) throw new Error(`[s3] PUT ${key} -> ${res.status} ${await res.text()}`);
   return key;
 }
+
+/**
+ * Delete one object. An object that is already gone counts as deleted — S3 answers 204 either way,
+ * and some S3-compatible services answer 404.
+ * @returns {Promise<boolean>} whether it is gone
+ */
+export async function s3Delete(key) {
+  if (!s3Enabled()) throw new Error('S3 is not configured');
+  const t = target(key);
+  const { headers } = signV4({ method: 'DELETE', host: t.host, path: t.path, ...t });
+  const res = await fetch(t.url, { method: 'DELETE', headers });
+  if (res.ok || res.status === 404) return true;
+  // eslint-disable-next-line no-console
+  console.error(`[s3] DELETE ${key} -> ${res.status}`);
+  return false;
+}

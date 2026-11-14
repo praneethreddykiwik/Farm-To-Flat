@@ -167,6 +167,13 @@ describe('the handle for a customer', () => {
     expect(h.customerKeyOf({})).toBe(null);
   });
 
+  it('cannot be turned back into the number by hashing every mobile — it is keyed', async () => {
+    const { createHash } = await import('node:crypto');
+    // The old key was an unkeyed SHA-256 of a fixed prefix plus the number: anyone could compute it.
+    const unkeyed = `g_${createHash('sha256').update('f2f-guest:9848012345').digest('hex').slice(0, 20)}`;
+    expect(h.customerKeyOf({ mobile: '9848012345' })).not.toBe(unkeyed);
+  });
+
   it('masks a number down to its last four digits', () => {
     expect(h.maskMobile('9848012345')).toBe('••••••2345');
     expect(h.maskMobile('')).toBe(null);

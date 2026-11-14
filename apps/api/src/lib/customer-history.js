@@ -19,7 +19,40 @@
  * person is not. No name, no number — and deliberately NOT recovered from the delivery snapshot on
  * an old order, which still carries both. Erasure that a report can undo is not erasure.
  */
-import { createHash } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
+import { IS_PROD } from './env.js';
+
+/**
+ * The guest key is KEYED (an HMAC), not a plain hash. Indian mobile numbers are a small enough space
+ * that an unkeyed SHA-256 of one can be reversed by trying them all in minutes, which would turn a
+ * key seen in a URL or the audit log straight back into the number. Keyed with a server secret, it
+ * cannot be reversed without that secret.
+ *
+ * The secret must be stable across restarts — the key is what an audit entry points back to — so
+ * it comes from CUSTOMER_KEY_SECRET, or ADMIN_SESSION_SECRET when that is not set, and is derived
+ * for this one purpose so the session secret is never used directly for anything else.
+ */
+const configuredKeySecret = (
+  process.env.CUSTOMER_KEY_SECRET ||
+  process.env.ADMIN_SESSION_SECRET ||
+  ''
+).trim();
+if (IS_PROD && configuredKeySecret.length < 16) {
+  // eslint-disable-next-line no-console
+  console.error(
+    '[customers] CUSTOMER_KEY_SECRET / ADMIN_SESSION_SECRET is not set — guest customer keys change at every deploy.',
+  );
+}
+const GUEST_KEY = createHmac(
+  'sha256',
+  configuredKeySecret.length >= 16
+    ? configuredKeySecret
+    : IS_PROD
+      ? randomBytes(32)
+      : 'f2f-dev-only-customer-key-secret',
+)
+  .update('f2f-guest-customer-key')
+  .digest();
 
 /** Statuses an order is in, or has passed through, only if it was really placed. */
 const PLACED = new Set(['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']);
@@ -45,7 +78,7 @@ export function wasPlaced(o) {
 export function customerKeyOf(o) {
   if (o.customerId) return o.customerId;
   if (!o.mobile) return null;
-  return `g_${createHash('sha256').update(`f2f-guest:${o.mobile}`).digest('hex').slice(0, 20)}`;
+  return `g_${createHmac('sha256', GUEST_KEY).update(`f2f-guest:${o.mobile}`).digest('hex').slice(0, 20)}`;
 }
 
 /** "1st", "2nd", "3rd", "11th", "22nd", "113th". */

@@ -27,10 +27,10 @@
     "pdfkit": "0.15.1",
     "pino-http": "10.5.0",
     "prisma": "6.16.0",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "supertest": "7.2.2",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.12"
   }
 }

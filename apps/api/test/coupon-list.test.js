@@ -70,3 +70,26 @@ describe('GET /coupons', () => {
     expect((await listed(code, null)).alreadyUsed).toBe(false);
   });
 });
+
+describe('PATCH /admin/coupons/:code', () => {
+  it('changes only what was sent — switching a coupon off keeps its minimum spend', async () => {
+    const code = 'MINKEEP1';
+    const created = await request(app)
+      .post('/api/v1/admin/coupons')
+      .send({ code, label: 'min spend', type: 'FLAT', valuePaise: 5000, minOrderPaise: 80000 });
+    expect(created.status).toBe(201);
+
+    const off = await request(app).patch(`/api/v1/admin/coupons/${code}`).send({ isActive: false });
+    expect(off.status).toBe(200);
+    expect(off.body.coupon.isActive).toBe(false);
+    expect(Number(off.body.coupon.minOrderPaise)).toBe(80000);
+  });
+
+  it('still fills in a zero minimum when a coupon is created without one', async () => {
+    const created = await request(app)
+      .post('/api/v1/admin/coupons')
+      .send({ code: 'NOMIN1', type: 'PERCENT', percentOff: 5 });
+    expect(created.status).toBe(201);
+    expect(Number(created.body.coupon.minOrderPaise)).toBe(0);
+  });
+});
