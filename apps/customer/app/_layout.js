@@ -11,6 +11,7 @@ import { Provider, useDispatch, useSelector } from 'react-redux';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { hydrateHousehold } from '../src/features/household/householdSlice';
+import { BrandIntro } from '../src/components/BrandIntro';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
   Fraunces_500Medium_Italic,
@@ -54,7 +55,8 @@ import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
 initSentry();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
-SplashScreen.setOptions?.({ duration: 320, fade: true });
+// Short: the system splash hands over to BrandIntro, which carries on from the same plain screen.
+SplashScreen.setOptions?.({ duration: 160, fade: true });
 
 /**
  * Route guard. Three states: booting (splash stays), signed out (auth group only),
@@ -363,6 +365,9 @@ function Root() {
       )}
       <ToastHost />
       <KeyboardDoneBar />
+      {/* The opening: the logo drawing itself in, and on a phone's first launch, what Fooducia is.
+          On top of everything, and started the moment the system splash comes down. */}
+      <BrandIntro start={ready && auth.status !== 'booting'} />
     </View>
   );
 }
