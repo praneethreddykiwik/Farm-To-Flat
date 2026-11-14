@@ -51,7 +51,17 @@ const ds = {
    * customer and a check are ever mentioned together.
    */
   seen: new Set(),
+  /**
+   * `${customerId}|${day}` -> how many areas that customer's checks CREATED today. Memory only,
+   * like `seen`. A person checks from home, work, a relative's — a handful of places. Without a
+   * ceiling one signed-in account could add a new area every three seconds all day (the rate limit
+   * is per minute, not per area), each one written to the table and scanned by the admin overview.
+   */
+  newAreas: new Map(),
 };
+
+/** New areas one customer's checks may create in a day. Repeat checks of known areas are not limited. */
+export const NEW_AREAS_PER_DAY = 10;
 
 // False only when a database is connected and the table is not there. A memory-only process
 // (tests, local dev) is always ready: memory is all there is.
@@ -227,6 +237,13 @@ export async function recordCheck(customerId, input, now = Date.now()) {
   const mark = `${customerId}|${where.key}`;
   if (ds.seen.has(mark)) return { served: false, area, counted: true };
 
+  // A check of an area nobody has asked about before creates it — capped per customer per day.
+  // Over the cap the check is not stored, and `counted: false` stops the app claiming it was.
+  const isNew = !ds.areas.has(where.key);
+  const quota = `${customerId}|${todayISO(now)}`;
+  if (isNew && (ds.newAreas.get(quota) || 0) >= NEW_AREAS_PER_DAY)
+    return { served: false, area, counted: false };
+
   const next = nextArea(where, input, { check: true, now });
   try {
     await demandDb.saveArea(next);
@@ -239,6 +256,10 @@ export async function recordCheck(customerId, input, now = Date.now()) {
   ds.areas.set(next.key, next);
   if (ds.seen.size > 50000) ds.seen.clear(); // a cache, not a record — losing it costs a recount
   ds.seen.add(mark);
+  if (isNew) {
+    if (ds.newAreas.size > 50000) ds.newAreas.clear(); // same: a throttle, not a record
+    ds.newAreas.set(quota, (ds.newAreas.get(quota) || 0) + 1);
+  }
   return { served: false, area: { key: next.key, label: next.label }, counted: true };
 }
 
@@ -463,6 +484,7 @@ export function _resetDemand() {
   ds.areas.clear();
   ds.subs.clear();
   ds.seen.clear();
+  ds.newAreas.clear();
   geoReady = true;
   demandReady = true;
 }

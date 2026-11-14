@@ -11,7 +11,7 @@
  */
 import { getOrder, patchOrder, rawOrders } from '../store.js';
 import {
-  capturedPaymentForOrder,
+  refundablePaymentsForOrder,
   getWallet,
   ledgerPush,
   releaseCoupon,
@@ -69,11 +69,20 @@ export function refundOrderWallet(order, note) {
  * Fire-and-forget by design: a cancellation must not fail because a gateway call timed out, and the
  * idempotency key makes the retry safe. A refund we could not place is flagged on the payment and
  * pushed to the operators, because the one thing worse than a slow refund is a silent one.
+ * Every captured payment on the order is refunded — the original and each paid addition — each
+ * under its own idempotency key.
  * @returns {Promise<number>} paise the gateway accepted for refund
  */
 export async function refundOrderGateway(order, note) {
   if (!razorpayEnabled || !order?.id) return 0;
-  const pay = capturedPaymentForOrder(order.id);
+  let total = 0;
+  for (const pay of refundablePaymentsForOrder(order.id))
+    total += await refundGatewayPayment(order, pay, note);
+  return total;
+}
+
+/** One payment's share of refundOrderGateway. @returns {Promise<number>} paise accepted */
+async function refundGatewayPayment(order, pay, note) {
   if (!pay?.razorpayPaymentId) return 0;
   const already = Number(pay.refundedPaise || 0);
   const outstanding = Number(pay.amountPaise || 0) - already;

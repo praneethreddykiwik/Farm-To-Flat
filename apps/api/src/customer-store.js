@@ -1230,6 +1230,25 @@ export function capturedPaymentForOrder(orderId) {
     if (p.orderId === orderId && p.status === 'CAPTURED' && p.purpose === 'ORDER') return p;
   return null;
 }
+
+/**
+ * Every captured gateway payment a cancellation has to send back: the order's own payment AND each
+ * paid top-up for items added to it afterwards. Looking only at the first (as capturedPaymentForOrder
+ * does) cancelled an order and kept the money for the items added to it.
+ *
+ * An orphaned capture is left out on purpose: that money was already returned to the wallet when it
+ * arrived, and refunding it to the bank as well would pay it back twice.
+ */
+export function refundablePaymentsForOrder(orderId) {
+  if (!orderId) return [];
+  return [...cs.payments.values()].filter(
+    (p) =>
+      p.orderId === orderId &&
+      p.status === 'CAPTURED' &&
+      !p.orphan &&
+      (p.purpose === 'ORDER' || p.purpose === 'ORDER_ADDITION'),
+  );
+}
 /** Persist a payment after a route mutates it (e.g. status -> CAPTURED on verify). */
 export const savePayment = (payment) => persist.paymentUpsert(payment);
 

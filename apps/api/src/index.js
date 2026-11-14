@@ -167,6 +167,13 @@ if (process.env.NODE_ENV !== 'test')
         ],
         censor: '[redacted]',
       },
+      // The query string is dropped from the log line. The operator console searches customers
+      // by mobile number (`/admin/customers?q=98…`), and pino logs the URL and parsed query of
+      // every request, so those numbers were landing in the host's logs. The path is enough to
+      // trace a request; what was searched for is not ours to keep there.
+      serializers: {
+        req: (req) => ({ ...req, url: String(req.url || '').split('?')[0], query: undefined }),
+      },
     }),
   );
 

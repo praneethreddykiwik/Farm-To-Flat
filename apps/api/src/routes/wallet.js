@@ -215,7 +215,7 @@ paymentsRouter.post(
       return res.json({
         status: 'CAPTURED',
         orphaned: true,
-        order: orderCustomer(r.order),
+        order: r.order ? orderCustomer(r.order) : null,
         walletBalancePaise: money(getWallet(cid).balancePaise),
       });
     res.json({ status: 'CAPTURED', order: r.order ? orderCustomer(r.order) : null });

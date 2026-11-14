@@ -42,7 +42,7 @@ import {
   releaseCoupon,
   validateCoupon,
   flushWallet,
-  capturedPaymentForOrder,
+  refundablePaymentsForOrder,
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
 import { cancelOrder } from '../lib/order-lifecycle.js';
@@ -370,15 +370,26 @@ customerOrdersRouter.post(
     // booked across all orders for the day, including this one).
     const lineInputs = req.body.items;
     const orderedQty = orderedQtyIndex(order.deliveryDate);
+    // What THIS request adds per product, so several lines of the same item are capped together
+    // rather than each against the full remainder.
+    const adding = new Map();
     for (const l of lineInputs) {
       const p = getProduct(l.productId);
       if (!p || p.isActive === false || (p.availability && p.availability !== 'AVAILABLE'))
         throw fail(409, 'UNAVAILABLE', 'One of those items is no longer available.', {
           productId: l.productId,
         });
-      const already = orderedQty.get(p.id) || 0;
+      // The same step rule as the basket (setCartItem): 0.001 of a PIECE is not something we sell.
+      const qty = Number(l.quantity);
+      const inc = Number(p.increment);
+      if (inc > 0 && Math.abs(Math.round(qty / inc) * inc - qty) > 1e-6)
+        throw fail(422, 'VALIDATION', `Quantity must be in steps of ${p.increment}`, {
+          productId: p.id,
+        });
+      const already = (orderedQty.get(p.id) || 0) + (adding.get(p.id) || 0);
       const left = Math.max(0, Number(p.dailyCap) - already);
-      if (Number(l.quantity) > left)
+      adding.set(p.id, (adding.get(p.id) || 0) + qty);
+      if (qty > left)
         throw fail(
           422,
           'CAP_EXCEEDED',
@@ -534,9 +545,12 @@ customerOrdersRouter.post(
     // What actually gets refunded: any wallet money applied, plus any captured gateway payment.
     // Split the refund by destination: wallet money (walletAppliedPaise) comes back to the wallet
     // instantly; gateway money (a captured Razorpay payment) returns to the bank/UPI it came from.
-    const pay = capturedPaymentForOrder(updated.id);
+    // Every captured payment counts — the order's own and any paid for items added later.
     const walletPaise = Number(updated.walletAppliedPaise || 0);
-    const bankPaise = pay ? Number(pay.amountPaise || 0) : 0;
+    const bankPaise = refundablePaymentsForOrder(updated.id).reduce(
+      (s, p) => s + Number(p.amountPaise || 0),
+      0,
+    );
     const refundPaise = walletPaise + bankPaise;
     const cc = COPY.ORDER_CANCELLED({ ...updated, refundPaise });
     emitNotification(cid, {

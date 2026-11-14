@@ -11,7 +11,9 @@ process.env.ADMIN_TOKEN = TOKEN;
 
 const { app } = await import('../src/index.js');
 const { demandDb, SETUP_SQL } = await import('../src/demand-db.js');
-const { _resetDemand, MAX_SUBSCRIPTIONS } = await import('../src/demand-store.js');
+const { _resetDemand, MAX_SUBSCRIPTIONS, NEW_AREAS_PER_DAY } = await import(
+  '../src/demand-store.js'
+);
 const { _memoryTrail } = await import('../src/lib/audit.js');
 const { roleMayAccess } = await import('../src/routes/admin/auth.js');
 const { areaFor, haversineM } = await import('../src/lib/geo.js');
@@ -250,6 +252,28 @@ describe('use my location', () => {
     d = await admin('get', '/demand');
     expect(d.body.areas[0].checks).toBe(2);
     expect(d.body.totals).toEqual({ subscribers: 0, checks: 2, areas: 1 });
+  });
+
+  it('one account cannot keep creating new areas — a daily ceiling, while known areas still count', async () => {
+    const a = await customer();
+    const pins = Array.from({ length: NEW_AREAS_PER_DAY + 1 }, (_, i) => String(500100 + i));
+    for (const pincode of pins.slice(0, NEW_AREAS_PER_DAY))
+      expect((await check(a, { ...KONDAPUR, pincode })).body.counted).toBe(true);
+    // one more NEW area from the same person is not stored, and the app is not told it was
+    const over = await check(a, { ...KONDAPUR, pincode: pins[NEW_AREAS_PER_DAY] });
+    expect(over.status).toBe(200);
+    expect(over.body.counted).toBe(false);
+    let d = await admin('get', '/demand');
+    expect(d.body.areas).toHaveLength(NEW_AREAS_PER_DAY);
+
+    // an area somebody else already created still counts for them
+    const b = await customer();
+    await check(b, { ...MIYAPUR });
+    expect((await check(a, { ...MIYAPUR })).body.counted).toBe(true);
+    // and the ceiling is per person: someone else can still put a new place on the map
+    expect((await check(b, { ...KOKAPET })).body.counted).toBe(true);
+    d = await admin('get', '/demand');
+    expect(d.body.areas).toHaveLength(NEW_AREAS_PER_DAY + 2);
   });
 
   it('with no PIN, groups by the kilometre square the point falls in', async () => {

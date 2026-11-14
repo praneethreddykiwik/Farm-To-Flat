@@ -92,20 +92,38 @@ export async function capturePayment({
   // Payment for items ADDED to an already-confirmed order (the edit-window top-up). Apply the lines
   // that were stashed on the order when the add was requested, and tell the customer.
   if (pay.purpose === 'ORDER_ADDITION') {
-    savePayment(pay);
     const ord = getOrder(pay.orderId);
     const pend = ord?.pendingAddition;
-    let updated = ord;
-    if (pend && pend.paymentId === pay.id) {
-      updated = applyOrderAddition(pay.orderId, pend.lineInputs, { gatewayPaid: pay.amountPaise });
-      if (updated?.customerId)
-        emitNotification(updated.customerId, {
-          type: 'ORDER_UPDATED',
-          title: 'Items added to your order',
-          body: `We added ${pend.lineInputs.length} item(s) to ${updated.orderNumber}.`,
-          data: { orderId: updated.id, orderNumber: updated.orderNumber, action: 'track' },
-        });
+    // The money only buys items if the order can still take them AND this is the addition it is
+    // waiting for. Otherwise — the order was cancelled or has moved on to packing while the payment
+    // sheet was open, or a later add request replaced this one — it used to be captured, nothing
+    // was added, and nothing came back. Same rule as a late payment for the order itself: record it
+    // as orphaned and return the full amount to the wallet, visibly.
+    if (!ord || ord.status !== 'CONFIRMED' || !pend || pend.paymentId !== pay.id) {
+      pay.orphan = true;
+      savePayment(pay);
+      const ref = ord?.orderNumber || pay.orderId;
+      ledgerPush(
+        pay.customerId,
+        'CREDIT',
+        pay.amountPaise,
+        'REFUND',
+        `${ref}:addition:${pay.id}`,
+        `Payment for items added to ${ref} could not be applied — returned to wallet`,
+      );
+      return { outcome: 'orphaned', payment: pay, order: ord };
     }
+    savePayment(pay);
+    const updated = applyOrderAddition(pay.orderId, pend.lineInputs, {
+      gatewayPaid: pay.amountPaise,
+    });
+    if (updated?.customerId)
+      emitNotification(updated.customerId, {
+        type: 'ORDER_UPDATED',
+        title: 'Items added to your order',
+        body: `We added ${pend.lineInputs.length} item(s) to ${updated.orderNumber}.`,
+        data: { orderId: updated.id, orderNumber: updated.orderNumber, action: 'track' },
+      });
     return { outcome: 'captured', payment: pay, order: updated };
   }
 
