@@ -636,8 +636,9 @@ export function logout(customerId) {
  * tax/legal record-keeping and they foreign-key to the customer (Prisma restricts the delete). So we
  * (1) revoke every session, (2) delete the PII collections — addresses, device push tokens, the
  * live cart — and (3) blank the customer's name/email and replace the mobile with a non-PII tombstone
- * (`deleted_<id>`), which also frees the real number for a fresh signup. After this the retained
- * order history is no longer linked to any identifying data.
+ * (`deleted_<id>`), which also frees the real number for a fresh signup. The retained ORDERS still
+ * carry the delivery snapshot (recipient name, contact number, flat), notes and complaints — the
+ * public Privacy Policy and Terms say so. If that changes, change those pages in the same commit.
  *
  * Returns the wallet balance at deletion so the caller can surface it: a non-zero balance may be
  * owed back to the customer under consumer law — that refund is an operations decision, not erased here.

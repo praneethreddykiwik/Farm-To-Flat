@@ -13,9 +13,9 @@
  */
 
 export const UPDATED = {
-  en: '1 October 2026',
-  hi: '1 अक्टूबर 2026',
-  te: '1 అక్టోబర్ 2026',
+  en: '16 November 2026',
+  hi: '16 नवंबर 2026',
+  te: '16 నవంబర్ 2026',
 };
 
 export const CHROME = {
@@ -253,7 +253,7 @@ const EN = (CONTACT) => [
       ],
       [
         'What is kept',
-        'Records of past orders and payments are retained in de-identified form only for as long as tax, accounting and other laws require, and are no longer linked to you.',
+        'Records of your past orders, payments, refunds and wallet entries — including the delivery name, contact number and flat recorded on each order, and any complaint made about it — are kept only for as long as tax, accounting and consumer law require, and to resolve disputes. They are used for nothing else. See our Privacy Policy for details.',
       ],
       [
         'Wallet balance',
@@ -395,7 +395,7 @@ const HI = (CONTACT) => [
       ],
       [
         'क्या रखा जाता है',
-        'पिछले ऑर्डर और भुगतान के रिकॉर्ड केवल उतने समय तक, जितना कर, लेखा और अन्य कानून आवश्यक करते हैं, पहचान-रहित रूप में रखे जाते हैं और अब आपसे जुड़े नहीं रहते।',
+        'आपके पिछले ऑर्डर, भुगतान, रिफ़ंड और वॉलेट के रिकॉर्ड — हर ऑर्डर पर दर्ज डिलीवरी नाम, संपर्क नंबर और फ़्लैट, और उस ऑर्डर से जुड़ी कोई शिकायत सहित — केवल उतने समय तक रखे जाते हैं जितना कर, लेखा और उपभोक्ता कानून आवश्यक करते हैं, और विवाद सुलझाने के लिए। इनका उपयोग किसी और काम के लिए नहीं किया जाता। विवरण के लिए हमारी गोपनीयता नीति देखें।',
       ],
       [
         'वॉलेट शेष राशि',
@@ -537,7 +537,7 @@ const TE = (CONTACT) => [
       ],
       [
         'ఏమి ఉంచబడుతుంది',
-        'గత ఆర్డర్‌లు మరియు చెల్లింపుల రికార్డులు పన్ను, అకౌంటింగ్ మరియు ఇతర చట్టాలు అవసరమైనంత కాలం మాత్రమే గుర్తింపు-రహిత రూపంలో ఉంచబడతాయి మరియు ఇకపై మీతో లింక్ చేయబడవు.',
+        'మీ గత ఆర్డర్‌లు, చెల్లింపులు, రీఫండ్‌లు మరియు వాలెట్ రికార్డులు — ప్రతి ఆర్డర్‌పై నమోదైన డెలివరీ పేరు, సంప్రదింపు నంబర్ మరియు ఫ్లాట్, ఆ ఆర్డర్‌పై చేసిన ఏదైనా ఫిర్యాదుతో సహా — పన్ను, అకౌంటింగ్ మరియు వినియోగదారుల చట్టాలు అవసరమైనంత కాలం మాత్రమే, మరియు వివాదాల పరిష్కారం కోసం ఉంచబడతాయి. వీటిని మరే ఇతర పనికీ ఉపయోగించము. వివరాలకు మా గోప్యతా విధానాన్ని చూడండి.',
       ],
       [
         'వాలెట్ నిల్వ',

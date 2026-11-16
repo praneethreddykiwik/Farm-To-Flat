@@ -1,18 +1,20 @@
 /**
  * Public privacy policy for Fooducia. Reached at /privacy with NO login and NO admin chrome —
- * the customer app's Profile → "Privacy policy" link opens it, and app-store / Razorpay reviews
- * expect a reachable policy URL. Self-contained (its own styles) so it renders correctly whether or
- * not the admin theme has loaded. Plain-language, and specific to what this app actually collects.
+ * the customer app's Profile → "Privacy policy" link opens it, and App Store / Play / Razorpay
+ * reviews expect a reachable policy URL. Self-contained (its own styles) so it renders correctly
+ * whether or not the admin theme has loaded.
  *
- * India-compliant (DPDP Act 2023 + IT Act 2000 / SPDI Rules 2011 + Google Play). The registered
- * entity (ENTITY), office address (REG_ADDRESS) and named Grievance Officer (GRIEVANCE_OFFICER)
- * are set in the constants below — keep them current if any changes. This is a thorough standard
- * policy, not legal advice; have counsel review material changes.
+ * Written to describe what the code ACTUALLY does (re-audited 16 Nov 2026 against apps/customer
+ * and apps/api). If you change what the app collects, where it sends it, or what account deletion
+ * removes, change this page in the same commit. Structure follows the DPDP Act 2023 + DPDP Rules
+ * 2025 (Rule 3 notice: itemised data, purposes, how to withdraw consent, exercise rights and
+ * complain to the Board), the IT Act 2000 / SPDI Rules 2011, Apple guideline 5.1.1 and the Google
+ * Play User Data policy. This is a thorough standard policy, not legal advice; have counsel review
+ * material changes.
  */
 import { useSupportEmail } from '../lib/publicSupport.js';
 
-const UPDATED = '13 November 2026';
-const EFFECTIVE = '3 November 2026';
+const UPDATED = '16 November 2026';
 
 // Registered legal entity, office address, and named Grievance Officer (DPDP Act / IT Rules).
 const ENTITY = 'Kiwik Consulting Services';
@@ -24,213 +26,300 @@ const SECTIONS = (CONTACT) => [
   {
     h: '1. Who we are',
     p: [
-      `Fooducia is a demand-aggregation grocery service that delivers fresh produce to residential communities in Hyderabad, India. The Fooducia mobile app and website (together, the “Service”) are operated by ${ENTITY} (“Fooducia”, “we”, “us”, “our”), with its registered office at ${REG_ADDRESS}.`,
-      'For the purposes of India’s Digital Personal Data Protection Act, 2023 (the “DPDP Act”), Fooducia is the “Data Fiduciary” that decides how and why your personal data is processed, and you are the “Data Principal”. This policy also follows the Information Technology Act, 2000 and the Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011 (the “SPDI Rules”).',
-      'This policy explains what personal data the Service collects, why, who we share it with, how long we keep it, how we protect it, and the rights and choices you have. By creating an account or placing an order, you agree to this policy.',
+      `Fooducia is a grocery service that delivers fresh vegetables, fruit and other produce to residential communities in Hyderabad, India. The Fooducia mobile app and the website fooducia.in (together, the “Service”) are a product of ${ENTITY} (“Fooducia”, “we”, “us”, “our”), with its registered office at ${REG_ADDRESS}.`,
+      'Under India’s Digital Personal Data Protection Act, 2023 (the “DPDP Act”) and the Digital Personal Data Protection Rules, 2025, Fooducia is the “Data Fiduciary” that decides how and why your personal data is processed, and you are the “Data Principal”. This policy also follows the Information Technology Act, 2000 and the Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011 (the “SPDI Rules”).',
+      `${ENTITY} runs other products as well. Your Fooducia data is used only to run Fooducia; we do not use it to market Kiwik’s other products to you.`,
+      'This policy explains what personal data the Service collects, why, who we share it with, where it is stored, how long we keep it, how we protect it, and the rights and choices you have.',
     ],
   },
   {
-    h: '2. The information we collect',
+    h: '2. At a glance',
+    list: [
+      [
+        'We collect',
+        'your mobile number, name, delivery address, orders and anything you choose to send us (a photo, a voice search, a complaint).',
+      ],
+      [
+        'We use it',
+        'to sign you in, deliver your orders, take payment, keep you updated and help when something goes wrong.',
+      ],
+      [
+        'We never',
+        'sell your data, show you third-party ads, track you across other apps, read your SMS or contacts, or follow your location in the background.',
+      ],
+      [
+        'We share it',
+        'only with the people and services that make the order happen — our delivery team, our payment, messaging, hosting and support providers (listed in section 7).',
+      ],
+      [
+        'You can',
+        'see, correct or delete your data, withdraw consent, nominate someone, and complain to us or to the Data Protection Board of India.',
+      ],
+    ],
+  },
+  {
+    h: '3. The information we collect, and why',
     p: [
-      'We collect only what we need to run your orders (the principle of data minimisation). This includes:',
+      'We collect only what a feature needs (data minimisation). Each item below says what it is and what it is for:',
     ],
     list: [
       [
-        'Your mobile number',
-        'to sign you in with a one-time password (OTP) delivered over WhatsApp or SMS, and to reach you about your orders.',
+        'Mobile number',
+        'to create your account and sign you in with a one-time password (OTP), and to reach you about your orders. The OTP is sent over WhatsApp, or by SMS where available. The app does not read your SMS inbox.',
       ],
       [
-        'Your name and delivery address',
-        'the community, block, flat and floor you choose — so we can deliver to the right door.',
+        'Name and delivery address',
+        'your community, block, flat and floor, and — if you add them — a landmark, delivery instructions, and the name and phone number of someone else who will receive the order. Used to deliver to the right door.',
       ],
-      ['Your orders', 'what you ordered, when, the amount, and the delivery and payment status.'],
+      [
+        'Orders',
+        'what you ordered, when, the amounts, fees and taxes, the delivery slot, and the order, delivery, cancellation and refund status. Used to fulfil, invoice and support your orders.',
+      ],
       [
         'Payment confirmation',
-        'payments are processed by Razorpay. We receive only a confirmation and a payment reference; we never see or store your full card number, UPI PIN, CVV, or bank credentials.',
+        'payments are processed by Razorpay. We pass your name and mobile number to Razorpay’s checkout so you do not have to type them, and we receive back only a payment reference and its status. We never see or store your card number, CVV, UPI PIN or bank login.',
       ],
       [
-        'Your location, once, when you ask',
-        'only when you tap “Use my location” to check whether we deliver to you. The check is made on your phone: the app compares where you are with the communities we serve, and if you are in one of them your location goes no further. If you are not, the app sends it to us once so we can count a request from your area. We keep only the area — a PIN code, or a square about a kilometre across — and a running count. We do not keep your name, your number, your account or your exact position with it, so that count cannot be traced back to you. We never track your location in the background.',
+        'Wallet and refunds',
+        'a record of credits, refunds and amounts used from your Fooducia wallet, linked to the orders they relate to.',
       ],
       [
-        'A request to be told when we reach your area',
-        'only if you tap “Tell me when you deliver here”. We then keep your name, your mobile number, your approximate area (to about a hundred metres, never your door) and the name of your community if you typed it — so that we can send you one message when delivery starts there. It is used for that message and nothing else. You can remove it at any time in the app under Profile, and it is deleted when you delete your account.',
+        'Complaints and requests',
+        'if you report a problem with an order or ask to cancel it: the reason, your note, and up to five photos you choose to attach. Used to resolve the problem, refund you where due, and improve our service. The staff member handling it sees your name and the order.',
       ],
       [
-        'Camera and photos',
-        'only when you choose to photograph a vegetable to search for it, or attach a photo to a complaint. We do not scan your photo library.',
+        'Location — only when you tap “Use my location”',
+        'used once to check whether we deliver to your community. Your phone compares your position with the communities we serve; if you are inside one, your position is not sent to us. If you are not, your phone’s built-in map service (Apple on iPhone, Google on Android) is asked for the name of the area, and the app sends us that area once — a PIN code, or a square about a kilometre across — so we can count demand there. We keep only the area and a running count, not your name, number, account or exact position. We never track your location in the background.',
       ],
       [
-        'Microphone / voice',
-        'only while you use voice search; your speech is converted to text to find items. We do not record in the background.',
+        '“Tell me when you deliver here”',
+        'only if you tap it: your name, mobile number, approximate area (to about a hundred metres, never your door) and the community name if you typed it — so we can send you one message when delivery starts there. You can remove it any time in the app under Profile.',
       ],
       [
-        'Device notification token',
-        'only if you allow notifications, so we can tell you when your order is confirmed, packed, on the way, or delivered.',
+        'Photo search',
+        'when you photograph a vegetable to find it, the photo is sent to our server and to an AI image-recognition service (Groq) to identify the item. We use it only to answer that search and do not keep it. We do not scan your photo library; you pick or take each photo yourself.',
       ],
       [
-        'App diagnostics and crash data',
-        'app version and anonymous error/crash reports (via Sentry) that help us keep the app working. See “Crash reporting”.',
+        'Voice search',
+        'when you tap the microphone, your phone’s own speech recognition (Apple on iPhone, Google on Android) turns your speech into text; depending on your phone this may happen on the device or on Apple’s or Google’s servers, under their privacy terms. We receive only the text of your search, never the recording.',
+      ],
+      [
+        'Notifications',
+        'if you allow notifications, a device token so we can send order updates (confirmed, packed, on the way, delivered, refunds). We keep your most recent 100 updates in the app’s notification centre so you can read them again.',
+      ],
+      [
+        'WhatsApp order updates',
+        'we send order and refund updates, replies to your complaints and a request for feedback to your mobile number on WhatsApp. These are about your orders; we do not currently send marketing messages, and if we ever do we will ask first and let you opt out.',
+      ],
+      [
+        'Technical and security data',
+        'when the app or website talks to our servers, our systems record the IP address, the type of device or browser, and the time and address of each request, to keep the Service running and secure and to detect abuse. Sign-in codes, passwords and access tokens are removed from these records.',
+      ],
+      [
+        'Crash reports',
+        'technical details of an error — app version, device model, operating-system version and what went wrong — sent to Sentry so we can fix it. They do not include your name, number or address.',
       ],
     ],
   },
   {
-    h: '3. Device permissions and why we ask',
+    h: '4. Kept only on your phone',
     p: [
-      'The app requests only the permissions it needs for a feature you use, and each is optional. You can grant or revoke any of them at any time in your device settings:',
+      'Some things stay on your phone and are never sent to us: your chosen language, the family size you enter for portion suggestions, your recent community, whether you have seen the introduction, and a copy of the catalogue so the app opens quickly. Your sign-in is kept in your phone’s secure storage. Deleting the app removes all of these.',
+    ],
+  },
+  {
+    h: '5. Device permissions and why we ask',
+    p: [
+      'The app asks for a permission only when you first use the feature that needs it, and each is optional. You can grant or revoke any of them at any time in your phone’s settings:',
     ],
     list: [
       [
-        'Location (approximate/precise)',
-        'a one-time, foreground check of whether we deliver to your community, made when you tap “Use my location” and at no other time.',
+        'Location',
+        'a one-time, foreground check of whether we deliver to your community, made only when you tap “Use my location”.',
       ],
       ['Camera', 'to photograph a vegetable to find it, or to show us a problem with an order.'],
-      ['Photos / media', 'to attach a photo you choose to a search or a complaint.'],
-      ['Microphone', 'for voice search of the catalogue.'],
+      [
+        'Photos',
+        'to attach a photo you pick to a search or a complaint. The app sees only the photos you pick.',
+      ],
+      [
+        'Microphone and speech recognition',
+        'for voice search of the catalogue, only while you hold the microphone open.',
+      ],
       ['Notifications', 'to send you order-status updates.'],
     ],
     after: [
-      'Declining a permission only disables that one feature; the rest of the app continues to work.',
+      'Declining a permission turns off only that one feature; the rest of the app keeps working.',
     ],
   },
   {
-    h: '4. What we do NOT collect',
+    h: '6. What we do NOT collect or do',
     p: [
-      'We do not ask for or store your card number, UPI PIN, CVV, or bank passwords — those go directly to our payment partner. We do not track your location in the background. We do not read your contacts, SMS, or call logs. We do not collect data from other apps on your device, we do not use third-party advertising trackers, and we do not build advertising profiles or sell your data.',
+      'We do not ask for or store your card number, CVV, UPI PIN or bank passwords. We do not read your SMS, contacts, call logs or other apps. We do not track your location in the background. We do not use advertising identifiers, advertising networks or cross-app tracking, we do not build advertising profiles, and we do not sell your personal data.',
     ],
   },
   {
-    h: '5. Why we use your data, and our legal basis',
+    h: '7. Who we share it with',
     p: [
-      'Under the DPDP Act we process your personal data based on the consent you give when you sign up and order, and for the legitimate purposes of providing the Service you ask for. Specifically, we use your data to:',
+      'We share only what each one needs to do its job. All of the following act on our instructions as our processors, except where noted:',
     ],
     list: [
-      ['Run your orders', 'take, pack, deliver, and support the orders you place.'],
       [
-        'Know you when you come back',
-        'see which of your orders each one is — your first, your second, and so on — so that we can serve and support you properly. This is not used to advertise to you.',
+        'Our delivery and packing team',
+        'your name, block, flat, delivery instructions and contact number, for the orders they are handling.',
       ],
-      ['Sign you in', 'verify your number and keep you signed in securely.'],
-      ['Keep you informed', 'send order-status notifications you can turn off any time.'],
-      ['Take payment', 'process and reconcile payments through our payment partner.'],
       [
-        'Improve and secure the Service',
-        'understand demand to buy and deliver better, and detect and prevent fraud and abuse.',
+        'Razorpay (India)',
+        'to take payment. Razorpay is PCI-DSS compliant and also processes payment data under its own privacy policy for fraud prevention and banking rules (razorpay.com/privacy).',
       ],
-      ['Meet legal obligations', 'keep invoices and records required by tax and other laws.'],
-    ],
-    after: ['We never sell your personal data, and we do not use it for third-party advertising.'],
-  },
-  {
-    h: '6. Who we share it with',
-    p: [
-      'We share only what is needed to deliver your order and run the Service. Each of the following acts as our data processor, on our instructions and under contract:',
-    ],
-    list: [
-      ['Delivery team', 'your name, flat, and contact number for the order being delivered.'],
       [
-        'Razorpay',
-        'our PCI-DSS-compliant payment processor, to take payment securely (razorpay.com/privacy).',
+        'MSG91 and WhatsApp (Meta)',
+        'to deliver your sign-in codes and order updates to your mobile number.',
       ],
-      ['MSG91', 'to deliver your login OTP over WhatsApp or SMS.'],
-      ['Google', 'Google Sign-In, used by our staff/operator console.'],
-      ['Supabase', 'secure database and storage hosting for the Service.'],
-      ['Expo (EAS)', 'app updates and delivery of push notifications.'],
-      ['Sentry', 'anonymous crash and error reporting (see “Crash reporting”).'],
+      [
+        'Groq',
+        'AI image recognition for photo search; receives only the photo you take for that search.',
+      ],
+      ['Supabase', 'database and secure file storage (for example, complaint photos).'],
+      ['Render', 'the servers that run our app’s back end.'],
+      [
+        'Cloudflare',
+        'network security and fast, protected delivery of our website and app traffic.',
+      ],
+      ['Vercel', 'hosting for the fooducia.in website.'],
+      ['Expo (EAS)', 'delivers app updates and sends push notifications on our behalf.'],
+      [
+        'Apple and Google',
+        'deliver push notifications, and provide the speech recognition and map lookup built into your phone, under their own privacy terms.',
+      ],
+      ['Sentry', 'crash and error reports (see section 3).'],
     ],
     after: [
-      'We do not sell your personal data to anyone. We may disclose data if we are legally required to, for example in response to a lawful request from a government authority or court.',
+      'We may also disclose personal data when the law requires it — for example, to a court, a tax authority or law enforcement with a lawful request — or to protect the safety of our customers, staff or the public, or to prevent fraud. If Fooducia is ever merged, sold or reorganised, your data may pass to the new owner, who must keep honouring this policy. We do not sell your personal data to anyone.',
     ],
   },
   {
-    h: '7. Crash reporting and analytics',
+    h: '8. Where your data is stored',
     p: [
-      'To keep the app stable we use Sentry for crash and error reporting. It records technical diagnostics such as the app version, device model, operating-system version and the error that occurred. We do not use advertising networks, ad trackers, or cross-app tracking of any kind. Sentry is the only third-party analytics/diagnostics service in the app.',
-    ],
-  },
-  {
-    h: '8. Transfer of data outside India',
-    p: [
-      'Some of our processors may store or process data on servers located outside India. Where that happens we take steps to ensure your data continues to receive the protection this policy describes. Such transfers are made in accordance with the DPDP Act, which permits transfer to countries other than those the Government of India restricts.',
+      'Our service providers run servers in several countries. Today your data may be stored or processed outside India, including in Japan (our database) and the United States (our back-end servers, photo recognition and crash reporting), and passes through Cloudflare’s global network. The DPDP Act allows such transfers except to countries the Government of India restricts, and we choose providers that protect data to a standard at least equal to this policy.',
     ],
   },
   {
     h: '9. How long we keep it',
-    p: [
-      'We keep your account and order information for as long as your account is active and as needed to provide the Service. Order and payment records are retained for the period required by Indian tax and accounting law (generally up to eight years). When you ask us to delete your account, we delete or anonymise your personal data except where we must keep certain records to meet a legal obligation or resolve disputes.',
-      'A request to be told when we reach your area is kept until you remove it or delete your account. The count of requests from an area holds no personal data and is kept as long as it is useful for planning where we deliver.',
+    list: [
+      [
+        'Your account',
+        'while your account is open. Deleted straight away when you delete your account (see section 16).',
+      ],
+      [
+        'Orders, invoices, payments, refunds and wallet records',
+        'including the delivery details and any complaint recorded on an order, kept for as long as Indian tax, accounting and consumer law requires — generally up to eight years — and to resolve disputes.',
+      ],
+      ['“Tell me when you deliver here”', 'until you remove it or delete your account.'],
+      [
+        'Area demand counts',
+        'hold no personal data; kept as long as they help us plan where to deliver.',
+      ],
+      ['Notification centre', 'your latest 100 updates; deleted with your account.'],
+      ['Sign-in', 'you stay signed in for up to 90 days of inactivity on a phone.'],
+      [
+        'Technical records and crash reports',
+        'kept for a limited period by our hosting and crash-reporting providers, and for longer only when needed to investigate a security incident.',
+      ],
+      [
+        'Records of staff access',
+        'when a staff member opens a customer’s order history or reveals a mobile number, we record who did it and why; kept for security and accountability.',
+      ],
     ],
   },
   {
     h: '10. How we protect it',
     p: [
-      'We follow reasonable security practices and procedures as required by the SPDI Rules. Access to the app requires a one-time password sent to your number. Data travels over encrypted (HTTPS/TLS) connections and is stored with a reputable cloud provider using access controls and row-level security. Payment details are handled by our PCI-DSS-compliant payment partner and never pass through our own systems. We restrict internal access to personal data to staff who need it. The people who pack and deliver see the orders they are handling; a customer’s whole order history is open only to our administrators, with the mobile number hidden until one is needed for a delivery, a complaint or a payment query, and each time a history is opened or a number is shown, that is recorded. No method of transmission or storage is perfectly secure, but we work to protect your information and will notify you and the authorities of a personal-data breach as required by law.',
+      'We follow reasonable security practices as required by the SPDI Rules and the DPDP Rules. Sign-in needs a one-time password sent to your number. Data travels over encrypted (HTTPS/TLS) connections and is stored with reputable cloud providers behind access controls. Payment details are handled by our PCI-DSS-compliant payment partner and never pass through our systems. Access inside Fooducia is limited to people who need it: the people who pack and deliver see only the orders they handle; a customer’s full order history is open only to our administrators, with the mobile number hidden until it is needed for a delivery, a complaint or a payment query, and every such access is recorded.',
+      'No system is perfectly secure. If a personal-data breach affects you, we will tell you without delay — what happened, what it may mean for you, what we are doing and what you can do — and we will report it to the Data Protection Board of India and to CERT-In as the law requires.',
     ],
   },
   {
-    h: '11. Your rights under the DPDP Act',
-    p: ['As a Data Principal, you have the right to:'],
+    h: '11. Your rights',
+    p: ['Under the DPDP Act you have the right to:'],
     list: [
-      ['Access', 'ask for a summary of the personal data we hold about you and how we process it.'],
       [
-        'Correction & completion',
-        'have inaccurate or incomplete data corrected, completed or updated.',
+        'Access',
+        'a summary of the personal data we hold about you, what we do with it, and who we have shared it with.',
       ],
-      ['Erasure', 'ask us to delete your personal data where it is no longer needed.'],
-      ['Grievance redressal', 'raise a concern with our Grievance Officer (see below).'],
+      [
+        'Correction and completion',
+        'have inaccurate or incomplete data corrected or updated. You can edit your name and addresses in the app yourself.',
+      ],
+      [
+        'Erasure',
+        'have your personal data deleted when it is no longer needed, subject to what the law requires us to keep.',
+      ],
+      ['Withdraw consent', 'at any time, as easily as you gave it (see section 12).'],
+      ['Grievance redressal', 'have a concern handled by our Grievance Officer (section 13).'],
       [
         'Nomination',
-        'nominate another person to exercise your rights in the event of your death or incapacity.',
+        'name another person to exercise these rights for you if you die or become unable to.',
       ],
-      ['Withdraw consent', 'withdraw your consent to processing at any time (see below).'],
     ],
     after: [
-      `To exercise any of these rights, email ${CONTACT}. We will verify your request and respond within the time the law requires.`,
+      `To use any of these rights, email ${CONTACT} from your registered email, or write to us mentioning your registered mobile number so we can find your account; we may ask you to confirm a code sent to that number before acting. We respond within 30 days.`,
     ],
   },
   {
     h: '12. Withdrawing your consent',
     p: [
-      `You can withdraw your consent to our processing of your personal data at any time by emailing ${CONTACT} or by deleting your account in the app. Withdrawing consent does not affect processing already carried out, and because we need certain data to deliver your orders, withdrawing it may mean we can no longer provide the Service.`,
-      'A request to be told when we reach your area can be withdrawn on its own, without touching the rest of your account: remove it in the app under Profile, and we delete it at once.',
+      `You can withdraw consent at any time by deleting your account in the app (Profile → Delete account) or by emailing ${CONTACT}. You can also turn off notifications, location, camera or microphone at any time in your phone’s settings, and remove a “Tell me when you deliver here” request on its own under Profile. Withdrawing consent does not undo processing already done, and because we need certain data to deliver orders, withdrawing it may mean we can no longer serve you.`,
     ],
   },
   {
     h: '13. Grievance Officer',
     p: [
-      'In accordance with the DPDP Act, 2023 and the Information Technology Act, 2000 and its rules, you may contact our Grievance Officer with any concern about your personal data or this policy:',
+      'In accordance with the DPDP Act, 2023, the Information Technology Act, 2000 and the rules under them, you may contact our Grievance Officer with any concern about your personal data or this policy:',
     ],
     list: [
       ['Name', GRIEVANCE_OFFICER],
       ['Email', CONTACT],
       ['Address', REG_ADDRESS],
     ],
-    after: [
-      'We acknowledge grievances within 24–48 hours and work to resolve them within the period required by law (and, for grievances under the SPDI Rules, within one month).',
-    ],
+    after: ['We acknowledge grievances within 48 hours and resolve them within 30 days.'],
   },
   {
     h: '14. Complaints to the Data Protection Board',
     p: [
-      'If you are not satisfied with how we have handled your concern, you have the right to lodge a complaint with the Data Protection Board of India established under the DPDP Act, 2023.',
+      'If you are not satisfied with how we handled your grievance, you may complain to the Data Protection Board of India under the DPDP Act, 2023, through the means the Board provides.',
     ],
   },
   {
     h: '15. Children',
     p: [
-      'The Service is intended for adults (18 years and over) who can place grocery orders. Under the DPDP Act a “child” is anyone under 18. We do not knowingly process a child’s personal data without verifiable consent from a parent or lawful guardian, and we do not track children or direct advertising at them. If you believe a child has given us personal data, contact us and we will delete it.',
+      'The Service is meant for adults (18 and over) who place grocery orders for their homes. Under the DPDP Act a “child” is anyone under 18. We do not knowingly collect a child’s personal data without verifiable consent from a parent or lawful guardian, and we never track children or direct advertising at them. If you believe a child has given us personal data, contact us and we will delete it.',
     ],
   },
   {
-    h: '16. Deleting your account and data',
+    h: '16. Deleting your account',
     p: [
-      `You can delete your account and personal data at any time from within the app (Profile → Delete account), through our account-deletion page, or by emailing ${CONTACT}. We will delete or anonymise your personal data, except for records we are legally required to retain (for example, tax invoices). Deletion usually completes within 30 days.`,
+      `You can delete your account at any time in the app (Profile → Delete account), or by emailing ${CONTACT}; see also fooducia.in/account-deletion. In the app it takes effect straight away; by email, within 30 days of confirming it is you.`,
+    ],
+    list: [
+      [
+        'What is deleted',
+        'your profile (name, email and mobile number), saved delivery addresses, basket, sign-in, notification tokens, notification history and any “Tell me when you deliver here” request. Your mobile number is freed for a fresh sign-up.',
+      ],
+      [
+        'What is kept',
+        'records of your past orders, payments, refunds and wallet entries — including the delivery name, contact number and flat recorded on each order, and any complaint made about it — because tax, accounting and consumer law require us to keep them, and to resolve disputes. They are kept only for the period in section 9 and used for nothing else.',
+      ],
+      [
+        'Wallet balance',
+        'claim any wallet balance from support before deleting; it cannot be recovered afterwards.',
+      ],
     ],
   },
   {
     h: '17. Changes to this policy',
     p: [
-      'We may update this policy as the Service grows or the law changes. We will update the “Last updated” date above and, for significant changes, highlight them in the app. Your continued use of the Service after a change means you accept the updated policy.',
+      'We may update this policy as the Service grows or the law changes. We will change the “Last updated” date above and, for significant changes, tell you in the app before they take effect.',
     ],
   },
   {
