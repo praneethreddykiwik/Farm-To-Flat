@@ -17,6 +17,7 @@
  * message to customers cannot be taken back.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
@@ -90,6 +91,7 @@ export function Demand() {
       ) : (
         <>
           {data.ready === false && <SetupNote sql={data.setupSql} />}
+          {data.pins && data.pins.set < data.pins.total && <PinsNote pins={data.pins} />}
 
           <div className="stat-grid stagger">
             <Stat
@@ -259,6 +261,32 @@ export function Demand() {
 }
 
 /** Shown only when the database has no tables for this yet. Says so, and gives the cure. */
+/**
+ * Location checks are counted only once every community has a pin: until then a customer standing
+ * inside an unpinned community would look like demand from a new area, so the app counts nothing.
+ */
+function PinsNote({ pins }) {
+  const missing = pins.total - pins.set;
+  return (
+    <div className="glass card reveal" style={{ marginBottom: 16 }}>
+      <p style={{ fontWeight: 600, color: 'var(--tomato)', margin: 0 }}>
+        Location checks are not being counted yet — {pins.set} of {pins.total} communities have a
+        location
+      </p>
+      <p className="muted" style={{ margin: '6px 0 0', maxWidth: 720 }}>
+        Until every community has one, the app cannot tell whether someone pressing “Use my
+        location” is outside the areas we serve, so it counts nothing and tells them to pick a
+        community or tell us where they are. Set the {missing === 1 ? 'missing one' : `${missing}`}{' '}
+        under Communities → Edit location. People who type their area and ask to be told are still
+        recorded here.
+      </p>
+      <Link className="btn btn--ghost btn--sm" style={{ marginTop: 10 }} to="/communities">
+        <IconPin size={15} /> Go to Communities
+      </Link>
+    </div>
+  );
+}
+
 function SetupNote({ sql }) {
   async function copy() {
     try {

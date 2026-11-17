@@ -15,7 +15,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
-import { getCommunity } from '../../store.js';
+import { getCommunity, listCommunities } from '../../store.js';
+import { communityGeo } from '../../lib/geo.js';
 import { getCustomer } from '../../customer-store.js';
 import { emitNotification } from '../../lib/notify.js';
 import { recordAction } from '../../lib/audit.js';
@@ -77,8 +78,13 @@ adminDemandRouter.get(
     // Boot found the tables missing? Look again — they may have been created since.
     if (!demandTablesReady()) await recheckDemandTables();
     const ready = demandTablesReady();
+    // The app counts a check only when EVERY community it lists has a pin — otherwise a miss could
+    // be someone standing inside an unpinned community. Say how far off that is, so an empty page
+    // is not mistaken for nobody asking.
+    const active = listCommunities().filter((c) => c.isActive !== false);
     res.json({
       ready,
+      pins: { set: active.filter((c) => communityGeo(c)).length, total: active.length },
       // Only when it is needed: the exact statements to run, so the console can show them.
       ...(ready ? {} : { setupSql: SETUP_SQL.demand }),
       ...demandOverview(),

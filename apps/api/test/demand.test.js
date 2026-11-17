@@ -764,6 +764,9 @@ describe('who may see it', () => {
     const ok = await request(app).get('/api/v1/admin/demand').set(as(manager.token));
     expect(ok.status).toBe(200);
     expect(ok.body.totals.subscribers).toBe(1);
+    // How many communities have a pin — the console warns while any is missing.
+    expect(ok.body.pins.total).toBeGreaterThan(0);
+    expect(ok.body.pins.set).toBeLessThanOrEqual(ok.body.pins.total);
   });
 });
 
