@@ -113,7 +113,49 @@ export async function opsStatus() {
   };
 }
 
-export const opsReady = () => state !== 'missing';
+/**
+ * Is the table there? While it is missing this also nudges a re-check (at most once a minute, in
+ * the background), so the owner creating the table takes effect without a restart and without
+ * anyone having to open an admin page first. The answer for THIS call is still the current state.
+ */
+export const opsReady = () => {
+  if (state === 'missing') recheckSoon();
+  return state !== 'missing';
+};
+
+const RECHECK_MS = 60_000;
+let lastRecheck = 0;
+let rechecking = false;
+function recheckSoon() {
+  if (!persistEnabled || rechecking || Date.now() - lastRecheck < RECHECK_MS) return;
+  lastRecheck = Date.now();
+  rechecking = true;
+  Promise.resolve()
+    .then(() => (persistenceOn() ? loadOps() : null))
+    .catch(() => {})
+    .finally(() => {
+      rechecking = false;
+    });
+}
+
+/**
+ * Keep looking for the table every five minutes while it is missing. Started once at boot; the
+ * timer stops itself once the table is found and never holds the process open.
+ */
+let recheckTimer = null;
+export function startOpsRecheck(everyMs = 5 * 60_000) {
+  if (!persistEnabled || state !== 'missing' || recheckTimer) return recheckTimer;
+  recheckTimer = setInterval(() => {
+    if (state !== 'missing') {
+      clearInterval(recheckTimer);
+      recheckTimer = null;
+      return;
+    }
+    recheckSoon();
+  }, everyMs);
+  recheckTimer.unref?.();
+  return recheckTimer;
+}
 
 const setupNeeded = () =>
   fail(

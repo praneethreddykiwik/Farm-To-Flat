@@ -81,7 +81,7 @@ import { supportRouter, adminSupportRouter } from './routes/support.js';
 import { adminChargesRouter } from './routes/admin/charges.js';
 import { adminEmailsRouter } from './routes/admin/admin-emails.js';
 import { adminBusinessRouter } from './routes/admin/business.js';
-import { loadOps } from './ops-store.js';
+import { loadOps, startOpsRecheck } from './ops-store.js';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
 import { requireCloudflare, originLockEnabled } from './lib/edge.js';
@@ -394,6 +394,8 @@ async function hydrateOnce() {
   hydrateDemand(await demandDb.loadAll());
   // Promoters, referrals, waitlist, reviews, expenses, wastage… (one optional table, ops-store.js).
   await loadOps();
+  // If the table is not there yet, keep looking — creating it then needs no restart.
+  startOpsRecheck();
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);
