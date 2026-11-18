@@ -66,7 +66,14 @@ async function request(method, path, body) {
  */
 async function download(path, filename) {
   const headers = { ...authHeader() };
-  const res = await fetch(BASE + path, { headers });
+  // credentials:'include' is what carries a Google sign-in: that session lives only in the HttpOnly
+  // f2f_admin cookie, so without it the export went out unauthenticated, came back 401, and
+  // signOutIfRejected() threw the operator onto the sign-in screen mid-shift (Packing sheet, driver
+  // manifest, purchase list — every export). Same as request() above.
+  const res = await fetch(BASE + path, {
+    headers: Object.keys(headers).length ? headers : undefined,
+    credentials: 'include',
+  });
   if (!res.ok) {
     const isJson = (res.headers.get('content-type') || '').includes('application/json');
     const data = isJson ? await res.json().catch(() => null) : null;

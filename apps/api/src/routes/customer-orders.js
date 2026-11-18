@@ -68,6 +68,9 @@ import {
   uploadIssuePhoto,
 } from '../lib/storage.js';
 import { baseUrlOf } from '../lib/media.js';
+import { checkCode, recordOrderSource } from '../lib/growth.js';
+import { wasPlaced } from '../lib/customer-history.js';
+import { getOps, putOps } from '../ops-store.js';
 import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
@@ -87,6 +90,10 @@ const OrderBody = z.object({
   useWallet: z.boolean().optional(),
   deliveryNote: z.string().trim().max(200).optional(), // "leave with the guard", gate code, etc.
   paymentMethod: z.enum(['PREPAID', 'COD']).optional(),
+  // A promoter's code (the person at a community stall) or a neighbour's invite code. Optional.
+  code: z.string().trim().max(20).optional().nullable(),
+  // "How did you hear about Fooducia?" — asked before the first order only.
+  heardFrom: z.string().max(20).optional().nullable(),
 });
 
 customerOrdersRouter.post(
@@ -105,6 +112,14 @@ customerOrdersRouter.post(
       throw fail(422, 'MIN_ORDER_NOT_MET', 'Minimum order value is ₹500.', {
         minOrderPaise: String(constants().minOrderValuePaise),
       });
+
+    // A typed code is checked BEFORE anything is committed: a typo is a message to fix, not a
+    // credit silently lost after the money is taken.
+    const firstOrder = !listOrdersForCustomer(cid).some(wasPlaced);
+    if (req.body.code) {
+      const chk = checkCode(req.body.code, { customerId: cid, isFirstOrder: firstOrder });
+      if (!chk.ok) throw fail(422, 'BAD_CODE', chk.message);
+    }
 
     const address = listAddresses(cid).find((a) => a.id === addressId);
     if (!address) throw fail(422, 'VALIDATION', 'Choose a delivery address.');
@@ -228,6 +243,13 @@ customerOrdersRouter.post(
       // Nothing to collect online, so a cash order is live the moment it is placed — the money
       // arrives at the door. This is what makes it the Zepto-style one-tap flow.
       status: gateway > 0 ? 'PENDING_PAYMENT' : 'CONFIRMED',
+    });
+    // Where this order came from (promoter, invite, "how did you hear"). Never throws.
+    recordOrderSource({
+      order,
+      customerId: cid,
+      code: req.body.code,
+      heardFrom: req.body.heardFrom,
     });
     if (walletApplied > 0)
       ledgerPush(
@@ -672,5 +694,88 @@ customerOrdersRouter.post(
         baseUrlOf(req),
       ),
     });
+  }),
+);
+
+// ── reviews ─────────────────────────────────────────────────────────────────
+// A rating (1–5) and an optional word on a DELIVERED order, editable for 14 days. The team can
+// reply from the admin Feedback page; the reply shows here.
+const REVIEW_EDIT_DAYS = 14;
+const REVIEW_TAGS = [
+  'Fresh',
+  'On time',
+  'Well packed',
+  'Good value',
+  'Not fresh',
+  'Late',
+  'Missing item',
+  'Damaged',
+];
+const reviewOut = (r) =>
+  r
+    ? {
+        rating: r.rating,
+        comment: r.comment || null,
+        tags: r.tags || [],
+        at: r.at,
+        reply: r.reply || null,
+        repliedAt: r.repliedAt || null,
+      }
+    : null;
+
+customerOrdersRouter.get(
+  '/:id/review',
+  asyncHandler(async (req, res) => {
+    const o = getOrderForCustomer(req.params.id, req.customerId);
+    if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    res.json({
+      review: reviewOut(getOps('review', o.id)),
+      canReview: o.status === 'DELIVERED',
+      tags: REVIEW_TAGS,
+    });
+  }),
+);
+
+customerOrdersRouter.put(
+  '/:id/review',
+  validateBody(
+    z.object({
+      rating: z.number().int().min(1).max(5),
+      comment: z.string().trim().max(500).optional().nullable(),
+      tags: z
+        .array(z.enum(/** @type {[string, ...string[]]} */ (REVIEW_TAGS)))
+        .max(8)
+        .optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const o = getOrderForCustomer(req.params.id, req.customerId);
+    if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    if (o.status !== 'DELIVERED')
+      throw fail(409, 'NOT_DELIVERED', 'You can rate an order once it has been delivered.');
+    const cur = getOps('review', o.id);
+    if (cur && Date.now() - Date.parse(cur.at) > REVIEW_EDIT_DAYS * 864e5)
+      throw fail(409, 'LOCKED', 'This review can no longer be changed.');
+    try {
+      const saved = await putOps('review', o.id, {
+        ...(cur || {}),
+        orderNumber: o.orderNumber,
+        customerId: req.customerId,
+        rating: req.body.rating,
+        comment: req.body.comment || null,
+        tags: req.body.tags || [],
+        at: cur?.at || new Date().toISOString(),
+        editedAt: cur ? new Date().toISOString() : null,
+      });
+      res.json({ review: reviewOut(saved) });
+    } catch (e) {
+      if (e?.code === 'SETUP_NEEDED')
+        throw fail(
+          503,
+          'UNAVAILABLE',
+          'Ratings aren’t available just yet. Please try again later.',
+        );
+      throw e;
+    }
   }),
 );

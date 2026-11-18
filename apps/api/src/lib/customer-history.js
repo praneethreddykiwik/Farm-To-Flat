@@ -172,6 +172,21 @@ export function summarise(key, list, getCustomer) {
     lastOrderAt: last.createdAt,
     lastOrderNumber: last.orderNumber,
     lastStatus: last.status,
+    // How long the orders took — "7 orders" means little without "over how long" (17 Nov review).
+    daysToSecond:
+      list.length > 1
+        ? Math.round(((Date.parse(list[1].createdAt) - Date.parse(first.createdAt)) / 864e5) * 10) /
+          10
+        : null,
+    avgDaysBetween:
+      list.length > 1
+        ? Math.round(
+            ((Date.parse(last.createdAt) - Date.parse(first.createdAt)) /
+              864e5 /
+              (list.length - 1)) *
+              10,
+          ) / 10
+        : null,
     // What they have actually paid for and received. An order still on its way is not "spent" yet,
     // and a cancelled one was refunded.
     spentPaise: delivered.reduce((s, o) => s + Number(o.totalPaise || 0), 0),

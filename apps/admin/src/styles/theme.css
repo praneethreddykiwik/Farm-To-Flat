@@ -347,6 +347,13 @@ button {
   justify-content: space-between;
   gap: 20px;
   padding-top: 6px;
+  /* Every top-level block in .main runs the op-rise entrance, and an animated transform makes each
+     one its own stacking context — even after it ends, because the fill holds it. The blocks below
+     the header come later in the DOM, so they painted OVER its dropdown menus: the Procurement
+     "Download in" menu opened behind the Awaiting-approval card and no option could be clicked.
+     Lifting the header puts its menus above the page content. Drawers and scrims (40+) stay above. */
+  position: relative;
+  z-index: 20;
 }
 .page-title {
   font-family: var(--font-display);
@@ -2286,4 +2293,381 @@ table.data tbody tr.demand__row {
   background: rgba(14, 27, 20, 0.06);
   color: var(--ink-2);
   white-space: nowrap;
+}
+
+/* ============================================================================
+   Business review screens (Nov 2026): Growth, Weekly insights, Finance, Feedback,
+   Procurement → Buffer & wastage, and the public /join page.
+   ========================================================================== */
+.setup-banner {
+  margin-bottom: 16px;
+  border-left: 3px solid var(--tomato);
+}
+.tabbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+/* Spreadsheet-style sheet tabs, for flipping between product categories. */
+.sheettabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--hairline);
+  padding: 0 12px;
+}
+.sheettabs__tab {
+  border: 1px solid var(--hairline);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: rgba(14, 27, 20, 0.04);
+  color: var(--ink-3);
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: -1px;
+}
+.sheettabs__tab.is-active {
+  background: #fff;
+  color: var(--leaf-deep);
+  border-bottom: 1px solid #fff;
+}
+.daterange {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0 0 16px;
+}
+.daterange__custom {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.daterange__custom .field__input {
+  width: auto;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.daterange__label {
+  font-size: 12.5px;
+  margin-left: 4px;
+}
+.pbar {
+  height: 6px;
+  border-radius: 6px;
+  background: rgba(14, 27, 20, 0.07);
+  overflow: hidden;
+  min-width: 80px;
+}
+.pbar__fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--leaf), var(--sprout-deep));
+}
+.pbar--amber .pbar__fill {
+  background: var(--amber);
+}
+.pbar--tomato .pbar__fill {
+  background: var(--tomato);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(14, 27, 20, 0.06);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.pill--leaf {
+  background: var(--leaf-soft);
+  color: var(--leaf-deep);
+}
+.pill--amber {
+  background: var(--amber-soft);
+  color: #8a5f06;
+}
+.pill--tomato {
+  background: var(--tomato-soft);
+  color: var(--tomato);
+}
+.pill--sky {
+  background: var(--sky);
+  color: #1c5a8a;
+}
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+table.data td.row-actions-cell {
+  white-space: nowrap;
+  text-align: right;
+}
+table.data th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+table.data th.sortable:hover {
+  color: var(--ink);
+}
+table.data input.cell-input {
+  width: 72px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+table.data input.cell-input--wide {
+  width: 130px;
+}
+table.data tr.row-err td {
+  background: var(--tomato-soft);
+}
+/* The profit-and-loss statement: one line per figure, subtotals ruled off. */
+.pnl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.pnl td {
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.pnl td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.pnl tr.pnl__sub td {
+  padding-left: 22px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.pnl tr.pnl__total td {
+  font-weight: 700;
+  border-top: 2px solid var(--ink);
+  border-bottom: 2px solid var(--hairline);
+  font-size: 15px;
+}
+.pnl tr.pnl__total td:last-child {
+  font-size: 15px;
+}
+.pnl tr.pnl__final td {
+  font-weight: 700;
+  font-size: 16px;
+  border-top: 2px solid var(--ink);
+  border-bottom: 3px double var(--ink);
+  background: var(--leaf-soft);
+}
+.pnl .neg {
+  color: var(--tomato);
+}
+.stars {
+  color: var(--amber);
+  letter-spacing: 1px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.stars__off {
+  color: rgba(14, 27, 20, 0.15);
+}
+.review {
+  border-left: 3px solid var(--amber);
+}
+.review--hidden {
+  opacity: 0.6;
+  border-left-color: var(--ink-3);
+}
+.review__reply {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--leaf-soft);
+  font-size: 13.5px;
+}
+textarea.field__input {
+  resize: vertical;
+  min-height: 70px;
+}
+.check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--leaf);
+}
+
+/* ---------- promoter QR card (prints on its own) ---------------------------- */
+.qrcard {
+  width: 340px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 26px 24px 22px;
+  border-radius: 22px;
+  background: #fff;
+  border: 1.5px solid var(--hairline);
+  text-align: center;
+  color: var(--ink);
+}
+.qrcard__logo {
+  height: 56px;
+  width: auto;
+  display: block;
+  margin: 0 auto 14px;
+}
+.qrcard__name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+.qrcard__stall {
+  color: var(--ink-3);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.qrcard__qr {
+  width: 220px;
+  height: 220px;
+  display: block;
+  margin: 14px auto 8px;
+}
+.qrcard__code {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--leaf-deep);
+}
+.qrcard__how {
+  font-size: 13.5px;
+  line-height: 1.45;
+  margin-top: 10px;
+  color: var(--ink-2);
+}
+.print-area {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  /* Only the card: every other child of <body> (the app root, toasts) is left off the page. */
+  body > *:not(.print-area) {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  .print-area {
+    display: flex;
+    justify-content: center;
+    padding-top: 10mm;
+  }
+  .qrcard {
+    border: 1px solid #999;
+  }
+}
+
+/* ---------- public /join page ------------------------------------------------- */
+.join {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background:
+    radial-gradient(1000px 500px at 10% -10%, var(--mint), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, var(--butter), transparent 60%), var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+.join__card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lift);
+  padding: 34px 26px 28px;
+  text-align: center;
+}
+.join__logo {
+  height: 72px;
+  width: auto;
+  display: block;
+  margin: 0 auto 22px;
+}
+.join__label {
+  font-size: 13px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.join__code {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--leaf-deep);
+  margin: 6px 0 14px;
+  word-break: break-all;
+}
+.join__how {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0 0 22px;
+}
+.join__play {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  border-radius: 14px;
+  background: var(--night);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+.join__play svg {
+  width: 22px;
+  height: 22px;
+}
+.join__play small {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: 0.8;
+  text-align: left;
+}
+.join__play b {
+  display: block;
+  font-size: 16px;
+  text-align: left;
+}
+.join__play[aria-disabled='true'] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.join__note {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 12px;
 }

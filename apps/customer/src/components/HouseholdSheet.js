@@ -29,7 +29,9 @@ export const HouseholdSheet = /** @type {any} */ (
       <Sheet
         ref={ref}
         title="Who’s eating at home?"
-        subtitle="So we can tell you when a quantity looks light for your family."
+        // The review on 17 Nov 2026 asked for the WHY to be unmistakable before anyone answers a
+        // personal question: what the number is used for, a concrete example, and what is NOT done.
+        subtitle="Only to suggest how much to buy — nothing else."
         onDismiss={() => dispatch(declineHousehold())}
       >
         <Picker
@@ -72,9 +74,17 @@ function Picker({ onSave, onSkip }) {
         Icon={Baby}
         tint={colors.butter}
       />
-      <Small muted center style={{ marginTop: 2 }}>
-        Kept on this phone only. We never ask for names or ages.
-      </Small>
+      <View style={styles.why}>
+        <Text variant="smallMedium">Why we ask</Text>
+        <Small muted>
+          For 2 adults and a child, one vegetable dish needs about 300 g. If your basket has less,
+          we show a small note — you decide whether to add more. Nothing is added for you.
+        </Small>
+        <Small muted>
+          Kept on this phone only — it is never sent to us. We never ask for names or ages. Skip it
+          and the app works exactly the same.
+        </Small>
+      </View>
       <Button
         title={`Save — ${householdLabel({ adults, children })}`}
         variant="accent"
@@ -141,6 +151,13 @@ function Counter({ label, hint, value, min, max, onChange, Icon, tint }) {
 }
 
 const styles = StyleSheet.create({
+  why: {
+    gap: 6,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(30,122,76,0.07)',
+    marginTop: 2,
+  },
   counter: {
     flexDirection: 'row',
     alignItems: 'center',

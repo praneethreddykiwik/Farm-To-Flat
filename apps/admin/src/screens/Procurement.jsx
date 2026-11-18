@@ -11,6 +11,8 @@ import { api } from '../lib/api.js';
 import { CountRupee, ErrorNote, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconCheck, IconDownload, IconCopy } from '../components/icons.jsx';
 import { inr, num, shortDate, titleCase } from '../lib/format.js';
+import { Tabs } from '../components/business.jsx';
+import { WastagePanel } from './Wastage.jsx';
 
 const UNIT_SHORT = { KG: 'kg', BUNCH: 'bunch', PIECE: 'pc', DOZEN: 'dz', PACK: 'pack' };
 const qty = (q, unit) =>
@@ -22,7 +24,35 @@ const LANG_OPTS = [
   { code: 'te', label: 'తెలుగు · Telugu' },
 ];
 
+const PROC_TABS = [
+  { key: 'buy', label: 'Buy list' },
+  { key: 'wastage', label: 'Buffer & wastage' },
+];
+
+/** Procurement: the buy list, and (second tab) what the buffer cost and how much of it was wasted. */
 export function Procurement() {
+  const [tab, setTab] = useState('buy');
+  const tabs = <Tabs tabs={PROC_TABS} value={tab} onChange={setTab} />;
+  if (tab === 'buy') return <BuyList tabs={tabs} />;
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <h1 className="page-title">Procurement</h1>
+          <p className="page-sub">
+            The extra bought on top of every order: what it cost, what was used, what was thrown
+            away
+          </p>
+        </div>
+      </header>
+      {tabs}
+      <WastagePanel />
+    </>
+  );
+}
+
+/** @param {{ tabs: any }} props */
+function BuyList({ tabs }) {
   // '' means "whatever the next run is" — the server resolves it and tells us in filters.date.
   // Defaulting to 'all' here is what summed three weeks of orders into one buy list.
   const [date, setDate] = useState('');
@@ -283,6 +313,7 @@ export function Procurement() {
           </div>
         </div>
       </header>
+      {tabs}
 
       <div className="grid-2" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
         {/* cost-buffer approval settings */}

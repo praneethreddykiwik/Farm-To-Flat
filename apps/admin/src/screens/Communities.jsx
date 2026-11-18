@@ -857,12 +857,9 @@ function CommunityForm({ onClose, onSaved }) {
     // without one is invisible to "Use my location" until it is.
     coords: '',
     radius: '',
-    // Seeded with the pair almost every community runs; the operator adds, renames or removes
-    // before saving, exactly as they would afterwards.
-    windows: [
-      { label: 'Morning', cutoff: '03:45', start: '06:00', end: '12:00' },
-      { label: 'Evening', cutoff: '15:00', start: '17:00', end: '21:00' },
-    ],
+    // One run a day, as agreed on 17 Nov 2026: orders close at 5:30 PM, delivered 6–10 AM the next
+    // morning ("harvested after you order"). The operator can still add a window if that changes.
+    windows: [{ label: 'Morning', cutoff: '17:30', start: '06:00', end: '10:00' }],
     // Start a new community delivering every day (admin deselects the days it doesn't serve),
     // so it has full windows immediately instead of only Tue/Thu/Sat.
     deliveryDays: [0, 1, 2, 3, 4, 5, 6],

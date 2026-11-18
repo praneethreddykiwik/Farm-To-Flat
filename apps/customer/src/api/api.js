@@ -21,6 +21,9 @@ export const api = createApi({
     'Wallet',
     'Notifications',
     'Meals',
+    'Growth',
+    'Waitlist',
+    'Review',
   ],
   endpoints: (b) => ({
     // ---- auth ----
@@ -312,10 +315,53 @@ export const api = createApi({
       },
       providesTags: ['Meals'],
     }),
+
+    // ---- growth (17 Nov 2026 review): invites, promoter codes, waitlist, ratings ----
+    getInvite: b.query({ query: () => '/growth/invite', providesTags: ['Growth'] }),
+    checkCode: b.mutation({
+      query: (code) => ({ url: '/growth/check-code', method: 'POST', body: { code } }),
+    }),
+    getFirstOrder: b.query({
+      query: () => '/growth/first-order',
+      providesTags: ['Growth', 'Orders'],
+    }),
+    getWaitlist: b.query({
+      query: (q = '') => `/growth/waitlist${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+      providesTags: ['Waitlist'],
+    }),
+    joinWaitlist: b.mutation({
+      query: (id) => ({ url: `/growth/waitlist/${id}/join`, method: 'POST', body: {} }),
+      invalidatesTags: ['Waitlist'],
+    }),
+    leaveWaitlist: b.mutation({
+      query: (id) => ({ url: `/growth/waitlist/${id}/join`, method: 'DELETE' }),
+      invalidatesTags: ['Waitlist'],
+    }),
+    requestCommunity: b.mutation({
+      query: (body) => ({ url: '/growth/community-requests', method: 'POST', body }),
+      invalidatesTags: ['Waitlist'],
+    }),
+    getReview: b.query({
+      query: (orderId) => `/orders/${orderId}/review`,
+      providesTags: (_r, _e, id) => [{ type: 'Review', id }],
+    }),
+    saveReview: b.mutation({
+      query: ({ orderId, ...body }) => ({ url: `/orders/${orderId}/review`, method: 'PUT', body }),
+      invalidatesTags: (_r, _e, { orderId }) => [{ type: 'Review', id: orderId }],
+    }),
   }),
 });
 
 export const {
+  useGetInviteQuery,
+  useCheckCodeMutation,
+  useGetFirstOrderQuery,
+  useGetWaitlistQuery,
+  useJoinWaitlistMutation,
+  useLeaveWaitlistMutation,
+  useRequestCommunityMutation,
+  useGetReviewQuery,
+  useSaveReviewMutation,
   useRequestOtpMutation,
   useVerifyOtpMutation,
   useLogoutMutation,

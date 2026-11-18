@@ -261,7 +261,7 @@ export default function Welcome() {
             style={{ marginTop: 14, maxWidth: 300, lineHeight: 20 }}
           >
             Vegetables and greens harvested after you order, meat cut that morning, delivered to
-            your flat in a window you choose.
+            your flat the next morning.
           </Small>
         </Animated.View>
 

@@ -35,7 +35,11 @@ function when(iso) {
   });
 }
 
-export function Complaints() {
+/**
+ * The complaints queue without a page header, so it can sit as a tab on the Feedback page
+ * (/feedback, and /complaints which opens Feedback on this tab).
+ */
+export function ComplaintsPanel() {
   const [tab, setTab] = useState('OPEN');
   const { data, loading, error, reload } = useResource(
     `/admin/issues${tab ? `?status=${tab}` : ''}`,
@@ -80,16 +84,13 @@ export function Complaints() {
 
   return (
     <>
-      <header className="topbar">
-        <div>
-          <h1 className="page-title">Complaints</h1>
-          <p className="page-sub">
-            {openCount === 0
-              ? 'Nothing waiting on a decision'
-              : `${openCount} waiting on a decision`}
-          </p>
-        </div>
-      </header>
+      <p className="muted" style={{ margin: '0 0 12px', fontSize: 13.5 }}>
+        {!data
+          ? '\u00a0'
+          : openCount === 0
+            ? 'No complaint is waiting on a decision.'
+            : `${openCount} waiting on a decision.`}
+      </p>
 
       <div className="hstack" style={{ gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {TABS.map((t) => (

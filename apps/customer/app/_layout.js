@@ -337,6 +337,7 @@ function Root() {
           <Stack.Screen name="meal-checkin" options={{ animation: 'slide_from_right' }} />
           {/* Pushed, not presented: iOS will not stack a modal over the basket's form sheet. */}
           <Stack.Screen name="coupon" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="invite" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="confirm/[date]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="calendar" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="search" options={{ animation: 'fade' }} />

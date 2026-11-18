@@ -25,6 +25,7 @@ import { PaymentSimulator } from '../src/components/PaymentSimulator';
 import { useCart } from '../src/hooks/useCart';
 import { taxRowLabel } from '../src/lib/bill';
 import { FamilyCheck } from '../src/components/FamilyHint';
+import { OrderSource } from '../src/components/OrderSource';
 import {
   useGetAddressesQuery,
   useGetWalletQuery,
@@ -128,6 +129,10 @@ export default function Checkout() {
   const [addressId, setAddressId] = useState(null);
   const [slot, setSlot] = useState(null);
   const [deliveryNote, setDeliveryNote] = useState('');
+  // Promoter / invite code and "how did you hear" — see OrderSource. Both optional.
+  const [source, setSource] = useState(
+    /** @type {{ code: string|null, heardFrom: string|null }} */ ({ code: null, heardFrom: null }),
+  );
   const [useWallet, setUseWallet] = useState(true);
   // Whether the operator is accepting cash right now, and up to what order value. Read live rather
   // than assumed: cash can be switched off between one checkout and the next.
@@ -282,6 +287,8 @@ export default function Checkout() {
         useWallet: cash ? false : useWallet,
         paymentMethod: cash ? 'COD' : 'PREPAID',
         deliveryNote: deliveryNote.trim() || undefined,
+        code: source.code || undefined,
+        heardFrom: source.heardFrom || undefined,
       }).unwrap();
       setPendingOrder(res.order);
       if (!res.paymentIntent) {
@@ -561,6 +568,13 @@ export default function Checkout() {
               autoCapitalize="sentences"
             />
           </Glass>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(218).duration(360).springify().damping(18)}
+          style={{ marginTop: 20 }}
+        >
+          <OrderSource onChange={setSource} />
         </Animated.View>
 
         <Animated.View

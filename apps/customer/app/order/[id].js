@@ -23,6 +23,7 @@ import {
 import { OrderStatusTimeline } from '../../src/components/OrderStatusTimeline';
 import { DeliveryCode } from '../../src/components/DeliveryCode';
 import { ReportIssue } from '../../src/components/ReportIssue';
+import { RateOrder } from '../../src/components/RateOrder';
 import { AddItemsSheet } from '../../src/components/AddItemsSheet';
 import { PaymentSimulator } from '../../src/components/PaymentSimulator';
 import {
@@ -67,7 +68,7 @@ export default function OrderDetail() {
   const dispatch = useDispatch();
   // Poll while this screen is open so an admin status change (Confirmed → Packing → …) shows up
   // within a few seconds and the timeline animates forward on its own.
-  const { data, isLoading, refetch } = useGetOrderQuery(id, {
+  const { data, isLoading, refetch, fulfilledTimeStamp } = useGetOrderQuery(id, {
     pollingInterval: 10000,
     refetchOnFocus: true,
     refetchOnReconnect: true,
@@ -516,6 +517,10 @@ export default function OrderDetail() {
             {/* Once it is delivered the customer can finally see what arrived — so this is the
                 first honest moment to ask. Reports already answered are shown below it, so nobody
                 has to wonder whether theirs went anywhere. */}
+            {order.status === 'DELIVERED' ? (
+              <RateOrder orderId={order.id} stamp={fulfilledTimeStamp} />
+            ) : null}
+
             {order.status === 'DELIVERED' ? (
               <ReportIssue
                 busy={reporting}

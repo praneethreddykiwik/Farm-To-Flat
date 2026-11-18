@@ -16,7 +16,11 @@ import { Demand } from './screens/Demand.jsx';
 import { Customers } from './screens/Customers.jsx';
 import { Orders } from './screens/Orders.jsx';
 import { Fulfilment } from './screens/Fulfilment.jsx';
-import { Complaints } from './screens/Complaints.jsx';
+import { Feedback } from './screens/Feedback.jsx';
+import { Growth } from './screens/Growth.jsx';
+import { Insights } from './screens/Insights.jsx';
+import { Finance } from './screens/Finance.jsx';
+import { Join } from './screens/Join.jsx';
 import { Statistics } from './screens/Statistics.jsx';
 import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
@@ -83,7 +87,12 @@ function AdminShell() {
             <Route path="/orders" element={<Orders />} />
             <Route path="/procurement" element={<Procurement />} />
             <Route path="/fulfilment" element={<Fulfilment />} />
-            <Route path="/complaints" element={<Complaints />} />
+            {/* /complaints is the old address: it opens Feedback on the Complaints tab. */}
+            <Route path="/complaints" element={<Feedback />} />
+            <Route path="/feedback" element={<Feedback />} />
+            <Route path="/growth" element={<Growth />} />
+            <Route path="/insights" element={<Insights />} />
+            <Route path="/finance" element={<Finance />} />
             <Route path="/stats" element={<Statistics />} />
             <Route path="/access" element={<Access />} />
             <Route path="/settings" element={<Settings />} />
@@ -98,7 +107,13 @@ function AdminShell() {
 }
 
 /** Addresses that are public and chrome-free: no sidebar, no sign-in, customer-facing titles. */
-const PUBLIC = new Set(['/', '/privacy', '/terms', ...Object.keys(PAGES).map((p) => `/${p}`)]);
+const PUBLIC = new Set([
+  '/',
+  '/privacy',
+  '/terms',
+  '/join',
+  ...Object.keys(PAGES).map((p) => `/${p}`),
+]);
 
 /**
  * The operator console lives ONLY at these addresses. Anything else — /mm, a typo, a probe — is a
@@ -117,6 +132,10 @@ const ADMIN_PATHS = new Set([
   '/procurement',
   '/fulfilment',
   '/complaints',
+  '/feedback',
+  '/growth',
+  '/insights',
+  '/finance',
   '/stats',
   '/access',
   '/settings',
@@ -141,9 +160,11 @@ function Root() {
       ? `${policy.title.en} · Fooducia`
       : ADMIN_PATHS.has(pathname)
         ? 'Fooducia · Operations'
-        : !PUBLIC.has(pathname)
-          ? 'Page not found · Fooducia'
-          : 'Fooducia — vegetables harvested after you order';
+        : pathname === '/join'
+          ? 'Your Fooducia code'
+          : !PUBLIC.has(pathname)
+            ? 'Page not found · Fooducia'
+            : 'Fooducia — vegetables harvested after you order';
   }, [pathname]);
 
   // The customer-facing site is what `/` is for now. The operator panel lives at /admin and the
@@ -151,6 +172,8 @@ function Root() {
   if (pathname === '/') return <Landing />;
   if (pathname === '/privacy') return <Privacy />;
   if (pathname === '/terms') return <Terms />;
+  // A promoter's QR card and a neighbour's invite link land here: the code, and where to get the app.
+  if (pathname === '/join') return <Join />;
   // /refunds, /shipping, /contact — views onto the Terms sections. Public, like the two above.
   const policy = pathname.slice(1);
   if (PAGES[policy]) return <PolicyPage page={policy} />;

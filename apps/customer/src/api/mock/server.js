@@ -871,11 +871,165 @@ async function route(method, path, body, headers = {}) {
   }
   if (method === 'POST' && p === '/devices') return ok({ ok: true });
 
+  // growth (17 Nov 2026 review) — invites, codes, waitlist, ratings. In-memory only.
+  const growth = handleGrowth(method, p, query, body);
+  if (growth) return growth;
+
   // meal tracking — its own file, it is a small world of its own
   const meals = handleMeals(method, p, query, body);
   if (meals) return meals;
 
   return err(404, 'NOT_FOUND', `No mock route for ${method} ${p}`);
+}
+
+const growthState = {
+  inviteCode: 'NBDEMO42',
+  waitlist: [
+    { id: 'wl_demo1', name: 'Honer Aquantis', area: 'Nallagandla', waiting: 6 },
+    { id: 'wl_demo2', name: 'Vivantis', area: 'Nallagandla', waiting: 11 },
+    { id: 'wl_demo3', name: 'Muppa Melody', area: 'Nallagandla', waiting: 3 },
+  ],
+  joined: new Set(),
+  reviews: {},
+};
+const HEARD = [
+  ['COUNTER', 'A Fooducia stall in my community'],
+  ['WHATSAPP', 'WhatsApp'],
+  ['NEIGHBOUR', 'A neighbour or friend'],
+  ['RESIDENT_GROUP', 'My residents’ group'],
+  ['SOCIAL', 'Instagram / Facebook / YouTube'],
+  ['OTHER', 'Somewhere else'],
+];
+const REVIEW_TAGS = [
+  'Fresh',
+  'On time',
+  'Well packed',
+  'Good value',
+  'Not fresh',
+  'Late',
+  'Missing item',
+  'Damaged',
+];
+
+function handleGrowth(method, p, query, body) {
+  const wl = (w) => ({
+    ...w,
+    waiting: w.waiting + (growthState.joined.has(w.id) ? 1 : 0),
+    joined: growthState.joined.has(w.id),
+    threshold: 20,
+    status: w.status || 'WAITLIST',
+    mine: !!w.mine,
+  });
+  if (method === 'GET' && p === '/growth/invite') {
+    const code = growthState.inviteCode;
+    const link = `https://fooducia.health/join?code=${code}`;
+    return ok({
+      enabled: true,
+      code,
+      link,
+      rewardPaise: '3000',
+      welcomePaise: '0',
+      joined: 0,
+      rewarded: 0,
+      earnedPaise: '0',
+      shareText: `I order my vegetables from Fooducia. Use my code ${code} on your first order. ${link}`,
+      howItWorks:
+        'Share your code. When a neighbour’s first order is delivered, ₹30 lands in your Fooducia wallet.',
+    });
+  }
+  if (method === 'POST' && p === '/growth/check-code') {
+    const code = String(body?.code || '')
+      .trim()
+      .toUpperCase();
+    if (!code) return ok({ ok: true, kind: null, message: null });
+    if (code === growthState.inviteCode)
+      return err(
+        422,
+        'BAD_CODE',
+        'That’s your own invite code — share it with a neighbour instead.',
+      );
+    if (/^NB[A-Z0-9]{6}$/.test(code))
+      return ok({
+        ok: true,
+        kind: 'INVITE',
+        message:
+          'Invite code added — your neighbour will be thanked once your first order arrives.',
+      });
+    if (/^[A-Z0-9]{3,12}$/.test(code))
+      return ok({
+        ok: true,
+        kind: 'PROMOTER',
+        message: 'Thanks! The stall will be credited for helping you.',
+      });
+    return err(422, 'BAD_CODE', 'That code isn’t recognised. Check it, or leave it empty.');
+  }
+  if (method === 'GET' && p === '/growth/first-order') {
+    const first = state.orders.length === 0;
+    return ok({
+      isFirstOrder: first,
+      askHeardFrom: first,
+      options: HEARD.map(([key, label]) => ({ key, label })),
+    });
+  }
+  if (method === 'GET' && p === '/growth/waitlist') {
+    const q = String(query.q || '').toLowerCase();
+    return ok({
+      waitlist: growthState.waitlist
+        .filter((w) => !q || `${w.name} ${w.area}`.toLowerCase().includes(q))
+        .map(wl),
+      threshold: 20,
+      message:
+        'When 20 households from a community are waiting, we plan our next opening there. Invite your neighbours to get there sooner.',
+    });
+  }
+  let m = p.match(/^\/growth\/waitlist\/([^/]+)\/join$/);
+  if (m && (method === 'POST' || method === 'DELETE')) {
+    const w = growthState.waitlist.find((x) => x.id === m[1]);
+    if (!w) return err(404, 'NOT_FOUND', 'That community isn’t on our list.');
+    if (method === 'POST') growthState.joined.add(w.id);
+    else growthState.joined.delete(w.id);
+    return ok({ community: wl(w) });
+  }
+  if (method === 'POST' && p === '/growth/community-requests') {
+    const name = String(body?.name || '').trim();
+    if (name.length < 3) return err(422, 'VALIDATION', 'Enter the community’s name.');
+    const w = {
+      id: `wl_${shortId(6)}`,
+      name,
+      area: body?.area || null,
+      waiting: 0,
+      status: 'REQUESTED',
+      mine: true,
+    };
+    growthState.waitlist.unshift(w);
+    growthState.joined.add(w.id);
+    return ok({ community: wl(w), existing: false });
+  }
+  m = p.match(/^\/orders\/([^/]+)\/review$/);
+  if (m) {
+    const o = state.orders.find((x) => x.id === m[1]);
+    if (!o) return err(404, 'NOT_FOUND', 'Order not found');
+    if (method === 'GET')
+      return ok({
+        review: growthState.reviews[o.id] || null,
+        canReview: o.status === 'DELIVERED',
+        tags: REVIEW_TAGS,
+      });
+    if (method === 'PUT') {
+      if (o.status !== 'DELIVERED')
+        return err(409, 'NOT_DELIVERED', 'You can rate an order once it has been delivered.');
+      growthState.reviews[o.id] = {
+        rating: body.rating,
+        comment: body.comment || null,
+        tags: body.tags || [],
+        at: new Date().toISOString(),
+        reply: null,
+        repliedAt: null,
+      };
+      return ok({ review: growthState.reviews[o.id] });
+    }
+  }
+  return null;
 }
 
 /** Exposed for the dev drawer / tests */

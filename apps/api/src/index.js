@@ -58,6 +58,7 @@ import { notificationsRouter } from './routes/notifications.js';
 import { aiRouter } from './routes/ai.js';
 import { mealsRouter } from './routes/meals.js';
 import { demandRouter } from './routes/demand.js';
+import { growthRouter } from './routes/growth.js';
 // Side-effect import: starts the 10-minute gateway reconciliation pass. The third leg, after the
 // client callback and the webhook — the one that notices when neither of those happened.
 import './lib/reconcile.js';
@@ -79,6 +80,8 @@ import { adminCouponsRouter } from './routes/admin/coupons.js';
 import { supportRouter, adminSupportRouter } from './routes/support.js';
 import { adminChargesRouter } from './routes/admin/charges.js';
 import { adminEmailsRouter } from './routes/admin/admin-emails.js';
+import { adminBusinessRouter } from './routes/admin/business.js';
+import { loadOps } from './ops-store.js';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
 import { requireCloudflare, originLockEnabled } from './lib/edge.js';
@@ -276,6 +279,7 @@ app.use(`${v1}/notifications`, requireAuth, notificationsRouter);
 app.use(`${v1}/ai`, requireAuth, aiRouter);
 app.use(`${v1}/meals`, requireAuth, mealsRouter);
 app.use(`${v1}/demand`, requireAuth, demandRouter);
+app.use(`${v1}/growth`, requireAuth, growthRouter);
 
 // ── admin (operator panel) ─────────────────────────────────────────────────
 // Sign-in FIRST, and deliberately outside the authenticated router below: these are the routes you
@@ -301,6 +305,7 @@ admin.use(adminCouponsRouter);
 admin.use(adminSupportRouter);
 admin.use(adminChargesRouter);
 admin.use(adminEmailsRouter);
+admin.use(adminBusinessRouter);
 app.use(`${v1}/admin`, admin);
 
 // Unknown route → 404 (was 501 NOT_IMPLEMENTED, which reads as a server fault to clients/monitors).
@@ -387,6 +392,8 @@ async function hydrateOnce() {
   // hydrate() on purpose — that replaced the community list, and the saved locations have to be
   // laid back over the new one. A missing table leaves that feature unable to save, and says so.
   hydrateDemand(await demandDb.loadAll());
+  // Promoters, referrals, waitlist, reviews, expenses, wastage… (one optional table, ops-store.js).
+  await loadOps();
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);

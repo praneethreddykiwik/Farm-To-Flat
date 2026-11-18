@@ -20,6 +20,7 @@ import '../styles/landing.css';
 import logoFull from '../assets/fooducia-logo-full.png';
 import logoFullLight from '../assets/fooducia-logo-full-light.png';
 import { COMPANY } from './terms-content.js';
+import { APP_STORE_URL, PLAY_STORE_URL } from '../lib/storeLinks.js';
 import { ProduceLayer, ProduceBurst, ProduceScatter, Tomato as BentoTomato } from './Produce.jsx';
 
 // Statutory identity line — renders only the values the owner has filled in COMPANY (entity, CIN,
@@ -33,9 +34,7 @@ const COMPANY_LINE = [
   .filter(Boolean)
   .join(' · ');
 
-/** Swap these for the real listings the day they go live; nothing else needs to change. */
-const APP_STORE_URL = '';
-const PLAY_STORE_URL = '';
+// The store listings live in lib/storeLinks.js, shared with the /join page.
 
 /** The device shell. Its screen aperture is transparent, so the screenshot shows through it. */
 const FRAME = '/iphone-frame.webp';

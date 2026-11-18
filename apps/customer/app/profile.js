@@ -11,6 +11,7 @@ import {
   Bell,
   BellRing,
   ChevronRight,
+  Gift,
   Leaf,
   LogOut,
   Mail,
@@ -540,6 +541,19 @@ export default function Profile() {
             </Glass>
           </>
         ) : null}
+
+        {/* Neighbour invites (17 Nov 2026 review): share a code, earn wallet credit. */}
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('inviteNeighbours', lang)}</Label>
+        <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
+          <Row
+            icon={<Gift size={18} color={colors.ink} />}
+            label={t('inviteNeighbours', lang)}
+            value={t('inviteRowHint', lang)}
+            lines={2}
+            onPress={() => router.push('/invite')}
+            last
+          />
+        </Glass>
 
         <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('preferencesLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>

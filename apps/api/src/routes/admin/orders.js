@@ -9,6 +9,7 @@
  * operator's highest-leverage screen, so status transitions are validated against a state machine.
  */
 import { Router } from 'express';
+import { rewardReferral } from '../../lib/growth.js';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
@@ -523,6 +524,8 @@ function notifyCustomer(order) {
     });
     waOrderDelivered(order, customer);
     waFeedbackInvite(order, customer);
+    // A neighbour's invite pays out on the invited customer's first delivery (lib/growth.js).
+    rewardReferral(order);
   }
 }
 

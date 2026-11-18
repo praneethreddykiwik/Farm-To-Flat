@@ -2,6 +2,7 @@
  * Profile + addresses (contract, authenticated). GET/PATCH /me, list/add addresses, set default.
  */
 import { Router } from 'express';
+import { listOps, removeOps } from '../ops-store.js';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
@@ -30,6 +31,14 @@ import {
 import { deleteMealPhotos } from '../lib/storage.js';
 
 export const meRouter = Router();
+
+/** Remove a deleted customer's waitlist joins and invite code. */
+async function forgetGrowthRecords(cid) {
+  for (const j of listOps('waitlistJoin').filter((x) => x.customerId === cid))
+    await removeOps('waitlistJoin', j.id);
+  for (const c of listOps('refCode').filter((x) => x.customerId === cid))
+    await removeOps('refCode', c.id);
+}
 
 meRouter.get(
   '/',
@@ -71,6 +80,12 @@ meRouter.delete(
     if (!r.ok) throw fail(404, 'NOT_FOUND', 'Account not found.');
     // The meal photographs live in object storage, outside the database: remove the files too.
     await deleteMealPhotos(r.mealPhotoKeys);
+    // Waitlist places and the personal invite code go with the account (privacy policy §9). What
+    // stays is tied to orders the law makes us keep. Best effort: the account is already gone.
+    await forgetGrowthRecords(req.customerId).catch((e) =>
+      // eslint-disable-next-line no-console
+      console.error('[me] could not remove waitlist/invite records', e?.message || e),
+    );
     res.json({ ok: true, walletBalancePaise: String(r.walletBalancePaise || 0) });
   }),
 );

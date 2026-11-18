@@ -14,7 +14,7 @@
  */
 import { useSupportEmail } from '../lib/publicSupport.js';
 
-const UPDATED = '16 November 2026';
+const UPDATED = '19 November 2026';
 
 // Registered legal entity, office address, and named Grievance Officer (DPDP Act / IT Rules).
 const ENTITY = 'Kiwik Consulting Services';
@@ -94,6 +94,22 @@ const SECTIONS = (CONTACT) => [
       [
         '“Tell me when you deliver here”',
         'only if you tap it: your name, mobile number, approximate area (to about a hundred metres, never your door) and the community name if you typed it — so we can send you one message when delivery starts there. You can remove it any time in the app under Profile.',
+      ],
+      [
+        'Waitlist and community requests',
+        'only if you tap “Join” on a community we do not serve yet, or ask us to add yours: we link your account to that community’s waiting list, and keep the community name, area and number of towers you gave. Used to count how many households are waiting, decide where to open next, and tell you when delivery starts there. Other customers see only the total count, never who is waiting. You can leave a list at any time from the same screen.',
+      ],
+      [
+        'Codes and “How did you hear about us?”',
+        'at checkout you may enter a code from a Fooducia stall or a neighbour’s invite code, and before your first order you may tell us how you heard about us. We record the code or answer with that order, so we can see which stalls and channels bring customers and thank the person who helped. Both are optional.',
+      ],
+      [
+        'Neighbour invites',
+        'if you share your invite code, we record which new customers joined with it and the wallet credit paid to you when their first order is delivered. The person you invited is told only that an invite code was used, not your name or number; you see only how many joined.',
+      ],
+      [
+        'Ratings',
+        'if you rate a delivered order: the stars, any tags you pick and anything you write. Our team reads them to improve the service and may reply; the reply appears on your order.',
       ],
       [
         'Photo search',
@@ -216,6 +232,14 @@ const SECTIONS = (CONTACT) => [
         'including the delivery details and any complaint recorded on an order, kept for as long as Indian tax, accounting and consumer law requires — generally up to eight years — and to resolve disputes.',
       ],
       ['“Tell me when you deliver here”', 'until you remove it or delete your account.'],
+      [
+        'Waitlist joins',
+        'until you leave the list, we start delivering there, or you delete your account.',
+      ],
+      [
+        'Codes, “how did you hear”, invites and ratings',
+        'kept with the order they belong to, for as long as the order record is kept.',
+      ],
       [
         'Area demand counts',
         'hold no personal data; kept as long as they help us plan where to deliver.',

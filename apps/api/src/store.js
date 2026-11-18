@@ -20,7 +20,7 @@ import {
 } from './data/seed.js';
 import { randomInt } from 'node:crypto';
 import { addDaysISO, todayISO } from './lib/dates.js';
-import { communityWindows, keyFromLabel } from './lib/windows.js';
+import { keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
 import { persist } from './persistence.js';
@@ -793,6 +793,15 @@ function syncLegacyCutoffs(c) {
   if (at('MORNING')) c.morningCutoff = at('MORNING');
   if (at('EVENING')) c.eveningCutoff = at('EVENING');
 }
+/** The one delivery run a new community gets unless told otherwise (17 Nov 2026 decision). */
+export const STANDARD_WINDOW = {
+  key: 'MORNING',
+  label: 'Morning',
+  cutoff: '17:30',
+  start: '06:00',
+  end: '10:00',
+};
+
 export function createCommunity(data) {
   const community = {
     id: id('com', 8),
@@ -810,11 +819,10 @@ export function createCommunity(data) {
     eveningCutoff: data.eveningCutoff ?? '15:00',
     cutoffWarningMinutes: data.cutoffWarningMinutes ?? 15,
   };
-  // Windows are a list the admin edits freely. A create that names none gets the standard pair, so
-  // a brand-new community is orderable the moment it exists.
-  community.windows = normalizeWindowList(
-    data.windows?.length ? data.windows : communityWindows(community),
-  );
+  // Windows are a list the admin edits freely. A create that names none gets the standard single
+  // run agreed on 17 Nov 2026 — orders close 17:30, delivered 06:00–10:00 next morning — so a
+  // brand-new community is orderable the moment it exists.
+  community.windows = normalizeWindowList(data.windows?.length ? data.windows : [STANDARD_WINDOW]);
   syncLegacyCutoffs(community);
   db.communities.push(community);
   persist.communityUpsert(community);

@@ -113,10 +113,18 @@ describe('the admin edits the whole list at once', () => {
     });
     expect(created.status).toBe(201);
     const id = created.body.community.id;
-    // A brand-new community is orderable straight away, with the standard pair.
-    expect(created.body.community.windows.map((w) => w.key)).toEqual(['MORNING', 'EVENING']);
+    // A brand-new community is orderable straight away, with the one standard run agreed on
+    // 17 Nov 2026: orders close 17:30, delivered 06:00–10:00 the next morning.
+    expect(created.body.community.windows).toHaveLength(1);
+    expect(created.body.community.windows[0]).toMatchObject({
+      key: 'MORNING',
+      label: 'Morning',
+      cutoff: '17:30',
+      start: '06:00',
+      end: '10:00',
+    });
 
-    // Rename MORNING, re-time it, drop EVENING, and add a new window in one write.
+    // Rename MORNING, re-time it, and add a new window in one write.
     const patched = await admin(request(app).patch(`/api/v1/admin/communities/${id}`)).send({
       windows: [
         { key: 'MORNING', label: 'Sunrise run', cutoff: '02:30', start: '06:00', end: '10:00' },
@@ -130,8 +138,6 @@ describe('the admin edits the whole list at once', () => {
     expect(saved[0]).toMatchObject({ key: 'MORNING', label: 'Sunrise run', cutoff: '02:30' });
     // The new one got a key derived from its label.
     expect(saved[1]).toMatchObject({ key: 'AFTERNOON', label: 'Afternoon' });
-    // And EVENING is gone from what is offered.
-    expect(saved.map((w) => w.key)).not.toContain('EVENING');
 
     const windows = await admin(request(app).get(`/api/v1/admin/communities/${id}/windows`));
     expect(windows.status).toBe(200);

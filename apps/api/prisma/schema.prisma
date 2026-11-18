@@ -609,3 +609,23 @@ model WalletLedger {
   @@index([customerId, createdAt])
   @@index([reference])
 }
+
+/// Operating records from the 17 Nov 2026 business review — promoters, referrals, waitlist
+/// communities, reviews, expenses, wastage, reminders, delay reasons and small settings documents —
+/// in ONE table keyed by (kind, id), read defensively (src/ops-store.js). Create it by hand:
+///
+///   CREATE TABLE IF NOT EXISTS "OpsRecord" ("kind" TEXT NOT NULL, "id" TEXT NOT NULL,
+///     "data" JSONB NOT NULL DEFAULT '{}'::jsonb,
+///     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+///     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+///     PRIMARY KEY ("kind", "id"));
+///   ALTER TABLE "OpsRecord" ENABLE ROW LEVEL SECURITY;
+model OpsRecord {
+  kind      String
+  id        String
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@id([kind, id])
+}

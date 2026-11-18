@@ -62,6 +62,27 @@ adminCustomersRouter.get(
     let customers = book.customers;
     if (['FIRST', 'SECOND', 'REGULAR'].includes(stage))
       customers = customers.filter((c) => c.stage === stage);
+    // Date range, like a bank statement: customers who ordered between `from` and `to` (IST dates),
+    // each with how many of their orders fell inside it. "Came back within N days" narrows further.
+    const okDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+    const from = okDate(req.query.from) ? String(req.query.from) : null;
+    const to = okDate(req.query.to) ? String(req.query.to) : null;
+    if (from || to) {
+      const byKey = ordersByCustomer(orders);
+      const istDay = (iso) => new Date(Date.parse(iso) + 330 * 60e3).toISOString().slice(0, 10);
+      customers = customers
+        .map((c) => {
+          const n = (byKey.get(c.key) || []).filter((o) => {
+            const d = istDay(o.createdAt);
+            return (!from || d >= from) && (!to || d <= to);
+          }).length;
+          return { ...c, ordersInRange: n };
+        })
+        .filter((c) => c.ordersInRange > 0);
+    }
+    const within = Number(req.query.secondWithin);
+    if (within === 7 || within === 30)
+      customers = customers.filter((c) => c.daysToSecond != null && c.daysToSecond <= within);
     if (q) {
       // A name, an order number, or a mobile number. The number is matched here, against the real
       // one, so an operator holding a customer on the phone can find them — but what comes back is
@@ -78,7 +99,7 @@ adminCustomersRouter.get(
         return digits.length === 10 ? mobile.endsWith(digits) : mobile.includes(digits);
       });
     }
-    res.json({ totals: book.totals, customers, reasons: CONTACT_REASONS });
+    res.json({ totals: book.totals, customers, reasons: CONTACT_REASONS, range: { from, to } });
   }),
 );
 

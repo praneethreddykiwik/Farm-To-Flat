@@ -25,6 +25,21 @@ import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Pager, Stat, StatusBadge, TableSkeleton } from '../components/ui.jsx';
 import { IconReceipt, IconSearch, IconShield, IconUsers } from '../components/icons.jsx';
 import { dateTime, inr, ordinal, shortDate } from '../lib/format.js';
+import { DateRange, rangeLabel, useDateRange } from '../components/business.jsx';
+
+const WITHIN = [
+  { key: '', label: 'Any' },
+  { key: '7', label: 'Within 7 days' },
+  { key: '30', label: 'Within 30 days' },
+];
+
+/** "3.5 days" / "—" */
+const days = (n) =>
+  n == null ? (
+    <span className="muted">—</span>
+  ) : (
+    `${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 1 })} ${Number(n) === 1 ? 'day' : 'days'}`
+  );
 
 const TABS = [
   { key: 'ALL', label: 'Everyone', has: () => true },
@@ -55,9 +70,20 @@ export function Customers() {
     const t = setTimeout(() => setAsked(q.trim()), 320);
     return () => clearTimeout(t);
   }, [q]);
-  const { data, loading, error, reload } = useResource(
-    asked ? `/admin/customers?q=${encodeURIComponent(asked)}` : '/admin/customers',
-  );
+  // Date range like a bank statement: who ordered between these dates. "Came back within" keeps
+  // only customers whose second order followed their first within that many days.
+  const dr = useDateRange('all');
+  const [within, setWithin] = useState('');
+  const query = new URLSearchParams();
+  if (asked) query.set('q', asked);
+  if (dr.range.from) {
+    query.set('from', dr.range.from);
+    query.set('to', dr.range.to);
+  }
+  if (within) query.set('secondWithin', within);
+  const qstr = query.toString();
+  const ranged = !!dr.range.from;
+  const { data, loading, error, reload } = useResource(`/admin/customers${qstr ? `?${qstr}` : ''}`);
   const customers = useMemo(() => data?.customers || [], [data]);
   const [tab, setTab] = useState('ALL');
   const [openKey, setOpenKey] = useState(/** @type {string|null} */ (null));
@@ -65,7 +91,7 @@ export function Customers() {
     () => customers.filter(TABS.find((t) => t.key === tab)?.has || (() => true)),
     [customers, tab],
   );
-  const pager = usePager(shown, 25, `${tab}|${asked}`);
+  const pager = usePager(shown, 25, `${tab}|${qstr}`);
   const totals = data?.totals;
 
   return (
@@ -115,9 +141,27 @@ export function Customers() {
             </p>
           )}
 
+          <div style={{ marginTop: 18 }}>
+            <DateRange dr={dr} allowAll />
+          </div>
+          <div className="hstack" style={{ gap: 8, flexWrap: 'wrap', marginTop: -6 }}>
+            <span className="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>
+              Came back for a 2nd order:
+            </span>
+            {WITHIN.map((w) => (
+              <button
+                key={w.key || 'any'}
+                className={`chip${within === w.key ? ' is-active' : ''}`}
+                onClick={() => setWithin(w.key)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+
           <div
             className="hstack"
-            style={{ gap: 8, margin: '18px 0 14px', flexWrap: 'wrap', alignItems: 'center' }}
+            style={{ gap: 8, margin: '14px 0 14px', flexWrap: 'wrap', alignItems: 'center' }}
           >
             {TABS.map((t) => (
               <button
@@ -147,13 +191,17 @@ export function Customers() {
           >
             {customers.length === 0 ? (
               <div className="empty">
-                {asked ? (
+                {asked || ranged || within ? (
                   <>
                     <p style={{ fontWeight: 600, color: 'var(--ink-2)' }}>
-                      Nobody matches “{asked}”.
+                      {asked
+                        ? `Nobody matches “${asked}”${ranged || within ? ' with these filters' : ''}.`
+                        : `Nobody matches these filters${ranged ? ` for ${rangeLabel(dr.range)}` : ''}.`}
                     </p>
                     <p style={{ marginTop: 6 }}>
-                      Try a name, an order number, or at least four digits of a mobile number.
+                      {asked
+                        ? 'Try a name, an order number, or at least four digits of a mobile number.'
+                        : 'Widen the dates, or set “Came back” to Any.'}
                     </p>
                   </>
                 ) : (
@@ -179,6 +227,9 @@ export function Customers() {
                       <th>First order</th>
                       <th>Latest order</th>
                       <th className="num">Spent</th>
+                      {ranged && <th className="num">Orders in range</th>}
+                      <th className="num">Days to 2nd order</th>
+                      <th className="num">Avg days between orders</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -235,6 +286,9 @@ export function Customers() {
                         <td className="num" style={{ fontWeight: 600 }}>
                           {c.spentPaise ? inr(c.spentPaise) : <span className="muted">—</span>}
                         </td>
+                        {ranged && <td className="num">{c.ordersInRange ?? 0}</td>}
+                        <td className="num">{days(c.daysToSecond)}</td>
+                        <td className="num">{days(c.avgDaysBetween)}</td>
                       </tr>
                     ))}
                   </tbody>

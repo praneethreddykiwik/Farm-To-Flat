@@ -10,7 +10,9 @@ import {
   Building2,
   Check,
   ChevronDown,
+  Clock,
   Home,
+  Search,
   LocateFixed,
   MapPin,
   MapPinOff,
@@ -22,6 +24,10 @@ import {
   useCheckDemandMutation,
   useCreateAddressMutation,
   useGetCommunitiesQuery,
+  useGetWaitlistQuery,
+  useJoinWaitlistMutation,
+  useLeaveWaitlistMutation,
+  useRequestCommunityMutation,
   useSubscribeDemandMutation,
   useUpdateAddressMutation,
 } from '../api/api';
@@ -118,6 +124,38 @@ export function AddressForm({ onSaved, defaultName, mobile, address = null }) {
   const [subscribeDemand, { isLoading: subscribing }] = useSubscribeDemandMutation();
   const saving = creating || updating;
   const communities = useMemo(() => data?.communities || [], [data]);
+  // Search, so the list still works with fifty communities rather than three (17 Nov 2026 review).
+  const [q, setQ] = useState('');
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return communities;
+    return communities.filter((c) => `${c.name} ${c.area}`.toLowerCase().includes(needle));
+  }, [communities, q]);
+  // Communities we are coming to next. Not selectable as an address — joinable as a waitlist.
+  const waitlist = useGetWaitlistQuery(q.trim(), { skip: !!address });
+  const [joinWaitlist] = useJoinWaitlistMutation();
+  const [leaveWaitlist] = useLeaveWaitlistMutation();
+  const [requestCommunity] = useRequestCommunityMutation();
+  const toggleWaitlist = async (w) => {
+    try {
+      if (w.joined) await leaveWaitlist(w.id).unwrap();
+      else await joinWaitlist(w.id).unwrap();
+      haptic.success();
+      if (!w.joined)
+        dispatch(
+          showToast({
+            title: `You're on the list for ${w.name}`,
+            message: 'Invite your neighbours — when enough of you are waiting, we open there.',
+            tone: 'success',
+          }),
+        );
+    } catch (err) {
+      haptic.error();
+      dispatch(
+        showToast({ title: err?.message || 'Could not update the waitlist', tone: 'error' }),
+      );
+    }
+  };
   const [communityId, setCommunityId] = useState(address?.communityId || null);
   const [block, setBlock] = useState(address?.block || null);
   const [flat, setFlat] = useState(address?.flat || '');
@@ -514,7 +552,21 @@ export function AddressForm({ onSaved, defaultName, mobile, address = null }) {
         scroll
       >
         <View style={{ gap: 10 }}>
-          {communities.map((c) => (
+          {communities.length > 4 || q ? (
+            <Input
+              value={q}
+              onChangeText={(t) => setQ(cleanText(t, 60))}
+              placeholder="Search your community"
+              autoCapitalize="words"
+              leading={<Search size={18} color={colors.ink3} />}
+            />
+          ) : null}
+          {q && !shown.length ? (
+            <Small muted center style={{ marginVertical: 6 }}>
+              We don&rsquo;t deliver to a community called &ldquo;{q}&rdquo; yet.
+            </Small>
+          ) : null}
+          {shown.map((c) => (
             <Pressy
               key={c.id}
               onPress={() => {
@@ -538,6 +590,55 @@ export function AddressForm({ onSaved, defaultName, mobile, address = null }) {
               </Glass>
             </Pressy>
           ))}
+          {!editing && waitlist.data?.waitlist?.length ? (
+            <View style={{ gap: 10, marginTop: 6 }}>
+              <Small muted style={{ marginLeft: 4 }}>
+                Coming soon — join the list and we&rsquo;ll tell you the day we start
+              </Small>
+              {waitlist.data.waitlist.map((w) => (
+                <Glass key={w.id} radius={radius.md} elevated={false} innerStyle={styles.option}>
+                  <Clock size={18} color={colors.ink3} />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="bodyMedium">{w.name}</Text>
+                    <Small muted>
+                      {w.status === 'REQUESTED'
+                        ? 'Your request — we’re looking into it'
+                        : `${w.waiting} of ${w.threshold} households waiting`}
+                    </Small>
+                    {w.status !== 'REQUESTED' ? (
+                      <View style={styles.wlTrack}>
+                        <View
+                          style={[
+                            styles.wlFill,
+                            {
+                              width: `${Math.min(100, Math.round((w.waiting / Math.max(1, w.threshold)) * 100))}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                  <Pressy
+                    onPress={() => toggleWaitlist(w)}
+                    haptics="select"
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      w.joined ? `Leave the list for ${w.name}` : `Join the list for ${w.name}`
+                    }
+                  >
+                    <View style={[styles.wlBtn, w.joined && styles.wlBtnOn]}>
+                      <Text
+                        variant="smallMedium"
+                        color={w.joined ? colors.inkOnDark : colors.leafDeep}
+                      >
+                        {w.joined ? 'Joined ✓' : 'Join'}
+                      </Text>
+                    </View>
+                  </Pressy>
+                </Glass>
+              ))}
+            </View>
+          ) : null}
           {/* The way out for someone who is not on the list at all. Without it the only choices
               were to pick a community they do not live in, or to leave. */}
           {editing ? null : (
@@ -596,9 +697,20 @@ export function AddressForm({ onSaved, defaultName, mobile, address = null }) {
           gps={gps}
           mobile={mobile}
           busy={subscribing}
-          onAsk={async (request) => {
+          onAsk={async (request, extra = {}) => {
             try {
               const res = await subscribeDemand(request).unwrap();
+              // A named community also goes on the team's waitlist as a request, with its towers —
+              // that is how communities we have never heard of reach us. Best effort: the demand
+              // request above is what the customer was promised.
+              if (request.communityName)
+                requestCommunity({
+                  name: request.communityName,
+                  area: request.locality || extra.area || null,
+                  towers: extra.towers || null,
+                })
+                  .unwrap()
+                  .catch(() => {});
               haptic.success();
               setAsked({ areaLabel: res?.subscription?.areaLabel || 'your area' });
               return res?.subscription || {};
@@ -628,6 +740,7 @@ const AskSheet = /** @type {any} */ (
     const [communityName, setCommunityName] = useState('');
     const [locality, setLocality] = useState('');
     const [pincode, setPincode] = useState('');
+    const [towers, setTowers] = useState('');
     const [errors, setErrors] = useState(/** @type {any} */ ({}));
     const [done, setDone] = useState(/** @type {any} */ (null));
 
@@ -662,7 +775,10 @@ const AskSheet = /** @type {any} */ (
       // unmounts, and Android hands focus to the next field it can find — the flat number in the
       // form UNDER the sheet, with the keyboard still up for it.
       Keyboard.dismiss();
-      const saved = await onAsk(request);
+      const saved = await onAsk(request, {
+        towers: Number(towers) || null,
+        area: gps?.areaLabel || null,
+      });
       if (saved) setDone({ areaLabel: saved.areaLabel || gps?.areaLabel || loc || 'your area' });
     };
 
@@ -747,6 +863,16 @@ const AskSheet = /** @type {any} */ (
               />
             </View>
           )}
+          {cleanText(communityName, 80).trim().length >= 2 ? (
+            <Input
+              label="Towers in your community (if you know)"
+              value={towers}
+              onChangeText={(t) => setTowers(t.replace(/\D/g, '').slice(0, 3))}
+              placeholder="e.g. 12"
+              keyboardType="number-pad"
+              maxLength={3}
+            />
+          ) : null}
           <Button
             title="Tell me when you deliver here"
             onPress={send}
@@ -767,6 +893,24 @@ const AskSheet = /** @type {any} */ (
 );
 
 const styles = StyleSheet.create({
+  wlTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(14,27,20,0.08)',
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  wlFill: { height: 5, borderRadius: 3, backgroundColor: colors.leaf },
+  wlBtn: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.leaf,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wlBtnOn: { backgroundColor: colors.leafDeep, borderColor: colors.leafDeep },
   bleed: { marginHorizontal: -GUTTER },
   label: { marginBottom: 6, marginLeft: 4 },
   help: { marginTop: 6, marginLeft: 4 },

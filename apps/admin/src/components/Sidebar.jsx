@@ -6,10 +6,13 @@
  * hamburger in the mobile top bar — before this the rail was simply `display:none` on small screens,
  * leaving no way to navigate the panel from a phone.
  */
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
-  IconAlert,
   IconBasket,
+  IconBulb,
+  IconLedger,
+  IconStar,
+  IconTrend,
   IconCatalog,
   IconChart,
   IconDash,
@@ -42,8 +45,13 @@ const NAV = [
   { to: '/customers', label: 'Customers', icon: IconUsers },
   { to: '/procurement', label: 'Procurement', icon: IconBasket },
   { to: '/fulfilment', label: 'Fulfilment', icon: IconTruck },
-  { to: '/complaints', label: 'Complaints', icon: IconAlert },
+  // Feedback holds ratings and the complaints queue; /complaints opens it on that tab.
+  { to: '/feedback', label: 'Feedback', icon: IconStar, also: ['/complaints'] },
   { to: '/stats', label: 'Statistics', icon: IconChart },
+  { section: 'Growth' },
+  { to: '/growth', label: 'Growth', icon: IconTrend },
+  { to: '/insights', label: 'Weekly insights', icon: IconBulb },
+  { to: '/finance', label: 'Finance', icon: IconLedger },
   { section: 'Admin' },
   { to: '/access', label: 'Access & roles', icon: IconShield },
   { to: '/payments', label: 'Payments & COD', icon: IconRupee },
@@ -55,6 +63,7 @@ const NAV = [
  * @param {{ open?: boolean, onClose?: () => void }} props  `open` only matters on phones.
  */
 export function Sidebar({ open = false, onClose }) {
+  const { pathname } = useLocation();
   return (
     <nav className={`rail${open ? ' rail--open' : ''}`} aria-label="Main">
       <div className="brand">
@@ -90,7 +99,9 @@ export function Sidebar({ open = false, onClose }) {
               to={item.to}
               end={item.end}
               onClick={onClose}
-              className={({ isActive }) => `nav__item${isActive ? ' is-active' : ''}`}
+              className={({ isActive }) =>
+                `nav__item${isActive || item.also?.includes(pathname) ? ' is-active' : ''}`
+              }
             >
               <item.icon size={19} />
               {item.label}
