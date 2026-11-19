@@ -329,6 +329,14 @@ export const api = createApi({
     checkCode: b.mutation({
       query: (code) => ({ url: '/growth/check-code', method: 'POST', body: { code } }),
     }),
+    // Tracking brief (Rapture7, 19 Nov 2026): the Play install referrer, and the few events only
+    // the phone can see. Fire-and-forget — see src/lib/tracking.js.
+    postInstallSource: b.mutation({
+      query: (referrer) => ({ url: '/growth/install-source', method: 'POST', body: { referrer } }),
+    }),
+    trackEvent: b.mutation({
+      query: ({ name, props }) => ({ url: '/events', method: 'POST', body: { name, props } }),
+    }),
     getFirstOrder: b.query({
       query: () => '/growth/first-order',
       providesTags: ['Growth', 'Orders'],
@@ -366,6 +374,8 @@ export const {
   useConfirmDeletionMutation,
   useGetInviteQuery,
   useCheckCodeMutation,
+  usePostInstallSourceMutation,
+  useTrackEventMutation,
   useGetFirstOrderQuery,
   useGetWaitlistQuery,
   useJoinWaitlistMutation,

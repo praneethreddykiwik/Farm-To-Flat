@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -8,32 +8,45 @@ import { useCheckCodeMutation, useGetFirstOrderQuery } from '../api/api';
 import { selectLanguage } from '../features/ui/uiSlice';
 import { haptic } from '../lib/haptics';
 import { t } from '../lib/i18n';
+import { installCode } from '../lib/tracking';
 import { colors, radius } from '../theme';
 
 /**
- * Where this order came from (17 Nov 2026 review), asked at checkout and always optional:
- *   - "Have a code?" — the promoter at a community stall, or a neighbour's invite code. Checked with
- *     the server as soon as it is applied, so a typo is a message now, not a lost credit later.
- *   - "How did you hear about Fooducia?" — first order only, one tap, skippable.
+ * Where this order came from, asked at checkout (17 Nov 2026 review; Rapture7 brief, 19 Nov):
+ *   - "Have a code?" — optional: the promoter at a community stall, a neighbour's invite code, or —
+ *     on an iPhone, which has no install referrer — the neighbour's 10-digit mobile number. Checked
+ *     with the server as soon as it is applied. A number always gets the same neutral answer, so
+ *     the box never reveals who is a customer. An Android install from a Fooducia link pre-fills it.
+ *   - "How did you hear about Fooducia?" — REQUIRED before the first order (the brief): five
+ *     answers, one tap. The checkout will not place a first order until it is answered.
  *
- * Reports `{ code, heardFrom }` upward; a code is only reported once the server accepted it.
- * @param {{ onChange: (v: { code: string|null, heardFrom: string|null }) => void }} props
+ * Reports `{ code, heardFrom, heardRequired }` upward; a code only once the server accepted it.
+ * @param {{ onChange: (v: { code: string|null, heardFrom: string|null, heardRequired?: boolean }) => void, highlight?: boolean }} props
  */
-export function OrderSource({ onChange }) {
+export function OrderSource({ onChange, highlight = false }) {
   const lang = useSelector(selectLanguage);
   const { data: first } = useGetFirstOrderQuery();
   const [check, { isLoading }] = useCheckCodeMutation();
-  const [text, setText] = useState('');
+  // An Android install from a Fooducia link carries its code; it starts in the box.
+  const [text, setText] = useState(() => installCode() || '');
   const [applied, setApplied] = useState(
     /** @type {{ code: string, message: string|null }|null} */ (null),
   );
   const [error, setError] = useState(/** @type {string|null} */ (null));
   const [heard, setHeard] = useState(/** @type {string|null} */ (null));
 
-  const report = (next) => onChange({ code: applied?.code ?? null, heardFrom: heard, ...next });
+  const required = !!first?.askHeardFrom;
+  const report = (next) =>
+    onChange({ code: applied?.code ?? null, heardFrom: heard, heardRequired: required, ...next });
+  useEffect(() => {
+    onChange({ code: applied?.code ?? null, heardFrom: heard, heardRequired: required });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [required]);
 
-  const apply = async () => {
-    const code = text.trim().toUpperCase();
+  const apply = async (given) => {
+    const code = String(given ?? text)
+      .trim()
+      .toUpperCase();
     if (!code) return;
     Keyboard.dismiss();
     try {
@@ -47,6 +60,24 @@ export function OrderSource({ onChange }) {
       setError(e?.message || 'That code isn’t recognised.');
     }
   };
+
+  // A first order from an Android install that came through a Fooducia link: apply its code.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !first?.isFirstOrder) return;
+    prefilled.current = true;
+    const c = installCode();
+    if (!c) return;
+    // Checked like a typed code; applied only if the server accepts it (state set in the callback).
+    check(c)
+      .unwrap()
+      .then((r) => {
+        setApplied({ code: c, message: r?.message || null });
+        onChange({ code: c, heardFrom: heard, heardRequired: required });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first?.isFirstOrder]);
   const remove = () => {
     setApplied(null);
     setText('');
@@ -56,7 +87,7 @@ export function OrderSource({ onChange }) {
   const pick = (key) => {
     const next = heard === key ? null : key;
     setHeard(next);
-    onChange({ code: applied?.code ?? null, heardFrom: next });
+    onChange({ code: applied?.code ?? null, heardFrom: next, heardRequired: required });
   };
 
   return (
@@ -97,11 +128,11 @@ export function OrderSource({ onChange }) {
                 error={error}
                 leading={<Gift size={18} color={colors.ink3} />}
                 style={{ flex: 1 }}
-                onSubmitEditing={apply}
+                onSubmitEditing={() => apply()}
                 returnKeyType="done"
               />
               <Pressy
-                onPress={apply}
+                onPress={() => apply()}
                 haptics="select"
                 disabled={!text.trim() || isLoading}
                 accessibilityRole="button"
@@ -120,8 +151,12 @@ export function OrderSource({ onChange }) {
       {first?.askHeardFrom ? (
         <View>
           <Label>{t('heardFromTitle', lang)}</Label>
-          <Small muted style={{ marginTop: 4 }}>
-            {t('heardFromSub', lang)}
+          <Small
+            muted={!(highlight && !heard)}
+            color={highlight && !heard ? colors.tomato : undefined}
+            style={{ marginTop: 4 }}
+          >
+            {highlight && !heard ? t('heardRequired', lang) : t('heardFromSub', lang)}
           </Small>
           <View style={styles.chips}>
             {(first.options || []).map((o) => {

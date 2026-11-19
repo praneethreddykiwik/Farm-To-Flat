@@ -48,6 +48,13 @@ import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
 import { useMealReminders } from '../src/hooks/useMealReminders';
 import { routeForNotification } from '../src/lib/notificationRoutes';
+import { api } from '../src/api/api';
+import { initTracking, readInstallReferrerOnce, track } from '../src/lib/tracking';
+
+// The tracking brief's client events go through the store; the Play install referrer is read once,
+// on the very first launch after an install (Android), before anything else can clear it.
+initTracking(store.dispatch, api.endpoints.trackEvent);
+readInstallReferrerOnce();
 import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
 
 // ESM imports are hoisted, so this still runs before any component renders — which is the point:
@@ -160,6 +167,11 @@ function AuthGate({ ready }) {
       const key = `${id}|${resp?.actionIdentifier}|${resp?.notification?.date}`;
       if (!resp || handled.current === key) return;
       handled.current = key;
+      // cutoff_reminder_opened (tracking brief): did the 5 PM reminder bring them in?
+      if (resp.notification?.request?.content?.data?.type === 'CUTOFF_REMINDER')
+        track('cutoff_reminder_opened', {
+          sent_on: String(resp.notification.request.content.data.reminder || ''),
+        });
       const target = routeForNotification({
         actionIdentifier: resp.actionIdentifier,
         data: resp.notification?.request?.content?.data,

@@ -20,6 +20,7 @@ import { StatusScrim } from '../../src/components/StatusScrim';
 import { CategoryChips } from '../../src/components/CategoryChips';
 import { HarvestBanner } from '../../src/components/HarvestBanner';
 import { ConfirmBanner } from '../../src/components/ConfirmBanner';
+import { HomeNudges } from '../../src/components/HomeNudges';
 import { LiveOrderCard } from '../../src/components/LiveOrderCard';
 import { ProductCard } from '../../src/components/ProductCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
@@ -148,6 +149,7 @@ export default function Home() {
           customer is actually waiting for. */}
       <LiveOrderCard style={{ paddingHorizontal: 20, marginBottom: 12 }} />
       <ConfirmBanner style={{ paddingHorizontal: 20, marginBottom: 12 }} />
+      <HomeNudges nextWindow={nextWindow} />
       <View style={{ marginTop: 4 }}>
         <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />
       </View>

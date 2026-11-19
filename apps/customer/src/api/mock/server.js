@@ -894,7 +894,7 @@ const growthState = {
 };
 const HEARD = [
   ['COUNTER', 'A Fooducia stall in my community'],
-  ['WHATSAPP', 'WhatsApp'],
+  ['WHATSAPP', 'The Fooducia WhatsApp channel'],
   ['NEIGHBOUR', 'A neighbour or friend'],
   ['RESIDENT_GROUP', 'My residents’ group'],
   ['SOCIAL', 'Instagram / Facebook / YouTube'],
@@ -978,6 +978,9 @@ function handleGrowth(method, p, query, body) {
         'Share your code. When a neighbour’s first order is delivered, ₹30 lands in your Fooducia wallet.',
     });
   }
+  // Tracking brief: install referrer and client events are accepted and dropped in mock mode.
+  if (method === 'POST' && p === '/growth/install-source') return ok({ ok: true, recorded: true });
+  if (method === 'POST' && p === '/events') return ok({ ok: true });
   if (method === 'POST' && p === '/growth/check-code') {
     const code = String(body?.code || '')
       .trim()
@@ -989,6 +992,15 @@ function handleGrowth(method, p, query, body) {
         'BAD_CODE',
         'That’s your own invite code — share it with a neighbour instead.',
       );
+    // A neighbour's mobile number (iPhone has no install referrer): always the same neutral answer.
+    if (/^[6-9]\d{9}$/.test(code))
+      return ok({
+        ok: true,
+        neutral: true,
+        kind: 'NEIGHBOUR_NUMBER',
+        message:
+          'Thanks — if your neighbour is on Fooducia, they will be thanked once your first order arrives.',
+      });
     if (/^NB[A-Z0-9]{6}$/.test(code))
       return ok({
         ok: true,
@@ -1009,7 +1021,8 @@ function handleGrowth(method, p, query, body) {
     return ok({
       isFirstOrder: first,
       askHeardFrom: first,
-      options: HEARD.map(([key, label]) => ({ key, label })),
+      required: true,
+      options: HEARD.filter(([key]) => key !== 'SOCIAL').map(([key, label]) => ({ key, label })),
     });
   }
   if (method === 'GET' && p === '/growth/waitlist') {

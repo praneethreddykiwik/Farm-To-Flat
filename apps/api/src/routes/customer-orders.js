@@ -68,7 +68,9 @@ import {
   uploadIssuePhoto,
 } from '../lib/storage.js';
 import { baseUrlOf } from '../lib/media.js';
-import { checkCode, recordOrderSource } from '../lib/growth.js';
+import { checkCode, recordOrderSource, trackOrderPlaced } from '../lib/growth.js';
+import { launchOfferFor } from '../lib/launch-offer.js';
+import { track } from '../lib/events.js';
 import { wasPlaced } from '../lib/customer-history.js';
 import { getOps, putOps } from '../ops-store.js';
 import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
@@ -172,6 +174,15 @@ customerOrdersRouter.post(
       if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
       discount = couponDiscount(r.coupon, subtotal);
     }
+    // Launch offer — the same function the cart preview used, and only without a coupon.
+    let discountType = code ? 'COUPON' : null;
+    if (!code) {
+      const offer = launchOfferFor(cid, subtotal);
+      if (offer && offer.discountPaise > 0) {
+        discount = Math.min(offer.discountPaise, subtotal);
+        discountType = offer.type;
+      }
+    }
 
     // The SAME function the cart preview used. If these two ever diverge, the customer is charged
     // something other than the figure they tapped Pay on.
@@ -250,7 +261,13 @@ customerOrdersRouter.post(
       customerId: cid,
       code: req.body.code,
       heardFrom: req.body.heardFrom,
+      discountType,
+      discountPaise: discount,
     });
+    if (order.isFirstOrder && req.body.heardFrom)
+      track('source_answered', { answer: String(req.body.heardFrom) }, { customerId: cid });
+    // order_placed fires when the order is CONFIRMED — now for cash/wallet, on capture if prepaid.
+    if (order.status === 'CONFIRMED') trackOrderPlaced(order);
     if (walletApplied > 0)
       ledgerPush(
         cid,

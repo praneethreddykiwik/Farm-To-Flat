@@ -466,7 +466,7 @@ export default function Cart() {
                 <Row label={t('subtotal', lang)} paise={cart.subtotalPaise} />
                 {Number(cart.couponDiscountPaise) > 0 ? (
                   <Row
-                    label={t('coupon', lang)}
+                    label={!cart.coupon && cart.offer ? t('launchOffer', lang) : t('coupon', lang)}
                     paise={-Number(cart.couponDiscountPaise)}
                     color={colors.leafDeep}
                   />

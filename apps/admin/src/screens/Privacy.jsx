@@ -101,7 +101,15 @@ const SECTIONS = (CONTACT) => [
       ],
       [
         'Codes and “How did you hear about us?”',
-        'at checkout you may enter a code from a Fooducia stall or a neighbour’s invite code, and before your first order you may tell us how you heard about us. We record the code or answer with that order, so we can see which stalls and channels bring customers and thank the person who helped. Both are optional.',
+        'at checkout you may enter a code from a Fooducia stall, a neighbour’s invite code or a neighbour’s mobile number, and before your first order we ask how you heard about us. We record the code or answer with that order, so we can see which stalls and channels bring customers and thank the person who helped. If you enter a neighbour’s number we only check it against our customers to credit them; we never tell you whether that number is a customer.',
+      ],
+      [
+        'How you found the app (install link)',
+        'if you installed the Android app from a Fooducia link — a counter QR code, a WhatsApp post or an invite — Google Play passes the tag on that link (for example “counter, promoter PR01, community Aquantis”) to the app the first time it opens. We store that tag with your account so the stall or neighbour is credited without you typing a code. It contains no information about you or your phone. When someone opens such a link, our website counts the visit per tag per day — with no IP address, device identifier or cookie kept.',
+      ],
+      [
+        'How the Service is used (usage events)',
+        'we record a small set of events on our own servers to measure whether Fooducia is working for households: signing in, choosing your community and tower, placing, receiving or being refunded for an order (its value, item count, discount and whether it arrived in the 6–10 AM window), a referral reward, a waitlist vote, opening checkout, sharing your invite, reordering a past basket, using voice search, and our order-cut-off reminder being sent or opened. Events are linked to your account but never contain your name, number or flat. We use no third-party analytics or advertising SDK for this.',
       ],
       [
         'Neighbour invites',
@@ -126,6 +134,14 @@ const SECTIONS = (CONTACT) => [
       [
         'WhatsApp order updates',
         'we send order and refund updates, replies to your complaints and a request for feedback to your mobile number on WhatsApp. These are about your orders; we do not currently send marketing messages, and if we ever do we will ask first and let you opt out.',
+      ],
+      [
+        'Order cut-off reminder',
+        'if you allow notifications, we may send one reminder in the afternoon — only on days you have not yet ordered for the next morning — so you do not miss the 5:30 PM cut-off. Turn it off any time by switching off notifications for Fooducia in your phone’s settings.',
+      ],
+      [
+        'Launch offers',
+        'during a launch offer we look at how many orders you have placed and when your first one was delivered, to work out whether an offer applies to your basket. The discount is shown in your cart and on your bill.',
       ],
       [
         'Technical and security data',
@@ -209,6 +225,10 @@ const SECTIONS = (CONTACT) => [
         'deliver push notifications, and provide the speech recognition and map lookup built into your phone, under their own privacy terms.',
       ],
       ['Sentry', 'crash and error reports (see section 3).'],
+      [
+        'Our growth-measurement adviser',
+        'may receive a weekly report of orders and usage events in which every household is replaced by a one-way code. It contains no name, mobile number, flat or address, and the adviser cannot work out who anyone is.',
+      ],
     ],
     after: [
       'We may also disclose personal data when the law requires it — for example, to a court, a tax authority or law enforcement with a lawful request — or to protect the safety of our customers, staff or the public, or to prevent fraud. If Fooducia is ever merged, sold or reorganised, your data may pass to the new owner, who must keep honouring this policy. We do not sell your personal data to anyone.',
@@ -239,6 +259,10 @@ const SECTIONS = (CONTACT) => [
       [
         'Codes, “how did you hear”, invites and ratings',
         'kept with the order they belong to, for as long as the order record is kept.',
+      ],
+      [
+        'Usage events and install tags',
+        'up to 24 months, then deleted. When you delete your account, the install tag is deleted and your events are cut loose from it, so they remain only as anonymous counts.',
       ],
       [
         'Area demand counts',

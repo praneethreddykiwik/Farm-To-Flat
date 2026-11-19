@@ -18,16 +18,19 @@ import { validateBody } from '../validate.js';
 import { listOrdersForCustomer } from '../store.js';
 import { wasPlaced } from '../lib/customer-history.js';
 import { id as newId } from '../lib/ids.js';
-import { getOps, listOps, putOps, removeOps, getSettings } from '../ops-store.js';
-import { HEARD_FROM, checkCode, inviteSummary } from '../lib/growth.js';
+import { getOps, listOps, putOps, putOpsSoft, removeOps, getSettings } from '../ops-store.js';
+import { HEARD_FROM, HEARD_FROM_ASKED, checkCode, inviteSummary } from '../lib/growth.js';
 import { todayISO } from '../lib/dates.js';
+import { track } from '../lib/events.js';
 
 export const growthRouter = Router();
 
 const isFirstOrderFor = (cid) => !listOrdersForCustomer(cid).some(wasPlaced);
 
 /** The public link a code is shared on — the website page that explains it and links the app. */
-const shareLink = (code) => `https://fooducia.health/join?code=${encodeURIComponent(code)}`;
+// /go reads the tag on an Android phone and hands it to the Play Store as the install referrer, so
+// the app knows the invite before anything is typed; other phones see the code on the /join page.
+const shareLink = (code) => `https://fooducia.health/go?src=referral&r=${encodeURIComponent(code)}`;
 
 growthRouter.get(
   '/invite',
@@ -63,6 +66,13 @@ growthRouter.post(
       isFirstOrder: isFirstOrderFor(req.customerId),
     });
     if (!r.ok) return res.status(422).json({ error: { code: 'BAD_CODE', message: r.message } });
+    if (r.neutral)
+      return res.json({
+        ok: true,
+        kind: 'NEIGHBOUR_NUMBER',
+        message:
+          'Thanks — if your neighbour is on Fooducia, they will be thanked once your first order arrives.',
+      });
     const k = r.resolved;
     res.json({
       ok: true,
@@ -85,7 +95,9 @@ growthRouter.get(
     res.json({
       isFirstOrder: first,
       askHeardFrom: first && !!s.askHeardFrom && !getOps('attribution', req.customerId),
-      options: Object.entries(HEARD_FROM).map(([key, label]) => ({ key, label })),
+      // Required before the first order (the brief): the app will not place it unanswered.
+      required: true,
+      options: HEARD_FROM_ASKED.map((key) => ({ key, label: HEARD_FROM[key] })),
     });
   }),
 );
@@ -149,11 +161,18 @@ growthRouter.post(
       (w.status === 'REQUESTED' && w.requestedBy !== cid)
     )
       throw fail(404, 'NOT_FOUND', 'That community isn’t on our list.');
+    const already = !!getOps('waitlistJoin', `${w.id}:${cid}`);
     await putOps('waitlistJoin', `${w.id}:${cid}`, {
       waitlistId: w.id,
       customerId: cid,
       at: new Date().toISOString(),
     });
+    if (!already)
+      track(
+        'waitlist_vote',
+        { community: w.name, area: w.area || null, via: 'waitlist' },
+        { customerId: cid },
+      );
     res.json({ community: view(w, cid, getSettings('growth').waitlistOpenAt) });
   }),
 );
@@ -225,6 +244,11 @@ growthRouter.post(
       customerId: cid,
       at: new Date().toISOString(),
     });
+    track(
+      'waitlist_vote',
+      { community: name, area: req.body.area || null, via: 'request' },
+      { customerId: cid },
+    );
     res.status(201).json({ community: view(saved, cid, threshold), existing: false });
   }),
 );
@@ -236,3 +260,58 @@ growthRouter.use((err, _req, _res, next) => {
     return next(fail(503, 'UNAVAILABLE', 'This isn’t available just yet. Please try again later.'));
   return next(err);
 });
+
+// ── Android install tag (Play Install Referrer) ─────────────────────────────
+// The app reads the referrer ONCE on first open (expo-application) and sends it after sign-in.
+// Only the tag fields are kept: src (counter / whatsapp / resident / referral …), p (promoter
+// code), c (community slug), r (invite code). The tag wins over the "how did you hear" answer.
+const InstallSource = z.object({
+  referrer: z.string().max(500),
+});
+
+/** Parse "src=counter&p=PR01&c=aquantis" (also accepts utm_source / utm_campaign). */
+export function parseReferrer(raw) {
+  let q;
+  try {
+    q = new URLSearchParams(String(raw || '').replace(/^\?/, ''));
+  } catch {
+    return null;
+  }
+  const pick = (...keys) => {
+    for (const k of keys) {
+      const v = q.get(k);
+      if (v && /^[A-Za-z0-9_.-]{1,40}$/.test(v)) return v;
+    }
+    return null;
+  };
+  const tag = {
+    src: pick('src', 'utm_source'),
+    p: pick('p', 'promoter'),
+    c: pick('c', 'community', 'utm_campaign'),
+    r: pick('r', 'ref'),
+  };
+  // Google fills the referrer with "utm_source=google-play&utm_medium=organic" for a plain store
+  // install — that is not a tag anyone gave us.
+  if (tag.src === 'google-play' && !tag.p && !tag.r) return null;
+  return tag.src || tag.p || tag.r ? tag : null;
+}
+
+growthRouter.post(
+  '/install-source',
+  validateBody(InstallSource),
+  asyncHandler(async (req, res) => {
+    const cid = req.customerId;
+    const tag = parseReferrer(req.body.referrer);
+    if (!tag) return res.json({ ok: true, recorded: false });
+    // First tag wins: an install happens once; a later re-install must not rewrite the history.
+    if (!getOps('installSource', cid)) {
+      putOpsSoft('installSource', cid, { ...tag, at: new Date().toISOString() });
+      track(
+        'install_source_captured',
+        { source_tag: tag.src, promoter_id: tag.p, referrer_code: tag.r, community: tag.c },
+        { customerId: cid },
+      );
+    }
+    res.json({ ok: true, recorded: true, tag: getOps('installSource', cid) });
+  }),
+);

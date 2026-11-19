@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Device from 'expo-device';
+import { track } from './tracking';
 
 /** @type {any} */
 let Speech = null;
@@ -62,7 +63,12 @@ export function useVoiceSearch({ onResult, onFinal, lang = 'en-IN' } = {}) {
     if (!text) return;
     latest.current = text;
     cbs.current.onResult?.(text);
-    if (e.isFinal) cbs.current.onFinal?.(text);
+    if (e.isFinal) {
+      cbs.current.onFinal?.(text);
+      // voice_order_used (tracking brief): only that voice was used and how long the phrase was —
+      // never the words themselves.
+      track('voice_order_used', { words: text.trim().split(/\s+/).length });
+    }
   });
 
   useEvent('error', (e) => {

@@ -19,18 +19,25 @@
  */
 import { randomInt } from 'node:crypto';
 import { getOps, listOps, putOps, putOpsSoft, getSettings, opsReady } from '../ops-store.js';
-import { getCustomer, ledgerPush } from '../customer-store.js';
+import { getCustomer, getCustomerIdByMobile, ledgerPush } from '../customer-store.js';
+import { track } from './events.js';
 import { emitNotification } from './notify.js';
 import { isErased } from './customer-history.js';
 
 export const HEARD_FROM = {
   COUNTER: 'A Fooducia stall in my community',
-  WHATSAPP: 'WhatsApp',
+  WHATSAPP: 'The Fooducia WhatsApp channel',
   NEIGHBOUR: 'A neighbour or friend',
   RESIDENT_GROUP: 'My residents’ group',
   SOCIAL: 'Instagram / Facebook / YouTube',
   OTHER: 'Somewhere else',
 };
+
+/**
+ * The five answers the app offers (Rapture7 brief, 19 Nov 2026). SOCIAL stays a valid stored value
+ * so answers given before then still read correctly in the reports.
+ */
+export const HEARD_FROM_ASKED = ['COUNTER', 'WHATSAPP', 'NEIGHBOUR', 'RESIDENT_GROUP', 'OTHER'];
 
 export const MAX_REWARDS_PER_MONTH = 20;
 
@@ -61,11 +68,24 @@ export function inviteCodeFor(customerId) {
   return code;
 }
 
+const MOBILE_RE = /^[6-9]\d{9}$/;
+const digitsOnly = (s) =>
+  String(s || '')
+    .replace(/\D/g, '')
+    .replace(/^(91|0)(?=[6-9]\d{9}$)/, '');
+
 /**
- * What a typed code is.
+ * What a typed code is: a promoter's code, a customer's invite code, or — for iPhone, where no tag
+ * survives the App Store — the inviting neighbour's mobile number (Rapture7 brief, 19 Nov 2026).
  * @returns {{ kind: 'PROMOTER', promoter: any } | { kind: 'INVITE', customerId: string } | null}
  */
 export function resolveCode(raw) {
+  const mobile = digitsOnly(raw);
+  if (MOBILE_RE.test(mobile)) {
+    const cid = getCustomerIdByMobile(mobile);
+    const c = cid ? getCustomer(cid) : null;
+    return c && !isErased(c) ? { kind: 'INVITE', customerId: cid } : null;
+  }
   const code = normaliseCode(raw);
   if (!code) return null;
   const promoter = getOps('promoter', code);
@@ -77,9 +97,23 @@ export function resolveCode(raw) {
 
 /**
  * Check a code before the order is created, so a typo is a message, not a silently lost credit.
- * @returns {{ ok: boolean, resolved?: any, message?: string }}
+ * A MOBILE NUMBER always gets the same neutral answer, found or not — otherwise this would tell
+ * anyone whether a given number is a Fooducia customer.
+ * @returns {{ ok: boolean, resolved?: any, message?: string, neutral?: boolean }}
  */
 export function checkCode(raw, { customerId, isFirstOrder }) {
+  const mobile = digitsOnly(raw);
+  if (MOBILE_RE.test(mobile)) {
+    if (!isFirstOrder)
+      return { ok: false, message: 'A neighbour’s number works on a first order only.' };
+    const me = getCustomer(customerId);
+    if (me && digitsOnly(me.mobile) === mobile)
+      return {
+        ok: false,
+        message: 'That’s your own number — enter the neighbour who told you about us.',
+      };
+    return { ok: true, resolved: null, neutral: true };
+  }
   if (!normaliseCode(raw)) return { ok: true, resolved: null };
   const r = resolveCode(raw);
   if (!r) return { ok: false, message: 'That code isn’t recognised. Check it, or leave it empty.' };
@@ -97,51 +131,122 @@ export function checkCode(raw, { customerId, isFirstOrder }) {
 }
 
 /**
- * Record where this order came from. Called right after the order is created; never throws — the
- * order is already placed, and reporting must not undo it.
+ * The tag an Android install arrived with (Play Install Referrer → POST /growth/install-source).
+ * @returns {{ src: string|null, p: string|null, c: string|null, r: string|null } | null}
  */
-export function recordOrderSource({ order, customerId, code, heardFrom }) {
+export const installTagOf = (customerId) => getOps('installSource', customerId);
+
+/**
+ * Record where this order came from, and how it was discounted. Called right after the order is
+ * created; never throws — the order is already placed, and reporting must not undo it.
+ *
+ * Source precedence (brief): the install TAG wins over the typed code, which wins over the answer.
+ * Returns what was recorded, for the order_placed event.
+ */
+export function recordOrderSource({
+  order,
+  customerId,
+  code,
+  heardFrom,
+  discountType = null,
+  discountPaise = 0,
+}) {
   try {
     const now = new Date().toISOString();
-    const r = code ? resolveCode(code) : null;
-    if (r?.kind === 'PROMOTER')
-      putOpsSoft('orderAttr', order.id, {
-        orderId: order.id,
-        customerId,
-        promoterCode: r.promoter.id,
-        stall: r.promoter.stall || null,
-        at: now,
-      });
-    if (!order.isFirstOrder) return;
-    if (!getOps('attribution', customerId)) {
+    const typed = code ? resolveCode(code) : null;
+    const tag = order.isFirstOrder ? installTagOf(customerId) : null;
+    const tagPromoter = tag?.p ? getOps('promoter', normaliseCode(tag.p)) : null;
+    const tagReferrer = tag?.r ? resolveCode(tag.r) : null;
+    const promoter =
+      tagPromoter && tagPromoter.active !== false
+        ? tagPromoter
+        : typed?.kind === 'PROMOTER'
+          ? typed.promoter
+          : null;
+    const invite =
+      tagReferrer?.kind === 'INVITE' && tagReferrer.customerId !== customerId
+        ? tagReferrer
+        : typed?.kind === 'INVITE' && typed.customerId !== customerId
+          ? typed
+          : null;
+    const sourceTag = tag?.src || (promoter ? 'counter' : invite ? 'referral' : null);
+
+    const attr = {
+      orderId: order.id,
+      customerId,
+      promoterCode: promoter ? promoter.id : null,
+      stall: promoter?.stall || null,
+      referrerKey: invite ? invite.customerId : null,
+      sourceTag,
+      discountType: discountPaise > 0 ? discountType : null,
+      discountPaise: discountPaise > 0 ? discountPaise : 0,
+      at: now,
+    };
+    putOpsSoft('orderAttr', order.id, attr);
+
+    if (order.isFirstOrder && !getOps('attribution', customerId)) {
       putOpsSoft('attribution', customerId, {
         customerId,
         heardFrom: HEARD_FROM[heardFrom] ? heardFrom : null,
-        promoterCode: r?.kind === 'PROMOTER' ? r.promoter.id : null,
-        referrerId: r?.kind === 'INVITE' ? r.customerId : null,
+        promoterCode: attr.promoterCode,
+        referrerId: attr.referrerKey,
+        // acquisition_source (brief): the tag if present, otherwise the answer.
+        acquisitionSource: sourceTag || (HEARD_FROM[heardFrom] ? heardFrom : null),
         firstOrderId: order.id,
         communityId: order.address?.communityId || null,
         at: now,
       });
     }
-    if (r?.kind === 'INVITE' && r.customerId !== customerId && !getOps('referral', customerId)) {
+    if (order.isFirstOrder && invite && !getOps('referral', customerId)) {
       const s = getSettings('growth');
-      putOpsSoft('referral', customerId, {
-        refereeId: customerId,
-        referrerId: r.customerId,
-        code: normaliseCode(code),
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        status: 'PENDING',
-        referrerRewardPaise: s.referrerRewardPaise,
-        refereeRewardPaise: s.refereeRewardPaise,
-        at: now,
-      });
+      if (s.referralEnabled)
+        putOpsSoft('referral', customerId, {
+          refereeId: customerId,
+          referrerId: invite.customerId,
+          code: tagReferrer?.kind === 'INVITE' ? normaliseCode(tag.r) : normaliseCode(code),
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: 'PENDING',
+          referrerRewardPaise: s.referrerRewardPaise,
+          refereeRewardPaise: s.refereeRewardPaise,
+          at: now,
+        });
     }
+    return attr;
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('[growth] could not record order source', e?.message || e);
+    return null;
   }
+}
+
+/**
+ * The brief's order_placed event — fired when an order is CONFIRMED: straight away for cash and
+ * wallet orders, on payment capture for prepaid ones (an abandoned payment page is not an order).
+ */
+export function trackOrderPlaced(order) {
+  if (!order?.id) return;
+  const a = getOps('orderAttr', order.id) || {};
+  track(
+    'order_placed',
+    {
+      order_id: order.id,
+      order_number: order.orderNumber,
+      order_value: Number(order.subtotalPaise),
+      items_count: (order.items || []).length,
+      discount_type: a.discountType || null,
+      discount_value: Number(a.discountPaise || order.couponDiscountPaise || 0),
+      payment_method: order.paymentMethod,
+      community: order.address?.communityName || null,
+      tower: order.address?.block || null,
+      source_tag: a.sourceTag || null,
+      promoter_id: a.promoterCode || null,
+      referrer_id: a.referrerKey || null,
+      is_first_order: !!order.isFirstOrder,
+      placed_at: order.createdAt,
+    },
+    { customerId: order.customerId },
+  );
 }
 
 const monthOf = (iso) => String(iso || '').slice(0, 7);
@@ -217,6 +322,18 @@ export function rewardReferral(order) {
       return null;
     }
   }
+  if (amount > 0)
+    track(
+      'referral_reward_applied',
+      { order_id: order.id, role: 'referrer', amount },
+      { customerId: ref.referrerId },
+    );
+  if (welcome > 0)
+    track(
+      'referral_reward_applied',
+      { order_id: order.id, role: 'new_customer', amount: welcome },
+      { customerId: order.customerId },
+    );
   const settled = {
     ...ref,
     status: 'REWARDED',

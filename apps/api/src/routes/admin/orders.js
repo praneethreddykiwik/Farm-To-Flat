@@ -10,6 +10,7 @@
  */
 import { Router } from 'express';
 import { rewardReferral } from '../../lib/growth.js';
+import { track, trackDelivered } from '../../lib/events.js';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
@@ -451,6 +452,17 @@ adminOrdersRouter.post(
     // explains itself is the difference between an answer and silence.
     const resolved = getOrder(req.params.id);
     notifyComplaintResolved(resolved, issue, getCustomer(resolved?.customerId));
+    if (issue.status === 'RESOLVED')
+      track(
+        'order_refunded',
+        {
+          order_id: req.params.id,
+          reason: issue.reason || 'COMPLAINT',
+          amount: null,
+          kind: 'complaint',
+        },
+        { customerId: resolved?.customerId },
+      );
     // In-app + push: the customer sees the operator's reply in their notification centre too.
     if (resolved?.customerId && String(issue.resolution || '').trim()) {
       const cr = COPY.COMPLAINT_REPLY(resolved, String(issue.resolution).trim());
@@ -509,6 +521,17 @@ function notifyCustomer(order) {
   if (order.status === 'OUT_FOR_DELIVERY') notifyOrderOnTheWay(order, customer, when);
   if (order.status === 'CANCELLED')
     waOrderCancelled(order, customer, 'If you paid, a refund has been initiated.');
+  if (order.status === 'CANCELLED') {
+    const paid =
+      Number(order.walletAppliedPaise || 0) +
+      (order.paymentMethod === 'PREPAID' ? Number(order.gatewayAmountPaise || 0) : 0);
+    if (paid > 0)
+      track(
+        'order_refunded',
+        { order_id: order.id, reason: 'CANCELLED', amount: paid },
+        { customerId: order.customerId },
+      );
+  }
   // Right after a delivery, invite feedback / a rating.
   if (order.status === 'DELIVERED') {
     // In the feed, not a second push: the "Delivered" notification that fired a moment ago already
@@ -526,6 +549,7 @@ function notifyCustomer(order) {
     waFeedbackInvite(order, customer);
     // A neighbour's invite pays out on the invited customer's first delivery (lib/growth.js).
     rewardReferral(order);
+    trackDelivered(order);
   }
 }
 

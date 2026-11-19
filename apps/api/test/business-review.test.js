@@ -153,7 +153,7 @@ describe('neighbour invites', () => {
     expect(inv.status).toBe(200);
     expect(inv.body.code).toMatch(/^NB[A-Z0-9]{6}$/);
     expect(inv.body.shareText).toContain(inv.body.code);
-    expect(inv.body.link).toContain('fooducia.health/join');
+    expect(inv.body.link).toContain('fooducia.health/go?src=referral');
 
     // Your own code is refused.
     const self = await request(app)
@@ -436,6 +436,10 @@ describe('who may see what', () => {
       '/insights',
       '/feedback/reviews',
       '/finance/expenses',
+      '/report/weekly',
+      '/events',
+      '/growth/counter-sessions',
+      '/business/settings/launchOffer',
     ]) {
       const r = await request(app).get(`${A}${p}`).set(h);
       expect(r.status, p).toBe(403);

@@ -19,6 +19,7 @@ import { Fulfilment } from './screens/Fulfilment.jsx';
 import { Feedback } from './screens/Feedback.jsx';
 import { Growth } from './screens/Growth.jsx';
 import { Insights } from './screens/Insights.jsx';
+import { Report } from './screens/Report.jsx';
 import { Finance } from './screens/Finance.jsx';
 import { Join } from './screens/Join.jsx';
 import { AINotice } from './screens/AINotice.jsx';
@@ -93,6 +94,7 @@ function AdminShell() {
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/growth" element={<Growth />} />
             <Route path="/insights" element={<Insights />} />
+            <Route path="/report" element={<Report />} />
             <Route path="/finance" element={<Finance />} />
             <Route path="/stats" element={<Statistics />} />
             <Route path="/access" element={<Access />} />
@@ -113,6 +115,7 @@ const PUBLIC = new Set([
   '/privacy',
   '/terms',
   '/join',
+  '/go',
   '/ai-notice',
   ...Object.keys(PAGES).map((p) => `/${p}`),
 ]);
@@ -137,6 +140,7 @@ const ADMIN_PATHS = new Set([
   '/feedback',
   '/growth',
   '/insights',
+  '/report',
   '/finance',
   '/stats',
   '/access',
@@ -162,7 +166,7 @@ function Root() {
       ? `${policy.title.en} · Fooducia`
       : ADMIN_PATHS.has(pathname)
         ? 'Fooducia · Operations'
-        : pathname === '/join'
+        : pathname === '/join' || pathname === '/go'
           ? 'Your Fooducia code'
           : pathname === '/ai-notice'
             ? 'AI Notice · Fooducia'
@@ -177,7 +181,7 @@ function Root() {
   if (pathname === '/privacy') return <Privacy />;
   if (pathname === '/terms') return <Terms />;
   // A promoter's QR card and a neighbour's invite link land here: the code, and where to get the app.
-  if (pathname === '/join') return <Join />;
+  if (pathname === '/join' || pathname === '/go') return <Join />;
   if (pathname === '/ai-notice') return <AINotice />;
   // /refunds, /shipping, /contact — views onto the Terms sections. Public, like the two above.
   const policy = pathname.slice(1);

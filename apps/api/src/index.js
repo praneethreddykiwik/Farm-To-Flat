@@ -59,6 +59,7 @@ import { aiRouter } from './routes/ai.js';
 import { mealsRouter } from './routes/meals.js';
 import { demandRouter } from './routes/demand.js';
 import { growthRouter } from './routes/growth.js';
+import { eventsRouter, linksRouter } from './routes/events.js';
 // Side-effect import: starts the 10-minute gateway reconciliation pass. The third leg, after the
 // client callback and the webhook — the one that notices when neither of those happened.
 import './lib/reconcile.js';
@@ -83,6 +84,7 @@ import { adminEmailsRouter } from './routes/admin/admin-emails.js';
 import { adminBusinessRouter } from './routes/admin/business.js';
 import { loadOps, startOpsRecheck } from './ops-store.js';
 import { startDeletionSweep } from './lib/account-deletion.js';
+import { startCutoffReminders } from './lib/reminders.js';
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
@@ -282,6 +284,8 @@ app.use(`${v1}/ai`, requireAuth, aiRouter);
 app.use(`${v1}/meals`, requireAuth, mealsRouter);
 app.use(`${v1}/demand`, requireAuth, demandRouter);
 app.use(`${v1}/growth`, requireAuth, growthRouter);
+app.use(`${v1}/events`, requireAuth, eventsRouter);
+app.use(`${v1}/links`, linksRouter); // public: anonymous scan counts for /go links
 
 // ── admin (operator panel) ─────────────────────────────────────────────────
 // Sign-in FIRST, and deliberately outside the authenticated router below: these are the routes you
@@ -400,6 +404,8 @@ async function hydrateOnce() {
   startOpsRecheck();
   // Accounts whose 60-day deletion grace period has ended are erased by this hourly sweep.
   if (!IS_TEST_ENV) startDeletionSweep();
+  // The 5 PM cut-off reminder — off until switched on in the admin.
+  if (!IS_TEST_ENV) startCutoffReminders();
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);

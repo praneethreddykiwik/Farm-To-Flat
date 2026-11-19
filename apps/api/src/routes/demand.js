@@ -14,6 +14,7 @@
  * act, used for one message, removable here and erased with the account.
  */
 import { Router } from 'express';
+import { track } from '../lib/events.js';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
@@ -109,6 +110,17 @@ demandRouter.post(
       throw e;
     }
     if ('error' in r) throw fail(r.error.status, r.error.code, r.error.message);
+    if (r.created)
+      track(
+        'waitlist_vote',
+        {
+          area: r.subscription.areaLabel || null,
+          pincode: r.subscription.pincode || null,
+          community: r.subscription.communityName || null,
+          via: 'area',
+        },
+        { customerId: req.customerId },
+      );
     res.status(r.created ? 201 : 200).json({ subscription: subscriptionPublic(r.subscription) });
   }),
 );

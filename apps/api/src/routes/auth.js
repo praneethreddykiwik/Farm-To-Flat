@@ -4,6 +4,7 @@
  * service. Public routes; logout reads the Bearer token if present.
  */
 import { Router } from 'express';
+import { track, platformOf } from '../lib/events.js';
 import { cancelDeletionOnSignIn } from '../lib/account-deletion.js';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
@@ -77,6 +78,11 @@ authRouter.post(
     // Signing in during the 60-day grace period keeps the account (lib/account-deletion.js) — the
     // deletion screen says so before anyone confirms. The app tells them it was cancelled.
     const deletionCancelled = await cancelDeletionOnSignIn(r.customer.id).catch(() => false);
+    track(
+      'signed_in',
+      { is_new_user: !!r.isNew, platform: platformOf(req) },
+      { customerId: r.customer.id },
+    );
     res.json({
       ...tokens,
       ...(deletionCancelled ? { deletionCancelled: true } : {}),

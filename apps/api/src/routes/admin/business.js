@@ -71,6 +71,9 @@ import {
   EXPENSE_CATEGORIES,
 } from '../../lib/insights.js';
 import { maskMobile } from '../../lib/customer-history.js';
+import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
+import { listEvents, EVENT_NAMES } from '../../lib/events.js';
+import { buildWorkbook, sendWorkbook } from '../../lib/xlsx.js';
 
 export const adminBusinessRouter = Router();
 
@@ -743,6 +746,281 @@ adminBusinessRouter.get(
       heardFrom: attr?.heardFrom ? HEARD_FROM[attr.heardFrom] : null,
       invitedBy: attr?.referrerId ? nameOf(attr.referrerId) : null,
       review: getOps('review', o.id) ? reviewView(getOps('review', o.id)) : null,
+    });
+  }),
+);
+
+// ── Rapture7 tracking brief (19 Nov 2026) ───────────────────────────────────
+
+// Counter sessions — a stall at a community, with its time window and the promoters on it. The
+// report counts first orders placed during a session (in that community, or with one of its
+// promoters' codes) as assisted by it.
+const SessionBody = z.object({
+  communityId: z.string().max(40),
+  date: isoDate,
+  start: z.string().regex(/^\d{2}:\d{2}$/, 'Use a time like 17:00.'),
+  end: z.string().regex(/^\d{2}:\d{2}$/, 'Use a time like 20:00.'),
+  promoterCodes: z.array(z.string().trim().max(12)).max(10).optional(),
+  note: z.string().trim().max(200).optional().nullable(),
+});
+
+const sessionView = (s) => ({
+  id: s.id,
+  communityId: s.communityId,
+  communityName: getCommunity(s.communityId)?.name || s.communityId,
+  date: s.date,
+  start: s.start,
+  end: s.end,
+  promoterCodes: s.promoterCodes || [],
+  note: s.note || null,
+});
+
+adminBusinessRouter.get(
+  '/growth/counter-sessions',
+  asyncHandler(async (req, res) => {
+    const range = rangeOf(req.query);
+    const list = listOps('counterSession')
+      .filter((s) => req.query.all === '1' || (s.date >= range.from && s.date <= range.to))
+      .sort((a, b) => (a.date === b.date ? (a.start < b.start ? 1 : -1) : a.date < b.date ? 1 : -1))
+      .map(sessionView);
+    res.json({ range, sessions: list });
+  }),
+);
+
+async function saveSession(sid, body, prev = null) {
+  if (!getCommunity(body.communityId))
+    throw fail(422, 'VALIDATION', 'That community does not exist.');
+  if (body.end <= body.start)
+    throw fail(422, 'VALIDATION', 'The session must end after it starts.');
+  const codes = (body.promoterCodes || []).map(normaliseCode).filter(Boolean);
+  for (const c of codes)
+    if (!getOps('promoter', c)) throw fail(422, 'VALIDATION', `No promoter with the code ${c}.`);
+  return putOps('counterSession', sid, {
+    ...(prev || {}),
+    ...body,
+    promoterCodes: codes,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+adminBusinessRouter.post(
+  '/growth/counter-sessions',
+  validateBody(SessionBody),
+  asyncHandler(async (req, res) => {
+    const saved = await saveSession(newId('cs', 8), req.body);
+    res.status(201).json({ session: sessionView(saved) });
+  }),
+);
+
+adminBusinessRouter.patch(
+  '/growth/counter-sessions/:id',
+  validateBody(SessionBody.partial()),
+  asyncHandler(async (req, res) => {
+    const cur = getOps('counterSession', req.params.id);
+    if (!cur) throw fail(404, 'NOT_FOUND', 'No such session.');
+    const saved = await saveSession(cur.id, { ...cur, ...req.body }, cur);
+    res.json({ session: sessionView(saved) });
+  }),
+);
+
+adminBusinessRouter.delete(
+  '/growth/counter-sessions/:id',
+  asyncHandler(async (req, res) => {
+    if (!getOps('counterSession', req.params.id)) throw fail(404, 'NOT_FOUND', 'No such session.');
+    await removeOps('counterSession', req.params.id);
+    res.json({ ok: true });
+  }),
+);
+
+// Settings documents the brief adds: the launch offer (pending approval → off), the 5 PM reminder,
+// and the capacity the report measures mornings against.
+const SETTINGS_SCHEMAS = {
+  launchOffer: z.object({
+    enabled: z.boolean().optional(),
+    startDate: isoDate.optional(),
+    endDate: isoDate.optional(),
+    firstOrderPct: z.number().min(0).max(50).optional(),
+    secondOrderWithinDays: z.number().int().min(1).max(60).optional(),
+    secondOrderThresholdPaise: z.number().int().min(0).max(10_000_000).optional(),
+    secondOrderPct: z.number().min(0).max(50).optional(),
+    secondOrderCapPaise: z.number().int().min(0).max(1_000_000).optional(),
+    secondOrderLowPct: z.number().min(0).max(50).optional(),
+  }),
+  reminders: z.object({
+    enabled: z.boolean().optional(),
+    time: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
+  }),
+  report: z.object({ capacityKgPerMorning: z.number().min(1).max(100000).optional() }),
+};
+
+adminBusinessRouter.get(
+  '/business/settings/:name',
+  asyncHandler(async (req, res) => {
+    if (!SETTINGS_SCHEMAS[req.params.name]) throw fail(404, 'NOT_FOUND', 'No such settings.');
+    res.json({ settings: getSettings(req.params.name) });
+  }),
+);
+
+adminBusinessRouter.put(
+  '/business/settings/:name',
+  asyncHandler(async (req, res) => {
+    const schema = SETTINGS_SCHEMAS[req.params.name];
+    if (!schema) throw fail(404, 'NOT_FOUND', 'No such settings.');
+    const r = schema.safeParse(req.body || {});
+    if (!r.success)
+      throw fail(422, 'VALIDATION', r.error.issues[0]?.message || 'Check the values.');
+    const next = { ...getSettings(req.params.name), ...r.data };
+    if (req.params.name === 'launchOffer' && next.endDate < next.startDate)
+      throw fail(422, 'VALIDATION', 'The offer ends before it starts.');
+    const settings = await saveSettings(req.params.name, r.data);
+    await recordAction({
+      staff: req.staff,
+      action: 'SETTINGS_CHANGED',
+      target: req.params.name,
+      details: r.data,
+    });
+    res.json({ settings });
+  }),
+);
+
+// The Friday report (brief §05) and the weekly export (orders, customers, events — pseudonymous).
+adminBusinessRouter.get(
+  '/report/weekly',
+  asyncHandler(async (req, res) => res.json(weeklyReport(weekOf(req.query)))),
+);
+
+adminBusinessRouter.get(
+  '/report/weekly.xlsx',
+  asyncHandler(async (req, res) => {
+    const week = weekOf(req.query);
+    const r = weeklyReport(week);
+    const rows = weeklyExportRows(week);
+    const col = (keys) =>
+      keys.map((k) => ({ header: k, key: k, width: Math.max(12, k.length + 2) }));
+    const metric = [
+      {
+        metric: 'Weekly ordering households',
+        value: r.northStar.households,
+        cut: 'see Orders sheet by community/tower',
+      },
+      { metric: 'Counter sessions', value: r.assisted.sessions, cut: '' },
+      {
+        metric: 'Assisted first orders per counter session',
+        value: r.assisted.perSession,
+        cut: '',
+      },
+      {
+        metric: 'Second order within 7 days (%)',
+        value: r.secondOrder.within7Pct,
+        cut: `${r.secondOrder.hit7}/${r.secondOrder.eligible7}`,
+      },
+      {
+        metric: 'Second order within 30 days (%)',
+        value: r.secondOrder.within30Pct,
+        cut: `${r.secondOrder.hit30}/${r.secondOrder.eligible30}`,
+      },
+      { metric: 'Ordering three weeks running', value: r.threeWeeks.households, cut: '' },
+      {
+        metric: 'Average basket (₹), all',
+        value: r.basketValue.allPaise == null ? null : r.basketValue.allPaise / 100,
+        cut: '',
+      },
+      {
+        metric: 'Average basket (₹), 1st orders',
+        value: r.basketValue.firstPaise == null ? null : r.basketValue.firstPaise / 100,
+        cut: '',
+      },
+      {
+        metric: 'Average basket (₹), 2nd orders',
+        value: r.basketValue.secondPaise == null ? null : r.basketValue.secondPaise / 100,
+        cut: '',
+      },
+      {
+        metric: 'Average basket (₹), later orders',
+        value: r.basketValue.laterPaise == null ? null : r.basketValue.laterPaise / 100,
+        cut: '',
+      },
+      {
+        metric: 'Discount cost (₹)',
+        value: r.discounts.totalPaise / 100,
+        cut: r.discounts.byType.map((d) => `${d.type} ₹${d.paise / 100}`).join(', '),
+      },
+      {
+        metric: 'Margin left after discount, packaging and delivery (%)',
+        value: r.discounts.marginLeftPct,
+        cut: '',
+      },
+      {
+        metric: 'On-time delivery (%)',
+        value: r.onTime.onTimePct,
+        cut: `${r.onTime.onTime}/${r.onTime.delivered}`,
+      },
+      {
+        metric: 'Refund rate (%)',
+        value: r.refunds.ratePct,
+        cut: r.refunds.byReason.map((x) => `${x.key} ${x.n}`).join(', '),
+      },
+      {
+        metric: 'Referral share of first orders (%)',
+        value: r.referral.sharePct,
+        cut: `${r.referral.withReferrer}/${r.referral.firstOrders}`,
+      },
+      {
+        metric: 'Waitlist votes',
+        value: r.waitlist.votes,
+        cut: r.waitlist.byArea.map((x) => `${x.key} ${x.n}`).join(', '),
+      },
+    ];
+    const buf = await buildWorkbook(
+      [
+        { name: 'Metrics', columns: col(['metric', 'value', 'cut']), rows: metric },
+        {
+          name: 'Orders',
+          columns: col(Object.keys(rows.orders[0] || { order_number: '' })),
+          rows: rows.orders,
+          filter: true,
+        },
+        {
+          name: 'Customers',
+          columns: col(Object.keys(rows.customers[0] || { household: '' })),
+          rows: rows.customers,
+          filter: true,
+        },
+        {
+          name: 'Events',
+          columns: col(['event', 'at', 'household', 'properties']),
+          rows: rows.events,
+          filter: true,
+        },
+      ],
+      {
+        title: `Fooducia weekly report ${week.from} to ${week.to}`,
+        subtitle: 'Households are one-way keys — no names, numbers or flats.',
+      },
+    );
+    await recordAction({ staff: req.staff, action: 'WEEKLY_REPORT_EXPORTED', target: week.from });
+    sendWorkbook(res, buf, `fooducia-weekly-${week.from}.xlsx`);
+  }),
+);
+
+adminBusinessRouter.get(
+  '/events',
+  asyncHandler(async (req, res) => {
+    const range = rangeOf(req.query);
+    const fromMs = Date.parse(`${range.from}T00:00:00+05:30`);
+    const toMs = Date.parse(`${range.to}T23:59:59+05:30`);
+    const name = req.query.name ? String(req.query.name) : null;
+    const list = listEvents({ fromMs, toMs, name }).slice(0, 500);
+    const counts = {};
+    for (const e of listEvents({ fromMs, toMs })) counts[e.name] = (counts[e.name] || 0) + 1;
+    res.json({
+      range,
+      counts,
+      names: Object.keys(EVENT_NAMES),
+      events: list.map((e) => ({ ...e, customerId: undefined })),
     });
   }),
 );

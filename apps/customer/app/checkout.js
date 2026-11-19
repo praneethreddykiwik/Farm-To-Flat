@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useKeyboardHeight } from '../src/hooks/useKeyboardHeight';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -26,6 +26,7 @@ import { useCart } from '../src/hooks/useCart';
 import { taxRowLabel } from '../src/lib/bill';
 import { FamilyCheck } from '../src/components/FamilyHint';
 import { OrderSource } from '../src/components/OrderSource';
+import { track } from '../src/lib/tracking';
 import {
   useGetAddressesQuery,
   useGetWalletQuery,
@@ -129,10 +130,27 @@ export default function Checkout() {
   const [addressId, setAddressId] = useState(null);
   const [slot, setSlot] = useState(null);
   const [deliveryNote, setDeliveryNote] = useState('');
-  // Promoter / invite code and "how did you hear" — see OrderSource. Both optional.
+  // Promoter / invite code (optional) and "how did you hear" (required on the first order) — see
+  // OrderSource.
   const [source, setSource] = useState(
-    /** @type {{ code: string|null, heardFrom: string|null }} */ ({ code: null, heardFrom: null }),
+    /** @type {{ code: string|null, heardFrom: string|null, heardRequired?: boolean }} */ ({
+      code: null,
+      heardFrom: null,
+    }),
   );
+  const [askSource, setAskSource] = useState(false);
+  const scroller = useRef(/** @type {any} */ (null));
+  const sourceY = useRef(0);
+  // checkout_started (tracking brief): once per visit to this screen, with the basket as it stands.
+  const startedTracked = useRef(false);
+  useEffect(() => {
+    if (startedTracked.current || !cart) return;
+    startedTracked.current = true;
+    track('checkout_started', {
+      basket_value: Number(cart.subtotalPaise) || 0,
+      items_count: (cart.items || []).length,
+    });
+  }, [cart]);
   const [useWallet, setUseWallet] = useState(true);
   // Whether the operator is accepting cash right now, and up to what order value. Read live rather
   // than assumed: cash can be switched off between one checkout and the next.
@@ -253,6 +271,13 @@ export default function Checkout() {
   };
 
   const place = async () => {
+    if (source.heardRequired && !source.heardFrom) {
+      haptic.warning();
+      setAskSource(true);
+      scroller.current?.scrollTo({ y: Math.max(0, sourceY.current - 80), animated: true });
+      dispatch(showToast({ title: t('heardRequired', lang), tone: 'neutral' }));
+      return;
+    }
     if (!termsAccepted) {
       haptic.warning();
       dispatch(
@@ -392,6 +417,7 @@ export default function Checkout() {
     <View style={styles.root}>
       <Ambient />
       <ScrollView
+        ref={scroller}
         contentContainerStyle={{
           paddingTop: insets.top + 8,
           paddingHorizontal: 20,
@@ -442,10 +468,16 @@ export default function Checkout() {
         <Card
           icon={<Ticket size={18} color={colors.ink} />}
           title={cart.coupon ? cart.coupon.code : t('addCoupon', lang)}
-          subtitle={cart.coupon ? cart.coupon.label : t('onePerOrder', lang)}
+          subtitle={
+            cart.coupon
+              ? cart.coupon.label
+              : cart.offer
+                ? `${cart.offer.label} · ${t('offerStandsAside', lang)}`
+                : t('onePerOrder', lang)
+          }
           onPress={() => (cart.coupon ? removeCoupon() : router.push('/coupon'))}
           right={
-            cart.coupon ? (
+            cart.coupon || cart.offer ? (
               <Money
                 paise={-Number(cart.couponDiscountPaise)}
                 variant="bodyMedium"
@@ -573,8 +605,11 @@ export default function Checkout() {
         <Animated.View
           entering={FadeInDown.delay(218).duration(360).springify().damping(18)}
           style={{ marginTop: 20 }}
+          onLayout={(e) => {
+            sourceY.current = e.nativeEvent.layout.y;
+          }}
         >
-          <OrderSource onChange={setSource} />
+          <OrderSource onChange={setSource} highlight={askSource} />
         </Animated.View>
 
         <Animated.View
@@ -609,7 +644,7 @@ export default function Checkout() {
             <SummaryRow label={t('subtotal', lang)} paise={cart.subtotalPaise} />
             {Number(cart.couponDiscountPaise) > 0 ? (
               <SummaryRow
-                label={t('coupon', lang)}
+                label={!cart.coupon && cart.offer ? t('launchOffer', lang) : t('coupon', lang)}
                 paise={-Number(cart.couponDiscountPaise)}
                 color={colors.leafDeep}
               />

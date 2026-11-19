@@ -49,6 +49,7 @@ import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
 import { orderBillRows } from '../../src/lib/bill';
 import { useSelector } from 'react-redux';
+import { track } from '../../src/lib/tracking';
 
 // In-app banner shown when the ops board advances THIS order while the screen is open. Works with no
 // Firebase (the phone schedules it locally); background push (app closed) is the FCM part, later.
@@ -144,7 +145,7 @@ export default function OrderDetail() {
       '',
       `Subtotal   ${rupees(order.subtotalPaise)}`,
       Number(order.couponDiscountPaise) > 0
-        ? `Coupon ${order.couponCode}   −${rupees(order.couponDiscountPaise)}`
+        ? `${order.couponCode ? `Coupon ${order.couponCode}` : 'Launch offer'}   −${rupees(order.couponDiscountPaise)}`
         : null,
       ...orderBillRows(order).map((r) => `${r.label}   ${rupees(r.paise)}`),
       Number(order.walletAppliedPaise) > 0
@@ -168,6 +169,11 @@ export default function OrderDetail() {
       for (const it of order.items) {
         await setCartItem({ productId: it.productId, quantity: String(it.quantity) }).unwrap();
       }
+      track('repeat_basket_used', {
+        from: 'order',
+        order_id: order.id,
+        items_count: order.items.length,
+      });
       dispatch(showToast({ title: 'Added to your basket', tone: 'success' }));
       router.push('/cart');
     } catch (e) {
@@ -413,7 +419,7 @@ export default function OrderDetail() {
                   <Row label="Subtotal" paise={order.subtotalPaise} />
                   {Number(order.couponDiscountPaise) > 0 ? (
                     <Row
-                      label={`Coupon ${order.couponCode}`}
+                      label={order.couponCode ? `Coupon ${order.couponCode}` : 'Launch offer'}
                       paise={-Number(order.couponDiscountPaise)}
                       color={colors.leafDeep}
                     />

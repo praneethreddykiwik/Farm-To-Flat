@@ -166,6 +166,8 @@ export const cancelledTemplate = process.env.MSG91_WA_TEMPLATE_CANCELLED || null
 export const cancelRequestedTemplate = process.env.MSG91_WA_TEMPLATE_CANCEL_REQUESTED || null;
 export const refundTemplate = process.env.MSG91_WA_TEMPLATE_REFUND || null;
 export const feedbackTemplate = process.env.MSG91_WA_TEMPLATE_FEEDBACK || null;
+/** The 5 PM cut-off reminder (Rapture7 brief, NEXT). Dormant until an approved template is set. */
+export const cutoffReminderTemplate = process.env.MSG91_WA_TEMPLATE_CUTOFF_REMINDER || null;
 
 /**
  * Meta rejects a template parameter containing a newline, a tab, or more than four consecutive

@@ -23,6 +23,7 @@ import { reportError } from './lib/sentry.js';
 import { priceBreakdown, taxRatesOf } from './lib/charges.js';
 import { proxyImageUrl } from './lib/public-image.js';
 import { productName } from './lib/i18n.js';
+import { launchOfferFor } from './lib/launch-offer.js';
 
 const DEV_OTP = '123456';
 
@@ -979,6 +980,15 @@ export function priceCart(cid) {
       coupon = { code: c.code, type: c.type, label: c.label, discountPaise: String(discount) };
     }
   }
+  // Launch offer (lib/launch-offer.js) — only when no coupon is applied: one discount per order.
+  let offer = null;
+  if (!coupon) {
+    const o = launchOfferFor(cid, subtotal);
+    if (o && o.discountPaise > 0) {
+      discount = Math.min(o.discountPaise, subtotal);
+      offer = { type: o.type, label: o.label, discountPaise: String(discount) };
+    }
+  }
   const k = constants();
   // One function computes the bill, here and at commit, so what the checkout screen quotes and
   // what the card is charged cannot drift apart.
@@ -993,6 +1003,7 @@ export function priceCart(cid) {
     items,
     subtotalPaise: String(subtotal),
     couponDiscountPaise: String(discount),
+    offer,
     deliveryChargePaise: String(b.deliveryChargePaise),
     /** Every fee line, in the order the app should print them. */
     chargeLines: b.chargeLines.map((l) => ({
@@ -1263,6 +1274,9 @@ export function registerDevice(cid, token) {
 }
 /** A customer's registered Expo push tokens (for the push sender). */
 export const getDevices = (cid) => [...(cs.devices.get(cid) || [])];
+/** Every account id that has at least one registered device (for scheduled reminders). */
+export const customersWithDevices = () =>
+  [...cs.devices.keys()].filter((cid) => (cs.devices.get(cid)?.size || 0) > 0);
 
 // ── notifications (the in-app notification centre) ─────────────────────────────
 const NOTIF_MAX = 100; // per customer; the feed is a recent history, not an archive

@@ -12,6 +12,7 @@ import { selectLanguage, showToast } from '../src/features/ui/uiSlice';
 import { haptic } from '../src/lib/haptics';
 import { t } from '../src/lib/i18n';
 import { colors, fonts, radius } from '../src/theme';
+import { track } from '../src/lib/tracking';
 
 /**
  * Invite neighbours (17 Nov 2026 review). The customer's own code, a share sheet, and what they have
@@ -31,7 +32,10 @@ export default function Invite() {
     if (!data?.shareText) return;
     setSharing(true);
     try {
-      await Share.share({ message: data.shareText });
+      const r = await Share.share({ message: data.shareText });
+      // referral_link_shared (tracking brief). iOS says whether it was sent; Android cannot tell.
+      if (r?.action !== Share.dismissedAction)
+        track('referral_link_shared', { channel: r?.activityType || 'share_sheet' });
     } catch {
       /* dismissed */
     } finally {

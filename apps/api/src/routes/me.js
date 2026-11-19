@@ -2,6 +2,7 @@
  * Profile + addresses (contract, authenticated). GET/PATCH /me, list/add addresses, set default.
  */
 import { Router } from 'express';
+import { track } from '../lib/events.js';
 import {
   GRACE_DAYS,
   ordersBlockingDeletion,
@@ -244,6 +245,15 @@ addressesRouter.post(
   asyncHandler(async (req, res) => {
     const r = addAddress(req.customerId, req.body);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    track(
+      'community_selected',
+      {
+        community: r.address.communityName || r.address.communityId,
+        community_id: r.address.communityId,
+        tower: r.address.block,
+      },
+      { customerId: req.customerId },
+    );
     res.status(201).json({ address: r.address });
   }),
 );
@@ -280,6 +290,16 @@ addressesRouter.patch(
   asyncHandler(async (req, res) => {
     const r = updateAddress(req.customerId, req.params.id, req.body);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    if (req.body.communityId || req.body.block)
+      track(
+        'community_selected',
+        {
+          community: r.address.communityName || r.address.communityId,
+          community_id: r.address.communityId,
+          tower: r.address.block,
+        },
+        { customerId: req.customerId },
+      );
     res.json({ address: r.address, addresses: r.addresses });
   }),
 );

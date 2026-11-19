@@ -13,6 +13,7 @@ import { getOrder, patchOrder, applyOrderAddition } from '../store.js';
 import { razorpayEnabled } from './razorpay.js';
 import { emitNotification, COPY } from './notify.js';
 import { waOrderPlaced } from './notify-whatsapp.js';
+import { trackOrderPlaced } from './growth.js';
 import {
   getCustomer,
   getPayment,
@@ -163,6 +164,7 @@ export async function capturePayment({
       data: { orderId: updated.id, orderNumber: updated.orderNumber, action: 'track' },
     });
     waOrderPlaced(updated, getCustomer(updated.customerId));
+    trackOrderPlaced(updated);
   }
   return { outcome: 'captured', payment: pay, order: updated };
 }

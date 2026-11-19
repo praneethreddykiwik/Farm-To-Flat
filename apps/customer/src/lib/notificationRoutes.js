@@ -83,6 +83,9 @@ export function routeForNotification({ actionIdentifier, data } = {}) {
   // the one they could not take before: adding their address.
   if (d.type === 'AREA_LAUNCHED' || d.areaKey) return { pathname: '/address/new' };
 
+  // the 5 PM "order before the cut-off" reminder → the shop
+  if (d.type === 'CUTOFF_REMINDER') return { pathname: '/(tabs)' };
+
   // order updates
   if (d.orderId) {
     /** @type {Record<string, string>} */

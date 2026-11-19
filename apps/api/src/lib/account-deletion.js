@@ -19,7 +19,7 @@
  */
 import { listOrdersForCustomer } from '../store.js';
 import { deleteCustomerAccount, getCustomer, logout } from '../customer-store.js';
-import { getOps, listOps, putOps, removeOps, opsReady } from '../ops-store.js';
+import { getOps, listOps, putOps, putOpsSoft, removeOps, opsReady } from '../ops-store.js';
 import { deleteMealPhotos } from './storage.js';
 import { reportError } from './sentry.js';
 
@@ -61,6 +61,11 @@ export async function eraseAccountNow(cid) {
     for (const c of listOps('refCode').filter((x) => x.customerId === cid))
       await removeOps('refCode', c.id);
     if (getOps('deletion', cid)) await removeOps('deletion', cid);
+    // Install tag and usage events (privacy policy §3, §9): the tag goes; events are detached from
+    // the account and survive only as anonymous counts, so past weekly numbers do not change.
+    if (getOps('installSource', cid)) await removeOps('installSource', cid);
+    for (const e of listOps('event').filter((x) => x.customerId === cid))
+      putOpsSoft('event', e.id, { ...e, customerId: null });
   } catch (e) {
     reportError(e, { scope: 'erasure', what: 'ops records' });
   }
@@ -98,8 +103,14 @@ export async function cancelDeletionOnSignIn(cid) {
 }
 
 /** Erase every account whose grace period is over. Safe to run any number of times. */
+/** Usage events are kept for 24 months (privacy policy §9). */
+export const EVENT_RETENTION_DAYS = 730;
+
 export async function sweepDeletions(now = Date.now()) {
   let erased = 0;
+  const cutoff = now - EVENT_RETENTION_DAYS * 864e5;
+  for (const e of listOps('event'))
+    if (Date.parse(e.at) < cutoff) await removeOps('event', e.id).catch(() => {});
   for (const d of listOps('deletion')) {
     if (Date.parse(d.deleteAfter) > now) continue;
     if (!getCustomer(d.id)) {

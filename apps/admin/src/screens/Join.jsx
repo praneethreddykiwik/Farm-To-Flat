@@ -1,32 +1,73 @@
 /**
- * /join?code=XXXX — the public page a promoter's QR card (or a neighbour's invite link) opens.
- * No sign-in, no sidebar: the code, one line on what to do with it, and the store button.
+ * /go?src=counter&p=PR01&c=aquantis  and  /join?code=XXXX — the public page a counter QR, a
+ * WhatsApp post or a neighbour's invite opens. No sign-in, no sidebar.
+ *
+ *   Android: straight on to Google Play with the tag as the install referrer, so the app knows who
+ *            sent the household the moment it first opens — nobody types a code.
+ *   iPhone and computers: there is no referrer on iOS, so the page shows the code to enter at the
+ *            first order (or "your neighbour's phone number" for an invite).
+ *
+ * The scan itself is counted anonymously first (POST /links/click: a daily count per tag — no IP,
+ * no device, no cookie), so a counter session's scans can be set against its installs.
  */
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import logoFull from '../assets/fooducia-logo-full.png';
-import { PLAY_STORE_URL } from '../lib/storeLinks.js';
+import { PLAY_STORE_URL, playUrlFor, readTag } from '../lib/storeLinks.js';
 
-/** Same rule the API applies to a code typed at checkout: letters and digits, upper case. */
-const clean = (s) =>
-  String(s || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .slice(0, 12);
+const API = `${import.meta.env.VITE_API_URL || ''}/api/v1`;
+const isAndroid = () =>
+  typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '');
+
+function countScan(tag) {
+  if (!tag.src && !tag.p) return;
+  const body = JSON.stringify({ src: tag.src, p: tag.p, c: tag.c, r: tag.r });
+  try {
+    // sendBeacon survives the redirect that follows; fetch keepalive is the fallback.
+    const blob = new Blob([body], { type: 'application/json' });
+    if (navigator.sendBeacon && navigator.sendBeacon(`${API}/links/click`, blob)) return;
+  } catch {
+    /* fall through */
+  }
+  fetch(`${API}/links/click`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {});
+}
 
 export function Join() {
-  const { search } = useLocation();
-  const code = clean(new URLSearchParams(search).get('code'));
+  const { search, pathname } = useLocation();
+  const tag = useMemo(() => readTag(search), [search]);
+  const code = tag.r || tag.p;
+  const playUrl = playUrlFor(tag) || '#';
   const live = !!PLAY_STORE_URL;
+  const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    countScan(tag);
+    if (pathname === '/go' && live && isAndroid()) {
+      setLeaving(true);
+      const t = setTimeout(() => window.location.replace(playUrl), 150);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [tag, pathname, live, playUrl]);
+
   return (
     <main className="join">
       <div className="join__card">
         <img className="join__logo" src={logoFull} alt="Fooducia" />
-        {code ? (
+        {leaving ? (
+          <p className="join__how">Opening Google Play…</p>
+        ) : code ? (
           <>
-            <div className="join__label">Your code</div>
+            <div className="join__label">{tag.r ? 'Your neighbour’s code' : 'Your code'}</div>
             <div className="join__code">{code}</div>
             <p className="join__how">
-              Install the Fooducia app, fill your basket, and enter <b>{code}</b> at checkout.
+              Install the Fooducia app, fill your basket, and enter <b>{code}</b> at your first
+              order{tag.r ? ' — you and your neighbour both get ₹30.' : '.'}
             </p>
           </>
         ) : (
@@ -37,7 +78,7 @@ export function Join() {
         )}
         <a
           className="join__play"
-          href={PLAY_STORE_URL || '#'}
+          href={playUrl}
           aria-disabled={live ? undefined : 'true'}
           target={live ? '_blank' : undefined}
           rel="noreferrer"
@@ -53,11 +94,11 @@ export function Join() {
             <b>Google Play</b>
           </span>
         </a>
-        {!live && (
-          <p className="join__note">
-            Launching on Google Play shortly. Keep this code for your first order.
-          </p>
-        )}
+        <p className="join__note">
+          {live
+            ? 'On an iPhone? The iPhone app is on its way — keep this code for your first order.'
+            : 'Launching on Google Play shortly. Keep this code for your first order.'}
+        </p>
       </div>
     </main>
   );

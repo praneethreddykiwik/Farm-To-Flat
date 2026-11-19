@@ -51,6 +51,7 @@ const NAV = [
   { section: 'Growth' },
   { to: '/growth', label: 'Growth', icon: IconTrend },
   { to: '/insights', label: 'Weekly insights', icon: IconBulb },
+  { to: '/report', label: 'Friday report', icon: IconChart },
   { to: '/finance', label: 'Finance', icon: IconLedger },
   { section: 'Admin' },
   { to: '/access', label: 'Access & roles', icon: IconShield },

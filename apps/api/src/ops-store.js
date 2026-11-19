@@ -14,6 +14,10 @@
  *   communityMeta  per-community numbers that have no column of their own (orders it can take a morning)
  *   delay          why a late delivery was late
  *   reminder       when a "order before the cut-off" reminder went out, so its effect can be measured
+ *   event          one tracking event (lib/events.js)
+ *   installSource  the tag a customer's Android install arrived with (Play Install Referrer)
+ *   counterSession a stall at a community, with its time window and promoters
+ *   linkClick      anonymous daily count of clicks on a tagged link
  *   deletion       an account scheduled for deletion, and when the 60-day grace period ends
  *   settings       small documents of switches: referral reward, waitlist threshold, tax rate
  *
@@ -47,6 +51,10 @@ export const OPS_KINDS = [
   'reminder',
   'settings',
   'deletion',
+  'event',
+  'installSource',
+  'counterSession',
+  'linkClick',
 ];
 
 /**
@@ -277,11 +285,34 @@ export const SETTINGS_DEFAULTS = {
     referralEnabled: true,
     referrerRewardPaise: 3000,
     // Optional welcome credit for the person who was invited. Off until the business decides.
-    refereeRewardPaise: 0,
+    // Both sides get ₹30 (Rapture7 brief, 19 Nov 2026) — the invited neighbour as a welcome credit.
+    refereeRewardPaise: 3000,
     // A waitlist community "opens" for planning when this many households are waiting.
     waitlistOpenAt: 20,
     // Ask "How did you hear about us?" before the first order.
     askHeardFrom: true,
+  },
+  // Rapture7 brief, launch offer rules — pending Fooducia's approval, so OFF until switched on.
+  launchOffer: {
+    enabled: false,
+    startDate: '2026-12-05',
+    endDate: '2027-01-17',
+    firstOrderPct: 5,
+    secondOrderWithinDays: 7,
+    secondOrderThresholdPaise: 40000,
+    secondOrderPct: 10,
+    secondOrderCapPaise: 5000,
+    secondOrderLowPct: 5,
+  },
+  // The 5 PM "order before the cut-off" reminder (brief: NEXT). Push now; WhatsApp once a template
+  // is approved and WA_TEMPLATE_CUTOFF_REMINDER is set.
+  reminders: {
+    enabled: false,
+    time: '17:00',
+  },
+  // Counter / capacity numbers the Friday report reads.
+  report: {
+    capacityKgPerMorning: 100,
   },
   finance: {
     // Estimated income tax on profit, for the "after tax" line. An estimate, not tax advice.

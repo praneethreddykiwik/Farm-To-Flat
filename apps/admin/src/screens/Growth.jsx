@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
+import { goUrl } from '../lib/storeLinks.js';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { Drawer, ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
@@ -47,8 +48,16 @@ const TABS = [
   { key: 'settings', label: 'Settings' },
 ];
 
-/** The address a promoter's QR opens. Same host the app's own invite links use. */
-export const joinUrl = (code) => `https://fooducia.health/join?code=${encodeURIComponent(code)}`;
+/**
+ * The address a promoter's QR opens: /go tags the scan as a counter install for this promoter, and
+ * on Android carries that tag through Google Play into the app (the install referrer).
+ */
+export const joinUrl = (code, communityId) =>
+  goUrl({
+    src: 'counter',
+    p: code,
+    c: communityId ? String(communityId).replace(/^com_/, '') : '',
+  });
 
 export function Growth() {
   const [tab, setTab] = useState('promoters');
@@ -383,7 +392,7 @@ function PromoterDrawer({ promoter, communities, onClose, onSaved }) {
 function QrCardDrawer({ promoter, onClose }) {
   const [src, setSrc] = useState('');
   const [err, setErr] = useState('');
-  const url = joinUrl(promoter.code);
+  const url = joinUrl(promoter.code, promoter.communityId);
   useEffect(() => {
     let live = true;
     QRCode.toDataURL(url, { width: 520, margin: 1, color: { dark: '#0e1b14', light: '#ffffff' } })
@@ -396,7 +405,7 @@ function QrCardDrawer({ promoter, onClose }) {
   return (
     <Drawer
       title={`QR card · ${promoter.code}`}
-      subtitle="Print it and keep it at the stall. Scanning opens a page with this code on it."
+      subtitle="Print it and keep it at the stall. On Android, scanning installs the app already credited to this promoter; an iPhone shows the code to type."
       onClose={onClose}
       footer={
         <div className="hstack" style={{ justifyContent: 'flex-end', width: '100%' }}>
