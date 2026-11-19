@@ -285,7 +285,13 @@ app.use(`${v1}/meals`, requireAuth, mealsRouter);
 app.use(`${v1}/demand`, requireAuth, demandRouter);
 app.use(`${v1}/growth`, requireAuth, growthRouter);
 app.use(`${v1}/events`, requireAuth, eventsRouter);
-app.use(`${v1}/links`, linksRouter); // public: anonymous scan counts for /go links
+// public: anonymous scan counts for /go links — a phone opens a link a few times at most, so a tight
+// per-IP ceiling keeps the counts honest without touching real use.
+app.use(
+  `${v1}/links`,
+  rateLimit({ windowMs: 60 * 1000, max: 20, key: (req) => `links:${ipOf(req)}` }),
+  linksRouter,
+);
 
 // ── admin (operator panel) ─────────────────────────────────────────────────
 // Sign-in FIRST, and deliberately outside the authenticated router below: these are the routes you

@@ -9,8 +9,10 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
 import { CLIENT_EVENTS, listEvents, track } from '../lib/events.js';
-import { getOps, putOpsSoft } from '../ops-store.js';
+import { getOps, listOps, putOpsSoft } from '../ops-store.js';
 import { todayISO } from '../lib/dates.js';
+
+const LINK_TAGS_PER_DAY = 300;
 
 export const eventsRouter = Router();
 
@@ -57,6 +59,9 @@ linksRouter.post(
     const day = todayISO();
     const id = `${day}:${src.toLowerCase()}:${p.toUpperCase()}:${c.toLowerCase()}`;
     const cur = getOps('linkClick', id);
+    // At most 300 distinct tags a day: a made-up tag cannot grow the table without limit.
+    if (!cur && listOps('linkClick').filter((k) => k.day === day).length >= LINK_TAGS_PER_DAY)
+      return res.status(202).json({ ok: true });
     putOpsSoft('linkClick', id, {
       day,
       src: src.toLowerCase(),
