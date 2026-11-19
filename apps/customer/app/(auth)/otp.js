@@ -81,6 +81,15 @@ export default function OtpScreen() {
       Keyboard.dismiss();
       haptic.success();
       dispatch(signedIn({ accessToken: res.accessToken, customer: res.customer }));
+      // Signing in during the 60-day grace period keeps the account — say so, plainly.
+      if (res.deletionCancelled)
+        dispatch(
+          showToast({
+            title: 'Welcome back — your account is kept',
+            message: 'Signing in cancelled the deletion you asked for. Nothing was removed.',
+            tone: 'success',
+          }),
+        );
       // AuthGate routes to address capture or home
     } catch (e) {
       haptic.error();

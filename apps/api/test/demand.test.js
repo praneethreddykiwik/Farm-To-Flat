@@ -10,6 +10,7 @@ const TOKEN = process.env.ADMIN_TOKEN || 'test-admin-token';
 process.env.ADMIN_TOKEN = TOKEN;
 
 const { app } = await import('../src/index.js');
+const { sweepDeletions } = await import('../src/lib/account-deletion.js');
 const { demandDb, SETUP_SQL } = await import('../src/demand-db.js');
 const { _resetDemand, MAX_SUBSCRIPTIONS, NEW_AREAS_PER_DAY } = await import(
   '../src/demand-store.js'
@@ -477,6 +478,8 @@ describe('tell me when you deliver here', () => {
 
     const del = await request(app).delete('/api/v1/me').set(as(c.token));
     expect(del.status).toBe(200);
+    // Scheduled with a 60-day grace period; erased by the sweep once it has passed.
+    await sweepDeletions(Date.now() + 61 * 864e5);
     expect(erase).toHaveBeenCalledWith(c.id);
     const d = await admin('get', '/demand');
     expect(d.body.totals.subscribers).toBe(0);
@@ -492,6 +495,7 @@ describe('tell me when you deliver here', () => {
     const del = await request(app).delete('/api/v1/me').set(as(c.token));
     expect(del.status).toBe(200);
     expect((await request(app).get('/api/v1/me').set(as(c.token))).status).toBe(401);
+    await sweepDeletions(Date.now() + 61 * 864e5);
     // out of memory regardless, so the operator's list stops showing them at once
     expect((await admin('get', '/demand')).body.totals.subscribers).toBe(0);
   });

@@ -14,6 +14,7 @@
  *   communityMeta  per-community numbers that have no column of their own (orders it can take a morning)
  *   delay          why a late delivery was late
  *   reminder       when a "order before the cut-off" reminder went out, so its effect can be measured
+ *   deletion       an account scheduled for deletion, and when the 60-day grace period ends
  *   settings       small documents of switches: referral reward, waitlist threshold, tax rate
  *
  * ONE generic table rather than a dozen, because this project creates tables by hand on the
@@ -45,6 +46,7 @@ export const OPS_KINDS = [
   'delay',
   'reminder',
   'settings',
+  'deletion',
 ];
 
 /**

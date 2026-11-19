@@ -38,7 +38,6 @@ import {
   useRemoveDemandSubscriptionMutation,
   useSetDefaultAddressMutation,
   useUpdateMeMutation,
-  useDeleteAccountMutation,
 } from '../src/api/api';
 import { customerUpdated, selectCustomer } from '../src/features/auth/authSlice';
 import { profileUpdated, selectProfile } from '../src/features/plan/planSlice';
@@ -112,32 +111,9 @@ export default function Profile() {
   const requests = requestData?.subscriptions || [];
   const [registerDevice] = useRegisterDeviceMutation();
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
-  const [deleteAccount, { isLoading: deleting }] = useDeleteAccountMutation();
   const signOut = useSignOut();
   const lang = useSelector(selectLanguage);
 
-  // Right-to-erasure. Two-step confirm; warns first if a wallet balance would be left behind, then
-  // deletes server-side and signs out. The account is anonymised and the session revoked by the API.
-  const confirmDelete = useCallback(() => {
-    const balance = Number(customer?.balancePaise || 0);
-    const body =
-      t('deleteAccountBody', lang) + (balance > 0 ? `\n\n${t('deleteAccountWallet', lang)}` : '');
-    Alert.alert(t('deleteAccountTitle', lang), body, [
-      { text: t('keepAccount', lang), style: 'cancel' },
-      {
-        text: t('deleteAccountConfirm', lang),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteAccount().unwrap();
-            signOut();
-          } catch {
-            dispatch(showToast({ title: t('deleteAccountFailed', lang), tone: 'error' }));
-          }
-        },
-      },
-    ]);
-  }, [customer, lang, deleteAccount, signOut, dispatch]);
   // Reflect the REAL notification permission, not a guess. This was `useState(false)`, so the
   // switch reset itself to off every time the screen remounted — turn it on, go back, come back,
   // and it read as off while notifications were in fact enabled.
@@ -718,7 +694,7 @@ export default function Profile() {
 
         {/* Right-to-erasure: required by the app stores and the DPDP Act. */}
         <View style={{ marginTop: 14, alignItems: 'center' }}>
-          <Pressy onPress={confirmDelete} haptics="select" disabled={deleting}>
+          <Pressy onPress={() => router.push('/delete-account')} haptics="select">
             <Small style={{ color: colors.tomato, textDecorationLine: 'underline' }}>
               {t('deleteAccount', lang)}
             </Small>

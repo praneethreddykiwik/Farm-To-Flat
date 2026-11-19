@@ -322,6 +322,9 @@ describe('a customer who deleted their account', () => {
     order(gone, { at: '2026-08-01T05:00:00.000Z' });
     order(gone, { at: '2026-08-08T05:00:00.000Z' });
     expect((await request(app).delete('/api/v1/me').set(auth(gone.token))).status).toBe(200);
+    // Deletion is scheduled with a 60-day grace period; the sweep erases it once that has passed.
+    const { sweepDeletions } = await import('../src/lib/account-deletion.js');
+    await sweepDeletions(Date.now() + 61 * 864e5);
 
     const list = await admin('get', '/customers');
     const row = list.body.customers.find((c) => c.key === gone.id);

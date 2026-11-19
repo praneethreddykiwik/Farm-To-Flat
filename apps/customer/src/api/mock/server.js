@@ -920,6 +920,47 @@ function handleGrowth(method, p, query, body) {
     status: w.status || 'WAITLIST',
     mine: !!w.mine,
   });
+  // account deletion with a 60-day grace period (mirrors apps/api/src/routes/me.js)
+  if (p === '/me/deletion' && method === 'GET') {
+    const busy = state.orders.filter((o) =>
+      ['PENDING_PAYMENT', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status),
+    );
+    return ok({
+      graceDays: 60,
+      canDelete: busy.length === 0,
+      ordersInProgress: busy.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        cashDue: false,
+      })),
+      walletBalancePaise: money(state.wallet.balancePaise),
+      scheduled: null,
+    });
+  }
+  if (p === '/me/deletion/request' && method === 'POST') {
+    const busy = state.orders.some((o) =>
+      ['PENDING_PAYMENT', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status),
+    );
+    if (busy)
+      return err(
+        409,
+        'ORDERS_IN_PROGRESS',
+        'An order is still in progress. You can delete your account once it is delivered (or cancelled).',
+      );
+    return ok({ ok: true, expiresInSeconds: 300, devOtp: DEV_OTP });
+  }
+  if (p === '/me/deletion/confirm' && method === 'POST') {
+    if (String(body?.otp) !== DEV_OTP) return err(401, 'OTP_INVALID', 'That code is not right.');
+    return ok({
+      ok: true,
+      graceDays: 60,
+      scheduled: true,
+      deleteAfter: new Date(Date.now() + 60 * 864e5).toISOString(),
+      deletedNow: false,
+      walletBalancePaise: '0',
+    });
+  }
   if (method === 'GET' && p === '/growth/invite') {
     const code = growthState.inviteCode;
     const link = `https://fooducia.health/join?code=${code}`;

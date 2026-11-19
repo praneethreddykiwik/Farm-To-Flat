@@ -21,6 +21,7 @@ import { Growth } from './screens/Growth.jsx';
 import { Insights } from './screens/Insights.jsx';
 import { Finance } from './screens/Finance.jsx';
 import { Join } from './screens/Join.jsx';
+import { AINotice } from './screens/AINotice.jsx';
 import { Statistics } from './screens/Statistics.jsx';
 import { Procurement } from './screens/Procurement.jsx';
 import { Access } from './screens/Access.jsx';
@@ -112,6 +113,7 @@ const PUBLIC = new Set([
   '/privacy',
   '/terms',
   '/join',
+  '/ai-notice',
   ...Object.keys(PAGES).map((p) => `/${p}`),
 ]);
 
@@ -162,9 +164,11 @@ function Root() {
         ? 'Fooducia · Operations'
         : pathname === '/join'
           ? 'Your Fooducia code'
-          : !PUBLIC.has(pathname)
-            ? 'Page not found · Fooducia'
-            : 'Fooducia — vegetables harvested after you order';
+          : pathname === '/ai-notice'
+            ? 'AI Notice · Fooducia'
+            : !PUBLIC.has(pathname)
+              ? 'Page not found · Fooducia'
+              : 'Fooducia — vegetables harvested after you order';
   }, [pathname]);
 
   // The customer-facing site is what `/` is for now. The operator panel lives at /admin and the
@@ -174,6 +178,7 @@ function Root() {
   if (pathname === '/terms') return <Terms />;
   // A promoter's QR card and a neighbour's invite link land here: the code, and where to get the app.
   if (pathname === '/join') return <Join />;
+  if (pathname === '/ai-notice') return <AINotice />;
   // /refunds, /shipping, /contact — views onto the Terms sections. Public, like the two above.
   const policy = pathname.slice(1);
   if (PAGES[policy]) return <PolicyPage page={policy} />;

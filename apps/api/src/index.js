@@ -82,6 +82,8 @@ import { adminChargesRouter } from './routes/admin/charges.js';
 import { adminEmailsRouter } from './routes/admin/admin-emails.js';
 import { adminBusinessRouter } from './routes/admin/business.js';
 import { loadOps, startOpsRecheck } from './ops-store.js';
+import { startDeletionSweep } from './lib/account-deletion.js';
+const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
 import { requireCloudflare, originLockEnabled } from './lib/edge.js';
@@ -396,6 +398,8 @@ async function hydrateOnce() {
   await loadOps();
   // If the table is not there yet, keep looking — creating it then needs no restart.
   startOpsRecheck();
+  // Accounts whose 60-day deletion grace period has ended are erased by this hourly sweep.
+  if (!IS_TEST_ENV) startDeletionSweep();
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);

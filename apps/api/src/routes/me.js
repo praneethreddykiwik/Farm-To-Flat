@@ -2,7 +2,12 @@
  * Profile + addresses (contract, authenticated). GET/PATCH /me, list/add addresses, set default.
  */
 import { Router } from 'express';
-import { listOps, removeOps } from '../ops-store.js';
+import {
+  GRACE_DAYS,
+  ordersBlockingDeletion,
+  requestDeletion,
+  scheduledDeletion,
+} from '../lib/account-deletion.js';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { validateBody } from '../validate.js';
@@ -16,7 +21,6 @@ import {
   checkOtpOnly,
   defaultAddress,
   deleteAddress,
-  deleteCustomerAccount,
   getCustomer,
   getCustomerIdByMobile,
   getWallet,
@@ -28,17 +32,7 @@ import {
   updateCustomer,
 } from '../customer-store.js';
 
-import { deleteMealPhotos } from '../lib/storage.js';
-
 export const meRouter = Router();
-
-/** Remove a deleted customer's waitlist joins and invite code. */
-async function forgetGrowthRecords(cid) {
-  for (const j of listOps('waitlistJoin').filter((x) => x.customerId === cid))
-    await removeOps('waitlistJoin', j.id);
-  for (const c of listOps('refCode').filter((x) => x.customerId === cid))
-    await removeOps('refCode', c.id);
-}
 
 meRouter.get(
   '/',
@@ -73,20 +67,108 @@ meRouter.patch(
  * retained (de-identified) for tax/legal retention. `walletBalancePaise` is returned so the client
  * can warn when a balance would be left behind — refunding it is an operations decision.
  */
+/**
+ * Delete my account — with a 60-day grace period (lib/account-deletion.js).
+ *
+ *   GET    /me/deletion           can I delete now? (orders still in progress), and any schedule
+ *   POST   /me/deletion/request   send a confirmation code to the account's own number
+ *   POST   /me/deletion/confirm   check the code, then schedule deletion and sign out everywhere
+ *   DELETE /me                    older app versions: schedules the same way (they have no code step)
+ *
+ * Refused while an order is still in progress: a cash order cannot be completed without the code
+ * only this customer can read out at the door, and a prepaid one is still owed its delivery.
+ */
+function blockersOf(cid) {
+  return ordersBlockingDeletion(cid).map((o) => ({
+    id: o.id,
+    orderNumber: o.orderNumber,
+    status: o.status,
+    deliveryDate: o.deliveryDate || null,
+    cashDue: o.paymentMethod === 'COD',
+  }));
+}
+const blockedError = (blockers) =>
+  fail(
+    409,
+    'ORDERS_IN_PROGRESS',
+    blockers.length === 1
+      ? `Order ${blockers[0].orderNumber} is still in progress. You can delete your account once it is delivered (or cancelled).`
+      : `${blockers.length} of your orders are still in progress. You can delete your account once they are delivered (or cancelled).`,
+    { orders: blockers },
+  );
+
+meRouter.get(
+  '/deletion',
+  asyncHandler(async (req, res) => {
+    const blockers = blockersOf(req.customerId);
+    res.json({
+      graceDays: GRACE_DAYS,
+      canDelete: blockers.length === 0,
+      ordersInProgress: blockers,
+      walletBalancePaise: String(getWallet(req.customerId).balancePaise || 0),
+      scheduled: scheduledDeletion(req.customerId),
+    });
+  }),
+);
+
+meRouter.post(
+  '/deletion/request',
+  asyncHandler(async (req, res) => {
+    const blockers = blockersOf(req.customerId);
+    if (blockers.length) throw blockedError(blockers);
+    const c = getCustomer(req.customerId);
+    if (!c) throw fail(404, 'NOT_FOUND', 'Account not found.');
+    const r = await requestOtp(c.mobile);
+    if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    res.json({
+      ok: true,
+      expiresInSeconds: r.expiresInSeconds,
+      ...(r.devOtp ? { devOtp: r.devOtp } : {}),
+    });
+  }),
+);
+
+meRouter.post(
+  '/deletion/confirm',
+  validateBody(z.object({ otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.') })),
+  asyncHandler(async (req, res) => {
+    const c = getCustomer(req.customerId);
+    if (!c) throw fail(404, 'NOT_FOUND', 'Account not found.');
+    const chk = checkOtpOnly(c.mobile, req.body.otp);
+    if (chk.error) throw fail(chk.error.status, chk.error.code, chk.error.message);
+    // Re-checked at the moment of commitment — an order could have been placed in between.
+    const blockers = blockersOf(req.customerId);
+    if (blockers.length) throw blockedError(blockers);
+    const r = await requestDeletion(req.customerId, {
+      walletBalancePaise: getWallet(req.customerId).balancePaise || 0,
+    });
+    res.json({
+      ok: true,
+      graceDays: GRACE_DAYS,
+      scheduled: r.scheduled,
+      deleteAfter: r.scheduled ? r.deleteAfter : null,
+      deletedNow: !!r.deletedNow,
+      walletBalancePaise: String(r.walletBalancePaise || 0),
+    });
+  }),
+);
+
 meRouter.delete(
   '/',
   asyncHandler(async (req, res) => {
-    const r = await deleteCustomerAccount(req.customerId);
-    if (!r.ok) throw fail(404, 'NOT_FOUND', 'Account not found.');
-    // The meal photographs live in object storage, outside the database: remove the files too.
-    await deleteMealPhotos(r.mealPhotoKeys);
-    // Waitlist places and the personal invite code go with the account (privacy policy §9). What
-    // stays is tied to orders the law makes us keep. Best effort: the account is already gone.
-    await forgetGrowthRecords(req.customerId).catch((e) =>
-      // eslint-disable-next-line no-console
-      console.error('[me] could not remove waitlist/invite records', e?.message || e),
-    );
-    res.json({ ok: true, walletBalancePaise: String(r.walletBalancePaise || 0) });
+    // The app version already on phones calls this with no code step. Same rules, same 60 days.
+    const blockers = blockersOf(req.customerId);
+    if (blockers.length) throw blockedError(blockers);
+    if (!getCustomer(req.customerId)) throw fail(404, 'NOT_FOUND', 'Account not found.');
+    const r = await requestDeletion(req.customerId, {
+      walletBalancePaise: getWallet(req.customerId).balancePaise || 0,
+    });
+    res.json({
+      ok: true,
+      scheduled: r.scheduled,
+      deleteAfter: r.scheduled ? r.deleteAfter : null,
+      walletBalancePaise: String(r.walletBalancePaise || 0),
+    });
   }),
 );
 

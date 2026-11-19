@@ -113,7 +113,7 @@ const SECTIONS = (CONTACT) => [
       ],
       [
         'Photo search',
-        'when you photograph a vegetable to find it, the photo is sent to our server and to an AI image-recognition service (Groq) to identify the item. We use it only to answer that search and do not keep it. We do not scan your photo library; you pick or take each photo yourself.',
+        'when you photograph a vegetable to find it, the photo is sent to our server and to an AI image-recognition service (Groq) to identify the item. We use it only to answer that search and do not keep it. We do not scan your photo library; you pick or take each photo yourself. Where else we use AI, and where we do not, is set out in our AI notice at fooducia.in/ai-notice.',
       ],
       [
         'Voice search',
@@ -225,7 +225,7 @@ const SECTIONS = (CONTACT) => [
     list: [
       [
         'Your account',
-        'while your account is open. Deleted straight away when you delete your account (see section 16).',
+        'while your account is open. When you ask to delete it, you are signed out at once and it is permanently deleted 60 days later unless you sign in again (see section 16).',
       ],
       [
         'Orders, invoices, payments, refunds and wallet records',
@@ -323,12 +323,14 @@ const SECTIONS = (CONTACT) => [
   {
     h: '16. Deleting your account',
     p: [
-      `You can delete your account at any time in the app (Profile → Delete account), or by emailing ${CONTACT}; see also fooducia.in/account-deletion. In the app it takes effect straight away; by email, within 30 days of confirming it is you.`,
+      `You can delete your account at any time in the app (Profile → Delete my account), or by emailing ${CONTACT}; see also fooducia.in/account-deletion. In the app you confirm with a one-time code sent to your registered number.`,
+      'When you ask, we sign you out on every device straight away and stop all messages, and your account is permanently deleted 60 days later. If you sign in again during those 60 days, the deletion is cancelled and your account stays as it was. By email, the 60 days start once we have confirmed it is you.',
+      'While an order is still in progress — placed, being packed or on its way, or a cash-on-delivery order not yet paid — the account cannot be deleted, because the delivery needs your door code and, for cash orders, your payment. Once it is delivered or cancelled you can delete straight away.',
     ],
     list: [
       [
         'What is deleted',
-        'your profile (name, email and mobile number), saved delivery addresses, basket, sign-in, notification tokens, notification history and any “Tell me when you deliver here” request. Your mobile number is freed for a fresh sign-up.',
+        'your profile (name, email and mobile number), saved delivery addresses, basket, sign-in, notification tokens, notification history, any “Tell me when you deliver here” request, your waitlist places and your invite code. Your mobile number is freed for a fresh sign-up.',
       ],
       [
         'What is kept',
@@ -336,7 +338,7 @@ const SECTIONS = (CONTACT) => [
       ],
       [
         'Wallet balance',
-        'claim any wallet balance from support before deleting; it cannot be recovered afterwards.',
+        'use any wallet balance on an order before you ask, or claim it from support within the 60 days; it cannot be recovered after the account is deleted.',
       ],
     ],
   },
@@ -357,7 +359,23 @@ const SECTIONS = (CONTACT) => [
 
 export function Privacy() {
   const contact = useSupportEmail();
-  const sections = SECTIONS(contact);
+  return (
+    <LegalDoc
+      title="Privacy Policy"
+      updated={UPDATED}
+      lede="Your trust matters. This policy is written in plain language so you know exactly what the Fooducia app collects and why — no jargon, no surprises."
+      sections={SECTIONS(contact)}
+      contact={contact}
+    />
+  );
+}
+
+/**
+ * The shared layout of the public legal pages (Privacy, AI notice): a title, a date, a lede and
+ * numbered sections of paragraphs and term — description lists.
+ * @param {{ title: string, updated: string, lede: string, sections: any[], contact: string }} props
+ */
+export function LegalDoc({ title, updated, lede, sections, contact }) {
   return (
     <div style={s.page}>
       <style>{CSS}</style>
@@ -369,14 +387,11 @@ export function Privacy() {
             </span>
             <span>Fooducia</span>
           </div>
-          <h1 className="pp-title">Privacy Policy</h1>
-          <p className="pp-updated">Last updated {UPDATED}</p>
+          <h1 className="pp-title">{title}</h1>
+          <p className="pp-updated">Last updated {updated}</p>
         </header>
 
-        <p className="pp-lede">
-          Your trust matters. This policy is written in plain language so you know exactly what the
-          Fooducia app collects and why — no jargon, no surprises.
-        </p>
+        <p className="pp-lede">{lede}</p>
 
         {sections.map((sec) => (
           <section className="pp-sec" key={sec.h}>
@@ -406,6 +421,24 @@ export function Privacy() {
         <footer className="pp-foot">
           <a className="pp-link" href={`mailto:${contact}`}>
             {contact}
+          </a>
+          <span className="pp-dot" aria-hidden>
+            ·
+          </span>
+          <a className="pp-link" href="/privacy">
+            Privacy
+          </a>
+          <span className="pp-dot" aria-hidden>
+            ·
+          </span>
+          <a className="pp-link" href="/terms">
+            Terms
+          </a>
+          <span className="pp-dot" aria-hidden>
+            ·
+          </span>
+          <a className="pp-link" href="/ai-notice">
+            AI notice
           </a>
           <span className="pp-dot" aria-hidden>
             ·

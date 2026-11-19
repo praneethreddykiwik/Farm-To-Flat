@@ -13,9 +13,9 @@
  */
 
 export const UPDATED = {
-  en: '16 November 2026',
-  hi: '16 नवंबर 2026',
-  te: '16 నవంబర్ 2026',
+  en: '19 November 2026',
+  hi: '19 नवंबर 2026',
+  te: '19 నవంబర్ 2026',
 };
 
 export const CHROME = {
@@ -243,13 +243,15 @@ const EN = (CONTACT) => [
     id: 'deletion',
     h: 'Deleting your account',
     p: [
-      'You can delete your Fooducia account at any time from the app: open Account, tap “Delete my account”, and confirm. Your account is removed straight away and you are signed out.',
-      `If you cannot use the app, email ${CONTACT} from your registered email or mobile and we will delete your account within 30 days of verifying who you are.`,
+      'You can delete your Fooducia account at any time from the app: open Profile, tap “Delete my account”, and confirm with the one-time code we send to your registered number.',
+      'You are signed out on every device straight away, and your account is permanently deleted 60 days later. If you sign in again within those 60 days, the deletion is cancelled and your account stays as it was.',
+      'An account cannot be deleted while an order is still in progress (placed, being packed or on its way, or a cash-on-delivery order not yet paid), because the delivery needs your door code and, for cash orders, your payment. Once it is delivered or cancelled you can delete straight away.',
+      `If you cannot use the app, email ${CONTACT} from your registered email or mobile; the same 60 days start once we have confirmed it is you.`,
     ],
     list: [
       [
         'What is deleted',
-        'Your profile, name, saved delivery addresses, device and notification tokens, and your sign-in are removed, and your mobile number is freed for a fresh signup.',
+        'Your profile, name, saved delivery addresses, device and notification tokens, sign-in, waitlist places and invite code are removed, and your mobile number is freed for a fresh signup.',
       ],
       [
         'What is kept',
@@ -257,7 +259,7 @@ const EN = (CONTACT) => [
       ],
       [
         'Wallet balance',
-        'If you hold any wallet balance, contact support to claim it before deleting — it cannot be recovered afterwards.',
+        'Use any wallet balance on an order before you delete, or contact support to claim it within the 60 days — it cannot be recovered after the account is deleted.',
       ],
     ],
   },
@@ -385,8 +387,10 @@ const HI = (CONTACT) => [
     id: 'deletion',
     h: 'अपना खाता हटाना',
     p: [
-      'आप अपना फ़ार्म टू फ्लैट खाता किसी भी समय ऐप से हटा सकते हैं: Account खोलें, “मेरा खाता हटाएं” पर टैप करें, और पुष्टि करें। आपका खाता तुरंत हटा दिया जाता है और आप साइन आउट हो जाते हैं।',
-      `यदि आप ऐप का उपयोग नहीं कर सकते, तो अपने पंजीकृत ईमेल या मोबाइल से ${CONTACT} पर ईमेल करें; आपकी पहचान सत्यापित होने के 30 दिनों के भीतर हम आपका खाता हटा देंगे।`,
+      'आप अपना Fooducia खाता किसी भी समय ऐप से हटा सकते हैं: Profile खोलें, “मेरा खाता हटाएं” पर टैप करें, और आपके पंजीकृत नंबर पर भेजे गए वन-टाइम कोड से पुष्टि करें।',
+      'आपको हर डिवाइस से तुरंत साइन आउट कर दिया जाता है, और 60 दिनों बाद आपका खाता हमेशा के लिए हटा दिया जाता है। इन 60 दिनों में फिर से साइन इन करने पर हटाना रद्द हो जाता है और आपका खाता जैसा था वैसा ही रहता है।',
+      'जब तक कोई ऑर्डर चल रहा हो (दिया गया, पैक हो रहा, रास्ते में, या बिना भुगतान वाला कैश-ऑन-डिलीवरी ऑर्डर), खाता नहीं हटाया जा सकता, क्योंकि डिलीवरी के लिए आपका दरवाज़े का कोड और कैश ऑर्डर के लिए आपका भुगतान चाहिए। डिलीवर या रद्द होने के बाद आप तुरंत हटा सकते हैं।',
+      `यदि आप ऐप का उपयोग नहीं कर सकते, तो अपने पंजीकृत ईमेल या मोबाइल से ${CONTACT} पर ईमेल करें; आपकी पहचान की पुष्टि होने पर वही 60 दिन शुरू होते हैं।`,
     ],
     list: [
       [
@@ -399,7 +403,7 @@ const HI = (CONTACT) => [
       ],
       [
         'वॉलेट शेष राशि',
-        'यदि आपके पास कोई वॉलेट शेष राशि है, तो हटाने से पहले उसे प्राप्त करने के लिए सहायता से संपर्क करें — बाद में इसे वापस नहीं पाया जा सकता।',
+        'कोई वॉलेट शेष राशि हो तो हटाने से पहले उसे किसी ऑर्डर में उपयोग करें, या 60 दिनों के भीतर सहायता से संपर्क कर उसे प्राप्त करें — खाता हटने के बाद इसे वापस नहीं पाया जा सकता।',
       ],
     ],
   },
@@ -527,8 +531,10 @@ const TE = (CONTACT) => [
     id: 'deletion',
     h: 'మీ ఖాతాను తొలగించడం',
     p: [
-      'మీరు మీ Fooducia ఖాతాను ఎప్పుడైనా యాప్ నుండి తొలగించవచ్చు: Account తెరిచి, “నా ఖాతాను తొలగించు” నొక్కి, నిర్ధారించండి. మీ ఖాతా వెంటనే తొలగించబడుతుంది మరియు మీరు సైన్ అవుట్ అవుతారు.',
-      `మీరు యాప్‌ను ఉపయోగించలేకపోతే, మీ నమోదిత ఇమెయిల్ లేదా మొబైల్ నుండి ${CONTACT} కు ఇమెయిల్ చేయండి; మీ గుర్తింపును నిర్ధారించిన 30 రోజుల్లోపు మేము మీ ఖాతాను తొలగిస్తాము.`,
+      'మీరు మీ Fooducia ఖాతాను ఎప్పుడైనా యాప్ నుండి తొలగించవచ్చు: Profile తెరిచి, “నా ఖాతాను తొలగించు” నొక్కి, మీ నమోదిత నంబర్‌కు పంపిన వన్-టైమ్ కోడ్‌తో నిర్ధారించండి.',
+      'ప్రతి పరికరం నుండి మిమ్మల్ని వెంటనే సైన్ అవుట్ చేస్తాము, మరియు 60 రోజుల తర్వాత మీ ఖాతా శాశ్వతంగా తొలగించబడుతుంది. ఆ 60 రోజుల్లో మళ్లీ సైన్ ఇన్ చేస్తే తొలగింపు రద్దవుతుంది, మీ ఖాతా అలాగే ఉంటుంది.',
+      'ఏదైనా ఆర్డర్ జరుగుతున్నప్పుడు (ఉంచిన, ప్యాక్ అవుతున్న, దారిలో ఉన్న, లేదా చెల్లించని క్యాష్-ఆన్-డెలివరీ ఆర్డర్) ఖాతాను తొలగించలేరు, ఎందుకంటే డెలివరీకి మీ తలుపు కోడ్ మరియు క్యాష్ ఆర్డర్‌కు మీ చెల్లింపు అవసరం. డెలివరీ లేదా రద్దు అయిన తర్వాత వెంటనే తొలగించవచ్చు.',
+      `మీరు యాప్‌ను ఉపయోగించలేకపోతే, మీ నమోదిత ఇమెయిల్ లేదా మొబైల్ నుండి ${CONTACT} కు ఇమెయిల్ చేయండి; మీరేనని నిర్ధారించిన తర్వాత అవే 60 రోజులు మొదలవుతాయి.`,
     ],
     list: [
       [
@@ -541,7 +547,7 @@ const TE = (CONTACT) => [
       ],
       [
         'వాలెట్ నిల్వ',
-        'మీ వద్ద ఏదైనా వాలెట్ నిల్వ ఉంటే, తొలగించే ముందు దాన్ని పొందడానికి సపోర్ట్‌ను సంప్రదించండి — తర్వాత దాన్ని తిరిగి పొందలేరు.',
+        'మీ వద్ద వాలెట్ నిల్వ ఉంటే, తొలగించే ముందు దాన్ని ఆర్డర్‌లో వాడండి, లేదా 60 రోజుల్లోపు సపోర్ట్‌ను సంప్రదించి పొందండి — ఖాతా తొలగించిన తర్వాత తిరిగి పొందలేరు.',
       ],
     ],
   },

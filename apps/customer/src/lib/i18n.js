@@ -121,9 +121,41 @@ const STRINGS = {
     shippingDelivery: 'Shipping & delivery',
     contactGrievance: 'Contact & grievance',
     deleteAccount: 'Delete my account',
+    deleteTitle: 'Delete your account',
+    deleteLede: 'Here is exactly what happens. You can change your mind for {days} days.',
+    deleteWhenTitle: 'Signed out now, deleted after {days} days',
+    deleteWhenBody:
+      'We sign you out on every phone straight away. Your account is deleted for good {days} days later. Sign in again before then and nothing is deleted.',
+    deleteWhatTitle: 'What is deleted',
+    deleteWhatBody:
+      'Your name, saved addresses, sign-in, notifications, waitlist places and invite code. Your mobile number is freed for a new signup.',
+    deleteKeptTitle: 'What the law makes us keep',
+    deleteKeptBody:
+      'Records of past orders, payments, refunds and wallet entries — including the name, number and flat on each order — for as long as tax and consumer law require. Used for nothing else.',
+    deleteWalletTitle: 'You have ₹{amount} in your wallet',
+    deleteWalletBody:
+      'Use it on an order before you delete, or contact support to claim it within the {days} days. It cannot be recovered after the account is deleted.',
+    deleteBlockedLabel: 'Finish these orders first',
+    deleteBlockedBody:
+      'An order still in progress needs you — the delivery code at your door, and payment for cash orders. You can delete your account once these are delivered or cancelled.',
+    deleteCashDue: 'Cash on delivery',
+    deleteOnItsWay: 'In progress',
+    deleteSendCode: 'Send a code to confirm',
+    deleteCodeLabel: 'Enter the code',
+    deleteCodeSent: 'We sent a 6-digit code to {mobile} on WhatsApp.',
+    deleteConfirmButton: 'Delete my account',
+    deleteResend: 'Send the code again',
+    deleteFailed: 'Could not delete your account. Please try again or contact support.',
+    deleteScheduledTitle: 'Your account will be deleted',
+    deleteScheduledBody: 'It will be deleted for good on {date}. We have signed you out.',
+    deleteChangeMind:
+      'Changed your mind? Just sign in again with your number before {date} and your account stays exactly as it is.',
+    deleteDoneBody: 'Your account has been deleted and you have been signed out.',
+    deleteOk: 'OK',
+    deleteSignedOut: 'Signed out',
     deleteAccountTitle: 'Delete your account?',
     deleteAccountBody:
-      'This permanently removes your profile, saved addresses and sign-in. Past order records are kept, de-identified, only as long as the law requires. This cannot be undone.',
+      'You will be signed out now and your account deleted after 60 days. Past order records are kept, with the delivery details on them, only as long as the law requires.',
     deleteAccountWallet:
       'You still have money in your wallet — contact support to claim it before deleting; it cannot be recovered afterwards.',
     deleteAccountConfirm: 'Delete account',
@@ -366,6 +398,29 @@ const STRINGS = {
     shippingDelivery: 'शिपिंग और डिलीवरी',
     contactGrievance: 'संपर्क और शिकायत',
     deleteAccount: 'मेरा खाता हटाएं',
+    deleteTitle: 'अपना खाता हटाएं',
+    deleteLede:
+      'यहाँ ठीक-ठीक बताया गया है कि क्या होगा। आप {days} दिनों तक अपना फ़ैसला बदल सकते हैं।',
+    deleteWhenTitle: 'अभी साइन आउट, {days} दिनों बाद हटाया जाएगा',
+    deleteWhenBody:
+      'हम आपको हर फ़ोन से तुरंत साइन आउट कर देते हैं। {days} दिनों बाद आपका खाता हमेशा के लिए हटा दिया जाता है। उससे पहले फिर से साइन इन करें तो कुछ नहीं हटेगा।',
+    deleteWhatTitle: 'क्या हटाया जाता है',
+    deleteWhatBody:
+      'आपका नाम, सहेजे गए पते, साइन-इन, नोटिफ़िकेशन, वेटलिस्ट और आमंत्रण कोड। आपका मोबाइल नंबर नए साइनअप के लिए मुक्त हो जाता है।',
+    deleteKeptTitle: 'कानून के अनुसार हमें क्या रखना होता है',
+    deleteKeptBody:
+      'पिछले ऑर्डर, भुगतान, रिफ़ंड और वॉलेट के रिकॉर्ड — हर ऑर्डर पर दर्ज नाम, नंबर और फ़्लैट सहित — जितने समय तक कर और उपभोक्ता कानून आवश्यक करते हैं। किसी और काम में उपयोग नहीं।',
+    deleteWalletTitle: 'आपके वॉलेट में ₹{amount} हैं',
+    deleteBlockedLabel: 'पहले ये ऑर्डर पूरे होने दें',
+    deleteBlockedBody:
+      'चल रहे ऑर्डर के लिए आपकी ज़रूरत है — दरवाज़े पर डिलीवरी कोड, और कैश ऑर्डर का भुगतान। इनके डिलीवर या रद्द होने के बाद आप खाता हटा सकते हैं।',
+    deleteSendCode: 'पुष्टि के लिए कोड भेजें',
+    deleteCodeLabel: 'कोड डालें',
+    deleteConfirmButton: 'मेरा खाता हटाएं',
+    deleteScheduledTitle: 'आपका खाता हटा दिया जाएगा',
+    deleteScheduledBody: '{date} को यह हमेशा के लिए हटा दिया जाएगा। हमने आपको साइन आउट कर दिया है।',
+    deleteChangeMind:
+      'मन बदल गया? {date} से पहले अपने नंबर से फिर से साइन इन करें, आपका खाता जैसा है वैसा ही रहेगा।',
     deleteAccountTitle: 'अपना खाता हटाएं?',
     deleteAccountBody:
       'इससे आपकी प्रोफ़ाइल, सहेजे गए पते और साइन-इन स्थायी रूप से हट जाते हैं। पुराने ऑर्डर रिकॉर्ड, पहचान हटाकर, केवल कानूनन आवश्यक अवधि तक रखे जाते हैं। इसे पूर्ववत नहीं किया जा सकता।',
@@ -605,6 +660,28 @@ const STRINGS = {
     shippingDelivery: 'షిప్పింగ్ మరియు డెలివరీ',
     contactGrievance: 'సంప్రదింపు మరియు ఫిర్యాదు',
     deleteAccount: 'నా ఖాతాను తొలగించు',
+    deleteTitle: 'మీ ఖాతాను తొలగించండి',
+    deleteLede: 'ఏమి జరుగుతుందో ఇక్కడ స్పష్టంగా ఉంది. {days} రోజుల వరకు మీరు మనసు మార్చుకోవచ్చు.',
+    deleteWhenTitle: 'ఇప్పుడు సైన్ అవుట్, {days} రోజుల తర్వాత తొలగింపు',
+    deleteWhenBody:
+      'ప్రతి ఫోన్ నుండి మిమ్మల్ని వెంటనే సైన్ అవుట్ చేస్తాము. {days} రోజుల తర్వాత మీ ఖాతా శాశ్వతంగా తొలగించబడుతుంది. ఆ లోపు మళ్లీ సైన్ ఇన్ చేస్తే ఏదీ తొలగించబడదు.',
+    deleteWhatTitle: 'ఏమి తొలగించబడుతుంది',
+    deleteWhatBody:
+      'మీ పేరు, సేవ్ చేసిన చిరునామాలు, సైన్-ఇన్, నోటిఫికేషన్లు, వెయిట్‌లిస్ట్ మరియు ఆహ్వాన కోడ్. మీ మొబైల్ నంబర్ కొత్త సైన్‌అప్ కోసం విడుదల అవుతుంది.',
+    deleteKeptTitle: 'చట్టం ప్రకారం మేము ఉంచవలసినవి',
+    deleteKeptBody:
+      'గత ఆర్డర్లు, చెల్లింపులు, రీఫండ్లు మరియు వాలెట్ రికార్డులు — ప్రతి ఆర్డర్‌పై ఉన్న పేరు, నంబర్, ఫ్లాట్‌తో సహా — పన్ను మరియు వినియోగదారుల చట్టం కోరినంత కాలం. మరేదానికీ ఉపయోగించబడవు.',
+    deleteWalletTitle: 'మీ వాలెట్‌లో ₹{amount} ఉంది',
+    deleteBlockedLabel: 'ముందు ఈ ఆర్డర్లు పూర్తి కావాలి',
+    deleteBlockedBody:
+      'జరుగుతున్న ఆర్డర్‌కు మీరు అవసరం — తలుపు దగ్గర డెలివరీ కోడ్, క్యాష్ ఆర్డర్‌కు చెల్లింపు. ఇవి డెలివరీ లేదా రద్దు అయిన తర్వాత ఖాతాను తొలగించవచ్చు.',
+    deleteSendCode: 'నిర్ధారణ కోసం కోడ్ పంపండి',
+    deleteCodeLabel: 'కోడ్ నమోదు చేయండి',
+    deleteConfirmButton: 'నా ఖాతాను తొలగించండి',
+    deleteScheduledTitle: 'మీ ఖాతా తొలగించబడుతుంది',
+    deleteScheduledBody: '{date} న ఇది శాశ్వతంగా తొలగించబడుతుంది. మిమ్మల్ని సైన్ అవుట్ చేశాము.',
+    deleteChangeMind:
+      'మనసు మార్చుకున్నారా? {date} లోపు మీ నంబర్‌తో మళ్లీ సైన్ ఇన్ చేయండి, మీ ఖాతా అలాగే ఉంటుంది.',
     deleteAccountTitle: 'మీ ఖాతాను తొలగించాలా?',
     deleteAccountBody:
       'ఇది మీ ప్రొఫైల్, సేవ్ చేసిన చిరునామాలు మరియు సైన్-ఇన్‌ను శాశ్వతంగా తొలగిస్తుంది. పాత ఆర్డర్ రికార్డులు, గుర్తింపు తొలగించి, చట్టం అవసరమైన కాలం వరకు మాత్రమే ఉంచబడతాయి. దీన్ని వెనక్కి తీసుకోలేము.',

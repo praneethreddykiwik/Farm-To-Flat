@@ -210,15 +210,13 @@ describe('neighbour invites', () => {
 
 describe('waitlist and community requests', () => {
   it('admin pre-loads a community, customers join and leave, requests are private until approved', async () => {
-    const add = await request(app)
-      .post(`${A}/growth/waitlist`)
-      .send({
-        name: 'Honer Aquantis',
-        area: 'Nallagandla',
-        towers: 12,
-        flats: 1200,
-        distanceKm: 1.5,
-      });
+    const add = await request(app).post(`${A}/growth/waitlist`).send({
+      name: 'Honer Aquantis',
+      area: 'Nallagandla',
+      towers: 12,
+      flats: 1200,
+      distanceKm: 1.5,
+    });
     expect(add.status).toBe(201);
     const wid = add.body.community.id;
 
@@ -296,15 +294,13 @@ describe('finance', () => {
   it('expenses: add, edit, import, delete — and they come off profit', async () => {
     const today = new Date(Date.now() + 330 * 60e3).toISOString().slice(0, 10);
     const before = await request(app).get(`${A}/finance?from=${today}&to=${today}`);
-    const add = await request(app)
-      .post(`${A}/finance/expenses`)
-      .send({
-        date: today,
-        category: 'FUEL',
-        kind: 'VARIABLE',
-        amountPaise: 150000,
-        note: 'Van diesel',
-      });
+    const add = await request(app).post(`${A}/finance/expenses`).send({
+      date: today,
+      category: 'FUEL',
+      kind: 'VARIABLE',
+      amountPaise: 150000,
+      note: 'Van diesel',
+    });
     expect(add.status).toBe(201);
     const eid = add.body.expense.id;
     const edit = await request(app)
@@ -336,15 +332,13 @@ describe('finance', () => {
   });
 
   it('a monthly expense is spread across the days of the range', async () => {
-    const add = await request(app)
-      .post(`${A}/finance/expenses`)
-      .send({
-        date: '2026-01-01',
-        category: 'HOSTING',
-        kind: 'FIXED',
-        amountPaise: 365000,
-        recurring: 'MONTHLY',
-      });
+    const add = await request(app).post(`${A}/finance/expenses`).send({
+      date: '2026-01-01',
+      category: 'HOSTING',
+      kind: 'FIXED',
+      amountPaise: 365000,
+      recurring: 'MONTHLY',
+    });
     const r = await request(app).get(`${A}/finance?from=2026-03-01&to=2026-03-10`);
     // ₹3,650 a month = ₹43,800 a year = ₹120 a day → 10 days = ₹1,200.
     expect(r.body.expensesByCategory.find((c) => c.category === 'HOSTING').fixedPaise).toBe(
@@ -467,6 +461,9 @@ describe('account deletion', () => {
     const inv = await request(app).get('/api/v1/growth/invite').set(auth(s.token));
     const del = await request(app).delete('/api/v1/me').set(auth(s.token));
     expect(del.status).toBe(200);
+    // Scheduled with a 60-day grace period; the sweep does the erasure when it ends.
+    const { sweepDeletions } = await import('../src/lib/account-deletion.js');
+    await sweepDeletions(Date.now() + 61 * 864e5);
     const list = await request(app).get(`${A}/growth/waitlist`);
     expect(list.body.waitlist.find((w) => w.id === add.body.community.id).waiting).toBe(0);
     const other = await shopper();
