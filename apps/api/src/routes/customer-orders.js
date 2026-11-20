@@ -73,7 +73,13 @@ import { launchOfferFor } from '../lib/launch-offer.js';
 import { track } from '../lib/events.js';
 import { wasPlaced } from '../lib/customer-history.js';
 import { getOps, putOps } from '../ops-store.js';
-import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
+import {
+  idempotencyAbort,
+  idempotencyBegin,
+  idempotencyGet,
+  idempotencyKeyOf,
+  idempotencyPut,
+} from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
 export const customerOrdersRouter = Router();
@@ -103,11 +109,21 @@ customerOrdersRouter.post(
   validateBody(OrderBody),
   asyncHandler(async (req, res) => {
     const cid = req.customerId;
-    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote, idempotencyKey } =
-      req.body;
+    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote } = req.body;
+    const idempotencyKey = idempotencyKeyOf(req);
     const cod = req.body.paymentMethod === 'COD';
     const replay = idempotencyGet(cid, idempotencyKey);
     if (replay) return res.status(replay.status).json(replay.body);
+    if (!idempotencyBegin(cid, idempotencyKey))
+      throw fail(
+        409,
+        'ORDER_IN_PROGRESS',
+        'Your order is still being placed. Please wait a moment.',
+      );
+    res.on('finish', () => {
+      // Anything but the remembered success releases the key, so a genuine retry can run.
+      if (res.statusCode !== 201) idempotencyAbort(cid, idempotencyKey);
+    });
     const priced = priceCart(cid);
     if (priced.items.length === 0) throw fail(422, 'CART_EMPTY', 'Your basket is empty.');
     if (!priced.meetsMinimum)

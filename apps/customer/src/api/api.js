@@ -225,10 +225,12 @@ export const api = createApi({
       keepUnusedDataFor: 60,
     }),
     placeOrder: b.mutation({
+      // The key goes in the header (baseQuery) AND the body: API builds before 21 Nov 2026 read only
+      // the body, so the header alone never reached them (review #2).
       query: ({ idempotencyKey, ...body }) => ({
         url: '/orders',
         method: 'POST',
-        body,
+        body: { ...body, idempotencyKey },
         idempotencyKey,
       }),
       invalidatesTags: ['Cart', 'Orders', 'Wallet', 'Windows', 'Me'],
