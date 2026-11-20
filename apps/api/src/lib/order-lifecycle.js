@@ -184,13 +184,36 @@ export function expirePendingOrders({
     });
   }
   for (const o of expired) {
+    if (
+      failUnpaidOrder(o, {
+        now,
+        reason: `Checkout timed out for ${o.orderNumber}, wallet returned`,
+      })
+    )
+      n += 1;
+  }
+  return n;
+}
+
+/**
+ * Give up on an order that was never paid: PAYMENT_FAILED, wallet returned, coupon released, basket
+ * put back. Shared by the 30-minute expiry above and by checkout itself when the gateway refuses to
+ * open a payment at all (review #3, 21 Nov 2026) — that order used to sit in "awaiting payment"
+ * holding the slot, the stock and the wallet money for half an hour while the customer saw an error.
+ *
+ * @param {{ id: string, orderNumber: string, customerId?: string, couponCode?: string }} o
+ * @param {{ now?: number, reason: string }} opts
+ * @returns {boolean} whether the order was failed by this call
+ */
+export function failUnpaidOrder(o, { now = Date.now(), reason }) {
+  {
     // A payment that is no longer CREATED means the gateway has it — authorised, captured, or
     // being argued over with a bank. Expiring that order would return the wallet leg and restore
     // the cart while the money is still in flight; the capture then lands on an order that no
     // longer wants it and becomes an orphan credit. A UPI collect or a 3DS page can easily sit
     // open past thirty minutes, so this is not a narrow race.
     const pay = paymentForOrder(o.id);
-    if (pay && pay.status !== 'CREATED') continue;
+    if (pay && pay.status !== 'CREATED') return false;
     let changed = false;
     const updated = patchOrder(o.id, (ord) => {
       // Re-assert inside the patch: the order may have been paid between selection and here.
@@ -199,13 +222,12 @@ export function expirePendingOrders({
       ord.timeline.push({ status: 'PAYMENT_FAILED', at: new Date(now).toISOString() });
       changed = true;
     });
-    if (!changed) continue;
-    refundOrderWallet(updated, `Checkout timed out for ${o.orderNumber}, wallet returned`);
+    if (!changed) return false;
+    refundOrderWallet(updated, reason);
     if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
     // The customer walked away mid-payment. Put the basket back for when they return.
     if (o.customerId) restoreCartFromOrder(o.customerId, updated);
-    n += 1;
+    return true;
   }
-  return n;
 }
 if (!IS_TEST) setInterval(() => expirePendingOrders(), 60 * 1000).unref();

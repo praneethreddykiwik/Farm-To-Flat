@@ -71,3 +71,34 @@ export function openRazorpay(intent) {
     theme: { color: '#1E7A4C' },
   });
 }
+
+/**
+ * What a rejected checkout sheet actually means (review #3, 21 Nov 2026).
+ *
+ * Every rejection used to be shown as "you cancelled the payment" and reported to the server as a
+ * failure. Three different things reach this catch:
+ *   - 'cancelled' — the customer closed the sheet (SDK code 2 / PAYMENT_CANCELLED);
+ *   - 'failed'    — the bank or UPI app declined it; the customer should hear that, not "cancelled";
+ *   - 'unknown'   — the network dropped mid-payment (code 0) or anything else. The money MAY have
+ *     been taken, so the order must NOT be marked failed from here: the server's webhook and
+ *     reconcile settle it, and the customer is taken to the order to see its real state.
+ *
+ * @param {any} e
+ * @returns {'cancelled'|'failed'|'unknown'}
+ */
+export function classifyGatewayError(e) {
+  const code = e?.code;
+  let desc = e?.description ?? e?.message ?? '';
+  let reason = '';
+  if (typeof desc === 'string' && desc.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(desc);
+      reason = String(parsed?.error?.reason || '');
+      desc = String(parsed?.error?.description || '');
+    } catch {}
+  }
+  const text = `${reason} ${desc}`.toLowerCase();
+  if (code === 2 || code === 'PAYMENT_CANCELLED' || /cancel/.test(text)) return 'cancelled';
+  if (/payment_failed|declin|failed|insufficient/.test(text)) return 'failed';
+  return 'unknown';
+}
