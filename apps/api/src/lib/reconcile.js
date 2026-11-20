@@ -23,6 +23,7 @@ import { listOrders } from '../store.js';
 import { listPayments, paymentForOrder } from '../customer-store.js';
 import { listOps, putOpsSoft } from '../ops-store.js';
 import { reportError } from './sentry.js';
+import { isLeader } from './leader.js';
 
 /** Orders younger than this are still legitimately in flight; leave them alone. */
 const MIN_AGE_MS = 10 * 60 * 1000;
@@ -166,6 +167,7 @@ export async function reconcileOnce({ now = Date.now() } = {}) {
 if (!IS_TEST)
   setInterval(
     () =>
+      isLeader() &&
       reconcileOnce().catch((e) => {
         // eslint-disable-next-line no-console
         console.error('[reconcile] pass failed', e?.message || e);

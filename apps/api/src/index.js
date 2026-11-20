@@ -39,6 +39,7 @@ import { hydrateDemand } from './demand-store.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
+import { releaseLeadership, startLeaderLease } from './lib/leader.js';
 import { hydrateCustomerData, mergeMealLogBackups } from './customer-store.js';
 
 // public
@@ -444,6 +445,8 @@ async function hydrateOnce() {
   enableOrderPersistence(); // real orders now write through (import-time seed did not)
   // Read-only: do the cached wallet balances still match the ledger table? Reports, never fixes.
   void import('./lib/wallet-integrity.js').then((m) => m.runWalletIntegrityCheck());
+  // From here this instance may run the scheduled jobs — if it holds the lease (review #14).
+  startLeaderLease();
   return `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
 }
 
@@ -533,6 +536,8 @@ async function boot() {
     // Fail the health check immediately so the load balancer stops sending new work, even while
     // we are still serving what we already accepted.
     markShuttingDown();
+    // Stop running scheduled jobs and hand them to the new instance now (review #14).
+    void releaseLeadership();
     server.close(async () => {
       try {
         await flushSentry(2000);
