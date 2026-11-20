@@ -29,7 +29,8 @@ import {
  * @param {{ paymentId?: string, razorpayOrderId?: string, razorpayPaymentId?: string,
  *           source?: 'client'|'webhook'|'reconcile', amountPaise?: number|string, currency?: string }} args
  * @returns {Promise<{ outcome: 'already'|'captured'|'orphaned'|'unknown'|'mismatch',
- *                     payment?: any, order?: any, expectedPaise?: string, gotPaise?: string }>}
+ *                     payment?: any, order?: any, expectedPaise?: string, gotPaise?: string,
+ *                     reason?: string }>}
  */
 export async function capturePayment({
   paymentId,
