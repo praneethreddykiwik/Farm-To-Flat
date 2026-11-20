@@ -51,6 +51,8 @@ import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification'
 import { useMealReminders } from '../src/hooks/useMealReminders';
 import { usePlanSync } from '../src/hooks/usePlanSync';
 import { routeForNotification } from '../src/lib/notificationRoutes';
+import { createHandledResponses } from '../src/lib/notificationDedup';
+import { KV_KEYS, kv } from '../src/lib/kv';
 import { api } from '../src/api/api';
 import { initTracking, readInstallReferrerOnce, track } from '../src/lib/tracking';
 
@@ -65,6 +67,12 @@ import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
 initSentry();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Notification taps already acted on, kept on the phone so a relaunch cannot replay one (#47).
+const handledResponses = createHandledResponses({
+  load: () => kv.getJSON(KV_KEYS.handledNotifications),
+  save: (keys) => kv.setJSON(KV_KEYS.handledNotifications, keys),
+});
 // Short: the system splash hands over to BrandIntro, which carries on from the same plain screen.
 SplashScreen.setOptions?.({ duration: 160, fade: true });
 
@@ -159,17 +167,19 @@ function AuthGate({ ready }) {
   // thing that launched it from cold (the "last response", read once the app is ready to navigate).
   // The evening-before "Confirm tomorrow's order" reminder used to fall through both: its payload
   // carries a date, not an order id, so tapping it opened the app and went nowhere.
-  const handled = useRef(null);
   const here = useRef(segments);
   useEffect(() => {
     here.current = segments;
   }, [segments]);
   useEffect(() => {
     const go = (resp) => {
-      const id = resp?.notification?.request?.identifier;
-      const key = `${id}|${resp?.actionIdentifier}|${resp?.notification?.date}`;
-      if (!resp || handled.current === key) return;
-      handled.current = key;
+      // Once per response, across launches (review #47, 21 Nov 2026): the last response survives a
+      // restart, and an in-memory marker let the next cold start replay it — "Skip this day"
+      // skipped the day again. Also cleared natively so it is not handed back at all.
+      if (!resp || !handledResponses.claim(resp)) return;
+      try {
+        Notifications.clearLastNotificationResponse?.();
+      } catch {}
       // cutoff_reminder_opened (tracking brief): did the 5 PM reminder bring them in?
       if (resp.notification?.request?.content?.data?.type === 'CUTOFF_REMINDER')
         track('cutoff_reminder_opened', {
