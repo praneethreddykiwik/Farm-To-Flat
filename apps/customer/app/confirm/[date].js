@@ -31,7 +31,7 @@ import {
   windowLabel,
 } from '../../src/lib/dates';
 import { idempotencyKey } from '../../src/lib/ids';
-import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
+import { classifyGatewayError, openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
 import { notifyLocal } from '../../src/lib/notifications';
 import { colors, radius } from '../../src/theme';
@@ -182,8 +182,10 @@ export default function ConfirmDay() {
         haptic.error();
         dispatch(
           showToast({
-            title: 'Payment not completed',
-            message: 'Nothing was charged.',
+            title: result.declined ? 'Payment declined' : 'Payment not completed',
+            message: result.declined
+              ? 'Your bank or UPI app declined it. Nothing was charged.'
+              : 'Nothing was charged.',
             tone: 'error',
           }),
         );
@@ -276,8 +278,26 @@ export default function ConfirmDay() {
             razorpayOrderId: r.razorpay_order_id,
             signature: r.razorpay_signature,
           });
-        } catch {
-          await settle(res.paymentIntent, { success: false });
+        } catch (gatewayError) {
+          const kind = classifyGatewayError(gatewayError);
+          if (kind === 'unknown') {
+            // Connection dropped mid-payment — the money may have gone; let the server settle it
+            // instead of marking the order failed from here (review #3).
+            haptic.warning();
+            dispatch(
+              showToast({
+                title: 'Checking your payment',
+                message: 'If money left your account, this order confirms in a few minutes.',
+                tone: 'neutral',
+              }),
+            );
+            setIntent(null);
+            setBusy(false);
+            if (res.order?.id)
+              router.replace({ pathname: '/order/[id]', params: { id: res.order.id } });
+            return;
+          }
+          await settle(res.paymentIntent, { success: false, declined: kind === 'failed' });
         }
       } else {
         setTimeout(() => simSheet.current?.present(), 200);

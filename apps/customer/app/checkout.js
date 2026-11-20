@@ -45,7 +45,7 @@ import { formatDateShort, windowHours, windowLabel } from '../src/lib/dates';
 import { selectLanguage } from '../src/features/ui/uiSlice';
 import { productLabel, t } from '../src/lib/i18n';
 import { idempotencyKey } from '../src/lib/ids';
-import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
+import { classifyGatewayError, openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
 import { haptic } from '../src/lib/haptics';
 import { notifyLocal } from '../src/lib/notifications';
 
@@ -245,11 +245,20 @@ export default function Checkout() {
       else {
         haptic.error();
         dispatch(
-          showToast({
-            title: t('paymentCancelledTitle', lang),
-            message: t('paymentCancelledBody', lang),
-            tone: 'error',
-          }),
+          showToast(
+            result.declined
+              ? {
+                  title: 'Payment declined',
+                  message:
+                    'Your bank or UPI app declined it. Nothing was charged — try another way.',
+                  tone: 'error',
+                }
+              : {
+                  title: t('paymentCancelledTitle', lang),
+                  message: t('paymentCancelledBody', lang),
+                  tone: 'error',
+                },
+          ),
         );
         idem.current = idempotencyKey();
         // The server hands the basket back when a payment is abandoned, so put the customer where
@@ -346,8 +355,30 @@ export default function Checkout() {
             },
             res.order,
           );
-        } catch {
-          await settle(res.paymentIntent, { success: false }, res.order);
+        } catch (gatewayError) {
+          const kind = classifyGatewayError(gatewayError);
+          if (kind === 'unknown') {
+            // The connection dropped mid-payment: the money may have gone. Do NOT report a failure
+            // (that would cancel an order the bank is still paying for) — the server settles it from
+            // Razorpay's own record; show the customer the order so they can watch it (review #3).
+            haptic.warning();
+            dispatch(
+              showToast({
+                title: 'Checking your payment',
+                message: 'If money left your account, this order confirms in a few minutes.',
+                tone: 'neutral',
+              }),
+            );
+            setIntent(null);
+            setSubmitting(false);
+            router.replace({ pathname: '/order/[id]', params: { id: res.order.id } });
+            return;
+          }
+          await settle(
+            res.paymentIntent,
+            { success: false, declined: kind === 'failed' },
+            res.order,
+          );
         }
       } else if (__DEV__ || env.useMocks || env.isExpoGo) {
         setTimeout(() => simSheet.current?.present(), 200);

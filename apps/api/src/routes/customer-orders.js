@@ -45,7 +45,7 @@ import {
   refundablePaymentsForOrder,
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
-import { cancelOrder } from '../lib/order-lifecycle.js';
+import { cancelOrder, failUnpaidOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
 import { emitNotification, COPY } from '../lib/notify.js';
 import { buildInvoicePdf, invoiceNumberOf } from '../lib/invoice.js';
@@ -312,11 +312,24 @@ customerOrdersRouter.post(
     if (gateway > 0) {
       const pay = createPayment(cid, { purpose: 'ORDER', orderId: order.id, amountPaise: gateway });
       if (razorpayEnabled) {
-        const rzOrder = await createRazorpayOrder({
-          amountPaise: gateway,
-          receipt: pay.id,
-          notes: { purpose: 'ORDER', orderId: order.id, customerId: cid },
-        });
+        let rzOrder;
+        try {
+          rzOrder = await createRazorpayOrder({
+            amountPaise: gateway,
+            receipt: pay.id,
+            notes: { purpose: 'ORDER', orderId: order.id, customerId: cid },
+          });
+        } catch (e) {
+          // Review #3: no gateway order means nothing can be paid. Undo the order now — wallet
+          // back, coupon free, basket restored — instead of leaving it "awaiting payment" for 30
+          // minutes, and tell the customer plainly that no money was taken.
+          failUnpaidOrder(order, { reason: `Payment could not start for ${order.orderNumber}` });
+          throw fail(
+            /** @type {any} */ (e)?.status === 504 ? 504 : 502,
+            'PAYMENT_START_FAILED',
+            'We couldn’t start the payment. No money was taken and your basket is back — please try again.',
+          );
+        }
         pay.razorpayOrderId = rzOrder.id;
       }
       paymentIntent = {
