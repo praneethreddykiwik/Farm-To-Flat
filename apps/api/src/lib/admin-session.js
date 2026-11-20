@@ -70,7 +70,7 @@ export function issueAdminSession({ email, role, name, picture }) {
 }
 
 /**
- * @returns {{ email:string, role:string, name:string|null, jti:string } | null}
+ * @returns {{ email:string, role:string, name:string|null, jti:string, exp?: number } | null}
  *   null for anything that is not a currently valid session — expired, edited, forged, revoked.
  */
 export function verifyAdminSession(token) {
