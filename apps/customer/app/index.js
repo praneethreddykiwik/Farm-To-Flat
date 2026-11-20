@@ -8,7 +8,9 @@ import { Ambient } from '../src/ui';
 /** Entry: the AuthGate in _layout does the real routing; this only picks a sensible first target. */
 export default function Index() {
   const auth = useSelector(selectAuth);
-  if (auth.status === 'booting') {
+  // 'reconnecting' too: a stored session is still being restored, so this must not send anyone to
+  // the login screen (review #41, 21 Nov 2026).
+  if (auth.status === 'booting' || auth.status === 'reconnecting') {
     return (
       <View style={{ flex: 1 }}>
         <Ambient />

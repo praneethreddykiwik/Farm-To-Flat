@@ -2,7 +2,8 @@ import { createSlice } from '@reduxjs/toolkit';
 
 /**
  * @typedef {object} AuthState
- * @property {'booting'|'signedOut'|'signedIn'} status
+ * @property {'booting'|'reconnecting'|'signedOut'|'signedIn'} status  reconnecting = a session is
+ *   stored but the server has not answered yet (review #41, 21 Nov 2026); never shows the login screen
  * @property {string|null} accessToken
  * @property {object|null} customer   // { id, mobile, name?, hasAddress }
  * @property {string|null} pendingMobile
@@ -22,7 +23,11 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     bootFinished(state) {
-      if (state.status === 'booting') state.status = 'signedOut';
+      if (state.status === 'booting' || state.status === 'reconnecting') state.status = 'signedOut';
+    },
+    /** A stored session is still being restored over a slow network. Only ever from booting. */
+    bootReconnecting(state) {
+      if (state.status === 'booting') state.status = 'reconnecting';
     },
     setPendingMobile(state, action) {
       state.pendingMobile = action.payload;
@@ -57,6 +62,7 @@ const authSlice = createSlice({
 
 export const {
   bootFinished,
+  bootReconnecting,
   setPendingMobile,
   signedIn,
   accessRefreshed,

@@ -1,51 +1,70 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { bootFinished, selectAuth, signedIn, signedOut } from '../features/auth/authSlice';
+import {
+  bootFinished,
+  bootReconnecting,
+  selectAuth,
+  signedIn,
+  signedOut,
+} from '../features/auth/authSlice';
+import { restoreSession } from '../features/auth/restoreSession';
 import { clearRefreshToken, readRefreshToken, saveRefreshToken } from '../features/auth/secure';
 import { api, useLogoutMutation } from '../api/api';
 import { baseQuery } from '../api/baseQuery';
 
+/** Cuts short the wait between reconnect attempts ("Try again" on the reconnecting screen). */
+let wakeRetry = () => {};
+export function retrySessionNow() {
+  wakeRetry();
+}
+
 /**
- * Restores a session from the refresh token on cold start (one rotation). Used once in the root layout.
+ * Restores a session from the refresh token on cold start. Used once in the root layout.
+ *
+ * Review #41 (21 Nov 2026): this used to race one refresh against a 22 s timer and finish booting
+ * signed out when the timer won, so a slow network showed a signed-in customer the login screen.
+ * The rules now live in features/auth/restoreSession.js: keep retrying through transient failures
+ * (status 'reconnecting' after a few seconds), and only a 401 from the refresh signs out.
  */
 export function useSessionBootstrap() {
   const dispatch = useDispatch();
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const refreshToken = await readRefreshToken();
-        if (!refreshToken) return;
-        // Timeout so a cold/hanging Render server can't freeze the splash forever, and ONLY delete the
-        // 30-day refresh token on a DEFINITIVE 401 (genuinely expired). A transient/timeout/5xx/cold-start
-        // failure must PRESERVE the token — deleting it here was a permanent sign-out that dumped users
-        // back to the OTP screen every time they opened the app while the server was waking up.
-        const out = /** @type {any} */ (
-          await Promise.race([
-            baseQuery(
-              { url: '/auth/refresh', method: 'POST', body: { refreshToken } },
-              /** @type {any} */ ({ getState: () => ({ auth: { accessToken: null } }), dispatch }),
-              {},
-            ),
-            new Promise((res) => setTimeout(() => res({ error: { status: 'TIMEOUT' } }), 22000)),
-          ])
-        );
-        if (!alive) return;
-        if (out.data?.accessToken) {
-          await saveRefreshToken(out.data.refreshToken);
-          dispatch(signedIn({ accessToken: out.data.accessToken, customer: out.data.customer }));
-        } else if (out.error?.status === 401) {
-          await clearRefreshToken(); // token is genuinely invalid → sign out cleanly
-        }
-        // else (timeout / 0 / 5xx): keep the token; this launch stays signed out but the next retries.
-      } catch {
-        // network throw — keep the token, fall through to signed out for this launch
-      } finally {
-        if (alive) dispatch(bootFinished());
-      }
-    })();
+    restoreSession({
+      readToken: readRefreshToken,
+      // A single attempt per call: baseQuery does not retry /auth/ routes, restoreSession does.
+      refresh: (refreshToken) =>
+        /** @type {any} */ (
+          baseQuery(
+            { url: '/auth/refresh', method: 'POST', body: { refreshToken } },
+            /** @type {any} */ ({ getState: () => ({ auth: { accessToken: null } }), dispatch }),
+            {},
+          )
+        ),
+      saveToken: saveRefreshToken,
+      clearToken: clearRefreshToken,
+      onSignedIn: (data) =>
+        dispatch(signedIn({ accessToken: data.accessToken, customer: data.customer })),
+      onSignedOut: () => dispatch(bootFinished()),
+      onReconnecting: () => dispatch(bootReconnecting()),
+      isAlive: () => alive,
+      wait: (ms) =>
+        new Promise((res) => {
+          const t = setTimeout(done, ms);
+          function done() {
+            clearTimeout(t);
+            wakeRetry = () => {};
+            res(undefined);
+          }
+          wakeRetry = done;
+        }),
+    }).catch(() => {
+      // Only a storage failure gets here; the token is untouched, so the next launch tries again.
+      if (alive) dispatch(bootFinished());
+    });
     return () => {
       alive = false;
+      wakeRetry();
     };
   }, [dispatch]);
 }

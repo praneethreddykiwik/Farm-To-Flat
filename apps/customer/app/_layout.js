@@ -2,7 +2,7 @@ import '../global.css';
 import { initSentry } from '../src/lib/sentry';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -31,7 +31,7 @@ import { ToastHost } from '../src/ui';
 import { StatusScrim } from '../src/components/StatusScrim';
 import { FlyToBagHost } from '../src/components/FlyToBag';
 import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
-import { useSessionBootstrap } from '../src/hooks/useSession';
+import { retrySessionNow, useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
 import {
   ROLE_META,
@@ -196,7 +196,10 @@ function AuthGate({ ready }) {
   }, [router, ready, auth.status, role.resolved]);
 
   useEffect(() => {
-    if (!ready || auth.status === 'booting') return;
+    // Reconnecting = a stored session the server has not confirmed yet. Hold routing exactly as
+    // while booting, so a slow network never lands a signed-in customer on the login screen
+    // (review #41, 21 Nov 2026).
+    if (!ready || auth.status === 'booting' || auth.status === 'reconnecting') return;
     const inAuth = segments[0] === '(auth)';
     const inStaff = segments[0] === 'staff';
     if (auth.status === 'signedOut') {
@@ -272,6 +275,36 @@ function SigningInCover() {
     >
       <ActivityIndicator color={colors.leaf} size="large" />
       <Text style={styles.signingInText}>Signing you in…</Text>
+    </View>
+  );
+}
+
+/**
+ * Shown while a stored session is being restored over a slow or absent network (review #41,
+ * 21 Nov 2026). It replaces what used to be the login screen in that case: the customer is still
+ * signed in, the app is just waiting for the server. Retries run on their own; the button only
+ * cuts the wait between them short.
+ */
+function ReconnectingCover() {
+  return (
+    <View
+      style={styles.signingIn}
+      accessibilityRole="progressbar"
+      accessibilityLabel="Reconnecting"
+    >
+      <ActivityIndicator color={colors.leaf} size="large" />
+      <Text style={styles.signingInText}>Reconnecting…</Text>
+      <Text style={styles.reconnectHint}>
+        {"You're still signed in. We'll carry on when the network does."}
+      </Text>
+      <Pressable
+        onPress={retrySessionNow}
+        accessibilityRole="button"
+        hitSlop={12}
+        style={styles.reconnectBtn}
+      >
+        <Text style={styles.reconnectBtnText}>Try again now</Text>
+      </Pressable>
     </View>
   );
 }
@@ -371,6 +404,7 @@ function Root() {
         </Stack>
       ) : null}
       {signingIn ? <SigningInCover /> : null}
+      {ready && auth.status === 'reconnecting' ? <ReconnectingCover /> : null}
       {/* "Added to basket" flights. Above the screens, below the toasts. */}
       <FlyToBagHost />
       {/* Every scrolling screen starts its content at the top safe-area inset, so without this the
@@ -423,4 +457,13 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   signingInText: { color: colors.ink3, fontSize: 15 },
+  reconnectHint: { color: colors.ink3, fontSize: 13, textAlign: 'center', paddingHorizontal: 32 },
+  reconnectBtn: {
+    marginTop: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.night,
+  },
+  reconnectBtnText: { color: colors.inkOnDark, fontSize: 15 },
 });
