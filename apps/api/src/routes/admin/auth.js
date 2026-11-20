@@ -133,6 +133,9 @@ const RULES = [
   { when: (p) => p === '/sentry-test', roles: [] },
   // Correcting where an order came from changes promoter and referral credit: admins, not drivers.
   { when: (p, m) => /^\/orders\/[^/]+\/source$/.test(p) && m !== 'GET', roles: ADMIN_UP },
+  // Lifting a wrong-code lock on a door hand-over: not the delivery role that typed the codes
+  // (review #30, 21 Nov 2026).
+  { when: (p) => /^\/orders\/[^/]+\/deliver-unlock$/.test(p), roles: ADMIN_UP },
   // Moving money in a wallet, and deleting someone's account on their behalf: owner only.
   { when: (p, m) => /^\/customers\/[^/]+\/wallet$/.test(p) && m !== 'GET', roles: [] },
   { when: (p, m) => /^\/customers\/[^/]+\/deletion$/.test(p) && m !== 'GET', roles: [] },
