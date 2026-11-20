@@ -96,6 +96,12 @@ const OrderBody = z.object({
   code: z.string().trim().max(20).optional().nullable(),
   // "How did you hear about Fooducia?" — asked before the first order only.
   heardFrom: z.string().max(20).optional().nullable(),
+  // The bill total the checkout screen showed (cart.totalPaise, before any wallet split). Review #5
+  // (21 Nov 2026): without it the server could not tell that its total differs from the one the
+  // customer agreed to. Optional, so builds already on phones (which never send it) behave as before.
+  expectedTotalPaise: z
+    .union([z.string().regex(/^\d{1,12}$/), z.number().int().nonnegative()])
+    .optional(),
 });
 
 customerOrdersRouter.post(
@@ -196,6 +202,20 @@ customerOrdersRouter.post(
     });
     const delivery = bill.deliveryChargePaise;
     const payable = bill.totalPaise;
+
+    // The customer is charged only the total they saw. A price, fee or offer that changed between
+    // the checkout screen and this moment refuses the order — before the coupon is locked or the
+    // wallet touched — and hands back the new figure so the app can show it and ask again.
+    if (req.body.expectedTotalPaise != null && Number(req.body.expectedTotalPaise) !== payable)
+      throw fail(
+        409,
+        'PRICE_CHANGED',
+        'Prices changed since you opened checkout. Please check the new total.',
+        {
+          expectedTotalPaise: String(req.body.expectedTotalPaise),
+          totalPaise: String(payable),
+        },
+      );
 
     // Cash on delivery. Checked at COMMIT time against the live setting, never against what the app
     // believed when the basket was built — an operator who turns cash off must have it off now.

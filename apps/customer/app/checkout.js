@@ -121,7 +121,7 @@ export default function Checkout() {
       return () => sub.remove();
     }, [toBasket]),
   );
-  const { cart } = useCart();
+  const { cart, refetch: refetchCart } = useCart();
   const addresses = useGetAddressesQuery();
   const wallet = useGetWalletQuery();
   const [placeOrder, { isLoading: placing }] = usePlaceOrderMutation();
@@ -315,6 +315,10 @@ export default function Checkout() {
         deliveryNote: deliveryNote.trim() || undefined,
         code: source.code || undefined,
         heardFrom: source.heardFrom || undefined,
+        // The bill total on this screen. If the server's differs (a price changed while the
+        // customer was here) it refuses with PRICE_CHANGED instead of charging a figure they never
+        // saw — review #5, 21 Nov 2026.
+        expectedTotalPaise: String(total),
       }).unwrap();
       setPendingOrder(res.order);
       if (!res.paymentIntent) {
@@ -382,6 +386,20 @@ export default function Checkout() {
           }),
         );
         setTimeout(() => windowSheet.current?.present(), 250);
+      } else if (e?.code === 'PRICE_CHANGED') {
+        // Nothing was placed or charged. Reload the basket so the new total is on screen, and say
+        // so plainly — the next tap confirms the figure they can now see.
+        refetchCart();
+        const now = Number(e?.details?.totalPaise);
+        dispatch(
+          showToast({
+            title: t('priceChangedTitle', lang),
+            message: Number.isFinite(now)
+              ? t('priceChangedBody', lang, { total: `₹${Math.round(now / 100)}` })
+              : t('priceChangedBodyPlain', lang),
+            tone: 'neutral',
+          }),
+        );
       } else if (
         e?.code === 'COUPON_ALREADY_USED' ||
         e?.code === 'COUPON_EXPIRED' ||
