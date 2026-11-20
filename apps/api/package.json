@@ -12,7 +12,7 @@
     "db:push": "prisma db push",
     "db:seed": "node --env-file=.env prisma/seed.mjs",
     "db:setup": "prisma db push && node --env-file=.env prisma/seed.mjs",
-    "db:reset": "prisma db push --force-reset --accept-data-loss && node --env-file=.env prisma/seed.mjs",
+    "db:reset": "node scripts/guard-db-reset.mjs",
     "db:studio": "prisma studio",
     "db:storage": "node --env-file=.env prisma/storage-setup.mjs"
   },
