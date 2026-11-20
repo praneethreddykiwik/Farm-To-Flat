@@ -40,9 +40,9 @@ const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 const GUTTER = 20;
 const GAP = 12;
 // The big cards at the top (order on its way, the harvest banner, the nudges) run nearly edge to
-// edge: 16 pt from the screen. The list already pads GUTTER - GAP/2 (14 pt) on each side, so they
-// add only the remaining 2 pt. Before this they sat 34 pt in and the sides looked empty.
-const CARD_INSET = 2;
+// edge: 20 pt from the screen. The list already pads GUTTER - GAP/2 (14 pt) on each side, so they
+// add the remaining 6 pt. Before this they sat 34 pt in and the sides looked empty.
+const CARD_INSET = 6;
 const COLS = 2;
 const CARD_W = (Dimensions.get('window').width - GUTTER * 2 - GAP) / COLS;
 

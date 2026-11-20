@@ -62,8 +62,8 @@ export function HarvestBanner({ nextWindow, onPress }) {
 }
 
 const styles = StyleSheet.create({
-  // The home list already pads 14 pt; this lands the card 16 pt from the screen edge.
-  wrap: { paddingHorizontal: 2 },
+  // The home list already pads 14 pt; this lands the card 20 pt from the screen edge.
+  wrap: { paddingHorizontal: 6 },
   card: { borderRadius: radius.xl, overflow: 'hidden', minHeight: 176 },
   ring: {
     position: 'absolute',
