@@ -18,16 +18,26 @@ export const razorpayKeyId = KEY_ID || null;
 export const razorpayMode = () =>
   !razorpayEnabled ? 'off' : KEY_ID.startsWith('rzp_live_') ? 'live' : 'test';
 
+const GATEWAY_TIMEOUT_MS = 15_000;
 const AUTH = razorpayEnabled
   ? 'Basic ' + Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64')
   : null;
 
 /** Create a real Razorpay order. `amountPaise` is integer paise. Returns Razorpay's order object. */
 export async function createRazorpayOrder({ amountPaise, receipt, notes }) {
+  // A timeout (review #2): with none, a stalled gateway held the checkout request — and the order it
+  // had already created — open until the platform killed the socket.
   const r = await fetch('https://api.razorpay.com/v1/orders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: AUTH },
     body: JSON.stringify({ amount: Number(amountPaise), currency: 'INR', receipt, notes }),
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+  }).catch((e) => {
+    throw Object.assign(new Error('The payment gateway did not answer in time.'), {
+      status: 504,
+      code: 'RAZORPAY_TIMEOUT',
+      cause: e,
+    });
   });
   const data = await r.json();
   if (!r.ok) {
@@ -60,6 +70,7 @@ export async function createRazorpayRefund({ paymentId, amountPaise, idempotency
       Authorization: AUTH,
       ...(idempotencyKey ? { 'X-Razorpay-Idempotency-Key': String(idempotencyKey) } : {}),
     },
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     body: JSON.stringify({
       ...(amountPaise ? { amount: Number(amountPaise) } : {}),
       speed: 'normal',

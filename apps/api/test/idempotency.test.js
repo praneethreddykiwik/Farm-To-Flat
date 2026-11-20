@@ -42,6 +42,48 @@ const place = (ctx, key) =>
   });
 
 describe('order idempotency + abandonment', () => {
+  it('the Idempotency-Key HEADER (what the app sends) is honoured too — review #2', async () => {
+    const ctx = await ready('9666000011');
+    const send = () =>
+      request(app)
+        .post('/api/v1/orders')
+        .set(auth(ctx.token))
+        .set('Idempotency-Key', 'idem-header-key-0001')
+        .send({ addressId: ctx.addressId, deliveryDate: ctx.win.date, window: ctx.win.window });
+    const first = await send();
+    expect(first.status).toBe(201);
+    const again = await send();
+    expect(again.status).toBe(201);
+    expect(again.body.order.id).toBe(first.body.order.id);
+  });
+
+  it('two copies of the same checkout at once make ONE order — review #2', async () => {
+    const ctx = await ready('9666000012');
+    const key = 'idem-race-key-0001';
+    const [a, b] = await Promise.all([place(ctx, key), place(ctx, key)]);
+    const ok = [a, b].filter((r) => r.status === 201);
+    expect(ok.length).toBeGreaterThanOrEqual(1);
+    for (const r of [a, b]) expect([201, 409]).toContain(r.status);
+    const ids = new Set(ok.map((r) => r.body.order.id));
+    expect(ids.size).toBe(1);
+    const list = await request(app).get('/api/v1/orders').set(auth(ctx.token));
+    expect(list.body.orders.length).toBe(1);
+  });
+
+  it('a failed attempt releases its key so a genuine retry can run', async () => {
+    const ctx = await ready('9666000013');
+    const key = 'idem-fail-key-0001';
+    const bad = await request(app).post('/api/v1/orders').set(auth(ctx.token)).send({
+      idempotencyKey: key,
+      addressId: 'no-such-address',
+      deliveryDate: ctx.win.date,
+      window: ctx.win.window,
+    });
+    expect(bad.status).toBeGreaterThanOrEqual(400);
+    const good = await place(ctx, key);
+    expect(good.status).toBe(201);
+  });
+
   it('same key twice → same 201 body, one order', async () => {
     const ctx = await ready('9666000001');
     const key = 'idem-test-key-0001';
