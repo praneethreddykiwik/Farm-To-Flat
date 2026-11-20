@@ -40,12 +40,11 @@ import {
 import { selectCustomer } from '../src/features/auth/authSlice';
 import { showToast } from '../src/features/ui/uiSlice';
 import { colors, radius } from '../src/theme';
-import { env } from '../src/lib/env';
 import { formatDateShort, windowHours, windowLabel } from '../src/lib/dates';
 import { selectLanguage } from '../src/features/ui/uiSlice';
 import { productLabel, t } from '../src/lib/i18n';
 import { idempotencyKey } from '../src/lib/ids';
-import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
+import { openRazorpay, paymentPathFor } from '../src/lib/razorpay';
 import { haptic } from '../src/lib/haptics';
 import { notifyLocal } from '../src/lib/notifications';
 
@@ -328,8 +327,9 @@ export default function Checkout() {
       // razorpayOrderId, and opening the SDK with that fails with Razorpay's own "Something went
       // wrong" sheet, which made it impossible to complete a checkout locally. Require both; the
       // simulated sheet below then covers dev, and production without a gateway still refuses
-      // outright rather than faking a success.
-      if (razorpayAvailable && res.paymentIntent.razorpayOrderId) {
+      // outright rather than faking a success. The rule is lib/paymentPath.js (review #46).
+      const path = paymentPathFor(res.paymentIntent);
+      if (path === 'native') {
         try {
           const r = await openRazorpay({
             ...res.paymentIntent,
@@ -349,7 +349,7 @@ export default function Checkout() {
         } catch {
           await settle(res.paymentIntent, { success: false }, res.order);
         }
-      } else if (__DEV__ || env.useMocks || env.isExpoGo) {
+      } else if (path === 'simulated') {
         setTimeout(() => simSheet.current?.present(), 200);
       } else {
         // Real production build with no Razorpay module — never fake a success sheet.

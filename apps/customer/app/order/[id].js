@@ -38,14 +38,14 @@ import {
 import { showToast } from '../../src/features/ui/uiSlice';
 import { downloadAndShare } from '../../src/lib/downloadFile';
 import { selectAccessToken, selectCustomer } from '../../src/features/auth/authSlice';
-import { API_BASE, env } from '../../src/lib/env';
+import { API_BASE } from '../../src/lib/env';
 import { colors, radius } from '../../src/theme';
 import { formatDateShort, windowHours, windowLabel } from '../../src/lib/dates';
 import { formatQty } from '../../src/ui/Stepper';
 import { notifyLocal } from '../../src/lib/notifications';
 import { selectLanguage } from '../../src/features/ui/uiSlice';
 import { productLabel } from '../../src/lib/i18n';
-import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
+import { openRazorpay, paymentPathFor } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
 import { orderBillRows } from '../../src/lib/bill';
 import { useSelector } from 'react-redux';
@@ -225,7 +225,9 @@ export default function OrderDetail() {
         return;
       }
       setIntent(pi);
-      if (razorpayAvailable && pi.razorpayOrderId) {
+      // One rule for every pay screen: lib/paymentPath.js (review #46, 21 Nov 2026).
+      const path = paymentPathFor(pi);
+      if (path === 'native') {
         try {
           const r = await openRazorpay({ ...pi, contact: customer?.mobile, name: customer?.name });
           await settleAdd(pi, {
@@ -237,7 +239,7 @@ export default function OrderDetail() {
         } catch {
           await settleAdd(pi, { success: false });
         }
-      } else if (__DEV__ || env.useMocks || env.isExpoGo) {
+      } else if (path === 'simulated') {
         setTimeout(() => simSheet.current?.present(), 200);
       } else {
         // Production build with no gateway module — never fake a success.

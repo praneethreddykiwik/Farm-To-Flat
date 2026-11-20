@@ -31,7 +31,7 @@ import {
   windowLabel,
 } from '../../src/lib/dates';
 import { idempotencyKey } from '../../src/lib/ids';
-import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
+import { openRazorpay, paymentPathFor } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
 import { notifyLocal } from '../../src/lib/notifications';
 import { colors, radius } from '../../src/theme';
@@ -263,7 +263,10 @@ export default function ConfirmDay() {
         return;
       }
       setIntent(res.paymentIntent);
-      if (razorpayAvailable) {
+      // Review #46 (21 Nov 2026): this fell through to the simulated sheet in a production build
+      // whenever the SDK was missing. Shared rule: lib/paymentPath.js.
+      const path = paymentPathFor(res.paymentIntent);
+      if (path === 'native') {
         try {
           const r = await openRazorpay({
             ...res.paymentIntent,
@@ -279,8 +282,19 @@ export default function ConfirmDay() {
         } catch {
           await settle(res.paymentIntent, { success: false });
         }
-      } else {
+      } else if (path === 'simulated') {
         setTimeout(() => simSheet.current?.present(), 200);
+      } else {
+        haptic.error();
+        setIntent(null);
+        setBusy(false);
+        dispatch(
+          showToast({
+            title: 'Couldn’t start the payment',
+            message: 'Nothing was charged. Please try again shortly.',
+            tone: 'error',
+          }),
+        );
       }
     } catch (e) {
       haptic.error();

@@ -6,6 +6,7 @@
  * The client result is ADVISORY. The server's webhook is the only thing that moves money.
  */
 import { env } from './env';
+import { choosePaymentPath, simulatorAllowed } from './paymentPath';
 
 let RazorpayCheckout = null;
 try {
@@ -28,6 +29,26 @@ try {
  * it gives it by returning a key id on the payment intent.
  */
 export const razorpayAvailable = !!RazorpayCheckout && !env.isExpoGo && !env.useMocks;
+
+/**
+ * The simulated sheet exists for development and the mock server only (review #46, 21 Nov 2026).
+ * PaymentSimulator renders nothing when this is false, so no screen can present it by mistake.
+ */
+export const canSimulatePayment = simulatorAllowed({ isDev: __DEV__, useMocks: env.useMocks });
+
+/**
+ * 'native' | 'simulated' | 'unavailable' for a payment intent — the one rule every pay screen uses
+ * (lib/paymentPath.js). 'unavailable' means show an error; never fake a success.
+ * @param {any} intent
+ */
+export function paymentPathFor(intent) {
+  return choosePaymentPath({
+    intent,
+    nativeAvailable: razorpayAvailable,
+    isDev: __DEV__,
+    useMocks: env.useMocks,
+  });
+}
 
 /**
  * The key id comes from the PAYMENT INTENT, not from this bundle.
