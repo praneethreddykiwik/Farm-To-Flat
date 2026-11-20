@@ -40,3 +40,27 @@ export function pickLiveOrder(orders) {
       liveStep(b.status) - liveStep(a.status),
   )[0];
 }
+
+/**
+ * The orders tab as flat rows for a virtualised list: moving orders first under "On its way", the
+ * rest after, under "Earlier" only when there is something above it. Review #48 (21 Nov 2026): the
+ * tab rendered every order a customer ever placed inside one ScrollView — a daily-produce customer
+ * passes a few hundred in a year, each with four product photos — so it now feeds a FlatList.
+ *
+ * @param {any[]} orders
+ * @returns {any[]} rows of { kind: 'label', key, text } or { kind: 'order', key, order, index }
+ */
+export function orderListRows(orders) {
+  const all = orders || [];
+  const live = all.filter((o) => isLiveStatus(o.status));
+  const earlier = all.filter((o) => !isLiveStatus(o.status));
+  const rows = [];
+  if (live.length) rows.push({ kind: 'label', key: 'label:live', text: 'On its way' });
+  live.forEach((o, i) => rows.push({ kind: 'order', key: o.id, order: o, index: i }));
+  if (earlier.length && live.length)
+    rows.push({ kind: 'label', key: 'label:earlier', text: 'Earlier' });
+  earlier.forEach((o, i) =>
+    rows.push({ kind: 'order', key: o.id, order: o, index: live.length + i }),
+  );
+  return rows;
+}
