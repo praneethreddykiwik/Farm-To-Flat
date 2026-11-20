@@ -23,6 +23,7 @@ import { addDaysISO, todayISO } from './lib/dates.js';
 import { keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
+import { wasPlaced } from './lib/customer-history.js';
 import { persist } from './persistence.js';
 import { breakdownSnapshot, priceBreakdown, reconstructSnapshot } from './lib/charges.js';
 
@@ -141,10 +142,18 @@ export function createOrder(input) {
   // First-time customer? True when neither this customer id nor this mobile already has an earlier
   // order. Computed at placement and frozen on the order, so the "new customer" signal (used to hand
   // out welcome goodies) stays stable for delivery, the console and procurement.
+  //
+  // Only orders that were really PLACED count (wasPlaced — the helper checkout's own first-order
+  // test, the launch offer and the admin badge already use). Review #56 (21 Nov 2026): an abandoned
+  // checkout (PENDING_PAYMENT / PAYMENT_FAILED) counted here, so a customer whose first payment
+  // failed and who then paid was frozen as NOT new — checkout had accepted their invite code
+  // (it uses wasPlaced), then recordOrderSource silently dropped the referral and the attribution.
+  // The mobile half stays: it is what stops an erased-and-re-signed-up number counting as new.
   const isFirstOrder = !db.orders.some(
     (o) =>
-      (input.customerId && o.customerId === input.customerId) ||
-      (input.mobile && o.mobile === input.mobile),
+      wasPlaced(o) &&
+      ((input.customerId && o.customerId === input.customerId) ||
+        (input.mobile && o.mobile === input.mobile)),
   );
   const order = {
     id: id('ord', 10),
