@@ -9,7 +9,9 @@
  * Idempotency is anchored on `payment.status`: once CAPTURED, every later call — retry, webhook
  * replay, double tap — returns `already` and changes nothing.
  */
-import { getOrder, patchOrder, applyOrderAddition } from '../store.js';
+import { getOrder, patchOrder, applyOrderAddition, getCommunity, bookedIndex } from '../store.js';
+import { generateWindows } from './windows.js';
+import { todayISO } from './dates.js';
 import { razorpayEnabled } from './razorpay.js';
 import { emitNotification, COPY } from './notify.js';
 import { waOrderPlaced } from './notify-whatsapp.js';
@@ -95,12 +97,18 @@ export async function capturePayment({
   if (pay.purpose === 'ORDER_ADDITION') {
     const ord = getOrder(pay.orderId);
     const pend = ord?.pendingAddition;
+    // Review #7 (21 Nov 2026): the add-items route checks the cut-off when the customer ASKS, but
+    // the lines attach here, when the money lands — and a payment sheet left open across the
+    // cut-off, or a late webhook, attached items to an order whose produce was already being
+    // bought. The cut-off is re-checked at the moment of attaching, and a late payment is treated
+    // like every other one this branch cannot apply: returned to the wallet, visibly.
+    const lateForCutoff = !!ord && !orderWindowOpen(ord);
     // The money only buys items if the order can still take them AND this is the addition it is
     // waiting for. Otherwise — the order was cancelled or has moved on to packing while the payment
     // sheet was open, or a later add request replaced this one — it used to be captured, nothing
     // was added, and nothing came back. Same rule as a late payment for the order itself: record it
     // as orphaned and return the full amount to the wallet, visibly.
-    if (!ord || ord.status !== 'CONFIRMED' || !pend || pend.paymentId !== pay.id) {
+    if (!ord || ord.status !== 'CONFIRMED' || !pend || pend.paymentId !== pay.id || lateForCutoff) {
       pay.orphan = true;
       savePayment(pay);
       const ref = ord?.orderNumber || pay.orderId;
@@ -110,9 +118,16 @@ export async function capturePayment({
         pay.amountPaise,
         'REFUND',
         `${ref}:addition:${pay.id}`,
-        `Payment for items added to ${ref} could not be applied — returned to wallet`,
+        lateForCutoff
+          ? `Payment for items added to ${ref} arrived after the order closed — returned to wallet`
+          : `Payment for items added to ${ref} could not be applied — returned to wallet`,
       );
-      return { outcome: 'orphaned', payment: pay, order: ord };
+      return {
+        outcome: 'orphaned',
+        payment: pay,
+        order: ord,
+        ...(lateForCutoff ? { reason: 'ORDER_CUTOFF_PASSED' } : {}),
+      };
     }
     savePayment(pay);
     const updated = applyOrderAddition(pay.orderId, pend.lineInputs, {
@@ -167,6 +182,19 @@ export async function capturePayment({
     trackOrderPlaced(updated);
   }
   return { outcome: 'captured', payment: pay, order: updated };
+}
+
+/**
+ * Is this order's delivery window still taking changes? The same test the add-items route makes
+ * (generateWindows → isOpen), so the two cannot disagree about when the cut-off is.
+ */
+function orderWindowOpen(order) {
+  const community = getCommunity(order.address?.communityId);
+  if (!community) return false;
+  const win = generateWindows(community, todayISO(), bookedIndex(community.id)).find(
+    (w) => w.date === order.deliveryDate && w.window === order.window,
+  );
+  return !!win?.isOpen;
 }
 
 /** The wallet balance after a capture, for the caller that wants to echo it back. */
