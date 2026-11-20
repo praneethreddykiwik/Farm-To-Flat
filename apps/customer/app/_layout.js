@@ -28,6 +28,7 @@ import * as Notifications from 'expo-notifications';
 import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
+import { UpdateRequired } from '../src/components/UpdateRequired';
 import { StatusScrim } from '../src/components/StatusScrim';
 import { FlyToBagHost } from '../src/components/FlyToBag';
 import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
@@ -385,6 +386,8 @@ function Root() {
       )}
       <ToastHost />
       <KeyboardDoneBar />
+      {/* A retired app version (MIN_APP_VERSION on the server) stops here — review #45. */}
+      <UpdateRequired />
       {/* The opening: the logo drawing itself in, and on a phone's first launch, what Fooducia is.
           On top of everything, and started the moment the system splash comes down. */}
       <BrandIntro start={ready && auth.status !== 'booting'} />

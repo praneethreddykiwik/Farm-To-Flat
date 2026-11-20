@@ -44,6 +44,7 @@ import { hydrateCustomerData, mergeMealLogBackups } from './customer-store.js';
 
 // public
 import { authRouter } from './routes/auth.js';
+import { appVersionRouter } from './routes/app-version.js';
 import { catalogRouter } from './routes/catalog.js';
 import { communitiesRouter, windowsRouter } from './routes/communities.js';
 import { couponsRouter } from './routes/coupons.js';
@@ -284,6 +285,7 @@ app.use(
 // <img> cannot send one. Public by necessity, unguessable by construction. See routes/media.js.
 app.use(`${v1}/media`, mediaRouter);
 app.use(`${v1}/img`, imgRouter); // public product-image proxy — see routes/img.js (ISP hijacks supabase.co)
+app.use(`${v1}/app`, appVersionRouter); // minimum app version (review #45)
 app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
