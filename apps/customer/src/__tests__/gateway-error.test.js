@@ -1,6 +1,8 @@
 /** Review #3 (21 Nov 2026): a rejected checkout sheet is not always "you cancelled". */
 import { describe, expect, it, vi } from 'vitest';
 
+// razorpay.js reads React Native's __DEV__ at load; the test runner has no such global.
+globalThis.__DEV__ = false;
 vi.mock('../lib/env', () => ({ env: { isExpoGo: true, useMocks: true } }));
 const { classifyGatewayError } = await import('../lib/razorpay.js');
 
