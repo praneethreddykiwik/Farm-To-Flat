@@ -31,6 +31,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
+import { takeDaily } from '../lib/spend-cap.js';
 import { validateBody, validateQuery } from '../validate.js';
 import {
   deleteMealLog,
@@ -124,6 +125,12 @@ async function analysePhoto(req, { imageBase64, contentType }) {
     throw fail(422, 'VALIDATION', 'That file is not a valid image.');
   }
 
+  if (!takeDaily('ai'))
+    throw fail(
+      503,
+      'DAILY_LIMIT',
+      'Photo estimates are resting for today. Pick your meal instead.',
+    );
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 20000);
   let parsed;

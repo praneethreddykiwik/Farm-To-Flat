@@ -12,7 +12,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
-import { clientIp } from '../lib/edge.js';
+import { clientIp, ipBucket } from '../lib/edge.js';
+import { takeDaily } from '../lib/spend-cap.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
 import { callVision, parseReply, resolve, systemPrompt as visionPrompt } from '../lib/identify.js';
@@ -52,7 +53,7 @@ const RATE_MAX = 10; // requests per window per IP
 const planHits = new Map(); // ip -> number[] (ms timestamps within the window)
 
 function planLimiter(req, _res, next) {
-  const ip = clientIp(req);
+  const ip = ipBucket(clientIp(req));
   const now = Date.now();
   const recent = (planHits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
   if (recent.length >= RATE_MAX) {
@@ -61,6 +62,8 @@ function planLimiter(req, _res, next) {
       fail(429, 'RATE_LIMITED', 'Too many planner requests. Please try again in a few minutes.'),
     );
   }
+  if (!takeDaily('ai'))
+    return next(fail(503, 'DAILY_LIMIT', 'The planner is resting for today. Please try tomorrow.'));
   recent.push(now);
   planHits.set(ip, recent);
   // Opportunistic cleanup so the map does not grow unbounded across many IPs.
@@ -241,15 +244,22 @@ const IDENT_MAX = 15; // photographs per window per IP
 const identHits = new Map();
 
 function identifyLimiter(req, _res, next) {
-  const ip = clientIp(req);
+  // Counted per network (/64 for IPv6) AND per account (review #24): either alone can be
+  // sidestepped — many addresses from one phone, or many accounts behind one address.
   const now = Date.now();
-  const recent = (identHits.get(ip) || []).filter((t) => now - t < IDENT_WINDOW_MS);
-  if (recent.length >= IDENT_MAX) {
-    identHits.set(ip, recent);
+  const keys = [`ip:${ipBucket(clientIp(req))}`, `c:${req.customerId || 'anon'}`];
+  const recents = keys.map((k) =>
+    (identHits.get(k) || []).filter((t) => now - t < IDENT_WINDOW_MS),
+  );
+  if (recents.some((r) => r.length >= IDENT_MAX)) {
+    keys.forEach((k, i) => identHits.set(k, recents[i]));
     return next(fail(429, 'RATE_LIMITED', 'Too many photos. Please try again in a few minutes.'));
   }
-  recent.push(now);
-  identHits.set(ip, recent);
+  if (!takeDaily('ai'))
+    return next(
+      fail(503, 'DAILY_LIMIT', 'Photo search is resting for today. Please try again tomorrow.'),
+    );
+  keys.forEach((k, i) => identHits.set(k, [...recents[i], now]));
   if (identHits.size > 5000)
     for (const [k, v] of identHits) {
       const live = v.filter((t) => now - t < IDENT_WINDOW_MS);
