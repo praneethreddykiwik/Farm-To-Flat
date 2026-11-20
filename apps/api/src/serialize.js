@@ -15,6 +15,7 @@ import { badgesFor } from './lib/knowledge.js';
 import { communityWindows } from './lib/windows.js';
 import { DEFAULT_RADIUS_M, communityGeo } from './lib/geo.js';
 import { geoTableReady } from './demand-store.js';
+import { todayISO } from './lib/dates.js';
 
 const rupees = (paise) => `₹${Math.round(Number(paise) / 100).toLocaleString('en-IN')}`;
 
@@ -352,7 +353,10 @@ export const codDuePaise = (o) =>
 export const orderIsStale = (o, today) =>
   ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY'].includes(o.status) && o.deliveryDate < today;
 
-export function orderAdmin(o, today = new Date().toISOString().slice(0, 10)) {
+// "Today" is the IST business day, not the UTC date: between 00:00 and 05:30 IST the UTC date is
+// still yesterday, so yesterday's open orders were not yet shown as past their day (review #19,
+// 21 Nov 2026).
+export function orderAdmin(o, today = todayISO()) {
   return {
     stale: orderIsStale(o, today),
     id: o.id,

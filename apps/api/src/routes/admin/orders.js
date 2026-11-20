@@ -142,7 +142,8 @@ adminOrdersRouter.get(
     // other tab and the client no longer holds every order, so it could not count them and hid the
     // number — which reads as the count being broken rather than withheld. Counted here, where the
     // unfiltered list already is.
-    const today = new Date().toISOString().slice(0, 10);
+    // IST business day, not the UTC date — see orderAdmin (review #19, 21 Nov 2026).
+    const today = todayISO();
     counts.CANCEL_REQUESTED = all.filter(
       (o) => o.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(o.status),
     ).length;
