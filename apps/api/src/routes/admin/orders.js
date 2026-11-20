@@ -43,6 +43,7 @@ import { emitNotification, COPY } from '../../lib/notify.js';
 import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
 import { listActions, recordAction } from '../../lib/audit.js';
+import { redactForStaff } from '../../lib/contact-policy.js';
 import { orderNumbers } from '../../lib/customer-history.js';
 import { IS_PROD } from '../../lib/env.js';
 
@@ -51,6 +52,11 @@ import { IS_PROD } from '../../lib/env.js';
 const liveName = (o) => {
   const c = o?.customerId ? getCustomer(o.customerId) : null;
   return c?.name ? { ...o, customerName: c.name } : o;
+};
+/** liveName, then only the contact details this staff member may see (review #33 / #34). */
+const viewFor = (req) => {
+  const today = todayISO();
+  return (o) => redactForStaff(liveName(o), req.staff, today);
 };
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
@@ -150,12 +156,13 @@ adminOrdersRouter.get(
     // who tried again and succeeded, was never marked new and never got their welcome. Counting
     // only orders that were really placed gives the badge to the right one.
     const nos = orderNumbers(all);
+    const view = viewFor(req);
     res.json({
       orders: linkOrderIssuePhotos(
         filtered.map((o) => {
           const no = nos.get(o.id);
           return {
-            ...orderAdmin(liveName(o)),
+            ...orderAdmin(view(o)),
             firstOrder: no?.n === 1,
             customerOrderNo: no?.n ?? null,
             customerOrders: no?.of ?? null,
@@ -237,7 +244,8 @@ adminOrdersRouter.get(
     const type = req.query.type === 'manifest' ? 'manifest' : 'packing';
     const orders = applyFilters(listOrders(), req.query)
       .filter((o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status))
-      .map(liveName);
+      .map(viewFor(req));
+    auditExport(req, type, orders.length);
 
     const sheet =
       type === 'manifest'
@@ -319,7 +327,8 @@ adminOrdersRouter.get(
     const type = req.query.type === 'manifest' ? 'manifest' : 'packing';
     const orders = applyFilters(listOrders(), req.query)
       .filter((o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status))
-      .map(liveName);
+      .map(viewFor(req));
+    auditExport(req, type, orders.length);
     const csv = type === 'manifest' ? manifestCsv(orders) : packingCsv(orders);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="f2f-${type}-${Date.now()}.csv"`);
@@ -384,7 +393,7 @@ adminOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: linkOrderIssuePhotos(orderAdmin(liveName(o)), baseUrlOf(req)) });
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(viewFor(req)(o)), baseUrlOf(req)) });
   }),
 );
 
@@ -848,3 +857,20 @@ adminOrdersRouter.get(
     res.json({ actions: await listActions({ limit, target: req.query.target || undefined }) });
   }),
 );
+
+/**
+ * Every download of the packing sheet or driver manifest is written to the audit trail (review
+ * #33): it is a list of customers' names and flats leaving the system, and it used to leave no trace.
+ */
+function auditExport(req, type, rows) {
+  recordAction({
+    staff: req.staff,
+    action: 'ORDERS_EXPORTED',
+    target: null,
+    details: {
+      type,
+      rows,
+      filters: { date: req.query.date || null, status: req.query.status || null },
+    },
+  }).catch((e) => console.error('[audit] export not recorded:', e?.message || e));
+}
