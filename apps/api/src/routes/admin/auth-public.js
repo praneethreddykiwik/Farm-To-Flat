@@ -100,8 +100,10 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
     // able to say where someone signed in from.
     details: { name: who.name || null, ip: clientIp(req) || null },
   });
+  // No address in the log (review #37, 21 Nov 2026): WHO signed in is in the audit row just
+  // written, behind the owner's access control. The log only needs to say that a sign-in happened.
   // eslint-disable-next-line no-console
-  console.error(`[admin-auth] ${who.email} signed in as ${role}.`);
+  console.error(`[admin-auth] operator signed in as ${role}.`);
   // Also hand the session back as an HttpOnly cookie. A console served same-site with this API
   // (operator console on fooducia.in, API on api.fooducia.in) will authenticate with a cookie its
   // JS can never read; the `session` in the body stays for the header path (mobile, .health).

@@ -21,6 +21,7 @@ import { putOpsSoft, removeOps } from './ops-store.js';
 import { deleteSubscriptionsForCustomer } from './demand-store.js';
 import { servingCommunity } from './lib/geo.js';
 import { reportError } from './lib/sentry.js';
+import { maskMobileForLog } from './lib/log-mask.js';
 import { priceBreakdown, taxRatesOf } from './lib/charges.js';
 import { proxyImageUrl } from './lib/public-image.js';
 import { productName } from './lib/i18n.js';
@@ -383,7 +384,8 @@ export async function requestOtp(mobile) {
   // only the operator sees it.
   if (IS_PROD) {
     // eslint-disable-next-line no-console
-    console.error(`[otp] dev code for allowlisted ${mobile}: ${DEV_OTP}`);
+    // Masked (review #37, 21 Nov 2026): the operator matches it by the ends of the number.
+    console.error(`[otp] dev code for allowlisted ${maskMobileForLog(mobile)}: ${DEV_OTP}`);
     return { ok: true, expiresInSeconds: 300 };
   }
   return { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
