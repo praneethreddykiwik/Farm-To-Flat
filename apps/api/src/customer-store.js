@@ -514,9 +514,10 @@ export function changeCustomerMobile(customerId, newMobile) {
   return { ok: true, customer };
 }
 
+/** @returns {StoreResult<{ ok: true, customer: any, isNew: boolean }>} */
 export function verifyOtp(mobile, otp) {
   const checked = checkCode(mobile, otp);
-  if (checked.error) return checked;
+  if (checked.error) return { error: checked.error };
   let customerId = cs.byMobile.get(mobile);
   const isNew = !customerId;
   if (!customerId) {
