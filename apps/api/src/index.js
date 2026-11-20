@@ -79,6 +79,7 @@ import { adminAuthPublicRouter } from './routes/admin/auth-public.js';
 import { adminOtpRouter } from './routes/admin/otp.js';
 import { adminCouponsRouter } from './routes/admin/coupons.js';
 import { supportRouter, adminSupportRouter } from './routes/support.js';
+import { ticketsRouter, adminTicketsRouter } from './routes/tickets.js';
 import { adminChargesRouter } from './routes/admin/charges.js';
 import { adminEmailsRouter } from './routes/admin/admin-emails.js';
 import { adminBusinessRouter } from './routes/admin/business.js';
@@ -283,6 +284,7 @@ app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
 app.use(`${v1}/delivery-windows`, windowsRouter);
 app.use(`${v1}/coupons`, couponsRouter);
+app.use(`${v1}/support/tickets`, requireAuth, ticketsRouter); // before /support: signed-in only
 app.use(`${v1}/support`, supportRouter);
 app.use(`${v1}/access`, requireAuth, accessRouter); // authenticated: resolves the caller's OWN number only
 
@@ -334,6 +336,7 @@ admin.use(adminChargesRouter);
 admin.use(adminEmailsRouter);
 admin.use(adminBusinessRouter);
 admin.use(adminManageRouter);
+admin.use(adminTicketsRouter);
 app.use(`${v1}/admin`, admin);
 
 // Unknown route → 404 (was 501 NOT_IMPLEMENTED, which reads as a server fault to clients/monitors).

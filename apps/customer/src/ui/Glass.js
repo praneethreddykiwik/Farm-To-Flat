@@ -18,7 +18,7 @@ const liquid = Platform.OS === 'ios' && isLiquidGlassAvailable();
  */
 export function Glass({
   tone = 'light',
-  radius = R.lg,
+  radius: radiusProp = R.lg,
   intensity,
   liquid: wantLiquid = false,
   elevated = true,
@@ -29,6 +29,14 @@ export function Glass({
   children,
   ...rest
 }) {
+  // A fixed square asking for a pill radius (the 44×44 back, basket and bell buttons) is a round
+  // button: exactly half the shorter side, drawn as a single circle further down.
+  const box = StyleSheet.flatten(innerStyle) || {};
+  const round =
+    typeof box.width === 'number' &&
+    typeof box.height === 'number' &&
+    radiusProp >= Math.min(box.width, box.height) / 2;
+  const radius = round ? Math.min(box.width, box.height) / 2 : radiusProp;
   const isDark = tone === 'dark';
   const isClear = tone === 'clear';
   const border = isDark ? colors.glassDarkBorder : colors.glassBorder;
@@ -43,17 +51,42 @@ export function Glass({
   // product names and "Add" buttons ghosting across the tab bar. Without blur, anything short of
   // solid is legible.
   const isIOS = Platform.OS === 'ios';
+  // A round button carries no blur (see below), so on iOS its fill is a little denser to read the
+  // same over a photo or the ambient background.
   const fill = isDark
     ? isIOS
-      ? colors.glassDark
+      ? round
+        ? 'rgba(14,27,20,0.86)'
+        : colors.glassDark
       : 'rgb(13,25,18)'
     : isClear
       ? isIOS
         ? 'rgba(255,255,255,0.28)'
         : 'rgba(255,255,255,0.55)'
-      : isIOS
+      : isIOS && !round
         ? colors.glass
         : 'rgba(255,255,255,0.94)';
+
+  // A small round button (the 44-pt back, basket and bell buttons) is drawn as ONE plain circle:
+  // fill + radius on a single view, no hairline border, no clipped inner layer. The layered build
+  // below (border + clipped inner view + blur + gradient) came out on iOS as a rounded square with
+  // its top, bottom and sides shaved flat; a single filled view with the same radius is a true
+  // circle (checked side by side on the simulator, 21 Nov 2026). The shadow still follows it.
+  if (round) {
+    return (
+      <View
+        style={[
+          elevated && !isClear && (isDark ? shadow.lift : shadow.soft),
+          { borderRadius: radius, backgroundColor: isClear ? 'transparent' : fill },
+          style,
+          innerStyle,
+        ]}
+        {...rest}
+      >
+        {children}
+      </View>
+    );
+  }
 
   if (wantLiquid && liquid && !isClear) {
     return (

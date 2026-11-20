@@ -406,6 +406,9 @@ function DeletionBlock({ customerKey, account, owner, onDone }) {
             Scheduled on {longDate(del.requestedAt)}. The account is erased on{' '}
             <b>{longDate(del.deleteAfter)}</b>.
           </p>
+          <p className="muted" style={{ margin: '0 0 8px', fontSize: 12.5 }}>
+            {howAsked(del)}
+          </p>
           <button className="btn btn--ghost btn--sm" onClick={cancel} disabled={!owner || busy}>
             {busy ? 'Cancelling…' : 'Cancel deletion'}
           </button>
@@ -463,6 +466,33 @@ function DeletionBlock({ customerKey, account, owner, onDone }) {
       )}
     </div>
   );
+}
+
+/**
+ * How the deletion was asked for, and whether the customer ticked the box confirming they read what
+ * is deleted and kept (recorded on the server with the wording version and time).
+ */
+function howAsked(d, short = false) {
+  const c = d?.consent;
+  if (short) {
+    const where =
+      d?.via === 'ADMIN_ON_REQUEST'
+        ? 'By the team'
+        : d?.via === 'APP_OLD_VERSION'
+          ? 'Older app'
+          : 'In the app';
+    return c?.accepted ? `${where} · agreed ✓` : where;
+  }
+  const by =
+    d?.via === 'ADMIN_ON_REQUEST'
+      ? 'Scheduled by the team on the customer’s request.'
+      : d?.via === 'APP_OLD_VERSION'
+        ? 'Asked from an older app (no tick-box there).'
+        : 'Asked in the app, confirmed with a code.';
+  if (!c?.accepted) return by;
+  return `${by} Ticked “I have read and agree” on ${longDate(c.at)} (${c.version}${
+    c.platform ? `, ${c.platform === 'ios' ? 'iPhone' : c.platform}` : ''
+  }).`;
 }
 
 /** The Account panel on its own — for an account found by number, or opened from deletions. */
@@ -578,6 +608,7 @@ export function DeletionsDrawer({ data, error, reload, onOpen, onClose }) {
               <tr>
                 <th>Customer</th>
                 <th>Asked</th>
+                <th>How</th>
                 <th>Erased on</th>
                 <th />
               </tr>
@@ -592,6 +623,13 @@ export function DeletionsDrawer({ data, error, reload, onOpen, onClose }) {
                     </div>
                   </td>
                   <td style={{ fontSize: 12.5 }}>{longDate(d.requestedAt)}</td>
+                  <td
+                    className="muted"
+                    style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                    title={howAsked(d)}
+                  >
+                    {howAsked(d, true)}
+                  </td>
                   <td style={{ fontSize: 12.5, fontWeight: 600 }}>{longDate(d.deleteAfter)}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button className="btn btn--ghost btn--sm" onClick={() => onOpen(d)}>

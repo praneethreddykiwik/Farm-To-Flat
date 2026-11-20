@@ -353,6 +353,8 @@ function Root() {
           <Stack.Screen name="coupon" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="invite" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="support/index" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="support/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="confirm/[date]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="calendar" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="search" options={{ animation: 'fade' }} />

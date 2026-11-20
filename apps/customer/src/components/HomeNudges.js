@@ -139,7 +139,8 @@ export function HomeNudges({ nextWindow, style }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 20, marginBottom: 12, gap: 10 },
+  // The home list already pads 14 pt; this lands the cards 16 pt from the screen edge.
+  wrap: { paddingHorizontal: 2, marginBottom: 12, gap: 10 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -14,7 +14,7 @@
  */
 import { useSupportEmail } from '../lib/publicSupport.js';
 
-const UPDATED = '19 November 2026';
+const UPDATED = '21 November 2026';
 
 // Registered legal entity, office address, and named Grievance Officer (DPDP Act / IT Rules).
 const ENTITY = 'Kiwik Consulting Services';
@@ -86,6 +86,14 @@ const SECTIONS = (CONTACT) => [
       [
         'Complaints and requests',
         'if you report a problem with an order or ask to cancel it: the reason, your note, and up to five photos you choose to attach. Used to resolve the problem, refund you where due, and improve our service. The staff member handling it sees your name and the order.',
+      ],
+      [
+        'Help requests',
+        'if you use “Report a problem” in the app: the topic you pick, what you write and our replies, and — so we can reproduce the problem — whether you use an iPhone or Android phone and the app version. Used only to answer you and fix the problem. Our administrators who answer it see your name and a partly hidden mobile number.',
+      ],
+      [
+        'Account deletion requests',
+        'when you ask us to delete your account: the date, how you asked (in the app or through support), and that you ticked the box confirming you read what is deleted and what is kept, with the version of that wording. Kept as proof that the deletion was your own request.',
       ],
       [
         'Location — only when you tap “Use my location”',
@@ -269,6 +277,11 @@ const SECTIONS = (CONTACT) => [
         'hold no personal data; kept as long as they help us plan where to deliver.',
       ],
       ['Notification centre', 'your latest 100 updates; deleted with your account.'],
+      ['Help requests', 'while your account is open; deleted with your account.'],
+      [
+        'Record of a deletion request',
+        'kept after the account is deleted, as proof that you asked; it holds only an internal account reference, the date and what you confirmed — no name, number or address.',
+      ],
       ['Sign-in', 'you stay signed in for up to 90 days of inactivity on a phone.'],
       [
         'Technical records and crash reports',
@@ -354,7 +367,7 @@ const SECTIONS = (CONTACT) => [
     list: [
       [
         'What is deleted',
-        'your profile (name, email and mobile number), saved delivery addresses, basket, sign-in, notification tokens, notification history, any “Tell me when you deliver here” request, your waitlist places and your invite code. Your mobile number is freed for a fresh sign-up.',
+        'your profile (name, email and mobile number), saved delivery addresses, basket, sign-in, notification tokens, notification history, any “Tell me when you deliver here” request, your help requests, your waitlist places and your invite code. Your mobile number is freed for a fresh sign-up.',
       ],
       [
         'What is kept',

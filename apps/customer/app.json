@@ -18,6 +18,9 @@
         "NSMicrophoneUsageDescription": "Fooducia uses the microphone so you can search the catalog by voice.",
         "NSCameraUsageDescription": "Fooducia uses the camera so you can photograph a vegetable to find it, a meal to log it, or a problem with a delivery.",
         "NSPhotoLibraryUsageDescription": "Fooducia lets you choose a photo of a vegetable to find, a meal to log, or a problem with a delivery."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {

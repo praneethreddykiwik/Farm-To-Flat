@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   ArrowLeft,
   CalendarClock,
+  Check,
   PackageOpen,
   ShieldCheck,
   Trash2,
@@ -24,7 +25,14 @@ import { useSignOut } from '../src/hooks/useSession';
 import { prettyNumber } from '../src/lib/phone';
 import { haptic } from '../src/lib/haptics';
 import { t } from '../src/lib/i18n';
+import { env } from '../src/lib/env';
 import { colors, radius } from '../src/theme';
+
+/**
+ * Which wording of the tick-box the customer agreed to. Change it whenever the sentence or the
+ * "what is deleted / kept" text changes, so the record on the server says what they actually read.
+ */
+const CONSENT_VERSION = 'deletion-2026-11-21';
 
 /**
  * Delete my account (app stores + DPDP right to erasure), with the 60-day grace period:
@@ -48,6 +56,8 @@ export default function DeleteAccount() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState(/** @type {string|null} */ (null));
   const [result, setResult] = useState(/** @type {any} */ (null));
+  // The customer must say they read what is deleted and kept, and agree, before a code is sent.
+  const [agreed, setAgreed] = useState(false);
 
   const days = data?.graceDays || 60;
   const blockers = data?.ordersInProgress || [];
@@ -56,6 +66,10 @@ export default function DeleteAccount() {
     new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const send = async () => {
+    if (!agreed) {
+      setError(t('deleteConsentNeeded', lang));
+      return;
+    }
     setError(null);
     try {
       await requestCode().unwrap();
@@ -71,7 +85,15 @@ export default function DeleteAccount() {
     if (otp.length < 4) return;
     setError(null);
     try {
-      const r = await confirm(otp).unwrap();
+      const r = await confirm({
+        otp,
+        consent: {
+          accepted: true,
+          version: CONSENT_VERSION,
+          platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
+          appVersion: env.appVersion,
+        },
+      }).unwrap();
       haptic.success();
       setResult(r);
       setStep('done');
@@ -221,6 +243,43 @@ export default function DeleteAccount() {
               </Animated.View>
             ) : (
               <View style={{ marginTop: 24 }}>
+                <Pressy
+                  onPress={() => {
+                    setAgreed((v) => !v);
+                    setError(null);
+                  }}
+                  haptics="select"
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: agreed }}
+                  accessibilityLabel={t('deleteConsent', lang)}
+                >
+                  <View style={styles.consent}>
+                    <View style={[styles.box, agreed && styles.boxOn]}>
+                      {agreed ? <Check size={15} color={colors.inkOnDark} strokeWidth={3} /> : null}
+                    </View>
+                    <Small style={{ flex: 1 }}>{t('deleteConsent', lang)}</Small>
+                  </View>
+                </Pressy>
+                <View style={styles.links}>
+                  <Pressy
+                    onPress={() =>
+                      Linking.openURL(`https://fooducia.health/terms?lang=${lang}`).catch(() => {})
+                    }
+                    haptics="select"
+                  >
+                    <Small style={styles.link}>{t('termsOfUse', lang)}</Small>
+                  </Pressy>
+                  <Pressy
+                    onPress={() =>
+                      Linking.openURL(`https://fooducia.health/privacy?lang=${lang}`).catch(
+                        () => {},
+                      )
+                    }
+                    haptics="select"
+                  >
+                    <Small style={styles.link}>{t('privacyPolicy', lang)}</Small>
+                  </Pressy>
+                </View>
                 {error ? (
                   <Small style={{ color: colors.tomato, marginBottom: 10 }}>{error}</Small>
                 ) : null}
@@ -229,7 +288,7 @@ export default function DeleteAccount() {
                   variant="danger"
                   onPress={send}
                   loading={sending || isLoading}
-                  disabled={isLoading || blockers.length > 0}
+                  disabled={isLoading || blockers.length > 0 || !agreed}
                 />
                 <Button
                   title={t('keepAccount', lang)}
@@ -265,6 +324,20 @@ function Point({ Icon, title, body }) {
 
 const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  consent: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', paddingVertical: 4 },
+  box: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  boxOn: { backgroundColor: colors.ink },
+  links: { flexDirection: 'row', gap: 18, marginTop: 8, marginBottom: 16, marginLeft: 36 },
+  link: { color: colors.leafDeep, textDecorationLine: 'underline' },
   point: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   pointIcon: {
     width: 36,

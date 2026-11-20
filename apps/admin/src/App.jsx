@@ -31,6 +31,7 @@ import { Settings } from './screens/Settings.jsx';
 import { Charges } from './screens/Charges.jsx';
 import Payments from './screens/Payments.jsx';
 import { Audit } from './screens/Audit.jsx';
+import { Tickets } from './screens/Tickets.jsx';
 import { Privacy } from './screens/Privacy.jsx';
 import { Terms } from './screens/Terms.jsx';
 import { PolicyPage, PAGES } from './screens/PolicyPage.jsx';
@@ -103,6 +104,7 @@ function AdminShell() {
             <Route path="/charges" element={<Charges />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/audit" element={<Audit />} />
+            <Route path="/tickets" element={<Tickets />} />
           </Routes>
         </main>
       </div>
@@ -150,6 +152,7 @@ const ADMIN_PATHS = new Set([
   '/charges',
   '/payments',
   '/audit',
+  '/tickets',
 ]);
 
 function Root() {

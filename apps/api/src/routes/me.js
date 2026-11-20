@@ -131,7 +131,22 @@ meRouter.post(
 
 meRouter.post(
   '/deletion/confirm',
-  validateBody(z.object({ otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.') })),
+  validateBody(
+    z.object({
+      otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.'),
+      // The box the customer ticks: "I have read what is deleted and what is kept, and I agree".
+      // Optional only so an app that has not taken the update yet still works; it is recorded
+      // either way, and the current app will not send the code without it.
+      consent: z
+        .object({
+          accepted: z.literal(true),
+          version: z.string().trim().min(1).max(40),
+          platform: z.enum(['ios', 'android', 'web']).optional(),
+          appVersion: z.string().max(40).optional(),
+        })
+        .optional(),
+    }),
+  ),
   asyncHandler(async (req, res) => {
     const c = getCustomer(req.customerId);
     if (!c) throw fail(404, 'NOT_FOUND', 'Account not found.');
@@ -142,6 +157,8 @@ meRouter.post(
     if (blockers.length) throw blockedError(blockers);
     const r = await requestDeletion(req.customerId, {
       walletBalancePaise: getWallet(req.customerId).balancePaise || 0,
+      consent: req.body.consent || null,
+      via: 'APP_WITH_CODE',
     });
     res.json({
       ok: true,
@@ -163,6 +180,7 @@ meRouter.delete(
     if (!getCustomer(req.customerId)) throw fail(404, 'NOT_FOUND', 'Account not found.');
     const r = await requestDeletion(req.customerId, {
       walletBalancePaise: getWallet(req.customerId).balancePaise || 0,
+      via: 'APP_OLD_VERSION',
     });
     res.json({
       ok: true,

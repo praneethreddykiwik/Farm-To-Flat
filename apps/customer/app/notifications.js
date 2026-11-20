@@ -37,6 +37,7 @@ const LOOK = {
   REFUND_INITIATED: { Icon: Wallet, tint: colors.leaf },
   FEEDBACK_INVITE: { Icon: Star, tint: colors.amber || '#d89b1a' },
   COMPLAINT_REPLY: { Icon: MessageSquare, tint: colors.leaf },
+  TICKET_REPLY: { Icon: MessageSquare, tint: colors.leaf },
   AREA_LAUNCHED: { Icon: MapPin, tint: colors.leaf },
   INFO: { Icon: CheckCircle2, tint: colors.ink2 },
 };

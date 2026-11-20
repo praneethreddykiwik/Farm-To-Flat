@@ -73,6 +73,15 @@ describe('where a notification tap goes', () => {
     ).toBe('issue');
   });
 
+  it('a reply on a help request opens that request; a malformed id goes nowhere', () => {
+    expect(
+      routeForNotification({ data: { type: 'TICKET_REPLY', ticketId: 'tkt_Ab12Cd34Ef' } }),
+    ).toEqual({ pathname: '/support/[id]', params: { id: 'tkt_Ab12Cd34Ef' } });
+    expect(
+      routeForNotification({ data: { type: 'TICKET_REPLY', ticketId: '../../x' } }),
+    ).toBeNull();
+  });
+
   it('staff alerts still reach the approvals screen', () => {
     expect(routeForNotification({ data: { kind: 'PROCUREMENT_BUFFER' } })).toEqual({
       pathname: '/staff/approvals',

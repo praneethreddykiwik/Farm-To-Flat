@@ -24,6 +24,7 @@ export const api = createApi({
     'Growth',
     'Waitlist',
     'Review',
+    'Tickets',
   ],
   endpoints: (b) => ({
     // ---- auth ----
@@ -42,13 +43,37 @@ export const api = createApi({
     // Right-to-erasure: anonymises the account server-side and revokes the session. The caller
     // signs out immediately after; the returned walletBalancePaise lets us warn first.
     deleteAccount: b.mutation({ query: () => ({ url: '/me', method: 'DELETE' }) }),
+    // Support requests: problems or complaints about using the app, answered by the team.
+    getTickets: b.query({ query: () => '/support/tickets', providesTags: ['Tickets'] }),
+    getTicket: b.query({
+      query: (id) => `/support/tickets/${encodeURIComponent(id)}`,
+      providesTags: ['Tickets'],
+    }),
+    createTicket: b.mutation({
+      query: (body) => ({ url: '/support/tickets', method: 'POST', body }),
+      invalidatesTags: ['Tickets'],
+    }),
+    replyTicket: b.mutation({
+      query: ({ id, text }) => ({
+        url: `/support/tickets/${encodeURIComponent(id)}/messages`,
+        method: 'POST',
+        body: { text },
+      }),
+      invalidatesTags: ['Tickets'],
+    }),
     // Deletion with a 60-day grace period, confirmed by a code to the account's own number.
     getDeletionStatus: b.query({ query: () => '/me/deletion', keepUnusedDataFor: 0 }),
     requestDeletionCode: b.mutation({
       query: () => ({ url: '/me/deletion/request', method: 'POST', body: {} }),
     }),
     confirmDeletion: b.mutation({
-      query: (otp) => ({ url: '/me/deletion/confirm', method: 'POST', body: { otp } }),
+      // `consent`: the tick-box ("I have read what is deleted and kept, and I agree"), recorded
+      // on the server with the request. Accepts the old plain-code call too.
+      query: (arg) => ({
+        url: '/me/deletion/confirm',
+        method: 'POST',
+        body: typeof arg === 'string' ? { otp: arg } : arg,
+      }),
     }),
     // Changing the number keeps the same account — see apps/api/src/routes/me.js. Invalidating Me
     // and Addresses is what makes the profile show the new number without a sign-out.
@@ -372,6 +397,10 @@ export const {
   useGetDeletionStatusQuery,
   useRequestDeletionCodeMutation,
   useConfirmDeletionMutation,
+  useGetTicketsQuery,
+  useGetTicketQuery,
+  useCreateTicketMutation,
+  useReplyTicketMutation,
   useGetInviteQuery,
   useCheckCodeMutation,
   usePostInstallSourceMutation,

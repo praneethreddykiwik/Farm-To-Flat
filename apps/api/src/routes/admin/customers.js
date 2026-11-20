@@ -39,6 +39,7 @@ import {
 } from '../../customer-store.js';
 import { getOps, listOps, removeOps } from '../../ops-store.js';
 import {
+  deletionConsentsOf,
   ordersBlockingDeletion,
   requestDeletion,
   scheduledDeletion,
@@ -203,6 +204,13 @@ const accountView = (c) => {
     createdAt: c.createdAt || null,
     walletBalancePaise: String(w.balancePaise),
     deletion: del || null,
+    // Every time this account asked to be deleted, and what it agreed to (the tick-box).
+    deletionRequests: deletionConsentsOf(c.id).map(({ at, via, reason, consent }) => ({
+      at,
+      via,
+      reason,
+      consent,
+    })),
   };
 };
 
@@ -296,7 +304,11 @@ adminCustomersRouter.post(
         'ORDERS_IN_PROGRESS',
         `${blocking.length} order(s) are still in progress. Finish or cancel them first.`,
       );
-    const r = await requestDeletion(c.id, { walletBalancePaise: getWallet(c.id).balancePaise });
+    const r = await requestDeletion(c.id, {
+      walletBalancePaise: getWallet(c.id).balancePaise,
+      via: 'ADMIN_ON_REQUEST',
+      reason: `${req.body.reason} (by ${req.staff?.email || 'admin'})`,
+    });
     await recordAction({
       staff: req.staff,
       action: 'CUSTOMER_DELETION_SCHEDULED',
@@ -332,6 +344,8 @@ adminCustomersRouter.get(
           mobileMasked: c ? maskMobile(c.mobile) : null,
           requestedAt: d.requestedAt,
           deleteAfter: d.deleteAfter,
+          via: d.via || null,
+          consent: d.consent || null,
         };
       })
       .sort((a, b) => (a.deleteAfter < b.deleteAfter ? -1 : 1));

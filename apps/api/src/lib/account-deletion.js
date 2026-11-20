@@ -22,6 +22,7 @@ import { deleteCustomerAccount, getCustomer, logout } from '../customer-store.js
 import { getOps, listOps, putOps, putOpsSoft, removeOps, opsReady } from '../ops-store.js';
 import { deleteMealPhotos } from './storage.js';
 import { reportError } from './sentry.js';
+import { deleteTicketsOf } from './tickets.js';
 
 export const GRACE_DAYS = 60;
 const DAY = 864e5;
@@ -41,8 +42,49 @@ export function ordersBlockingDeletion(cid) {
 /** The pending deletion for this customer, or null. */
 export function scheduledDeletion(cid) {
   const r = getOps('deletion', cid);
-  return r ? { requestedAt: r.requestedAt, deleteAfter: r.deleteAfter } : null;
+  return r
+    ? {
+        requestedAt: r.requestedAt,
+        deleteAfter: r.deleteAfter,
+        via: r.via || null,
+        consent: r.consent || null,
+      }
+    : null;
 }
+
+/** What we keep of the tick-box: that it was ticked, which wording, when, from which app. */
+const consentOf = (c) =>
+  c?.accepted
+    ? {
+        accepted: true,
+        version: c.version,
+        at: new Date().toISOString(),
+        platform: c.platform || null,
+        appVersion: c.appVersion || null,
+      }
+    : null;
+
+/**
+ * A lasting record that this account asked to be deleted, and what it agreed to. It outlives the
+ * account on purpose — it is the proof that the deletion was the customer's own request — so it
+ * holds the account's internal id only: no name, number or address (privacy policy §9).
+ */
+async function recordDeletionConsent(cid, { consent, via, reason }) {
+  const at = new Date().toISOString();
+  putOpsSoft('deletionConsent', `${cid}:${Date.parse(at)}`, {
+    customerId: cid,
+    at,
+    via,
+    reason: reason || null,
+    consent: consentOf(consent),
+  });
+}
+
+/** Every deletion request ever made by this account, oldest first. */
+export const deletionConsentsOf = (cid) =>
+  listOps('deletionConsent')
+    .filter((x) => x.customerId === cid)
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
 
 /**
  * Remove everything that goes with the account — the part every path shares. Orders, payments and
@@ -64,6 +106,8 @@ export async function eraseAccountNow(cid) {
     // Install tag and usage events (privacy policy §3, §9): the tag goes; events are detached from
     // the account and survive only as anonymous counts, so past weekly numbers do not change.
     if (getOps('installSource', cid)) await removeOps('installSource', cid);
+    // Support requests carry the customer's own words about their problem (privacy policy §9).
+    await deleteTicketsOf(cid);
     for (const e of listOps('event').filter((x) => x.customerId === cid))
       putOpsSoft('event', e.id, { ...e, customerId: null });
   } catch (e) {
@@ -76,7 +120,11 @@ export async function eraseAccountNow(cid) {
  * Schedule deletion (or, without the table, delete now). Caller has already checked the code.
  * @returns {Promise<{ scheduled: boolean, deleteAfter?: string, deletedNow?: boolean, walletBalancePaise: number }>}
  */
-export async function requestDeletion(cid, { walletBalancePaise = 0 } = {}) {
+export async function requestDeletion(
+  cid,
+  { walletBalancePaise = 0, consent = null, via = 'APP', reason = null } = {},
+) {
+  await recordDeletionConsent(cid, { consent, via, reason });
   if (!opsReady()) {
     const r = await eraseAccountNow(cid);
     return {
@@ -89,6 +137,8 @@ export async function requestDeletion(cid, { walletBalancePaise = 0 } = {}) {
   const rec = {
     requestedAt: new Date(now).toISOString(),
     deleteAfter: new Date(now + GRACE_DAYS * DAY).toISOString(),
+    via,
+    consent: consentOf(consent),
   };
   await putOps('deletion', cid, rec);
   logout(cid); // signed out everywhere, at once

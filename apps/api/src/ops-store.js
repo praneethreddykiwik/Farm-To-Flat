@@ -57,6 +57,8 @@ export const OPS_KINDS = [
   'counterSession',
   'linkClick',
   'tagLink',
+  'ticket',
+  'deletionConsent',
 ];
 
 /**

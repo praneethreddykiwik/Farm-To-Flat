@@ -15,6 +15,7 @@ import {
   Leaf,
   LogOut,
   Mail,
+  MessageSquare,
   MapPin,
   UsersRound,
   Pencil,
@@ -580,10 +581,21 @@ export default function Profile() {
           </>
         ) : null}
 
+        {/* Help & support is always here: "Report a problem" raises a help request the team
+            answers from the admin website; email and phone appear when they are switched on. */}
+        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('helpAndSupport', lang)}</Label>
+        <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
+          <Row
+            icon={<MessageSquare size={18} color={colors.ink} />}
+            label={t('reportProblem', lang)}
+            hint={t('reportProblemHint', lang)}
+            onPress={() => router.push('/support')}
+            last={!(support && (support.email || support.phone))}
+          />
+        </Glass>
         {support && (support.email || support.phone) ? (
           <>
-            <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('helpAndSupport', lang)}</Label>
-            <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
+            <Glass radius={radius.lg} blur={false} innerStyle={[styles.group, { marginTop: 10 }]}>
               {support.email ? (
                 <Row
                   icon={<Mail size={18} color={colors.ink} />}

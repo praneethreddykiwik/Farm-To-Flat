@@ -86,6 +86,10 @@ export function routeForNotification({ actionIdentifier, data } = {}) {
   // the 5 PM "order before the cut-off" reminder → the shop
   if (d.type === 'CUTOFF_REMINDER') return { pathname: '/(tabs)' };
 
+  // a reply on a support request → that request's thread (ids are server-made: tkt_xxxxxxxxxx)
+  if (d.type === 'TICKET_REPLY' && /^tkt_[A-Za-z0-9]+$/.test(String(d.ticketId || '')))
+    return { pathname: '/support/[id]', params: { id: String(d.ticketId) } };
+
   // order updates
   if (d.orderId) {
     /** @type {Record<string, string>} */

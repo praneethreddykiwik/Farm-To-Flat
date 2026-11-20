@@ -40,6 +40,10 @@ import { KV_KEYS, kv } from '../../src/lib/kv';
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 const GUTTER = 20;
 const GAP = 12;
+// The big cards at the top (order on its way, the harvest banner, the nudges) run nearly edge to
+// edge: 16 pt from the screen. The list already pads GUTTER - GAP/2 (14 pt) on each side, so they
+// add only the remaining 2 pt. Before this they sat 34 pt in and the sides looked empty.
+const CARD_INSET = 2;
 const COLS = 2;
 const CARD_W = (Dimensions.get('window').width - GUTTER * 2 - GAP) / COLS;
 
@@ -147,8 +151,8 @@ export default function Home() {
       </View>
       {/* An order on its way outranks everything else on this screen: it is the one thing the
           customer is actually waiting for. */}
-      <LiveOrderCard style={{ paddingHorizontal: 20, marginBottom: 12 }} />
-      <ConfirmBanner style={{ paddingHorizontal: 20, marginBottom: 12 }} />
+      <LiveOrderCard style={{ paddingHorizontal: CARD_INSET, marginBottom: 12 }} />
+      <ConfirmBanner style={{ paddingHorizontal: CARD_INSET, marginBottom: 12 }} />
       <HomeNudges nextWindow={nextWindow} />
       <View style={{ marginTop: 4 }}>
         <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />

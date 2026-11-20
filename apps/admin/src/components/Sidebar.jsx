@@ -48,6 +48,8 @@ const NAV = [
   { to: '/fulfilment', label: 'Fulfilment', icon: IconTruck },
   // Feedback holds ratings and the complaints queue; /complaints opens it on that tab.
   { to: '/feedback', label: 'Feedback', icon: IconStar, also: ['/complaints'] },
+  // Problems with using the app (not one delivery): raised by customers, answered here.
+  { to: '/tickets', label: 'Support tickets', icon: IconLifeBuoy },
   { to: '/stats', label: 'Statistics', icon: IconChart },
   { section: 'Growth' },
   { to: '/growth', label: 'Growth', icon: IconTrend },
