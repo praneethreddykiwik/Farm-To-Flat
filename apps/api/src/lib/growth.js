@@ -39,6 +39,17 @@ export const HEARD_FROM = {
  */
 export const HEARD_FROM_ASKED = ['COUNTER', 'WHATSAPP', 'NEIGHBOUR', 'RESIDENT_GROUP', 'OTHER'];
 
+/** Every answer key ever offered → its label (built-in keys plus the admin's own answers). */
+export function heardFromLabels() {
+  const m = { ...HEARD_FROM };
+  for (const o of getSettings('sourceQuestion').options || []) m[o.key] = o.label;
+  return m;
+}
+/** The answers the app shows right now (admin → Friday report → Settings). */
+export const heardFromOptions = () =>
+  (getSettings('sourceQuestion').options || []).filter((o) => o.enabled !== false);
+const validHeard = (k) => (k && heardFromLabels()[k] ? k : null);
+
 export const MAX_REWARDS_PER_MONTH = 20;
 
 // No 0/O, 1/I/L: a code read aloud at a door or across a stall must not be mistyped.
@@ -82,6 +93,7 @@ const digitsOnly = (s) =>
 export function resolveCode(raw) {
   const mobile = digitsOnly(raw);
   if (MOBILE_RE.test(mobile)) {
+    if (getSettings('growth').mobileReferral === false) return null;
     const cid = getCustomerIdByMobile(mobile);
     const c = cid ? getCustomer(cid) : null;
     return c && !isErased(c) ? { kind: 'INVITE', customerId: cid } : null;
@@ -104,6 +116,11 @@ export function resolveCode(raw) {
 export function checkCode(raw, { customerId, isFirstOrder }) {
   const mobile = digitsOnly(raw);
   if (MOBILE_RE.test(mobile)) {
+    if (getSettings('growth').mobileReferral === false)
+      return {
+        ok: false,
+        message: 'A neighbour’s number can’t be used right now. Leave it empty.',
+      };
     if (!isFirstOrder)
       return { ok: false, message: 'A neighbour’s number works on a first order only.' };
     const me = getCustomer(customerId);
@@ -187,11 +204,11 @@ export function recordOrderSource({
     if (order.isFirstOrder && !getOps('attribution', customerId)) {
       putOpsSoft('attribution', customerId, {
         customerId,
-        heardFrom: HEARD_FROM[heardFrom] ? heardFrom : null,
+        heardFrom: validHeard(heardFrom),
         promoterCode: attr.promoterCode,
         referrerId: attr.referrerKey,
         // acquisition_source (brief): the tag if present, otherwise the answer.
-        acquisitionSource: sourceTag || (HEARD_FROM[heardFrom] ? heardFrom : null),
+        acquisitionSource: sourceTag || validHeard(heardFrom),
         firstOrderId: order.id,
         communityId: order.address?.communityId || null,
         at: now,

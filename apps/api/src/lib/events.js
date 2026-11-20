@@ -15,7 +15,7 @@
  * Writes are SOFT: recording must never be the reason a customer cannot sign in or order.
  */
 import { randomBytes } from 'node:crypto';
-import { listOps, putOpsSoft } from '../ops-store.js';
+import { getSettings, listOps, putOpsSoft } from '../ops-store.js';
 import { getCommunity } from '../store.js';
 import { communityWindows } from './windows.js';
 import { istInstantMs } from './dates.js';
@@ -67,6 +67,9 @@ function clean(props = {}) {
 export function track(name, props = {}, { customerId = null, at } = {}) {
   try {
     if (!EVENT_NAMES[name]) return null;
+    // Admin → Friday report → Events: tracking as a whole, or one event, can be switched off.
+    const t = getSettings('tracking');
+    if (t.enabled === false || (t.disabledEvents || []).includes(name)) return null;
     const ev = {
       name,
       customerId: customerId || null,

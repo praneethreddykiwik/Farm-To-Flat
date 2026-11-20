@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { asyncHandler } from '../http.js';
 import { validateBody } from '../validate.js';
 import { getSupport, publicPaymentOptions, publicSupport, updateSupport } from '../store.js';
+import { getSettings } from '../ops-store.js';
 
 export const supportRouter = Router();
 supportRouter.get(
@@ -16,7 +17,12 @@ supportRouter.get(
   asyncHandler(async (_req, res) =>
     // The app also learns here whether it may offer to pay in cash. The cap ships with it so the
     // app can explain WHY the option vanished on a large basket instead of silently hiding it.
-    res.json({ support: publicSupport(), payment: publicPaymentOptions() }),
+    // `features`: the Home-screen nudges the admin can switch (Friday report → Settings).
+    res.json({
+      support: publicSupport(),
+      payment: publicPaymentOptions(),
+      features: { nudges: getSettings('appNudges') },
+    }),
   ),
 );
 

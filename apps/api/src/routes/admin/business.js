@@ -74,6 +74,7 @@ import { maskMobile } from '../../lib/customer-history.js';
 import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
 import { listEvents, EVENT_NAMES } from '../../lib/events.js';
 import { buildWorkbook, sendWorkbook } from '../../lib/xlsx.js';
+import { reminderAudience, runCutoffReminder } from '../../lib/reminders.js';
 
 export const adminBusinessRouter = Router();
 
@@ -240,6 +241,7 @@ const GrowthSettingsBody = z.object({
   refereeRewardPaise: z.number().int().min(0).max(100000).optional(),
   waitlistOpenAt: z.number().int().min(1).max(10000).optional(),
   askHeardFrom: z.boolean().optional(),
+  mobileReferral: z.boolean().optional(),
 });
 
 adminBusinessRouter.get(
@@ -852,8 +854,37 @@ const SETTINGS_SCHEMAS = {
       .string()
       .regex(/^\d{2}:\d{2}$/)
       .optional(),
+    title: z.string().trim().min(3).max(60).optional(),
+    body: z.string().trim().min(3).max(160).optional(),
   }),
   report: z.object({ capacityKgPerMorning: z.number().min(1).max(100000).optional() }),
+  sourceQuestion: z.object({
+    required: z.boolean().optional(),
+    options: z
+      .array(
+        z.object({
+          key: z
+            .string()
+            .regex(/^[A-Z][A-Z0-9_]{1,19}$/, 'Answer keys are 2–20 capital letters, digits or _.'),
+          label: z.string().trim().min(2).max(60),
+          enabled: z.boolean().optional(),
+        }),
+      )
+      .min(1)
+      .max(12)
+      .optional(),
+  }),
+  tracking: z.object({
+    enabled: z.boolean().optional(),
+    disabledEvents: z
+      .array(z.enum(/** @type {[string, ...string[]]} */ (Object.keys(EVENT_NAMES))))
+      .optional(),
+  }),
+  appNudges: z.object({
+    countdown: z.boolean().optional(),
+    countdownHours: z.number().int().min(1).max(24).optional(),
+    repeatBasket: z.boolean().optional(),
+  }),
 };
 
 adminBusinessRouter.get(
@@ -875,6 +906,13 @@ adminBusinessRouter.put(
     const next = { ...getSettings(req.params.name), ...r.data };
     if (req.params.name === 'launchOffer' && next.endDate < next.startDate)
       throw fail(422, 'VALIDATION', 'The offer ends before it starts.');
+    if (req.params.name === 'sourceQuestion' && r.data.options) {
+      const keys = r.data.options.map((o) => o.key);
+      if (new Set(keys).size !== keys.length)
+        throw fail(422, 'VALIDATION', 'Two answers share a key.');
+      if (!r.data.options.some((o) => o.enabled !== false))
+        throw fail(422, 'VALIDATION', 'Keep at least one answer switched on.');
+    }
     const settings = await saveSettings(req.params.name, r.data);
     await recordAction({
       staff: req.staff,
@@ -1022,5 +1060,231 @@ adminBusinessRouter.get(
       names: Object.keys(EVENT_NAMES),
       events: list.map((e) => ({ ...e, customerId: undefined })),
     });
+  }),
+);
+
+// ── tagged links (/go) ───────────────────────────────────────────────────────
+// A saved link per counter, WhatsApp post or flyer. The link is just its tag; scans and installs are
+// counted by tag, so editing a saved link changes what it points at from then on — older scans stay
+// with the tag they came in on.
+const tagPart = (max = 40) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .regex(/^[A-Za-z0-9_-]*$/, 'Letters, digits, - and _ only.')
+    .optional()
+    .nullable();
+const TagLinkBody = z.object({
+  name: z.string().trim().min(2).max(80),
+  src: z
+    .string()
+    .trim()
+    .min(2)
+    .max(40)
+    .regex(/^[A-Za-z0-9_-]+$/, 'Letters, digits, - and _ only.'),
+  p: tagPart(),
+  c: tagPart(),
+  r: tagPart(),
+  note: z.string().trim().max(200).optional().nullable(),
+  active: z.boolean().optional(),
+});
+const tagOf = (l) => ({
+  src: String(l.src || '').toLowerCase(),
+  p: l.p ? String(l.p).toUpperCase() : '',
+  c: l.c ? String(l.c).toLowerCase() : '',
+  r: l.r ? String(l.r).toUpperCase() : '',
+});
+function goUrlOf(l) {
+  const t = tagOf(l);
+  const q = new URLSearchParams();
+  for (const k of ['src', 'p', 'c', 'r']) if (t[k]) q.set(k, t[k]);
+  return `https://fooducia.health/go?${q.toString()}`;
+}
+function linkView(l) {
+  const t = tagOf(l);
+  const scans = listOps('linkClick')
+    .filter((k) => k.src === t.src && (k.p || '') === t.p && (k.c || '') === t.c)
+    .reduce((n, k) => n + (k.n || 0), 0);
+  const installs = listOps('installSource').filter(
+    (i) => (i.src || '') === t.src && (i.p || '') === t.p && (i.c || '') === t.c,
+  ).length;
+  return { ...l, url: goUrlOf(l), scans, installs };
+}
+
+adminBusinessRouter.get(
+  '/growth/links',
+  asyncHandler(async (_req, res) =>
+    res.json({
+      links: listOps('tagLink')
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+        .map(linkView),
+    }),
+  ),
+);
+
+adminBusinessRouter.post(
+  '/growth/links',
+  validateBody(TagLinkBody),
+  asyncHandler(async (req, res) => {
+    if (req.body.p && !getOps('promoter', normaliseCode(req.body.p)))
+      throw fail(422, 'VALIDATION', `No promoter with the code ${normaliseCode(req.body.p)}.`);
+    const saved = await putOps('tagLink', newId('tl', 8), {
+      ...req.body,
+      active: req.body.active !== false,
+      createdAt: new Date().toISOString(),
+    });
+    await recordAction({ staff: req.staff, action: 'TAG_LINK_CREATED', target: saved.id });
+    res.status(201).json({ link: linkView(saved) });
+  }),
+);
+
+adminBusinessRouter.patch(
+  '/growth/links/:id',
+  validateBody(TagLinkBody.partial()),
+  asyncHandler(async (req, res) => {
+    const cur = getOps('tagLink', req.params.id);
+    if (!cur) throw fail(404, 'NOT_FOUND', 'No such link.');
+    if (req.body.p && !getOps('promoter', normaliseCode(req.body.p)))
+      throw fail(422, 'VALIDATION', `No promoter with the code ${normaliseCode(req.body.p)}.`);
+    const saved = await putOps('tagLink', cur.id, {
+      ...cur,
+      ...req.body,
+      updatedAt: new Date().toISOString(),
+    });
+    await recordAction({ staff: req.staff, action: 'TAG_LINK_UPDATED', target: cur.id });
+    res.json({ link: linkView(saved) });
+  }),
+);
+
+adminBusinessRouter.delete(
+  '/growth/links/:id',
+  asyncHandler(async (req, res) => {
+    if (!getOps('tagLink', req.params.id)) throw fail(404, 'NOT_FOUND', 'No such link.');
+    await removeOps('tagLink', req.params.id);
+    await recordAction({ staff: req.staff, action: 'TAG_LINK_DELETED', target: req.params.id });
+    res.json({ ok: true });
+  }),
+);
+
+// Scan counts per day and tag (anonymous). Deleting one is for clearing test scans.
+adminBusinessRouter.get(
+  '/growth/link-scans',
+  asyncHandler(async (req, res) => {
+    const range = rangeOf(req.query);
+    const rows = listOps('linkClick')
+      .filter((k) => k.day >= range.from && k.day <= range.to)
+      .sort((a, b) => (a.day === b.day ? b.n - a.n : a.day < b.day ? 1 : -1));
+    res.json({ range, scans: rows, total: rows.reduce((n, k) => n + (k.n || 0), 0) });
+  }),
+);
+
+adminBusinessRouter.delete(
+  '/growth/link-scans/:id',
+  asyncHandler(async (req, res) => {
+    if (!getOps('linkClick', req.params.id)) throw fail(404, 'NOT_FOUND', 'No such scan count.');
+    await removeOps('linkClick', req.params.id);
+    await recordAction({ staff: req.staff, action: 'LINK_SCANS_DELETED', target: req.params.id });
+    res.json({ ok: true });
+  }),
+);
+
+// Which households arrived through an install link. Masked number only, like the Customers page.
+adminBusinessRouter.get(
+  '/growth/install-sources',
+  asyncHandler(async (_req, res) => {
+    const rows = listOps('installSource')
+      .sort((a, b) => (a.at < b.at ? 1 : -1))
+      .map((i) => {
+        const c = getCustomer(i.id);
+        return {
+          id: i.id,
+          at: i.at,
+          src: i.src || null,
+          p: i.p || null,
+          c: i.c || null,
+          r: i.r || null,
+          customer: c ? { name: c.name || null, mobileMasked: maskMobile(c.mobile) } : null,
+        };
+      });
+    res.json({ installs: rows });
+  }),
+);
+
+adminBusinessRouter.patch(
+  '/growth/install-sources/:id',
+  validateBody(z.object({ src: tagPart(), p: tagPart(), c: tagPart(), r: tagPart() })),
+  asyncHandler(async (req, res) => {
+    const cur = getOps('installSource', req.params.id);
+    if (!cur) throw fail(404, 'NOT_FOUND', 'No install source for that customer.');
+    const t = tagOf({ ...cur, ...req.body });
+    const saved = await putOps('installSource', cur.id, {
+      ...cur,
+      src: t.src || null,
+      p: t.p || null,
+      c: t.c || null,
+      r: t.r || null,
+      correctedAt: new Date().toISOString(),
+    });
+    await recordAction({
+      staff: req.staff,
+      action: 'INSTALL_SOURCE_CORRECTED',
+      target: cur.id,
+      details: req.body,
+    });
+    res.json({ install: saved });
+  }),
+);
+
+adminBusinessRouter.delete(
+  '/growth/install-sources/:id',
+  asyncHandler(async (req, res) => {
+    if (!getOps('installSource', req.params.id))
+      throw fail(404, 'NOT_FOUND', 'No install source for that customer.');
+    await removeOps('installSource', req.params.id);
+    await recordAction({
+      staff: req.staff,
+      action: 'INSTALL_SOURCE_DELETED',
+      target: req.params.id,
+    });
+    res.json({ ok: true });
+  }),
+);
+
+// One event can be removed — for test traffic. Audit-logged.
+adminBusinessRouter.delete(
+  '/events/:id',
+  asyncHandler(async (req, res) => {
+    if (!getOps('event', req.params.id)) throw fail(404, 'NOT_FOUND', 'No such event.');
+    await removeOps('event', req.params.id);
+    await recordAction({ staff: req.staff, action: 'EVENT_DELETED', target: req.params.id });
+    res.json({ ok: true });
+  }),
+);
+
+// The 5 PM reminder: who it would reach now, and sending today's straight away.
+adminBusinessRouter.get(
+  '/business/reminders/preview',
+  asyncHandler(async (_req, res) => {
+    const s = getSettings('reminders');
+    const today = new Date(Date.now() + 330 * 60e3).toISOString().slice(0, 10);
+    res.json({
+      ...reminderAudience(),
+      title: s.title,
+      body: s.body,
+      sentToday: !!getOps('reminder', `auto-${today}`),
+    });
+  }),
+);
+
+adminBusinessRouter.post(
+  '/business/reminders/send-now',
+  asyncHandler(async (req, res) => {
+    const today = new Date(Date.now() + 330 * 60e3).toISOString().slice(0, 10);
+    if (getOps('reminder', `auto-${today}`) && req.query.again !== '1')
+      throw fail(409, 'ALREADY_SENT', 'Today’s reminder has already gone out.');
+    const sent = await runCutoffReminder(Date.now(), { force: true });
+    await recordAction({ staff: req.staff, action: 'REMINDER_SENT_NOW', details: { sent } });
+    res.json({ sent });
   }),
 );

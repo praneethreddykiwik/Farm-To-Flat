@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Clock, RotateCcw } from 'lucide-react-native';
 import { Glass, Pressy, Small, Text } from '../ui';
-import { useGetOrdersQuery, useSetCartItemMutation } from '../api/api';
+import { useGetOrdersQuery, useGetSupportQuery, useSetCartItemMutation } from '../api/api';
 import { selectLanguage, showToast } from '../features/ui/uiSlice';
 import { addDaysISO, formatDateShort, todayISO } from '../lib/dates';
 import { haptic } from '../lib/haptics';
@@ -35,6 +35,11 @@ export function HomeNudges({ nextWindow, style }) {
   const router = useRouter();
   const dispatch = useDispatch();
   const orders = useGetOrdersQuery();
+  // Switched in the admin (Friday report → Settings → Home screen nudges). Older API: both on.
+  const nudges = useGetSupportQuery().data?.features?.nudges || {};
+  const countdownOn = nudges.countdown !== false;
+  const repeatOn = nudges.repeatBasket !== false;
+  const hours = Number(nudges.countdownHours) || 12;
   const [setCartItem] = useSetCartItemMutation();
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -46,7 +51,11 @@ export function HomeNudges({ nextWindow, style }) {
   const cutoffMs = nextWindow?.cutoffAt ? Date.parse(nextWindow.cutoffAt) - now : null;
   const tomorrow = addDaysISO(todayISO(), 1);
   const showCountdown =
-    cutoffMs != null && cutoffMs > 0 && cutoffMs < 12 * 3600e3 && nextWindow?.date === tomorrow;
+    countdownOn &&
+    cutoffMs != null &&
+    cutoffMs > 0 &&
+    cutoffMs < hours * 3600e3 &&
+    nextWindow?.date === tomorrow;
   const urgent = showCountdown && cutoffMs < 3600e3;
 
   const list = orders.data?.orders;
@@ -84,7 +93,8 @@ export function HomeNudges({ nextWindow, style }) {
     }
   };
 
-  if (!showCountdown && (!last || hasUpcoming)) return null;
+  const showRepeat = repeatOn && !!last && !hasUpcoming;
+  if (!showCountdown && !showRepeat) return null;
   return (
     <Animated.View
       entering={FadeInDown.duration(320).springify().damping(18)}
@@ -102,7 +112,7 @@ export function HomeNudges({ nextWindow, style }) {
           </Text>
         </Glass>
       ) : null}
-      {last && !hasUpcoming ? (
+      {showRepeat ? (
         <Pressy
           onPress={repeat}
           haptics="soft"

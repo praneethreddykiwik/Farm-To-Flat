@@ -28,7 +28,7 @@ import { wasPlaced, customerKeyOf } from './customer-history.js';
 import { addDaysISO, istInstantMs, todayISO } from './dates.js';
 import { communityWindows } from './windows.js';
 import { planProcurement } from './procure.js';
-import { HEARD_FROM } from './growth.js';
+import { heardFromLabels } from './growth.js';
 
 const DAY = 864e5;
 const IN_HAND = new Set(['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']);
@@ -112,7 +112,7 @@ export function acquisition({ from, to }) {
     ),
   ].map(([k, n]) => ({
     key: k,
-    label: HEARD_FROM[k] || k,
+    label: heardFromLabels()[k] || k,
     firstOrders: n,
     sharePct: pct(n, firsts.length),
   }));

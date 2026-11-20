@@ -14,11 +14,11 @@
  * GET /admin/events, GET|PUT /admin/business/settings/:name.
  */
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { Drawer, ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
+import { Drawer as UiDrawer, ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
 import {
-  IconClock,
   IconDownload,
   IconEdit,
   IconPlus,
@@ -29,13 +29,21 @@ import {
   IconUsers,
 } from '../components/icons.jsx';
 import { Bar, SetupBanner, Tabs, addDays, istToday, pctText } from '../components/business.jsx';
+import { EventSwitches, LinksTab, MoreSettings, deleteEvent } from './ReportControls.jsx';
 import { dateTime, inr, shortDate } from '../lib/format.js';
+
+/**
+ * Drawers are portalled to <body>: the cards they open from are their own stacking layers, so a
+ * drawer rendered inside one was painted under the cards that come after it.
+ */
+const Drawer = (props) => createPortal(<UiDrawer {...props} />, document.body);
 
 const TABS = [
   { key: 'report', label: 'Report' },
+  { key: 'links', label: 'Links & QR' },
   { key: 'sessions', label: 'Counter sessions' },
   { key: 'events', label: 'Events' },
-  { key: 'settings', label: 'Offer & reminder' },
+  { key: 'settings', label: 'Settings' },
 ];
 
 /** Monday of the week that holds `iso`. */
@@ -76,6 +84,7 @@ export function Report() {
       <SetupBanner />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === 'report' && <WeeklyReport week={week} />}
+      {tab === 'links' && <LinksTab week={week} />}
       {tab === 'sessions' && <CounterSessions week={week} />}
       {tab === 'events' && <Events week={week} />}
       {tab === 'settings' && <OfferSettings />}
@@ -613,61 +622,74 @@ function Events({ week }) {
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   if (!data) return <TableSkeleton rows={6} />;
   return (
-    <Card
-      title="Tracking events"
-      hint="Recorded on our own server — no third-party analytics. Events carry business facts only: never a name, phone number or flat. The latest 500 are shown."
-    >
-      <div className="daterange" style={{ marginBottom: 12 }}>
-        <button
-          type="button"
-          className={`chip${!name ? ' is-active' : ''}`}
-          onClick={() => setName('')}
-        >
-          All
-        </button>
-        {data.names.map((n) => (
+    <div className="vstack" style={{ gap: 16 }}>
+      <EventSwitches names={data.names} onChanged={reload} />
+      <Card
+        title="Tracking events"
+        hint="Recorded on our own server — no third-party analytics. Events carry business facts only: never a name, phone number or flat. The latest 500 are shown."
+      >
+        <div className="daterange" style={{ marginBottom: 12 }}>
           <button
-            key={n}
             type="button"
-            className={`chip${name === n ? ' is-active' : ''}`}
-            onClick={() => setName(n)}
+            className={`chip${!name ? ' is-active' : ''}`}
+            onClick={() => setName('')}
           >
-            {n} <span className="muted">{data.counts[n] || 0}</span>
+            All
           </button>
-        ))}
-      </div>
-      {data.events.length === 0 ? (
-        <div className="empty" style={{ padding: '20px 12px' }}>
-          No events this week.
+          {data.names.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`chip${name === n ? ' is-active' : ''}`}
+              onClick={() => setName(n)}
+            >
+              {n} <span className="muted">{data.counts[n] || 0}</span>
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Event</th>
-                <th>Properties</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.events.map((e) => (
-                <tr key={e.id}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{dateTime(e.at)}</td>
-                  <td className="mono">{e.name}</td>
-                  <td className="mono" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
-                    {Object.entries(e.props || {})
-                      .filter(([, v]) => v !== null && v !== '')
-                      .map(([k, v]) => `${k}=${v}`)
-                      .join('  ')}
-                  </td>
+        {data.events.length === 0 ? (
+          <div className="empty" style={{ padding: '20px 12px' }}>
+            No events this week.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Event</th>
+                  <th>Properties</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
+              </thead>
+              <tbody>
+                {data.events.map((e) => (
+                  <tr key={e.id}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{dateTime(e.at)}</td>
+                    <td className="mono">{e.name}</td>
+                    <td className="mono" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
+                      {Object.entries(e.props || {})
+                        .filter(([, v]) => v !== null && v !== '')
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join('  ')}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        aria-label="Delete event"
+                        onClick={() => deleteEvent(e, reload)}
+                      >
+                        <IconTrash size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 
@@ -675,17 +697,16 @@ function Events({ week }) {
 
 function OfferSettings() {
   const offer = useResource('/admin/business/settings/launchOffer');
-  const rem = useResource('/admin/business/settings/reminders');
   const rep = useResource('/admin/business/settings/report');
   if (offer.error) return <ErrorNote error={offer.error} onRetry={offer.reload} />;
-  if (!offer.data || !rem.data || !rep.data) return <TableSkeleton rows={6} />;
+  if (!offer.data || !rep.data) return <TableSkeleton rows={6} />;
   return (
     <div className="vstack" style={{ gap: 16 }}>
-      <LaunchOffer s={offer.data.settings} onSaved={offer.reload} />
       <div className="grid-2 grid-2--even">
-        <Reminder s={rem.data.settings} onSaved={rem.reload} />
+        <LaunchOffer s={offer.data.settings} onSaved={offer.reload} />
         <Capacity s={rep.data.settings} onSaved={rep.reload} />
       </div>
+      <MoreSettings />
     </div>
   );
 }
@@ -848,44 +869,6 @@ function LaunchOffer({ s, onSaved }) {
         <button className="btn btn--primary" onClick={() => save()}>
           Save rules
         </button>
-      </div>
-    </Card>
-  );
-}
-
-function Reminder({ s, onSaved }) {
-  const [time, setTime] = useState(s.time);
-  return (
-    <Card
-      title="5 PM cut-off reminder"
-      hint="Once a day, an app notification to households that have notifications on and no order for tomorrow yet. WhatsApp joins once a Meta-approved reminder template is set up. Each day’s send appears in Weekly insights → Routine."
-    >
-      <div className="vstack" style={{ gap: 12 }}>
-        <span className={`badge ${s.enabled ? 'badge--located' : 'badge--unlocated'}`}>
-          {s.enabled ? 'On' : 'Off'}
-        </span>
-        <label className="field">
-          <span className="field__label">
-            <IconClock size={14} /> Send at (IST)
-          </span>
-          <input
-            type="time"
-            className="field__input"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
-        </label>
-        <div className="hstack" style={{ gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn" onClick={() => saveSettings('reminders', { time }, onSaved)}>
-            Save time
-          </button>
-          <button
-            className={`btn ${s.enabled ? '' : 'btn--primary'}`}
-            onClick={() => saveSettings('reminders', { enabled: !s.enabled, time }, onSaved)}
-          >
-            {s.enabled ? 'Switch off' : 'Switch on'}
-          </button>
-        </div>
       </div>
     </Card>
   );

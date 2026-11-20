@@ -35,7 +35,8 @@ export function OrderSource({ onChange, highlight = false }) {
   const [error, setError] = useState(/** @type {string|null} */ (null));
   const [heard, setHeard] = useState(/** @type {string|null} */ (null));
 
-  const required = !!first?.askHeardFrom;
+  // Required unless the admin made it optional (Friday report → Settings).
+  const required = !!first?.askHeardFrom && first?.required !== false;
   const report = (next) =>
     onChange({ code: applied?.code ?? null, heardFrom: heard, heardRequired: required, ...next });
   useEffect(() => {

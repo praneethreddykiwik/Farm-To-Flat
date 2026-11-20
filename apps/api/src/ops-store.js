@@ -18,6 +18,7 @@
  *   installSource  the tag a customer's Android install arrived with (Play Install Referrer)
  *   counterSession a stall at a community, with its time window and promoters
  *   linkClick      anonymous daily count of clicks on a tagged link
+ *   tagLink        a saved /go link (counter QR, WhatsApp post, flyer) made in the admin
  *   deletion       an account scheduled for deletion, and when the 60-day grace period ends
  *   settings       small documents of switches: referral reward, waitlist threshold, tax rate
  *
@@ -55,6 +56,7 @@ export const OPS_KINDS = [
   'installSource',
   'counterSession',
   'linkClick',
+  'tagLink',
 ];
 
 /**
@@ -291,6 +293,31 @@ export const SETTINGS_DEFAULTS = {
     waitlistOpenAt: 20,
     // Ask "How did you hear about us?" before the first order.
     askHeardFrom: true,
+    // Accept a neighbour's 10-digit mobile number as the referral code (iPhone has no install link).
+    mobileReferral: true,
+  },
+  // The "How did you hear about Fooducia?" question — answers editable in the admin. Keys are what
+  // reports group by, so an answer is switched off rather than deleted once it has been used.
+  sourceQuestion: {
+    required: true,
+    options: [
+      { key: 'COUNTER', label: 'A Fooducia stall in my community', enabled: true },
+      { key: 'WHATSAPP', label: 'The Fooducia WhatsApp channel', enabled: true },
+      { key: 'NEIGHBOUR', label: 'A neighbour or friend', enabled: true },
+      { key: 'RESIDENT_GROUP', label: 'My residents’ group', enabled: true },
+      { key: 'OTHER', label: 'Somewhere else', enabled: true },
+    ],
+  },
+  // Which tracking events are recorded (all of them unless switched off here).
+  tracking: {
+    enabled: true,
+    disabledEvents: [],
+  },
+  // The two Home-screen nudges in the app.
+  appNudges: {
+    countdown: true,
+    countdownHours: 12,
+    repeatBasket: true,
   },
   // Rapture7 brief, launch offer rules — pending Fooducia's approval, so OFF until switched on.
   launchOffer: {
@@ -309,6 +336,8 @@ export const SETTINGS_DEFAULTS = {
   reminders: {
     enabled: false,
     time: '17:00',
+    title: 'Order by 5:30 for tomorrow morning',
+    body: 'Tell the farm what to pick tonight — your vegetables arrive by breakfast.',
   },
   // Counter / capacity numbers the Friday report reads.
   report: {

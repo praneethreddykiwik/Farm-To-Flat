@@ -19,7 +19,7 @@ import { listOrdersForCustomer } from '../store.js';
 import { wasPlaced } from '../lib/customer-history.js';
 import { id as newId } from '../lib/ids.js';
 import { getOps, listOps, putOps, putOpsSoft, removeOps, getSettings } from '../ops-store.js';
-import { HEARD_FROM, HEARD_FROM_ASKED, checkCode, inviteSummary } from '../lib/growth.js';
+import { checkCode, heardFromOptions, inviteSummary } from '../lib/growth.js';
 import { todayISO } from '../lib/dates.js';
 import { track } from '../lib/events.js';
 
@@ -95,9 +95,9 @@ growthRouter.get(
     res.json({
       isFirstOrder: first,
       askHeardFrom: first && !!s.askHeardFrom && !getOps('attribution', req.customerId),
-      // Required before the first order (the brief): the app will not place it unanswered.
-      required: true,
-      options: HEARD_FROM_ASKED.map((key) => ({ key, label: HEARD_FROM[key] })),
+      // Required before the first order unless switched off in the admin.
+      required: getSettings('sourceQuestion').required !== false,
+      options: heardFromOptions().map(({ key, label }) => ({ key, label })),
     });
   }),
 );

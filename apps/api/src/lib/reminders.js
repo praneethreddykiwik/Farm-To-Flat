@@ -25,6 +25,23 @@ import { reportError } from './sentry.js';
 
 const HAS_ORDER = new Set(['PENDING_PAYMENT', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']);
 
+/** Who would get today's reminder right now: households with notifications on and no order yet. */
+export function reminderAudience(now = Date.now()) {
+  const tomorrow = addDaysISO(todayISO(now), 1);
+  let reach = 0;
+  let ordered = 0;
+  for (const cid of customersWithDevices()) {
+    const c = getCustomer(cid);
+    if (!c || isErased(c) || getOps('deletion', cid)) continue;
+    if (
+      listOrdersForCustomer(cid).some((o) => o.deliveryDate === tomorrow && HAS_ORDER.has(o.status))
+    )
+      ordered += 1;
+    else reach += 1;
+  }
+  return { reach, alreadyOrdered: ordered, forDate: tomorrow };
+}
+
 /** Send today's reminder if it is time and it has not gone out yet. Returns how many were sent. */
 export async function runCutoffReminder(now = Date.now(), { force = false } = {}) {
   const s = getSettings('reminders');
@@ -49,8 +66,8 @@ export async function runCutoffReminder(now = Date.now(), { force = false } = {}
     }
     emitNotification(cid, {
       type: 'CUTOFF_REMINDER',
-      title: 'Order by 5:30 for tomorrow morning',
-      body: 'Tell the farm what to pick tonight — your vegetables arrive by breakfast.',
+      title: s.title || 'Order by 5:30 for tomorrow morning',
+      body: s.body || 'Tell the farm what to pick tonight — your vegetables arrive by breakfast.',
       data: { action: 'shop', reminder: today },
     });
     track(
