@@ -906,7 +906,7 @@ export function createCommunity(data) {
  * problem the code exists to prevent — a tester marked one delivered without entering anything and
  * rightly called it a big issue. So cash always requires a code, whatever the global setting says.
  */
-function doorCodeRequired(o) {
+export function doorCodeRequired(o) {
   return db.constants.deliveryOtp.enabled || o.paymentMethod === 'COD';
 }
 
