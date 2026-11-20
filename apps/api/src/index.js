@@ -16,6 +16,7 @@ import { razorpayMode, webhookEnabled } from './lib/razorpay.js';
 initSentry();
 
 import './load-env.js'; // load apps/api/.env before anything reads process.env
+import { timingSafeEqual } from 'node:crypto';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -263,8 +264,26 @@ export const markShuttingDown = () => {
   shuttingDown = true;
 };
 
-app.get('/health', (_req, res) => {
+/**
+ * Is this /health caller allowed the operational details (review #31, 21 Nov 2026)?
+ *
+ * The probe is public — Render reads it, and so can anyone. Status and commit stay public: they are
+ * what a dashboard and a deploy check need. But payment mode, whether the webhook can verify and
+ * whether the origin lock is on are a map for someone probing the payment path, so they now come
+ * back only to a caller that sends `x-health-token` matching HEALTH_TOKEN. With HEALTH_TOKEN unset,
+ * nobody gets them; the same facts stay available to an admin at /admin/payments-status.
+ */
+function healthDetailsAllowed(req) {
+  const want = (process.env.HEALTH_TOKEN || '').trim();
+  if (!want) return false;
+  const got = Buffer.from(String(req.header('x-health-token') || ''), 'utf8');
+  const exp = Buffer.from(want, 'utf8');
+  return got.length === exp.length && timingSafeEqual(got, exp);
+}
+
+app.get('/health', (req, res) => {
   const degraded = (persistEnabled && !isPersistenceEnabled()) || shuttingDown;
+  const details = healthDetailsAllowed(req);
   res.status(degraded ? 503 : 200).json({
     ok: !degraded,
     ...(shuttingDown ? { shuttingDown: true } : {}),
@@ -282,17 +301,22 @@ app.get('/health', (_req, res) => {
     // Whether error reporting is actually ON in THIS process. A DSN set in the dashboard but not
     // yet picked up by the running process looks identical from outside, and "we have Sentry" is
     // worth nothing if the process that would report never initialised it.
-    sentry: sentryEnabled,
-    // Which Razorpay account is actually serving, and whether the webhook can verify. The key ID
-    // is public by design (it ships in the app bundle and goes out with every payment intent), so
-    // only the MODE is exposed here — but "are we on live keys?" is the single most important
-    // operational fact once real money is involved, and it should not require a token to answer.
-    payments: { mode: razorpayMode(), webhook: webhookEnabled },
-    // Whether the origin is refusing traffic that bypassed Cloudflare. Reported because the whole
-    // point of the lock is that it fails invisibly when it is off — everything still works.
-    originLock: originLockEnabled(),
+    //
+    // Which Razorpay account is actually serving, and whether the webhook can verify — "are we on
+    // live keys?" is the single most important operational fact once real money is involved.
+    // Whether the origin is refusing traffic that bypassed Cloudflare: reported because the whole
+    // point of the lock is that it fails invisibly when it is off. All three behind HEALTH_TOKEN
+    // (healthDetailsAllowed above).
+    ...(details
+      ? {
+          sentry: sentryEnabled,
+          payments: { mode: razorpayMode(), webhook: webhookEnabled },
+          originLock: originLockEnabled(),
+        }
+      : {}),
     // Writes waiting for the database (review #12). Above zero means the database refused some
     // writes and they are being retried; it should drain back to 0 on its own within minutes.
+    // Public on purpose: it is a count, and it is what an uptime monitor should alert on.
     unsavedWrites: writeBacklog().pending,
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',

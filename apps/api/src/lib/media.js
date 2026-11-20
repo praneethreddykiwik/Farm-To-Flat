@@ -22,18 +22,29 @@ import { IS_PROD } from './env.js';
 /** Long enough to work through a shift with the queue open, short enough that a leaked link dies. */
 const TTL_SECONDS = 8 * 60 * 60;
 
-const configured = (
-  process.env.MEDIA_TOKEN_SECRET ||
-  process.env.ADMIN_SESSION_SECRET ||
-  ''
-).trim();
-if (IS_PROD && configured.length < 16) {
+/**
+ * Its own key, always (review #31, 21 Nov 2026). Falling back to ADMIN_SESSION_SECRET used to mean
+ * the same bytes signed operator sessions AND photo links — two token formats under one key, so a
+ * flaw in either would be a flaw in both. With MEDIA_TOKEN_SECRET unset, the key is now DERIVED
+ * from the admin secret (HMAC with a fixed label): stable across deploys like before, but a
+ * different key. Safe to change because a media token lives 8 hours and the panel mints fresh ones
+ * on every load — links open at deploy time need one refresh, nothing stored is affected.
+ */
+const MEDIA_LABEL = 'fooducia/media-token/v1';
+const own = (process.env.MEDIA_TOKEN_SECRET || '').trim();
+const admin = (process.env.ADMIN_SESSION_SECRET || '').trim();
+if (IS_PROD && own.length < 16 && admin.length < 16) {
   // eslint-disable-next-line no-console
   console.error(
     '[media] MEDIA_TOKEN_SECRET is not set — using a random per-boot secret, so photo links break at every deploy.',
   );
 }
-const SECRET = configured.length >= 16 ? Buffer.from(configured, 'utf8') : crypto.randomBytes(32);
+const SECRET =
+  own.length >= 16
+    ? Buffer.from(own, 'utf8')
+    : admin.length >= 16
+      ? crypto.createHmac('sha256', admin).update(MEDIA_LABEL).digest()
+      : crypto.randomBytes(32);
 
 const b64 = (buf) => Buffer.from(buf).toString('base64url');
 const mac = (body) => crypto.createHmac('sha256', SECRET).update(body).digest();

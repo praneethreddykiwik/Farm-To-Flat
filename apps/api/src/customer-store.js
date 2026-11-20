@@ -571,17 +571,49 @@ const MAX_SESSIONS_PER_CUSTOMER = 10; // phones + tablets; oldest are dropped be
 // once (their raw values were stored pre-migration), so every customer re-logs in a single time.
 const hashRefresh = (token) => createHash('sha256').update(String(token)).digest('hex');
 
-export function issueTokens(customerId) {
+/**
+ * Refresh-token reuse detection (review #31, 21 Nov 2026).
+ *
+ * Every sign-in starts a FAMILY; each rotation hands its family on to the new token. A token that
+ * has been rotated out is remembered here (hash → family), so if it is presented again we know a
+ * copy of it exists somewhere other than the phone that rotated it — and we end that family, not
+ * just refuse the one request. Scoped to the family, never to the customer: their other phones
+ * are other families and are not touched.
+ *
+ * The grace window is for the app's own race (review #40): two requests can fire a refresh with
+ * the same token at once. The loser presents a token the winner rotated a moment ago. Inside the
+ * window that is refused exactly as before (401 for that request) and nothing is revoked, so a
+ * normal parallel refresh never signs anyone out of the session the winner just received.
+ *
+ * Memory only. After a restart the list is empty and detection resumes for rotations from then on;
+ * a family carried over from the database is named after its token's hash.
+ */
+export const REFRESH_REUSE_GRACE_MS = 30_000;
+const RETIRED_KEEP_MS = 30 * 864e5;
+const retiredRefresh = new Map(); // refresh hash → { family, customerId, at, expiresAt }
+
+function revokeRefreshFamily(family) {
+  for (const [key, rec] of cs.refresh)
+    if ((rec.family || key) === family) {
+      cs.refresh.delete(key);
+      persist.sessionDelete(key);
+    }
+  for (const [tok, s] of cs.sessions) if (s.family === family) cs.sessions.delete(tok);
+  for (const [key, r] of retiredRefresh) if (r.family === family) retiredRefresh.delete(key);
+}
+
+export function issueTokens(customerId, family = `fam_${shortId(16)}`) {
   const accessToken = `acc_${shortId(20)}`;
   const refreshToken = `ref_${shortId(28)}`;
   cs.sessions.set(accessToken, {
     customerId,
     refreshToken,
+    family,
     expiresAt: Date.now() + ACCESS_TTL_MS,
   });
   const refreshExpiresAt = Date.now() + REFRESH_TTL_MS;
   const refreshKey = hashRefresh(refreshToken); // store the hash, hand the raw token to the client
-  cs.refresh.set(refreshKey, { customerId, expiresAt: refreshExpiresAt });
+  cs.refresh.set(refreshKey, { customerId, expiresAt: refreshExpiresAt, family });
   persist.sessionUpsert(refreshKey, customerId, refreshExpiresAt);
   // cap live sessions per customer (oldest first)
   const mine = [...cs.sessions.entries()].filter(([, s]) => s.customerId === customerId);
@@ -628,6 +660,11 @@ export function sweepAuthState(now = Date.now()) {
       persist.sessionDelete(tok);
       removed += 1;
     }
+  for (const [key, r] of retiredRefresh)
+    if (now > r.expiresAt) {
+      retiredRefresh.delete(key);
+      removed += 1;
+    }
   for (const [mobile, hits] of cs.otpRate) {
     const live = hits.filter((t) => now - t < 10 * 60 * 1000);
     if (live.length === 0) {
@@ -649,7 +686,16 @@ if (!IS_TEST) setInterval(() => sweepAuthState(), 10 * 60 * 1000).unref();
 export function rotateRefresh(refreshToken) {
   const refreshKey = hashRefresh(refreshToken); // the raw token is only ever compared by its hash
   const rec = cs.refresh.get(refreshKey);
-  if (!rec) return null;
+  if (!rec) {
+    const retired = retiredRefresh.get(refreshKey);
+    // Replayed after the grace window: someone else holds a copy. End that family (review #31).
+    if (retired && Date.now() - retired.at > REFRESH_REUSE_GRACE_MS) {
+      revokeRefreshFamily(retired.family);
+      // eslint-disable-next-line no-console
+      console.error('[auth] refresh token reused after rotation — that session family revoked.');
+    }
+    return null;
+  }
   // Enforce the refresh lifetime: an expired token is rejected and cleared, not rotated into a
   // fresh pair. Without this a leaked refresh token stays usable forever.
   if (rec.expiresAt && Date.now() > rec.expiresAt) {
@@ -658,11 +704,19 @@ export function rotateRefresh(refreshToken) {
     return null;
   }
   const { customerId } = rec;
+  const family = rec.family || refreshKey;
   cs.refresh.delete(refreshKey);
   persist.sessionDelete(refreshKey);
+  const now = Date.now();
+  retiredRefresh.set(refreshKey, {
+    family,
+    customerId,
+    at: now,
+    expiresAt: Math.min(rec.expiresAt || now + RETIRED_KEEP_MS, now + RETIRED_KEEP_MS),
+  });
   // drop old access tokens for this refresh
   for (const [tok, s] of cs.sessions) if (s.refreshToken === refreshToken) cs.sessions.delete(tok);
-  return { customerId, ...issueTokens(customerId) };
+  return { customerId, ...issueTokens(customerId, family) };
 }
 
 export function logout(customerId) {
