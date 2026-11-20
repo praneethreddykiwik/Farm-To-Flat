@@ -10,12 +10,13 @@
  *   Off by default: switched on in the admin (Growth → Settings → Reminders).
  *
  * Runs once per IST day (an OpsRecord 'reminder' row with id auto-YYYY-MM-DD marks it done, so a
- * restart at 5:01 PM does not send twice). Each send is a cutoff_reminder_sent event, and the day's
+ * restart at 5:01 PM does not send twice). That row is saved to the database BEFORE anything is
+ * sent (review #17, 21 Nov 2026). Each send is a cutoff_reminder_sent event, and the day's
  * reminder appears in Weekly insights → Routine so its effect on orders is measured.
  */
 import { listOrdersForCustomer } from '../store.js';
 import { customersWithDevices, getCustomer } from '../customer-store.js';
-import { getOps, getSettings, putOpsSoft } from '../ops-store.js';
+import { getOps, getSettings, putOps, putOpsSoft } from '../ops-store.js';
 import { emitNotification } from './notify.js';
 import { sendTemplate, whatsappEnabled, cutoffReminderTemplate } from './msg91.js';
 import { addDaysISO, istInstantMs, todayISO } from './dates.js';
@@ -52,6 +53,25 @@ export async function runCutoffReminder(now = Date.now(), { force = false } = {}
   if (getOps('reminder', doneId) && !force) return 0;
   if (!force && now < istInstantMs(today, s.time || '17:00')) return 0;
   const tomorrow = addDaysISO(today, 1);
+  const channel = whatsappEnabled && cutoffReminderTemplate ? 'BROADCAST' : 'PUSH';
+  const marker = {
+    at: new Date(now).toISOString(),
+    channel,
+    communityId: null,
+    by: 'system',
+  };
+
+  // Save "today's reminder has gone" to the database first, and wait for it. The marker used to be
+  // a soft write made AFTER the sends, so a restart mid-send — or before that write landed — found
+  // no marker and sent the whole batch again, at whatever time the new process came up
+  // (review #17, 21 Nov 2026). If the marker cannot be saved we do not send: a missed reminder is
+  // a smaller failure than everyone getting two.
+  try {
+    await putOps('reminder', doneId, { ...marker, note: 'Automatic 5 PM reminder · sending' });
+  } catch (e) {
+    reportError(e, { scope: 'cutoff-reminder', what: 'sent-marker' });
+    return 0;
+  }
 
   let sent = 0;
   let skipped = 0;
@@ -96,11 +116,8 @@ export async function runCutoffReminder(now = Date.now(), { force = false } = {}
   }
   // The day's reminder in the Routine log, so orders before/after it are compared.
   putOpsSoft('reminder', doneId, {
-    at: new Date(now).toISOString(),
-    channel: whatsappEnabled && cutoffReminderTemplate ? 'BROADCAST' : 'PUSH',
-    communityId: null,
+    ...marker,
     note: `Automatic 5 PM reminder · sent ${sent}, skipped ${skipped} who had already ordered`,
-    by: 'system',
   });
   return sent;
 }
