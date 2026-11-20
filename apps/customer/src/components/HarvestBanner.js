@@ -14,10 +14,11 @@ import { relativeDayLabel, windowLabel } from '../lib/dates';
 export function HarvestBanner({ nextWindow, onPress }) {
   // Lower-cased because it reads as part of a sentence ("delivered tomorrow morning"), and taken
   // from the window itself so a community that runs an afternoon slot doesn't get called an evening
-  // one. "Today"/"Tomorrow" drop their capital mid-sentence; a weekday ("Sat 15") keeps its own.
+  // one. Today reads "this morning" (never "today morning"); "Tomorrow" drops its capital
+  // mid-sentence; a weekday ("Sat 15") keeps its own.
   const day = nextWindow ? relativeDayLabel(nextWindow.date) : '';
   const when = nextWindow
-    ? `${/^(Today|Tomorrow)$/.test(day) ? day.toLowerCase() : day} ${windowLabel(nextWindow.window, nextWindow).toLowerCase()}`
+    ? `${day === 'Today' ? 'this' : day === 'Tomorrow' ? 'tomorrow' : day} ${windowLabel(nextWindow.window, nextWindow).toLowerCase()}`
     : 'this week';
   return (
     <Animated.View entering={FadeInDown.duration(420).springify().damping(18)} style={styles.wrap}>

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { ArrowLeft, BellOff, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, BellOff, Camera, ChevronRight, Trash2 } from 'lucide-react-native';
 import {
   Ambient,
   Button,
@@ -23,7 +23,8 @@ import { PlanShoppingList } from '../src/components/PlanShoppingList';
 import { NutritionBars } from '../src/components/NutritionBars';
 import { ConfirmBanner } from '../src/components/ConfirmBanner';
 import { ScoreBar } from '../src/components/ScoreBar';
-import { useGetCatalogQuery } from '../src/api/api';
+import { useGetCatalogQuery, useMealRangeQuery } from '../src/api/api';
+import { selectAiVisible } from '../src/features/role/roleSlice';
 import { dayToggled, planUnscheduled, selectScheduled } from '../src/features/plan/planSlice';
 import { cancelReminders } from '../src/lib/reminders';
 import {
@@ -86,6 +87,14 @@ export default function Calendar() {
   const monthStart = `${anchor.slice(0, 8)}01`;
   const firstWeekday = (weekdayOf(monthStart) + 6) % 7;
   const monthCells = Array.from({ length: 42 }, (_, i) => addDaysISO(monthStart, i - firstWeekday));
+
+  // What was actually eaten, next to the plan — from the calorie tracker's logs on the server.
+  const tracking = useSelector(selectAiVisible);
+  const { data: eatenWeek } = useMealRangeQuery(
+    { from: weekStart, to: addDaysISO(weekStart, 6) },
+    { skip: !tracking },
+  );
+  const eatenDay = eatenWeek?.days?.find((d) => d.date === selected);
 
   const dayMeals = byDate[selected] || [];
   const dayItems = dayMeals.flatMap((m) => m.items);
@@ -255,6 +264,37 @@ export default function Calendar() {
           ) : null}
         </View>
 
+        {tracking && selected <= todayISO() ? (
+          <Pressy
+            onPress={() => router.push({ pathname: '/meal-checkin', params: { date: selected } })}
+            haptics="select"
+            accessibilityRole="button"
+            accessibilityLabel="Open this day in the calorie tracker"
+            style={{ marginBottom: 10 }}
+          >
+            <Glass radius={radius.lg} innerStyle={styles.eaten}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Small muted>Eaten, from the calorie tracker</Small>
+                <Text variant="bodyMedium">
+                  {eatenDay?.mealsLogged
+                    ? `${eatenDay.eaten.kcal} kcal${dayMeals.length ? ` of ${dayTotals.kcal} planned` : ''}`
+                    : 'Nothing logged for this day'}
+                </Text>
+                {eatenDay?.photo?.meals ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Camera size={13} color={colors.amber} />
+                    <Small muted>
+                      Photos read {eatenDay.photo.kcal} kcal (likely {eatenDay.photo.kcalLow}–
+                      {eatenDay.photo.kcalHigh})
+                    </Small>
+                  </View>
+                ) : null}
+              </View>
+              <ChevronRight size={18} color={colors.ink3} />
+            </Glass>
+          </Pressy>
+        ) : null}
+
         {dayMeals.length === 0 ? (
           <EmptyState
             title="Nothing planned"
@@ -353,6 +393,7 @@ export default function Calendar() {
 }
 
 const styles = StyleSheet.create({
+  eaten: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   root: { flex: 1, backgroundColor: colors.canvas },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

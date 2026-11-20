@@ -59,6 +59,8 @@ export const OPS_KINDS = [
   'tagLink',
   'ticket',
   'deletionConsent',
+  'mealPlan',
+  'mealLog',
 ];
 
 /**

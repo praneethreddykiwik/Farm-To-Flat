@@ -30,6 +30,8 @@ const initialState = {
   draft: null, // last generated plan (not yet on the calendar)
   scheduled: persisted.scheduled || [], // [{ id, planId, title, startDate, days:[{date, meals}], reminderIds:[] }]
   provider: persisted.provider || null,
+  // When the profile or calendar last changed on this phone — the server keeps the newest copy.
+  updatedAt: persisted.updatedAt || null,
 };
 
 const planSlice = createSlice({
@@ -97,14 +99,24 @@ const planSlice = createSlice({
       state.provider = action.payload;
       persist(state);
     },
+    /** The copy saved on the server was newer: take it (a reinstall, or a second phone). */
+    planHydrated(state, action) {
+      const { profile, scheduled, updatedAt } = action.payload || {};
+      if (profile) state.profile = { ...DEFAULT_PROFILE, ...profile };
+      if (Array.isArray(scheduled)) state.scheduled = scheduled;
+      persist(state, updatedAt || null);
+    },
   },
 });
 
-function persist(state) {
+/** @param {any} state @param {string|null} [stamp] the server copy's time, when loading it */
+function persist(state, stamp) {
+  state.updatedAt = stamp || new Date().toISOString();
   kv.setJSON(KV_KEYS.plan, {
     profile: state.profile,
     scheduled: state.scheduled,
     provider: state.provider,
+    updatedAt: state.updatedAt,
   });
 }
 
@@ -120,6 +132,7 @@ export const {
   dayOrdered,
   daySkipped,
   dayUnskipped,
+  planHydrated,
 } = planSlice.actions;
 export default planSlice.reducer;
 
@@ -127,6 +140,7 @@ export const selectProfile = (s) => s.plan.profile;
 export const selectDraft = (s) => s.plan.draft;
 export const selectScheduled = (s) => s.plan.scheduled;
 export const selectProvider = (s) => s.plan.provider;
+export const selectPlanUpdatedAt = (s) => s.plan.updatedAt;
 
 /** Meals scheduled on a given ISO date across all plans. */
 export const selectMealsOn = (dateISO) => (s) =>

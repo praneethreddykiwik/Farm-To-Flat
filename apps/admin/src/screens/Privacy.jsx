@@ -92,6 +92,10 @@ const SECTIONS = (CONTACT) => [
         'if you use “Report a problem” in the app: the topic you pick, what you write and our replies, and — so we can reproduce the problem — whether you use an iPhone or Android phone and the app version. Used only to answer you and fix the problem. Our administrators who answer it see your name and a partly hidden mobile number.',
       ],
       [
+        'Meal planner and calorie tracker (staff accounts only, for now)',
+        'if you use them: your age, sex, height, weight, activity, goal and food preferences; the meal plans on your calendar; the meals you log and the calories and nutrients estimated for them; and meal photos, kept for 35 days. Each photo is sent to our image-recognition provider (Groq) to name the dishes. Saved to your account so they follow you to a new phone, used only to show you your plan and your progress, and deleted with your account. These features are not yet offered to customers.',
+      ],
+      [
         'Account deletion requests',
         'when you ask us to delete your account: the date, how you asked (in the app or through support), and that you ticked the box confirming you read what is deleted and what is kept, with the version of that wording. Kept as proof that the deletion was your own request.',
       ],
@@ -278,6 +282,10 @@ const SECTIONS = (CONTACT) => [
       ],
       ['Notification centre', 'your latest 100 updates; deleted with your account.'],
       ['Help requests', 'while your account is open; deleted with your account.'],
+      [
+        'Meal plans and meal logs',
+        'while your account is open; meal photos for 35 days. All of it is deleted with your account.',
+      ],
       [
         'Record of a deletion request',
         'kept after the account is deleted, as proof that you asked; it holds only an internal account reference, the date and what you confirmed — no name, number or address.',

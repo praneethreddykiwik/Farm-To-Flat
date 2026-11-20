@@ -320,6 +320,18 @@ export const api = createApi({
       query: (id) => ({ url: `/meals/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Meals'],
     }),
+    // Per day: the plan's figures, everything logged and the photo-only estimate — the charts.
+    mealRange: b.query({
+      query: ({ from, to }) =>
+        `/meals/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      providesTags: ['Meals'],
+    }),
+    // The diet plan + profile, saved on the server so the calendar survives a reinstall.
+    mealPlan: b.query({ query: () => '/meals/plan', keepUnusedDataFor: 0 }),
+    mealPlanSave: b.mutation({
+      query: (body) => ({ url: '/meals/plan', method: 'PUT', body }),
+      invalidatesTags: ['Meals'],
+    }),
     mealStreak: b.query({
       query: (today) => `/meals/streak?today=${encodeURIComponent(today)}`,
       providesTags: ['Meals'],
@@ -460,6 +472,10 @@ export const {
   useAiPlanMutation,
   useAiIdentifyMutation,
   useMealDayQuery,
+  useMealRangeQuery,
+  useMealPlanQuery,
+  useLazyMealPlanQuery,
+  useMealPlanSaveMutation,
   useMealLogMutation,
   useMealCorrectMutation,
   useMealDeleteMutation,

@@ -9,6 +9,9 @@
  *   GET    /meals/streak?today=        logging streak, this week's days, weekly goal
  *   GET    /meals/foods?q=             the food list behind "search food"
  *   GET    /meals/adherence?from&to    planned-vs-actual over a range
+ *   GET    /meals/range?from&to        per day: plan, everything logged, and the photo-only estimate
+ *   GET    /meals/plan                 the diet plan + profile saved for this account
+ *   PUT    /meals/plan                 save them (the app syncs its calendar here)
  *   POST   /meals/checkin, /meals/:id/photo      the original two-step flow, kept for older app builds
  *
  * A photo goes to a vision model, which names the dishes and guesses the portions. Nothing it says
@@ -45,11 +48,14 @@ import {
   daySummary,
   finaliseAnalysis,
   itemsFromPicks,
+  plannedByDate,
+  rangeSummary,
   searchFoods,
   streakFrom,
   totalsOf,
 } from '../lib/meal-analysis.js';
 import { startMealRetention } from '../lib/meal-retention.js';
+import { getOps, putOps } from '../ops-store.js';
 import { addDaysISO, todayISO } from '../lib/dates.js';
 import {
   allowedImageTypes,
@@ -219,7 +225,9 @@ mealsRouter.post(
     let photoKey;
     if (mode === 'photo') {
       const r = await analysePhoto(req, req.body);
-      items = r.analysis.items;
+      // Tagged so the tracker can show the photo estimate on its own bar, and keep doing so after
+      // the photo itself is deleted at the end of the retention period.
+      items = r.analysis.items.map((it) => ({ ...it, via: 'photo' }));
       confidence = r.analysis.confidence;
       note = r.analysis.note;
       photoKey = r.photoKey;
@@ -316,6 +324,66 @@ mealsRouter.get(
       summary: daySummary(logs),
       photoRetentionDays: MEAL_PHOTO_RETENTION_DAYS,
     });
+  }),
+);
+
+// Per day over a range (at most 62 days): the plan's figures (from the plan saved below), what was
+// logged, and what the photographs alone say. Drives the tracker's charts and the calendar.
+mealsRouter.get(
+  '/range',
+  validateQuery(z.object({ from: DATE, to: DATE })),
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query;
+    if (to < from) throw fail(422, 'VALIDATION', '"to" is before "from".');
+    if (addDaysISO(from, 62) < to) throw fail(422, 'VALIDATION', 'At most 62 days at a time.');
+    const planned = plannedByDate(getOps('mealPlan', req.customerId));
+    const logs = listMealLogs(req.customerId, { from, to });
+    res.json({ from, to, days: rangeSummary(logs, from, to, planned) });
+  }),
+);
+
+// The diet plan, its calendar and the profile behind the daily target. They used to live only on
+// the phone, so a reinstall or a second phone lost them and the server could not compare plan with
+// plate. Saved whole: the app is the editor and sends the full document on every change.
+const MAX_PLAN_BYTES = 600_000;
+mealsRouter.get(
+  '/plan',
+  asyncHandler(async (req, res) => {
+    const doc = getOps('mealPlan', req.customerId);
+    res.json({
+      plan: doc
+        ? { profile: doc.profile, scheduled: doc.scheduled, updatedAt: doc.updatedAt }
+        : null,
+    });
+  }),
+);
+mealsRouter.put(
+  '/plan',
+  validateBody(
+    z.object({
+      profile: z.record(z.string(), z.any()),
+      scheduled: z.array(z.record(z.string(), z.any())).max(40),
+      updatedAt: z.string().max(40).optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    if (JSON.stringify(req.body).length > MAX_PLAN_BYTES)
+      throw fail(413, 'TOO_LARGE', 'That plan is too large to save.');
+    const updatedAt = req.body.updatedAt || new Date().toISOString();
+    const prev = getOps('mealPlan', req.customerId);
+    // An older copy (a second phone that was offline) must not overwrite a newer one.
+    if (prev?.updatedAt && prev.updatedAt > updatedAt)
+      return res.status(409).json({
+        error: { code: 'STALE', message: 'A newer plan is saved.' },
+        plan: { profile: prev.profile, scheduled: prev.scheduled, updatedAt: prev.updatedAt },
+      });
+    await putOps('mealPlan', req.customerId, {
+      customerId: req.customerId,
+      profile: req.body.profile,
+      scheduled: req.body.scheduled,
+      updatedAt,
+    });
+    res.json({ ok: true, updatedAt });
   }),
 );
 

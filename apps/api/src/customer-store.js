@@ -17,6 +17,7 @@ import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist, drainChain } from './persistence.js';
+import { putOpsSoft, removeOps } from './ops-store.js';
 import { deleteSubscriptionsForCustomer } from './demand-store.js';
 import { servingCommunity } from './lib/geo.js';
 import { reportError } from './lib/sentry.js';
@@ -1370,6 +1371,7 @@ export function upsertMealLog(cid, fields) {
     if (list.length > MEALLOG_MAX) list.splice(0, list.length - MEALLOG_MAX);
   }
   persist.mealLogUpsert(row);
+  backupMealLog(row);
   return structuredClone(row);
 }
 
@@ -1383,6 +1385,7 @@ export function deleteMealLog(cid, mid) {
   if (i < 0) return null;
   const [row] = list.splice(i, 1);
   persist.mealLogDelete(row.id);
+  dropMealLogBackup(row.id);
   return structuredClone(row);
 }
 
@@ -1390,7 +1393,10 @@ export function deleteMealLog(cid, mid) {
 export function deleteMealLogsForCustomer(cid) {
   const list = cs.mealLogs.get(cid) || [];
   cs.mealLogs.delete(cid);
-  for (const m of list) persist.mealLogDelete(m.id);
+  for (const m of list) {
+    persist.mealLogDelete(m.id);
+    dropMealLogBackup(m.id);
+  }
   return list.map((m) => structuredClone(m));
 }
 
@@ -1403,6 +1409,7 @@ export function expireMealPhotos(beforeDate) {
         keys.push(m.photoKey);
         m.photoKey = null;
         persist.mealLogUpsert(m);
+        backupMealLog(m);
       }
     }
   }
@@ -1464,4 +1471,48 @@ export function checkWalletIntegrity(customers, entries) {
       drifted.push({ customerId: c.id, cached, fromLedger, diff: cached - fromLedger });
   }
   return drifted;
+}
+
+/*
+ * A second copy of every meal log in the OpsRecord table (kind 'mealLog').
+ *
+ * Meal logs have their own MealLog table, which is created by hand on each database — and if it is
+ * missing, the tracker used to save into memory only and lose everything at the next restart. The
+ * OpsRecord table is the one every operational feature already depends on, so a copy there keeps
+ * the food history whatever the state of MealLog. At start-up the two are merged (newest wins).
+ */
+function backupMealLog(row) {
+  putOpsSoft('mealLog', row.id, row);
+}
+function dropMealLogBackup(mealId) {
+  removeOps('mealLog', mealId).catch(() => {});
+}
+
+/**
+ * Lay the OpsRecord copies over what the MealLog table returned. Call after hydrateCustomerData and
+ * after loadOps. A log present in only one of the two is kept; when in both, the copy holding more
+ * (items or a later estimate) is the one that wrote last, so the backup — written with every
+ * change — wins.
+ * @param {any[]} rows
+ */
+export function mergeMealLogBackups(rows) {
+  let added = 0;
+  for (const m of rows || []) {
+    if (!m?.id || !m.customerId || !m.date || !m.slot) continue;
+    const list =
+      cs.mealLogs.get(m.customerId) || cs.mealLogs.set(m.customerId, []).get(m.customerId);
+    const i = list.findIndex((x) => x.id === m.id);
+    const row = { ...m };
+    delete row.kind;
+    if (i >= 0) list[i] = { ...list[i], ...row };
+    else {
+      list.push(row);
+      added += 1;
+    }
+  }
+  for (const [cid, list] of cs.mealLogs) {
+    list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    cs.mealLogs.set(cid, list);
+  }
+  return added;
 }

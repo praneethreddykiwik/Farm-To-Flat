@@ -1,10 +1,10 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { AppState, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronRight, MapPin } from 'lucide-react-native';
 import { Glass, Pressy, Small, Text, Title } from '../ui';
 import { colors, fonts, radius } from '../theme';
-import { greeting } from '../lib/dates';
+import { greetingFor } from '../lib/dates';
 import { useGetUnreadCountQuery } from '../api/api';
 
 /** @param {{ name?: string|null, address?: any }} props */
@@ -14,10 +14,13 @@ export function HomeHeader({ name, address }) {
   // Poll the unread count so the bell badge stays current while the app is open.
   const { data: unread } = useGetUnreadCountQuery(undefined, { pollingInterval: 30000 });
   const count = unread?.count || 0;
+  const hello = useGreeting();
   return (
     <View style={styles.wrap}>
       <View style={{ flex: 1 }}>
-        <Small muted>{greeting()} ☀️</Small>
+        <Small muted>
+          {hello.text} {hello.emoji}
+        </Small>
         <Title style={{ marginTop: 2 }}>{first ? `Hello, ${first}` : 'Hello there'}</Title>
         <Pressy
           onPress={() => router.push('/profile')}
@@ -92,3 +95,21 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 10, lineHeight: 13, fontFamily: fonts.bodyMedium },
 });
+
+/**
+ * The greeting for right now, kept current: the home screen can stay open from morning into the
+ * afternoon, and coming back to the app hours later must not show the old greeting.
+ */
+function useGreeting() {
+  const [hello, setHello] = useState(() => greetingFor());
+  useEffect(() => {
+    const refresh = () => setHello(greetingFor());
+    const timer = setInterval(refresh, 60_000);
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, []);
+  return hello;
+}

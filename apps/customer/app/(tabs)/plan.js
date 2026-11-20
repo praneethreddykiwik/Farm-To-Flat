@@ -283,24 +283,25 @@ export default function Plan() {
                   <ArrowRight size={18} color={colors.sprout} />
                 </Glass>
               </Pressy>
-
-              <Pressy
-                onPress={() => router.push('/meal-checkin')}
-                haptics="soft"
-                scale={0.985}
-                style={{ marginTop: 12 }}
-              >
-                <Glass radius={radius.lg} innerStyle={styles.calRow}>
-                  <Utensils size={20} color={colors.leafDeep} />
-                  <View style={{ flex: 1 }}>
-                    <Text variant="bodyMedium">Track today’s meals</Text>
-                    <Small muted>Log what you ate · add a photo to check calories vs plan</Small>
-                  </View>
-                  <ArrowRight size={18} color={colors.leafDeep} />
-                </Glass>
-              </Pressy>
             </>
           ) : null}
+
+          {/* Always here, plan or no plan: the tracker compares against the calendar when there is one. */}
+          <Pressy
+            onPress={() => router.push('/meal-checkin')}
+            haptics="soft"
+            scale={0.985}
+            style={{ marginTop: 12 }}
+          >
+            <Glass radius={radius.lg} innerStyle={styles.calRow}>
+              <Utensils size={20} color={colors.leafDeep} />
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyMedium">Calorie tracker</Text>
+                <Small muted>Log meals · photo estimate vs your plan · day and week charts</Small>
+              </View>
+              <ArrowRight size={18} color={colors.leafDeep} />
+            </Glass>
+          </Pressy>
 
           <ConfirmBanner style={{ marginTop: 12 }} />
 

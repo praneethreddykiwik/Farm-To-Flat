@@ -167,16 +167,30 @@ export function windowIsEarly(key, w) {
   return start == null ? key === 'MORNING' : start < 15;
 }
 
-/** Greeting by IST hour */
+/**
+ * Greeting by the IST hour, with an emoji that matches it. Morning starts at 4 — "Good morning"
+ * with a sun at 1:30 at night read as a mistake — and the small hours get a moon.
+ *   4–11 morning ☀️ · 12–16 afternoon 🌤️ · 17–21 evening 🌇 · 22–3 late 🌙
+ * @param {Date} [now]
+ * @returns {{ text: string, emoji: string }}
+ */
+export function greetingFor(now = new Date()) {
+  // 'h23' so midnight is 0, never 24 (some engines print "24" for midnight with hour12: false).
+  const h =
+    Number(
+      new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(
+        now,
+      ),
+    ) % 24;
+  if (h >= 4 && h < 12) return { text: 'Good morning', emoji: '☀️' };
+  if (h >= 12 && h < 17) return { text: 'Good afternoon', emoji: '🌤️' };
+  if (h >= 17 && h < 22) return { text: 'Good evening', emoji: '🌇' };
+  return { text: 'Good evening', emoji: '🌙' };
+}
+
+/** Greeting text by IST hour (kept for callers that only want the words). */
 export function greeting() {
-  const h = Number(
-    new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: 'numeric', hour12: false }).format(
-      new Date(),
-    ),
-  );
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  return greetingFor().text;
 }
 
 /**

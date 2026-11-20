@@ -38,7 +38,7 @@ import { hydrateDemand } from './demand-store.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
-import { hydrateCustomerData } from './customer-store.js';
+import { hydrateCustomerData, mergeMealLogBackups } from './customer-store.js';
 
 // public
 import { authRouter } from './routes/auth.js';
@@ -84,7 +84,7 @@ import { adminChargesRouter } from './routes/admin/charges.js';
 import { adminEmailsRouter } from './routes/admin/admin-emails.js';
 import { adminBusinessRouter } from './routes/admin/business.js';
 import { adminManageRouter } from './routes/admin/manage.js';
-import { loadOps, startOpsRecheck } from './ops-store.js';
+import { listOps, loadOps, startOpsRecheck } from './ops-store.js';
 import { startDeletionSweep } from './lib/account-deletion.js';
 import { startCutoffReminders } from './lib/reminders.js';
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
@@ -434,6 +434,8 @@ async function hydrateOnce() {
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);
+  // Meal logs saved only in the OpsRecord copy (the MealLog table missing or behind) come back too.
+  mergeMealLogBackups(listOps('mealLog'));
   hydrateOrders(tx.orders);
   enableOrderPersistence(); // real orders now write through (import-time seed did not)
   return `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;

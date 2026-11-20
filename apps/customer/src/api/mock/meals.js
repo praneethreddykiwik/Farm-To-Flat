@@ -35,10 +35,57 @@ const addDays = (iso, n) => {
 /** @type {any[]} */
 let LOGS = [];
 let seq = 1;
+/** The plan document the app syncs (GET/PUT /meals/plan), as the real API keeps it. */
+let PLAN = null;
 
 export function resetMockMeals() {
   LOGS = [];
   seq = 1;
+  PLAN = null;
+}
+
+/** Per day: the plan, everything logged, and the photo-only estimate — the real /meals/range shape. */
+function rangeOf(from, to) {
+  const planned = {};
+  for (const plan of PLAN?.scheduled || [])
+    for (const day of plan.days || []) {
+      const t = (planned[day.date] ||= { kcal: 0, protein: 0, carbs: 0, fat: 0, meals: 0 });
+      for (const meal of day.meals || []) {
+        t.kcal += meal.totals?.kcal || 0;
+        t.protein += meal.totals?.protein || 0;
+        t.carbs += meal.totals?.carbs || 0;
+        t.fat += meal.totals?.fat || 0;
+        t.meals += 1;
+      }
+    }
+  const days = [];
+  for (let d = from, g = 0; d <= to && g < 93; d = addDays(d, 1), g++) {
+    const logs = LOGS.filter((m) => m.date === d);
+    const s = daySummary(logs);
+    let kcal = 0;
+    let low = 0;
+    let high = 0;
+    let meals = 0;
+    for (const m of logs.filter(ATE)) {
+      const photo = (m.items || []).filter((it) => it.via === 'photo');
+      if (!photo.length) continue;
+      const k = photo.reduce((a, it) => a + (it.kcal || 0), 0);
+      const sp = SPREAD[m.confidence] ?? SPREAD.low;
+      kcal += k;
+      low += k * (1 - sp * 0.6);
+      high += k * (1 + sp);
+      meals += 1;
+    }
+    days.push({
+      date: d,
+      eaten: s.totals,
+      mealsLogged: s.mealsLogged ?? logs.filter(ATE).length,
+      mealsSkipped: logs.filter((m) => m.status === 'SKIPPED').length,
+      photo: { kcal: r0(kcal), kcalLow: r0(low), kcalHigh: r0(high), meals },
+      planned: planned[d] || null,
+    });
+  }
+  return days;
 }
 
 function itemOf(food, grams, check) {
@@ -171,6 +218,13 @@ export function handleMeals(method, p, query, body) {
     });
   }
   if (method === 'GET' && p === '/meals/streak') return json(streakFrom(query.today));
+  if (method === 'GET' && p === '/meals/range')
+    return json({ from: query.from, to: query.to, days: rangeOf(query.from, query.to) });
+  if (method === 'GET' && p === '/meals/plan') return json({ plan: PLAN });
+  if (method === 'PUT' && p === '/meals/plan') {
+    PLAN = { ...(body || {}), updatedAt: body?.updatedAt || new Date().toISOString() };
+    return json({ ok: true, updatedAt: PLAN.updatedAt });
+  }
   if (method === 'GET' && p === '/meals/foods') {
     const needle = String(query.q || '')
       .trim()
@@ -248,7 +302,7 @@ export function handleMeals(method, p, query, body) {
         itemOf(FOODS[0], 180, 'ok'),
         itemOf(FOODS[2], 150, 'ok'),
         itemOf(FOODS[5], 110, 'adjusted'),
-      ];
+      ].map((it) => ({ ...it, via: 'photo' }));
       Object.assign(log, {
         status: 'DEVIATED',
         items: [...keep, ...plate],

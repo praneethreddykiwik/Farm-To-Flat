@@ -108,6 +108,8 @@ export async function eraseAccountNow(cid) {
     if (getOps('installSource', cid)) await removeOps('installSource', cid);
     // Support requests carry the customer's own words about their problem (privacy policy §9).
     await deleteTicketsOf(cid);
+    // The diet plan and profile saved for the calorie tracker.
+    if (getOps('mealPlan', cid)) await removeOps('mealPlan', cid);
     for (const e of listOps('event').filter((x) => x.customerId === cid))
       putOpsSoft('event', e.id, { ...e, customerId: null });
   } catch (e) {

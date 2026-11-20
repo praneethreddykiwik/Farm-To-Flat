@@ -43,23 +43,30 @@ import {
 } from 'lucide-react-native';
 import { Ambient, Body, Button, Chip, Glass, Label, Pressy, Small, Text, Title } from '../src/ui';
 import { CalorieRing, MacroBar } from '../src/components/CalorieRing';
+import { PlanVsPlate, WeekChart, WeekStrip, mondayOf } from '../src/components/TrackerCharts';
 import { MealLogSheet } from '../src/components/MealLogSheet';
 import { ProfileSheet } from '../src/components/ProfileSheet';
 import { colors, fonts, radius } from '../src/theme';
 import { selectAiVisible } from '../src/features/role/roleSlice';
-import { profileUpdated, selectMealsOn, selectProfile } from '../src/features/plan/planSlice';
+import {
+  profileUpdated,
+  selectMealsOn,
+  selectProfile,
+  selectScheduled,
+} from '../src/features/plan/planSlice';
 import { showToast } from '../src/features/ui/uiSlice';
 import {
   useMealCorrectMutation,
   useMealDayQuery,
   useMealDeleteMutation,
   useMealLogMutation,
+  useMealRangeQuery,
   useMealStreakQuery,
 } from '../src/api/api';
 import { dailyTargets } from '../src/lib/nutrition';
 import { pickPhoto } from '../src/lib/photoPicker';
 import { settleMealReminder } from '../src/lib/mealReminders';
-import { todayISO } from '../src/lib/dates';
+import { addDaysISO, formatDateShort, relativeDayLabel, todayISO } from '../src/lib/dates';
 import { haptic } from '../src/lib/haptics';
 
 const SLOT_ORDER = ['breakfast', 'lunch', 'snack', 'dinner'];
@@ -89,13 +96,41 @@ export default function MealTracker() {
   const params = useLocalSearchParams();
   const aiVisible = useSelector(selectAiVisible);
   const profile = useSelector(selectProfile);
-  const date = todayISO(); // the customer's day, in IST — not the UTC date
+  const today = todayISO(); // the customer's day, in IST — not the UTC date
+  // The day on screen. Opens on today, or on the day passed in (?date= from the meal calendar).
+  const [date, setDate] = useState(() =>
+    /^\d{4}-\d{2}-\d{2}$/.test(String(params.date || '')) ? String(params.date) : todayISO(),
+  );
+  const future = date > today;
   const planned = useSelector(selectMealsOn(date));
+  const scheduled = useSelector(selectScheduled);
+  // The calendar's figures per day, from the plan on this phone (also saved on the server).
+  const planByDate = useMemo(() => {
+    /** @type {Record<string, {kcal:number, protein:number, carbs:number, fat:number}>} */
+    const m = {};
+    for (const p of scheduled)
+      for (const d of p.days || []) {
+        const t = (m[d.date] ||= { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+        for (const meal of d.meals || []) {
+          t.kcal += meal.totals?.kcal || 0;
+          t.protein += meal.totals?.protein || 0;
+          t.carbs += meal.totals?.carbs || 0;
+          t.fat += meal.totals?.fat || 0;
+        }
+      }
+    return m;
+  }, [scheduled]);
+  const weekFrom = mondayOf(date);
+  const weekTo = addDaysISO(weekFrom, 6);
   const consented = !!profile.trackingConsentAt;
   const live = aiVisible && consented;
 
-  const { data: day, isLoading } = useMealDayQuery(date, { skip: !live });
-  const { data: streak } = useMealStreakQuery(date, { skip: !live });
+  const { data: day, isLoading } = useMealDayQuery(date, { skip: !live || future });
+  const { data: streak } = useMealStreakQuery(today, { skip: !live });
+  const { data: range } = useMealRangeQuery({ from: weekFrom, to: weekTo }, { skip: !live });
+  const weekDays = range?.days || [];
+  const thisDay = weekDays.find((d) => d.date === date);
+  const plannedToday = planByDate[date] || thisDay?.planned || null;
   const [logMeal] = useMealLogMutation();
   const [correct] = useMealCorrectMutation();
   const [remove] = useMealDeleteMutation();
@@ -147,7 +182,7 @@ export default function MealTracker() {
         haptic.success();
         sheet.current?.close();
         if (body.mode !== 'skipped') setOpen(slot);
-        settleMealReminder(date, slot); // this meal is answered — its reminder must not fire
+        if (date === today) settleMealReminder(date, slot); // answered — its reminder must not fire
       } catch (e) {
         haptic.error();
         fail(
@@ -160,7 +195,7 @@ export default function MealTracker() {
         setBusy(null);
       }
     },
-    [date, fail, logMeal, plannedBySlot],
+    [date, today, fail, logMeal, plannedBySlot],
   );
 
   const snap = useCallback(
@@ -291,6 +326,18 @@ export default function MealTracker() {
           )}
         </View>
 
+        {live ? (
+          <WeekStrip
+            date={date}
+            onSelect={(d) => {
+              setDate(d);
+              setOpen(null);
+            }}
+            days={weekDays}
+            plannedOn={(d) => planByDate[d]?.kcal || 0}
+          />
+        ) : null}
+
         {!aiVisible ? (
           <Glass radius={radius.lg} innerStyle={styles.card} style={{ marginTop: 20 }}>
             <Body>Meal tracking isn’t available on this account yet.</Body>
@@ -309,8 +356,11 @@ export default function MealTracker() {
             {/* the day */}
             <Animated.View entering={FadeInDown.duration(360)}>
               <Glass radius={radius.xl} innerStyle={styles.dayCard} style={{ marginTop: 18 }}>
+                <Small muted style={{ marginBottom: 8 }}>
+                  {relativeDayLabel(date)} · {formatDateShort(date)}
+                </Small>
                 <CalorieRing
-                  eaten={totals.kcal}
+                  eaten={future ? 0 : totals.kcal}
                   target={targets.kcal}
                   low={totals.kcalLow}
                   high={totals.kcalHigh}
@@ -334,11 +384,44 @@ export default function MealTracker() {
               </Glass>
             </Animated.View>
 
+            {/* plan vs plate: target, the calendar's plan, everything logged, photos on their own */}
+            <PlanVsPlate
+              target={targets.kcal}
+              planned={plannedToday?.kcal || 0}
+              eaten={future ? { kcal: 0 } : totals}
+              photo={thisDay?.photo}
+              plannedMacros={plannedToday}
+              macroTargets={targets}
+              future={future}
+            />
+
+            {/* the week, day against day */}
+            <WeekChart
+              days={
+                weekDays.length
+                  ? weekDays
+                  : Array.from({ length: 7 }, (_, i) => ({ date: addDaysISO(weekFrom, i) }))
+              }
+              date={date}
+              onSelect={(d) => {
+                setDate(d);
+                setOpen(null);
+              }}
+              targets={targets}
+              plannedOn={(d) => planByDate[d] || null}
+            />
+
             {/* the streak */}
             {streak ? <Streak streak={streak} /> : null}
 
             {/* the meals */}
-            <Label style={{ marginTop: 26, marginBottom: 2 }}>Today’s meals</Label>
+            <Label style={{ marginTop: 26, marginBottom: 2 }}>
+              {date === today
+                ? 'Today’s meals'
+                : future
+                  ? 'Planned meals'
+                  : `Meals · ${formatDateShort(date)}`}
+            </Label>
             {isLoading ? <ActivityIndicator color={colors.leaf} style={{ marginTop: 24 }} /> : null}
             {SLOT_ORDER.map((slot, i) => (
               <MealRow
@@ -350,7 +433,17 @@ export default function MealTracker() {
                 busy={busy === slot}
                 expanded={open === slot}
                 onToggle={() => setOpen(open === slot ? null : slot)}
-                onAdd={() => sheet.current?.open(slot)}
+                onAdd={() =>
+                  future
+                    ? dispatch(
+                        showToast({
+                          title: 'Not yet',
+                          message: 'You can log this meal once the day comes.',
+                          tone: 'neutral',
+                        }),
+                      )
+                    : sheet.current?.open(slot)
+                }
                 onAdjust={adjust}
                 onRetake={() => snap(slot)}
                 onDelete={del}
@@ -422,7 +515,7 @@ function Consent({ retention, onAgree, onDecline }) {
     ],
     [
       'Your age, weight, height and goal',
-      'are stored on this phone and set your daily target. They are sent to the planner only when you ask it for a plan.',
+      'set your daily target, and are saved to your Fooducia account with your meal plan, so they follow you to a new phone. They are sent to the AI planner only when you ask it for a plan.',
     ],
   ];
   return (

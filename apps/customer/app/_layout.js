@@ -47,6 +47,7 @@ import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
 import { useMealReminders } from '../src/hooks/useMealReminders';
+import { usePlanSync } from '../src/hooks/usePlanSync';
 import { routeForNotification } from '../src/lib/notificationRoutes';
 import { api } from '../src/api/api';
 import { initTracking, readInstallReferrerOnce, track } from '../src/lib/tracking';
@@ -282,6 +283,7 @@ function Root() {
   useReducedMotionSync();
   useOrderLiveNotification(); // Android: keep the live order card in sync (iOS Live Activities later)
   useMealReminders(); // meal-time "snap your plate" reminders, re-armed as the plan and logs change
+  usePlanSync(); // the diet plan, calendar and target profile, saved on the server
   const [fontsLoaded, fontError] = /** @type {any} */ (
     useFonts({
       Fraunces_500Medium_Italic,

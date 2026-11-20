@@ -351,3 +351,97 @@ function daysBetween(a, b) {
   };
   return Math.abs(Math.round((t(b) - t(a)) / 86400000));
 }
+
+/**
+ * Was this food read off a photograph? Foods the camera found are tagged `via: 'photo'` when they
+ * are logged (21 Nov 2026), so the tag survives the photo itself being deleted after the retention
+ * period. Older logs carry no tag: for those, a log that still has its photo counts as a photo.
+ */
+const fromPhoto = (log, item) => item?.via === 'photo' || (!item?.via && !!log.photoKey);
+
+/**
+ * Day-by-day comparison for the tracker's charts: what the plan said, what was logged, and — kept
+ * separate, because it is the least certain number on the screen — what the photographs alone say,
+ * with the range that goes with it.
+ *
+ * @param {any[]} logs  the customer's logs (any range)
+ * @param {string} from YYYY-MM-DD
+ * @param {string} to   YYYY-MM-DD (inclusive)
+ * @param {Record<string, {kcal:number, protein:number, carbs:number, fat:number, meals:number}>} [planned]
+ *   the plan's figures per date, from the plan saved on the server
+ */
+export function rangeSummary(logs, from, to, planned = {}) {
+  const byDate = {};
+  for (const m of logs || []) if (m.date >= from && m.date <= to) (byDate[m.date] ||= []).push(m);
+  const days = [];
+  for (let d = from, guard = 0; d <= to && guard < 93; d = addDays(d, 1), guard++) {
+    const dayLogs = byDate[d] || [];
+    const s = daySummary(dayLogs);
+    let photoKcal = 0;
+    let photoLow = 0;
+    let photoHigh = 0;
+    let photoMeals = 0;
+    for (const m of dayLogs.filter(ATE)) {
+      const items = Array.isArray(m.items) ? m.items : [];
+      const photoItems = items.filter((it) => fromPhoto(m, it));
+      if (!photoItems.length) continue;
+      photoMeals += 1;
+      const kcal = photoItems.reduce((a, it) => a + (it.kcal || 0), 0);
+      const spread = SPREAD[m.confidence] ?? SPREAD.low;
+      photoKcal += kcal;
+      photoLow += kcal * (1 - spread * 0.6);
+      photoHigh += kcal * (1 + spread);
+    }
+    // The plan's figure: the saved plan first; failing that, what the logs carried from it.
+    const fromLogs = dayLogs.reduce((a, m) => a + (m.plannedKcal || 0), 0);
+    const p = planned[d];
+    days.push({
+      date: d,
+      eaten: s.totals,
+      mealsLogged: s.mealsLogged,
+      mealsSkipped: s.mealsSkipped,
+      photo: {
+        kcal: r0(photoKcal),
+        kcalLow: r0(photoLow),
+        kcalHigh: r0(photoHigh),
+        meals: photoMeals,
+      },
+      planned: p
+        ? {
+            kcal: r0(p.kcal),
+            protein: r1(p.protein),
+            carbs: r1(p.carbs),
+            fat: r1(p.fat),
+            meals: p.meals,
+          }
+        : fromLogs
+          ? { kcal: r0(fromLogs), protein: null, carbs: null, fat: null, meals: null }
+          : null,
+    });
+  }
+  return days;
+}
+
+/**
+ * The plan's figures per date, from a saved plan document ({ scheduled: [{ days: [{ date, meals }] }] }).
+ * @param {any} doc
+ */
+export function plannedByDate(doc) {
+  /** @type {Record<string, {kcal:number, protein:number, carbs:number, fat:number, meals:number}>} */
+  const out = {};
+  for (const plan of Array.isArray(doc?.scheduled) ? doc.scheduled : []) {
+    for (const day of Array.isArray(plan?.days) ? plan.days : []) {
+      if (typeof day?.date !== 'string') continue;
+      const t = (out[day.date] ||= { kcal: 0, protein: 0, carbs: 0, fat: 0, meals: 0 });
+      for (const meal of Array.isArray(day.meals) ? day.meals : []) {
+        const m = meal?.totals || {};
+        t.kcal += Number(m.kcal) || 0;
+        t.protein += Number(m.protein) || 0;
+        t.carbs += Number(m.carbs) || 0;
+        t.fat += Number(m.fat) || 0;
+        t.meals += 1;
+      }
+    }
+  }
+  return out;
+}
