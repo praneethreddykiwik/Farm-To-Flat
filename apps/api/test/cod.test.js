@@ -181,6 +181,32 @@ describe('cash on delivery', () => {
     expect(Number(getOrder(id).codCollectedPaise)).toBe(0);
   });
 
+  // Review #11 (21 Nov 2026): more cash than is due must not be banked against the order.
+  it('refuses more cash than is due, and banks nothing', async () => {
+    const ctx = await basket();
+    const { body } = await placeCod(ctx);
+    const id = body.order.id;
+    await advance(id, 'PACKING');
+    await advance(id, 'OUT_FOR_DELIVERY');
+    const otp = getOrder(id).deliveryOtp;
+    const due = Number(body.order.totalPaise);
+
+    const over = await request(app)
+      .post(`/api/v1/admin/orders/${id}/deliver`)
+      .send({ otp, collectedPaise: due + 100 });
+    expect(over.status).toBe(422);
+    expect(over.body.error.code).toBe('COD_OVER_PAYMENT');
+    expect(over.body.error.details.duePaise).toBe(String(due));
+    expect(getOrder(id).status).toBe('OUT_FOR_DELIVERY');
+    expect(Number(getOrder(id).codCollectedPaise)).toBe(0);
+    // The code was not spent by the refusal — the right amount still completes it.
+    const ok = await request(app)
+      .post(`/api/v1/admin/orders/${id}/deliver`)
+      .send({ otp, collectedPaise: due });
+    expect(ok.status).toBe(200);
+    expect(Number(ok.body.order.codCollectedPaise)).toBe(due);
+  });
+
   it('completes on the right code and the full amount, and stops asking for money', async () => {
     const ctx = await basket();
     const { body } = await placeCod(ctx);

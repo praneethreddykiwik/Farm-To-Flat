@@ -990,6 +990,20 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
           details: { duePaise: String(due), collectedPaise: String(taken) },
         },
       };
+    // Review #11 (21 Nov 2026): and refuse MORE than is due. An over-entry (₹5,000 for ₹500, or the
+    // note handed over before change) was banked as collected cash, so the order read as paid
+    // beyond its total and cash reconciliation was out by the difference with nothing to explain
+    // it. The figure is the cash KEPT, after change.
+    if (taken > due)
+      return {
+        error: {
+          status: 422,
+          code: 'COD_OVER_PAYMENT',
+          message:
+            'That is more than the amount due. Enter the cash kept for this order, after giving change.',
+          details: { duePaise: String(due), collectedPaise: String(taken) },
+        },
+      };
     o.codCollectedPaise = Number(o.codCollectedPaise || 0) + taken;
     o.codCollectedAt = new Date().toISOString();
   }
