@@ -351,6 +351,13 @@ export const getCommunity = (cid) => {
 };
 export const listCoupons = () => clone(db.coupons);
 export const listOrders = () => clone(db.orders);
+/** How many records this store holds in memory — counts only, no copies (review #16). */
+export const storeSizes = () => ({
+  products: db.products.length,
+  communities: db.communities.length,
+  orders: db.orders.length,
+  procurementRecords: db.procurementRecords.size,
+});
 export const getOrder = (oid) => {
   const o = db.orders.find((x) => x.id === oid);
   return o ? clone(o) : null;
