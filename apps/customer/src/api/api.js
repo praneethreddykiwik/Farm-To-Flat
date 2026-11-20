@@ -32,7 +32,14 @@ export const api = createApi({
       query: (body) => ({ url: '/auth/otp/request', method: 'POST', body }),
     }),
     verifyOtp: b.mutation({ query: (body) => ({ url: '/auth/otp/verify', method: 'POST', body }) }),
-    logout: b.mutation({ query: () => ({ url: '/auth/logout', method: 'POST', body: {} }) }),
+    // `expoPushToken`: this phone stops getting the signed-out account's notifications (review #42).
+    logout: b.mutation({
+      query: (/** @type {{ expoPushToken?: string|null } | undefined} */ arg) => ({
+        url: '/auth/logout',
+        method: 'POST',
+        body: arg?.expoPushToken ? { expoPushToken: arg.expoPushToken } : {},
+      }),
+    }),
 
     // ---- profile & address ----
     getMe: b.query({ query: () => '/me', providesTags: ['Me'] }),

@@ -4,6 +4,7 @@ import { bootFinished, selectAuth, signedIn, signedOut } from '../features/auth/
 import { clearRefreshToken, readRefreshToken, saveRefreshToken } from '../features/auth/secure';
 import { api, useLogoutMutation } from '../api/api';
 import { baseQuery } from '../api/baseQuery';
+import { currentPushToken } from '../lib/notifications';
 
 /**
  * Restores a session from the refresh token on cold start (one rotation). Used once in the root layout.
@@ -55,7 +56,7 @@ export function useSignOut() {
   const [logout] = useLogoutMutation();
   return async () => {
     try {
-      await logout().unwrap();
+      await logout({ expoPushToken: currentPushToken() }).unwrap();
     } catch {}
     await clearRefreshToken();
     dispatch(signedOut({ reason: 'user' }));
