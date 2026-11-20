@@ -19,6 +19,7 @@ import {
   requestOtp,
   resolveAccess,
   rotateRefresh,
+  unregisterDevice,
   verifyOtp,
 } from '../customer-store.js';
 
@@ -115,7 +116,12 @@ authRouter.post(
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     const cid = token && resolveAccess(token);
-    if (cid) logout(cid);
+    if (cid) {
+      // The app sends this phone's push token so the signed-out account stops notifying it.
+      const push = typeof req.body?.expoPushToken === 'string' ? req.body.expoPushToken : null;
+      if (push) unregisterDevice(cid, push);
+      logout(cid);
+    }
     res.json({ ok: true });
   }),
 );

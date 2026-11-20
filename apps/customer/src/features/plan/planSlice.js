@@ -32,7 +32,21 @@ const initialState = {
   provider: persisted.provider || null,
   // When the profile or calendar last changed on this phone — the server keeps the newest copy.
   updatedAt: persisted.updatedAt || null,
+  // Whose plan this is. Review #35 (21 Nov 2026): the profile (age, weight, health conditions) stayed
+  // on the phone after sign-out, and usePlanSync then saved it into the NEXT account that signed in.
+  owner: persisted.owner || null,
 };
+
+/** A blank planner, for a different person (or nobody). */
+function reset(state) {
+  state.profile = { ...DEFAULT_PROFILE };
+  state.draft = null;
+  state.scheduled = [];
+  state.provider = null;
+  state.updatedAt = null;
+  state.owner = null;
+  kv.remove(KV_KEYS.plan);
+}
 
 const planSlice = createSlice({
   name: 'plan',
@@ -107,16 +121,39 @@ const planSlice = createSlice({
       persist(state, updatedAt || null);
     },
   },
+  extraReducers: (builder) => {
+    // Tapping "Sign out" takes the plan off the phone. An expired session keeps it (the same person
+    // is about to sign back in) — the owner check below catches a different person doing so.
+    builder.addCase('auth/signedOut', (state, /** @type {any} */ action) => {
+      if (action?.payload?.reason === 'user') reset(state);
+    });
+    builder.addCase('auth/signedIn', (state, /** @type {any} */ action) => {
+      const who = action?.payload?.customer?.id || null;
+      if (!who) return;
+      if (state.owner && state.owner !== who) reset(state);
+      if (state.owner !== who) {
+        // A copy saved before owners were recorded is adopted by the first account to sign in —
+        // it can only have been made by someone on this phone, and wiping it would lose their plan.
+        state.owner = who;
+        if (state.updatedAt) writeCopy(state);
+      }
+    });
+  },
 });
 
 /** @param {any} state @param {string|null} [stamp] the server copy's time, when loading it */
 function persist(state, stamp) {
   state.updatedAt = stamp || new Date().toISOString();
+  writeCopy(state);
+}
+
+function writeCopy(state) {
   kv.setJSON(KV_KEYS.plan, {
     profile: state.profile,
     scheduled: state.scheduled,
     provider: state.provider,
     updatedAt: state.updatedAt,
+    owner: state.owner,
   });
 }
 
@@ -137,6 +174,7 @@ export const {
 export default planSlice.reducer;
 
 export const selectProfile = (s) => s.plan.profile;
+export const selectPlanOwner = (s) => s.plan.owner;
 export const selectDraft = (s) => s.plan.draft;
 export const selectScheduled = (s) => s.plan.scheduled;
 export const selectProvider = (s) => s.plan.provider;

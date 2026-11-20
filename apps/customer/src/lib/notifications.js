@@ -79,6 +79,10 @@ export async function ensureAndroidChannels() {
   });
 }
 
+/** This phone's push token, once registered — sent with sign-out so the server forgets it. */
+let lastPushToken = /** @type {string|null} */ (null);
+export const currentPushToken = () => lastPushToken;
+
 export async function registerForPush() {
   try {
     if (Platform.OS === 'android') {
@@ -98,6 +102,7 @@ export async function registerForPush() {
     if (env.isExpoGo && Platform.OS === 'android') return null;
     if (!env.easProjectId) return null;
     const token = await Notifications.getExpoPushTokenAsync({ projectId: env.easProjectId });
+    lastPushToken = token.data;
     return token.data;
   } catch {
     return null;

@@ -1269,9 +1269,25 @@ export const savePayment = (payment) => persist.paymentUpsert(payment);
 export function registerDevice(cid, token) {
   const set = cs.devices.get(cid) || cs.devices.set(cid, new Set()).get(cid);
   if (token) {
+    // One phone, one account. The database row already MOVES to the new account (upsert on the
+    // token), but the in-memory copy kept it under the previous account too — so whoever signed in
+    // on this phone before kept receiving their order updates on it (review #42, 21 Nov 2026).
+    for (const [other, tokens] of cs.devices) if (other !== cid) tokens.delete(token);
     set.add(token);
     persist.deviceUpsert(cid, token);
   }
+}
+/**
+ * Stop sending this customer's notifications to this phone (they signed out on it).
+ * Only removes the token if it is registered to THIS customer — a sign-out must not be able to
+ * unregister someone else's phone.
+ */
+export function unregisterDevice(cid, token) {
+  const set = cs.devices.get(cid);
+  if (!token || !set?.has(token)) return false;
+  set.delete(token);
+  persist.deviceDelete(cid, token);
+  return true;
 }
 /** A customer's registered Expo push tokens (for the push sender). */
 export const getDevices = (cid) => [...(cs.devices.get(cid) || [])];

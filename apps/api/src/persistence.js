@@ -810,6 +810,9 @@ export const persist = {
   devicesDeleteForCustomer: wt('device.deleteForCustomer', (customerId) =>
     prisma.device.deleteMany({ where: { customerId } }),
   ),
+  deviceDelete: wt('device.delete', (cid, token) =>
+    prisma.device.deleteMany({ where: { expoPushToken: token, customerId: cid } }),
+  ),
   deviceUpsert: wt('device.upsert', (cid, token) =>
     prisma.device.upsert({
       where: { expoPushToken: token },
