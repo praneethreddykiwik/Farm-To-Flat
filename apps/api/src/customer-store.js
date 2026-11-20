@@ -1241,6 +1241,8 @@ export function setGatewayOrderId(payment, razorpayOrderId) {
   persist.paymentUpsert(payment);
   return payment;
 }
+/** Every payment intent (a copy of the list, not the objects). For sweeps that look across them. */
+export const listPayments = () => [...cs.payments.values()];
 /** Find a payment from Razorpay's order id — the only handle the webhook has. */
 export function paymentByRazorpayOrderId(razorpayOrderId) {
   if (!razorpayOrderId) return null;
