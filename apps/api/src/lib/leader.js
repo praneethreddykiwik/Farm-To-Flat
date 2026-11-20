@@ -93,8 +93,11 @@ export async function releaseLeadership() {
   }
 }
 
-/** Test hook. */
-export function __setLeaderState({ isLeader: l, known = true, stop = false } = {}) {
+/**
+ * Test hook.
+ * @param {{ isLeader?: boolean, known?: boolean, stop?: boolean }} [state]
+ */
+export function __setLeaderState({ isLeader: l = false, known = true, stop = false } = {}) {
   leader = !!l;
   leaseKnown = known;
   stopped = stop;
