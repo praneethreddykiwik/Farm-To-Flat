@@ -25,6 +25,7 @@ import {
   patchOrder,
   updateOrderStatus,
   completeDelivery,
+  doorCodeRequired,
   listOrderIssues,
   openIssueCount,
   resolveOrderIssue,
@@ -100,6 +101,26 @@ function mayConfirmUnpaid(order) {
   if (order.paymentMethod === 'COD') return true;
   if (Number(order.gatewayAmountPaise || 0) === 0) return true; // fully covered by wallet
   return !!capturedPaymentForOrder(order.id);
+}
+
+/**
+ * Is this a move to the state the order is already in?
+ *
+ * Review #8 (21 Nov 2026): the state machine let "X → X" through, and a repeat is not harmless —
+ * OUT_FOR_DELIVERY → OUT_FOR_DELIVERY minted a NEW door code (so the one the customer had already
+ * been sent stopped working at the door) and every repeat re-sent the push and WhatsApp. A double
+ * tap on the board, or a community swept twice, did exactly that. A repeat now changes nothing and
+ * tells nobody.
+ *
+ * The one repeat kept on purpose: an order that went out while door codes were switched off has no
+ * code, and completeDelivery's DELIVERY_OTP_MISSING tells the operator to "send it out for delivery
+ * again to issue one". That re-dispatch still mints a code and notifies, because there is no code
+ * yet to break.
+ */
+function isRepeat(o, status) {
+  if (o.status !== status) return false;
+  if (status === 'OUT_FOR_DELIVERY' && !o.deliveryOtp && doorCodeRequired(o)) return false;
+  return true;
 }
 
 /** Every transition INTO CANCELLED goes through the shared cancel path (refund + coupon release). */
@@ -560,6 +581,12 @@ adminOrdersRouter.patch(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    // Already there: answer with the order as it is — no new door code, no second notification.
+    if (isRepeat(o, req.body.status))
+      return res.json({
+        order: linkOrderIssuePhotos(orderAdmin(o), baseUrlOf(req)),
+        unchanged: true,
+      });
     // A cash order, or one with a code waiting to be read out, must go through /deliver so the
     // proof is actually taken. Without this the board could mark it delivered and the money would
     // never be recorded against it.
@@ -616,6 +643,12 @@ adminOrdersRouter.post(
       const o = getOrder(id);
       if (!o) {
         skipped.push({ id, reason: 'NOT_FOUND' });
+        continue;
+      }
+      // Already in that state (moved by hand, or the group swept twice): leave it alone — see
+      // isRepeat. Reported, not silently dropped, so the count still adds up.
+      if (isRepeat(o, status)) {
+        skipped.push({ id, reason: 'UNCHANGED', orderNumber: o.orderNumber });
         continue;
       }
       if (o.status !== status && !(NEXT[o.status] || []).includes(status)) {
