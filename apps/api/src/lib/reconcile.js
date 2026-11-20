@@ -21,6 +21,7 @@ import { fetchPaymentsForOrder, razorpayEnabled } from './razorpay.js';
 import { IS_TEST } from './env.js';
 import { listOrders } from '../store.js';
 import { paymentForOrder } from '../customer-store.js';
+import { isLeader } from './leader.js';
 
 /** Orders younger than this are still legitimately in flight; leave them alone. */
 const MIN_AGE_MS = 10 * 60 * 1000;
@@ -112,6 +113,7 @@ export async function reconcileOnce({ now = Date.now() } = {}) {
 if (!IS_TEST)
   setInterval(
     () =>
+      isLeader() &&
       reconcileOnce().catch((e) => {
         // eslint-disable-next-line no-console
         console.error('[reconcile] pass failed', e?.message || e);

@@ -23,6 +23,7 @@ import { getOps, listOps, putOps, putOpsSoft, removeOps, opsReady } from '../ops
 import { deleteMealPhotos } from './storage.js';
 import { reportError } from './sentry.js';
 import { deleteTicketsOf } from './tickets.js';
+import { isLeader } from './leader.js';
 
 export const GRACE_DAYS = 60;
 const DAY = 864e5;
@@ -184,6 +185,7 @@ let sweepTimer = null;
 export function startDeletionSweep(everyMs = 60 * 60e3) {
   if (sweepTimer) return sweepTimer;
   const run = () =>
+    isLeader() &&
     sweepDeletions().catch((e) => reportError(e, { scope: 'erasure', what: 'sweep' }));
   setTimeout(run, 60e3).unref?.();
   sweepTimer = setInterval(run, everyMs);

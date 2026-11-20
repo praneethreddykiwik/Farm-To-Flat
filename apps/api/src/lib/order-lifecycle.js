@@ -22,6 +22,7 @@ import {
 import { createRazorpayRefund, razorpayEnabled } from './razorpay.js';
 import { notifyAdmins } from './staff-notify.js';
 import { IS_TEST } from './env.js';
+import { isLeader } from './leader.js';
 
 const TERMINAL = new Set(['CANCELLED', 'DELIVERED']);
 
@@ -208,4 +209,4 @@ export function expirePendingOrders({
   }
   return n;
 }
-if (!IS_TEST) setInterval(() => expirePendingOrders(), 60 * 1000).unref();
+if (!IS_TEST) setInterval(() => isLeader() && expirePendingOrders(), 60 * 1000).unref();

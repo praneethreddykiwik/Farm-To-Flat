@@ -22,6 +22,7 @@ import { addDaysISO, istInstantMs, todayISO } from './dates.js';
 import { track } from './events.js';
 import { isErased } from './customer-history.js';
 import { reportError } from './sentry.js';
+import { isLeader } from './leader.js';
 
 const HAS_ORDER = new Set(['PENDING_PAYMENT', 'CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY']);
 
@@ -109,6 +110,7 @@ let timer = null;
 export function startCutoffReminders(everyMs = 60e3) {
   if (timer) return timer;
   timer = setInterval(() => {
+    if (!isLeader()) return; // one instance sends (review #14)
     runCutoffReminder().catch((e) => reportError(e, { scope: 'cutoff-reminder' }));
   }, everyMs);
   timer.unref?.();
