@@ -860,13 +860,14 @@ export function deleteAddress(cid, addrId) {
 }
 
 // ── coupons ───────────────────────────────────────────────────────────────────
+/**
+ * Money off for a coupon. FREE_ITEM is 0 here: its gift is a ₹0 LINE (evaluateCoupon → freeLine),
+ * not money. It used to take the product's price off instead, so the customer paid less and the
+ * coriander the coupon promised never arrived (review #6, 21 Nov 2026).
+ */
 export function couponDiscount(c, subtotal) {
   if (c.type === 'PERCENT') return Math.round((subtotal * c.valueBp) / 10000);
   if (c.type === 'FLAT') return Math.min(subtotal, c.valuePaise);
-  if (c.type === 'FREE_ITEM') {
-    const p = getProduct(c.freeProductId);
-    return p ? p.pricePaise : 0;
-  }
   return 0;
 }
 
@@ -918,6 +919,38 @@ export function validateCoupon(cid, code, subtotal) {
       },
     };
   return { coupon: c };
+}
+
+/**
+ * THE coupon evaluator — the cart preview (priceCart) and checkout (POST /orders) both call this,
+ * so the basket can never show a coupon that checkout then refuses, or a discount checkout does not
+ * give. Review #6 (21 Nov 2026): the preview looked the code up and priced it with no checks at all
+ * (expired, switched off, already used, cap reached, minimum not met), while checkout ran them.
+ *
+ * @returns {StoreResult<{ coupon: any, discountPaise: number,
+ *   freeLine: { productId: string, quantity: number, name: string } | null }>}
+ */
+export function evaluateCoupon(cid, code, subtotal) {
+  const r = validateCoupon(cid, code, subtotal);
+  if (r.error) return r;
+  const c = r.coupon;
+  if (c.type === 'FREE_ITEM') {
+    const p = getProduct(c.freeProductId);
+    // A gift we cannot pack is a promise we cannot keep — say so before the order, not at the door.
+    if (!p || p.isActive === false || (p.availability && p.availability !== 'AVAILABLE'))
+      return {
+        error: {
+          status: 409,
+          code: 'COUPON_ITEM_UNAVAILABLE',
+          message:
+            'The free item on this code is not available right now. Remove the code to continue.',
+        },
+      };
+    // One of the product's own steps (a bunch, a piece, 250 g) — the smallest thing we sell of it.
+    const quantity = Number(p.increment) > 0 ? Number(p.increment) : 1;
+    return { coupon: c, discountPaise: 0, freeLine: { productId: p.id, quantity, name: p.name } };
+  }
+  return { coupon: c, discountPaise: couponDiscount(c, subtotal), freeLine: null };
 }
 
 export function redeemCoupon(cid, code) {
@@ -974,12 +1007,36 @@ export function priceCart(cid) {
   const subtotal = items.reduce((s, i) => s + Number(i.lineTotalPaise), 0);
   let coupon = null;
   let discount = 0;
+  let freeItem = null;
+  let couponError = null;
   if (cur.couponCode) {
-    const c = listCoupons().find((x) => x.code === cur.couponCode);
-    if (c) {
-      discount = couponDiscount(c, subtotal);
-      coupon = { code: c.code, type: c.type, label: c.label, discountPaise: String(discount) };
+    // The same evaluator checkout uses (evaluateCoupon). A code that checkout would refuse stays
+    // visible — so the customer can see it and remove it — but takes nothing off, and says why.
+    const ev = evaluateCoupon(cid, cur.couponCode, subtotal);
+    const c = ev.coupon || listCoupons().find((x) => x.code === cur.couponCode);
+    if (ev.error) couponError = { code: ev.error.code, message: ev.error.message };
+    else {
+      discount = ev.discountPaise;
+      if (ev.freeLine) {
+        const p = getProduct(ev.freeLine.productId);
+        freeItem = {
+          productId: p.id,
+          name: p.name,
+          unit: p.unit,
+          quantity: ev.freeLine.quantity.toFixed(3),
+          image: proxyImageUrl(p.image),
+          valuePaise: String(Math.round(p.pricePaise * ev.freeLine.quantity)),
+        };
+      }
     }
+    if (c)
+      coupon = {
+        code: c.code,
+        type: c.type,
+        label: c.label,
+        discountPaise: String(discount),
+        ...(couponError ? { error: couponError } : {}),
+      };
   }
   // Launch offer (lib/launch-offer.js) — only when no coupon is applied: one discount per order.
   let offer = null;
@@ -1020,6 +1077,10 @@ export function priceCart(cid) {
     minOrderValuePaise: String(k.minOrderValuePaise),
     meetsMinimum: subtotal >= k.minOrderValuePaise,
     coupon,
+    /** Why the applied code takes nothing off — checkout refuses it with this same error. */
+    couponError,
+    /** A FREE_ITEM coupon's gift: added to the order as a ₹0 line. */
+    freeItem,
     walletBalancePaise: String(wallet(cid).balancePaise),
   };
 }

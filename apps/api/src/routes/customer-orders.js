@@ -30,7 +30,7 @@ import {
 } from '../store.js';
 import {
   clearCart,
-  couponDiscount,
+  evaluateCoupon,
   createPayment,
   getCustomer,
   getWallet,
@@ -40,7 +40,6 @@ import {
   rawCart,
   redeemCoupon,
   releaseCoupon,
-  validateCoupon,
   flushWallet,
   refundablePaymentsForOrder,
 } from '../customer-store.js';
@@ -168,11 +167,28 @@ customerOrdersRouter.post(
 
     const subtotal = Number(priced.subtotalPaise);
     let discount = 0;
+    let freeLine = null;
     const code = couponCode || rawCart(cid).couponCode;
     if (code) {
-      const r = validateCoupon(cid, code, subtotal);
+      // The SAME evaluator the cart preview used (review #6, 21 Nov 2026).
+      const r = evaluateCoupon(cid, code, subtotal);
       if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
-      discount = couponDiscount(r.coupon, subtotal);
+      discount = r.discountPaise;
+      freeLine = r.freeLine;
+    }
+    // A FREE_ITEM gift is a real line, so it counts against the farm's day cap like any other.
+    if (freeLine) {
+      const p = getProduct(freeLine.productId);
+      const already =
+        (orderedQty.get(p.id) || 0) +
+        Number(priced.items.find((l) => l.productId === p.id)?.quantity || 0);
+      if (freeLine.quantity > Math.max(0, Number(p.dailyCap) - already))
+        throw fail(
+          409,
+          'COUPON_ITEM_UNAVAILABLE',
+          `The free ${p.name} on this code is fully booked for that day. Pick another day or remove the code.`,
+          { productId: p.id },
+        );
     }
     // Launch offer — the same function the cart preview used, and only without a coupon.
     let discountType = code ? 'COUPON' : null;
@@ -241,11 +257,24 @@ customerOrdersRouter.post(
       deliveryDate,
       window,
       deliveryNote: deliveryNote || null,
-      lines: rawCart(cid).items.map((i) => ({
-        productId: i.productId,
-        quantity: i.quantity,
-        note: i.note,
-      })),
+      lines: [
+        ...rawCart(cid).items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          note: i.note,
+        })),
+        // The coupon's gift, at ₹0 — so it is packed and delivered, not just promised.
+        ...(freeLine
+          ? [
+              {
+                productId: freeLine.productId,
+                quantity: freeLine.quantity,
+                note: `Free with ${code}`,
+                free: true,
+              },
+            ]
+          : []),
+      ],
       couponCode: code || null,
       couponDiscountPaise: discount,
       walletAppliedPaise: walletApplied,
