@@ -388,6 +388,9 @@ export function orderAdmin(o, today = new Date().toISOString().slice(0, 10)) {
     // Whether a code is waiting to be read out — never the code itself. Handing the operator the
     // digits would defeat the point: it is proof the CUSTOMER was at the door.
     deliveryOtpPending: !!(o.status === 'OUT_FOR_DELIVERY' && o.deliveryOtp),
+    // Too many wrong codes (review #30): the console can show why the hand-over is refused.
+    deliveryCodeLocked: !!o.deliveryOtpLockedAt,
+    deliveryCodeAttempts: Number(o.deliveryOtpAttempts || 0),
     deliveredAt: o.deliveredAt || null,
     issues: (o.issues || []).map(issueAdmin),
   };

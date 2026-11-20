@@ -903,9 +903,60 @@ export function updateOrderStatus(oid, status) {
     // over the full 4-digit range (1000–9999 inclusive).
     o.deliveryOtp = String(randomInt(1000, 10000));
     o.deliveryOtpIssuedAt = new Date().toISOString();
+    // A fresh code starts a fresh count: the guesses spent on the old one say nothing about this one.
+    o.deliveryOtpAttempts = 0;
+    o.deliveryOtpLockedAt = null;
   }
   if (orderPersist) persist.orderUpsert(o);
   return clone(o);
+}
+
+/**
+ * Wrong door codes allowed per issued code before the order locks (review #30, 21 Nov 2026).
+ *
+ * A 4-digit code is 9,000 possibilities. With no limit, anyone holding a delivery login could walk
+ * the whole space from the staff app in minutes and mark an order delivered without ever reaching
+ * the customer — the one thing the code exists to prove. Five is plenty for a customer misreading
+ * their phone; after that the order refuses further codes until an admin unlocks it or the order is
+ * sent out again (which mints a new code and tells the customer).
+ *
+ * The count lives on the order in memory, not in a column (there is none, and tables are created by
+ * hand): a restart resets it. That is a deploy, not something a rider can trigger, so the bound
+ * holds in practice; the lock itself is in the audit trail either way.
+ */
+export const DELIVERY_CODE_MAX_ATTEMPTS = 5;
+
+const deliveryCodeLocked = () => ({
+  status: 423,
+  code: 'DELIVERY_CODE_LOCKED',
+  message:
+    'Too many wrong codes for this order. Ask an admin to unlock it, or send it out for delivery again to issue a new code.',
+});
+
+/** Count one wrong code; returns the error to send, and whether THIS attempt locked the order. */
+function wrongDeliveryCode(o) {
+  o.deliveryOtpAttempts = Number(o.deliveryOtpAttempts || 0) + 1;
+  if (o.deliveryOtpAttempts >= DELIVERY_CODE_MAX_ATTEMPTS) {
+    o.deliveryOtpLockedAt = new Date().toISOString();
+    return { error: deliveryCodeLocked(), locked: true, attempts: o.deliveryOtpAttempts };
+  }
+  return {
+    error: {
+      status: 422,
+      code: 'DELIVERY_OTP_INVALID',
+      message: 'That code does not match. Ask the customer to read it again.',
+      details: { attemptsLeft: DELIVERY_CODE_MAX_ATTEMPTS - o.deliveryOtpAttempts },
+    },
+  };
+}
+
+/** An admin lifts a delivery-code lock (the customer is on the phone and the rider at the door). */
+export function unlockDeliveryCode(oid) {
+  const o = db.orders.find((x) => x.id === oid);
+  if (!o) return null;
+  o.deliveryOtpAttempts = 0;
+  o.deliveryOtpLockedAt = null;
+  return { order: clone(o) };
 }
 
 /**
@@ -938,14 +989,11 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
   // and the comparison is skipped entirely. A tester entered a wrong code and the order went to
   // DELIVERED. So the setting now decides only whether a MISSING code is fatal; a present one is
   // always verified.
-  if (o.deliveryOtp && String(otp || '').trim() !== o.deliveryOtp)
-    return {
-      error: {
-        status: 422,
-        code: 'DELIVERY_OTP_INVALID',
-        message: 'That code does not match. Ask the customer to read it again.',
-      },
-    };
+  //
+  // A locked order refuses every code, the right one included — otherwise the lock would only slow
+  // a guesser down rather than stop them (review #30).
+  if (o.deliveryOtp && o.deliveryOtpLockedAt) return { error: deliveryCodeLocked() };
+  if (o.deliveryOtp && String(otp || '').trim() !== o.deliveryOtp) return wrongDeliveryCode(o);
   if (doorCodeRequired(o)) {
     // No code on the order means it was dispatched while codes were switched OFF, and the setting
     // has been turned on since. The old guard was `enabled && o.deliveryOtp`, so that order sailed
@@ -961,14 +1009,7 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
             'This order went out before door codes were required, so it has none. Send it out for delivery again to issue one.',
         },
       };
-    if (String(otp || '').trim() !== o.deliveryOtp)
-      return {
-        error: {
-          status: 422,
-          code: 'DELIVERY_OTP_INVALID',
-          message: 'That code does not match. Ask the customer to read it again.',
-        },
-      };
+    if (String(otp || '').trim() !== o.deliveryOtp) return wrongDeliveryCode(o);
   }
   const due =
     o.paymentMethod === 'COD'

@@ -25,6 +25,7 @@ import {
   patchOrder,
   updateOrderStatus,
   completeDelivery,
+  unlockDeliveryCode,
   listOrderIssues,
   openIssueCount,
   resolveOrderIssue,
@@ -404,8 +405,41 @@ adminOrdersRouter.post(
   ),
   asyncHandler(async (req, res) => {
     const r = completeDelivery(req.params.id, req.body);
+    if (r.locked) {
+      // The attempt that tripped the lock is the one worth a durable record: who was at the door
+      // typing codes, and when (review #30, 21 Nov 2026). The lock is already in force, so a failed
+      // audit write is logged rather than allowed to undo it.
+      await recordAction({
+        staff: req.staff,
+        action: 'DELIVERY_CODE_LOCKED',
+        target: req.params.id,
+        details: { attempts: r.attempts },
+      }).catch((e) =>
+        // eslint-disable-next-line no-console
+        console.error('[deliver] audit of DELIVERY_CODE_LOCKED not saved:', e?.message || e),
+      );
+    }
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
     notifyCustomer(r.order);
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(r.order), baseUrlOf(req)) });
+  }),
+);
+
+/**
+ * Lift a delivery-code lock (review #30). Admins only — see RULES in auth.js; the person typing
+ * the codes must not be the one who can reset the count. Audited before it takes effect.
+ */
+adminOrdersRouter.post(
+  '/orders/:id/deliver-unlock',
+  asyncHandler(async (req, res) => {
+    if (!getOrder(req.params.id)) throw fail(404, 'NOT_FOUND', 'Order not found');
+    await recordAction({
+      staff: req.staff,
+      action: 'DELIVERY_CODE_UNLOCKED',
+      target: req.params.id,
+    });
+    const r = unlockDeliveryCode(req.params.id);
+    if (!r) throw fail(404, 'NOT_FOUND', 'Order not found');
     res.json({ order: linkOrderIssuePhotos(orderAdmin(r.order), baseUrlOf(req)) });
   }),
 );
