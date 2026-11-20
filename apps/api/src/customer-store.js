@@ -1269,6 +1269,12 @@ export const savePayment = (payment) => persist.paymentUpsert(payment);
 export function registerDevice(cid, token) {
   const set = cs.devices.get(cid) || cs.devices.set(cid, new Set()).get(cid);
   if (token) {
+    // A phone belongs to whoever is signed in on it NOW. Review #9 (21 Nov 2026): when a second
+    // account signed in on the same phone, the database moved the token (Device.expoPushToken is
+    // unique; see persistence.deviceUpsert) but this map kept it under the first account too — so
+    // until the next restart the first account's pushes, door code included, rang on a phone
+    // someone else was using. Same rule in memory as on disk: one token, one account.
+    for (const [other, tokens] of cs.devices) if (other !== cid) tokens.delete(token);
     set.add(token);
     persist.deviceUpsert(cid, token);
   }
