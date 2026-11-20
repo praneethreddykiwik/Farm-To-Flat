@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { bootFinished, selectAuth, signedIn, signedOut } from '../features/auth/authSlice';
-import { clearRefreshToken, readRefreshToken, saveRefreshToken } from '../features/auth/secure';
+import { clearRefreshToken, readRefreshToken } from '../features/auth/secure';
 import { api, useLogoutMutation } from '../api/api';
-import { baseQuery } from '../api/baseQuery';
+import { refreshSessionShared } from '../api/baseQuery';
 import { currentPushToken } from '../lib/notifications';
 
 /**
@@ -21,24 +21,28 @@ export function useSessionBootstrap() {
         // 30-day refresh token on a DEFINITIVE 401 (genuinely expired). A transient/timeout/5xx/cold-start
         // failure must PRESERVE the token — deleting it here was a permanent sign-out that dumped users
         // back to the OTP screen every time they opened the app while the server was waking up.
+        // The SAME in-flight refresh as everything else in the app (review #40): a separate one here
+        // raced the first screen's own 401-refresh, spent the single-use token twice, and the loser
+        // signed the customer out. The shared one saves the rotated token and signs out only on a
+        // definite 401 itself.
+        const shared = refreshSessionShared({ dispatch });
         const out = /** @type {any} */ (
           await Promise.race([
-            baseQuery(
-              { url: '/auth/refresh', method: 'POST', body: { refreshToken } },
-              /** @type {any} */ ({ getState: () => ({ auth: { accessToken: null } }), dispatch }),
-              {},
-            ),
-            new Promise((res) => setTimeout(() => res({ error: { status: 'TIMEOUT' } }), 22000)),
+            shared,
+            new Promise((res) => setTimeout(() => res('TIMEOUT'), 22000)),
           ])
         );
         if (!alive) return;
-        if (out.data?.accessToken) {
-          await saveRefreshToken(out.data.refreshToken);
-          dispatch(signedIn({ accessToken: out.data.accessToken, customer: out.data.customer }));
-        } else if (out.error?.status === 401) {
-          await clearRefreshToken(); // token is genuinely invalid → sign out cleanly
+        if (out && out !== 'TIMEOUT' && out.accessToken) {
+          dispatch(signedIn({ accessToken: out.accessToken, customer: out.customer }));
+        } else if (out === 'TIMEOUT') {
+          // A slow wake. Keep going in the background: when the server answers, sign them in
+          // where they are instead of leaving them on the sign-in screen until the next launch.
+          shared.then((late) => {
+            if (alive && late?.accessToken)
+              dispatch(signedIn({ accessToken: late.accessToken, customer: late.customer }));
+          });
         }
-        // else (timeout / 0 / 5xx): keep the token; this launch stays signed out but the next retries.
       } catch {
         // network throw — keep the token, fall through to signed out for this launch
       } finally {

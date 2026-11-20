@@ -11,6 +11,8 @@ import { accessRefreshed, signedOut } from '../features/auth/authSlice';
 import { clearRefreshToken, readRefreshToken, saveRefreshToken } from '../features/auth/secure';
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+export const REQUEST_TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
 
 /** @returns {{ code: string, message: string, details?: any, status: number }} */
 function normaliseError(status, body) {
@@ -33,20 +35,33 @@ async function rawRequest({ url, method = 'GET', body, headers }) {
     const res = await handle(method, url, body, headers);
     return { status: res.status, data: res.body };
   }
+  // A timeout (review #39, 21 Nov 2026). With none, a request to a server that accepted the
+  // connection and then went quiet never settled: the screen spun forever and a cart write stayed
+  // "saving" until the app was killed. It now ends as a network error, which every caller already
+  // handles (retry / keep the session). Photo uploads get longer.
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    payload && payload.length > 100_000 ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+  );
   let res;
+  let data = null;
   try {
     res = await fetch(`${API_BASE}${url}`, {
       method,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: payload,
+      signal: controller.signal,
     });
+    try {
+      data = await res.json();
+    } catch {}
   } catch {
     return { status: 0, data: null };
+  } finally {
+    clearTimeout(timer);
   }
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {}
   return { status: res.status, data };
 }
 
@@ -58,9 +73,27 @@ const BACKOFF_MS = [1000, 2000, 4000, 8000, 12000, 16000, 20000];
 
 let refreshPromise = null;
 
+/**
+ * THE way to refresh the session, for every caller in the app.
+ *
+ * Review #40 (21 Nov 2026): a refresh token works once — using it rotates it. The launch-time
+ * restore (useSession), this transport's 401 handler and the staff console's client each refreshed
+ * on their own, so two of them firing together spent the same token twice; the second got 401 and
+ * signed the customer out for no reason. They now all share this one in-flight refresh.
+ *
+ * @param {{ dispatch: Function }} api
+ * @returns {Promise<{ accessToken: string, refreshToken?: string, customer?: any } | null>}
+ */
+export function refreshSessionShared(api) {
+  return refreshSession(api).then(() => lastRefresh);
+}
+/** @type {any} */
+let lastRefresh = null;
+
 async function refreshSession(api) {
   if (!refreshPromise) {
     refreshPromise = (async () => {
+      lastRefresh = null;
       const refreshToken = await readRefreshToken();
       if (!refreshToken) return null;
       // Render's free tier cold-starts (~50s). Retry the refresh through it, and ONLY sign the user
@@ -83,11 +116,13 @@ async function refreshSession(api) {
           headers: { 'X-Request-Id': requestId() },
         });
         if (res.status >= 200 && res.status < 300 && res.data?.accessToken) {
+          lastRefresh = res.data;
           await saveRefreshToken(res.data.refreshToken);
           api.dispatch(accessRefreshed(res.data.accessToken));
           return res.data.accessToken;
         }
         if (res.status === 401) {
+          lastRefresh = null;
           await clearRefreshToken();
           api.dispatch(signedOut());
           return null;
