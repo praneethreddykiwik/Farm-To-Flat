@@ -32,6 +32,7 @@ import {
   clearCart,
   couponDiscount,
   createPayment,
+  setGatewayOrderId,
   getCustomer,
   getWallet,
   ledgerPush,
@@ -301,7 +302,7 @@ customerOrdersRouter.post(
           receipt: pay.id,
           notes: { purpose: 'ORDER', orderId: order.id, customerId: cid },
         });
-        pay.razorpayOrderId = rzOrder.id;
+        setGatewayOrderId(pay, rzOrder.id);
       }
       paymentIntent = {
         paymentId: pay.id,
@@ -480,7 +481,7 @@ customerOrdersRouter.post(
         receipt: pay.id,
         notes: { purpose: 'ORDER_ADDITION', orderId: order.id, customerId: cid },
       });
-      pay.razorpayOrderId = rz.id;
+      setGatewayOrderId(pay, rz.id);
       razorpayOrderId = rz.id;
     }
     res.json({

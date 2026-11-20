@@ -1206,6 +1206,19 @@ export function createPayment(cid, { purpose, orderId, amountPaise }) {
   return payment;
 }
 export const getPayment = (paymentId) => cs.payments.get(paymentId) || null;
+/**
+ * Record the order id Razorpay issued for this intent AND write it to the database.
+ *
+ * createPayment persists a placeholder (`order_xxx`) before the gateway call. Setting the real id on
+ * the in-memory object alone (what the routes used to do) left the placeholder in Postgres: after a
+ * restart the webhook and the reconcile sweep look payments up by Razorpay's order id and found
+ * nothing, so a customer who had paid stayed "awaiting payment" (review #1, 21 Nov 2026).
+ */
+export function setGatewayOrderId(payment, razorpayOrderId) {
+  payment.razorpayOrderId = razorpayOrderId;
+  persist.paymentUpsert(payment);
+  return payment;
+}
 /** Find a payment from Razorpay's order id — the only handle the webhook has. */
 export function paymentByRazorpayOrderId(razorpayOrderId) {
   if (!razorpayOrderId) return null;

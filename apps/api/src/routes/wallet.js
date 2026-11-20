@@ -13,6 +13,7 @@ import { money } from '../lib/money.js';
 import { constants, getOrder, patchOrder } from '../store.js';
 import {
   createPayment,
+  setGatewayOrderId,
   getPayment,
   getWallet,
   ledgerPush,
@@ -62,7 +63,7 @@ walletRouter.post(
         receipt: pay.id,
         notes: { purpose: 'TOPUP', customerId: req.customerId },
       });
-      pay.razorpayOrderId = order.id;
+      setGatewayOrderId(pay, order.id);
     }
     res.status(201).json({
       paymentIntent: {
