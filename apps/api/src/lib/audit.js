@@ -20,7 +20,7 @@ export const _memoryTrail = memory;
 /**
  * Record one action. Throws if it cannot be recorded.
  *
- * @param {{ staff: { email?: string, role?: string, viaGoogle?: boolean } | undefined,
+ * @param {{ staff: { email?: string, role?: string, viaGoogle?: boolean, via?: string } | undefined,
  *           action: string, target?: string|null, details?: any }} input
  */
 export async function recordAction({ staff, action, target = null, details = {} }) {
@@ -31,7 +31,7 @@ export async function recordAction({ staff, action, target = null, details = {} 
     // the question "who did this" has no answer, and the log should say so rather than look complete.
     actor: staff?.email || 'shared-token',
     role: staff?.role || 'UNKNOWN',
-    via: staff?.viaGoogle ? 'google' : 'shared-token',
+    via: staff?.via || (staff?.viaGoogle ? 'google' : 'shared-token'),
     action,
     target,
     details,

@@ -4,7 +4,7 @@
  * the Prisma tables replace; the shapes and rules mirror apps/customer/src/api/mock/server.js so the
  * app runs against this API unchanged (EXPO_PUBLIC_USE_MOCKS=0). Money is integer paise.
  */
-import { randomInt, createHash } from 'node:crypto';
+import { randomInt, createHash, timingSafeEqual } from 'node:crypto';
 import {
   adjustCouponRedemption,
   constants,
@@ -33,6 +33,8 @@ const cs = {
   otp: new Map(),
   /** mobile -> [timestamps] — OTP request rate limiter */
   otpRate: new Map(),
+  /** mobile -> timestamps of WRONG codes in the last hour (survives a fresh code request) */
+  otpFails: new Map(),
   /** customerId -> customer */
   customers: new Map(),
   /** mobile -> customerId */
@@ -402,8 +404,47 @@ export async function requestOtp(mobile) {
  * @returns {StoreResult<{ ok: true }>}
  */
 export function checkOtpOnly(mobile, otp) {
+  return checkCode(mobile, otp);
+}
+
+const OTP_MAX_ATTEMPTS = 3;
+const OTP_FAILS_PER_HOUR = 10;
+const LOCKED = {
+  error: {
+    status: 423,
+    code: 'OTP_LOCKED',
+    message: 'Too many attempts. Wait a few minutes and try again.',
+  },
+};
+
+/** Equal-length, constant-time comparison of two short codes. */
+function sameCode(a, b) {
+  const x = Buffer.from(String(a ?? ''));
+  const y = Buffer.from(String(b ?? ''));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/**
+ * The one place a login / change-number / deletion code is checked.
+ *
+ * Review #22 (21 Nov 2026): the old check compared the code BEFORE looking at the attempt count and
+ * never removed the record, so "3 wrong guesses" locked nothing — guess 4, 50 or 500 still signed
+ * in if it was right. Now:
+ *   - a locked code is refused before it is compared, and the record is dropped, so the only way on
+ *     is a NEW code (which the per-number request limit already caps);
+ *   - wrong guesses are also counted per number for an hour, across fresh codes, so requesting a
+ *     new code does not reset the guessing budget.
+ * @returns {StoreResult<{ ok: true }>}
+ */
+function checkCode(mobile, otp) {
+  const now = Date.now();
+  const fails = (cs.otpFails.get(mobile) || []).filter((t) => now - t < 60 * 60 * 1000);
+  if (fails.length >= OTP_FAILS_PER_HOUR) {
+    cs.otp.delete(mobile);
+    return LOCKED;
+  }
   const rec = cs.otp.get(mobile);
-  if (!rec || Date.now() > rec.expiresAt)
+  if (!rec || now > rec.expiresAt)
     return {
       error: {
         status: 401,
@@ -411,21 +452,23 @@ export function checkOtpOnly(mobile, otp) {
         message: 'That code has expired. Request a new one.',
       },
     };
-  if (otp !== rec.otp) {
+  if (rec.attempts >= OTP_MAX_ATTEMPTS) {
+    cs.otp.delete(mobile);
+    return LOCKED;
+  }
+  if (!sameCode(otp, rec.otp)) {
     rec.attempts += 1;
-    if (rec.attempts >= 3)
-      return {
-        error: {
-          status: 423,
-          code: 'OTP_LOCKED',
-          message: 'Too many attempts. Wait a few minutes and try again.',
-        },
-      };
+    fails.push(now);
+    cs.otpFails.set(mobile, fails);
+    if (rec.attempts >= OTP_MAX_ATTEMPTS) {
+      cs.otp.delete(mobile);
+      return LOCKED;
+    }
     return {
       error: {
         status: 401,
         code: 'OTP_INVALID',
-        message: `That code is not right. ${3 - rec.attempts} attempts left.`,
+        message: `That code is not right. ${OTP_MAX_ATTEMPTS - rec.attempts} attempts left.`,
       },
     };
   }
@@ -472,36 +515,8 @@ export function changeCustomerMobile(customerId, newMobile) {
 }
 
 export function verifyOtp(mobile, otp) {
-  const rec = cs.otp.get(mobile);
-  if (!rec || Date.now() > rec.expiresAt) {
-    return {
-      error: {
-        status: 401,
-        code: 'OTP_INVALID',
-        message: 'That code has expired. Request a new one.',
-      },
-    };
-  }
-  if (otp !== rec.otp) {
-    rec.attempts += 1;
-    if (rec.attempts >= 3) {
-      return {
-        error: {
-          status: 423,
-          code: 'OTP_LOCKED',
-          message: 'Too many attempts. Wait a few minutes and try again.',
-        },
-      };
-    }
-    return {
-      error: {
-        status: 401,
-        code: 'OTP_INVALID',
-        message: `That code is not right. ${3 - rec.attempts} attempts left.`,
-      },
-    };
-  }
-  cs.otp.delete(mobile);
+  const checked = checkCode(mobile, otp);
+  if (checked.error) return checked;
   let customerId = cs.byMobile.get(mobile);
   const isNew = !customerId;
   if (!customerId) {
@@ -601,6 +616,13 @@ export function sweepAuthState(now = Date.now()) {
       cs.otpRate.delete(mobile);
       removed += 1;
     } else if (live.length !== hits.length) cs.otpRate.set(mobile, live);
+  }
+  for (const [mobile, fails] of cs.otpFails) {
+    const live = fails.filter((t) => now - t < 60 * 60 * 1000);
+    if (live.length === 0) {
+      cs.otpFails.delete(mobile);
+      removed += 1;
+    } else if (live.length !== fails.length) cs.otpFails.set(mobile, live);
   }
   return removed;
 }
