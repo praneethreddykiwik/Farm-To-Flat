@@ -102,21 +102,66 @@ async function refundGatewayPayment(order, pay, note) {
     savePayment(pay);
     return outstanding;
   } catch (e) {
+    const firstFailure = !pay.refundFailed;
     pay.refundFailed = e?.message || 'Refund failed';
-    pay.refundFailedAt = new Date().toISOString();
+    pay.refundFailedAt = pay.refundFailedAt || new Date().toISOString();
+    pay.refundAttempts = Number(pay.refundAttempts || 0) + 1;
     savePayment(pay);
     // eslint-disable-next-line no-console
     console.error(
-      `[refund] ${order.orderNumber}: gateway refund of ${outstanding} paise FAILED — ${pay.refundFailed}. Refund it by hand in the Razorpay dashboard.`,
+      `[refund] ${order.orderNumber}: gateway refund of ${outstanding} paise FAILED (attempt ${pay.refundAttempts}) — ${pay.refundFailed}.`,
     );
-    notifyAdmins({
-      title: 'Refund needs a human',
-      body: `${order.orderNumber} · ₹${Math.round(outstanding / 100)} could not be refunded automatically.`,
-      data: { type: 'REFUND_FAILED', orderId: order.id },
-    });
+    // Tell the operators once when it first fails (it will be retried automatically), and again
+    // only when the retries give up and a person has to refund it by hand.
+    if (firstFailure || pay.refundAttempts === REFUND_MAX_ATTEMPTS)
+      notifyAdmins({
+        title: firstFailure ? 'Refund failed — retrying' : 'Refund needs a human',
+        body: firstFailure
+          ? `${order.orderNumber} · ₹${Math.round(outstanding / 100)} could not be refunded yet. We will keep trying.`
+          : `${order.orderNumber} · ₹${Math.round(outstanding / 100)} still not refunded after ${REFUND_MAX_ATTEMPTS} tries. Refund it in the Razorpay dashboard.`,
+        data: { type: 'REFUND_FAILED', orderId: order.id },
+      });
     return 0;
   }
 }
+
+/**
+ * Retry gateway refunds that failed (review #4, 21 Nov 2026).
+ *
+ * A failed refund used to be attempted exactly once: it was flagged and the operators were told,
+ * but if nobody acted, the customer simply never got their money back. Now cancelled orders with a
+ * failed refund are retried every pass, under the SAME idempotency key (so a refund that actually
+ * went through the first time is returned, never made twice), up to REFUND_MAX_ATTEMPTS.
+ *
+ * Note: `refundAttempts` is kept in memory; after a restart the count starts again, which only
+ * means a few more (safe, idempotent) tries.
+ * @returns {Promise<{ tried: number, refundedPaise: number }>}
+ */
+export async function retryFailedRefunds() {
+  if (!razorpayEnabled) return { tried: 0, refundedPaise: 0 };
+  let tried = 0;
+  let refundedPaise = 0;
+  for (const o of rawOrders()) {
+    if (o.status !== 'CANCELLED') continue;
+    for (const pay of refundablePaymentsForOrder(o.id)) {
+      if (!pay.refundFailed) continue;
+      if (Number(pay.refundAttempts || 0) >= REFUND_MAX_ATTEMPTS) continue;
+      tried += 1;
+      refundedPaise += await refundGatewayPayment(o, pay, 'Order cancelled (retry)');
+    }
+  }
+  return { tried, refundedPaise };
+}
+const REFUND_MAX_ATTEMPTS = 12; // every 10 minutes → about two hours of retries
+if (!IS_TEST)
+  setInterval(
+    () =>
+      retryFailedRefunds().catch((e) =>
+        // eslint-disable-next-line no-console
+        console.error('[refund] retry pass failed', e?.message || e),
+      ),
+    10 * 60 * 1000,
+  ).unref();
 
 /**
  * Cancel an order: status → CANCELLED, request flag cleared, wallet refunded (idempotently), coupon

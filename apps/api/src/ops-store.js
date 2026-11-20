@@ -61,6 +61,8 @@ export const OPS_KINDS = [
   'deletionConsent',
   'mealPlan',
   'mealLog',
+  // review #4 (21 Nov 2026): reconcile problems used to live in memory and vanished on restart
+  'reconcileException',
 ];
 
 /**
