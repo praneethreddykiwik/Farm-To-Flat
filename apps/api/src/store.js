@@ -295,7 +295,50 @@ export function syncOrderSeq() {
 }
 
 // ── reads ────────────────────────────────────────────────────────────────
-export const listCategories = () => clone(db.categories);
+export const listCategories = () =>
+  clone(db.categories).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+/** Categories (admin → Catalog → Categories). A category with products cannot be deleted. */
+export function createCategory({ id, name, tint, order }) {
+  const cid =
+    id ||
+    `cat_${String(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 24)}`;
+  if (db.categories.some((c) => c.id === cid))
+    return {
+      error: { status: 409, code: 'EXISTS', message: 'A category with that name already exists.' },
+    };
+  const c = { id: cid, name, tint: tint || null, order: order ?? db.categories.length + 1 };
+  db.categories.push(c);
+  persist.categoryUpsert(c);
+  return { category: clone(c) };
+}
+export function updateCategory(id, patch) {
+  const c = db.categories.find((x) => x.id === id);
+  if (!c) return { error: { status: 404, code: 'NOT_FOUND', message: 'No such category.' } };
+  for (const k of ['name', 'tint', 'order']) if (patch[k] !== undefined) c[k] = patch[k];
+  persist.categoryUpsert(c);
+  return { category: clone(c) };
+}
+export function deleteCategory(id) {
+  const c = db.categories.find((x) => x.id === id);
+  if (!c) return { error: { status: 404, code: 'NOT_FOUND', message: 'No such category.' } };
+  const n = db.products.filter((p) => p.category === id).length;
+  if (n)
+    return {
+      error: {
+        status: 409,
+        code: 'IN_USE',
+        message: `${n} product(s) are in this category. Move them first.`,
+      },
+    };
+  db.categories = db.categories.filter((x) => x.id !== id);
+  persist.categoryDelete(id);
+  return { ok: true };
+}
 export const listProducts = () => clone(db.products);
 export const getProduct = (pid) => {
   const p = db.products.find((x) => x.id === pid);

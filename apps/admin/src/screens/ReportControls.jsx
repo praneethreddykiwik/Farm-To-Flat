@@ -65,7 +65,7 @@ async function call(fn, ok, done) {
     done?.(r);
     return r;
   } catch (e) {
-    toast(e.message || 'Something went wrong.', 'error');
+    toast(e.message || 'Something went wrong.', 'err');
     return null;
   }
 }

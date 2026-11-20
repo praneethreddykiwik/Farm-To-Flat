@@ -485,6 +485,43 @@ function Referrals() {
       </div>
     );
   const { totals, referrals } = data;
+
+  // Only a pending referral can be changed; a settled one (rewarded or void) is history and the
+  // server answers 409.
+  async function voidRef(r) {
+    const why = window.prompt(
+      'Why is this referral void? (3–140 characters, kept in the audit log)',
+    );
+    if (why === null) return;
+    const reason = why.trim();
+    if (reason.length < 3) return toast('Give a reason of at least 3 characters.', 'err');
+    try {
+      await api.patch(`/admin/growth/referrals/${encodeURIComponent(r.id)}`, {
+        status: 'VOID',
+        reason: reason.slice(0, 140),
+      });
+      toast('Referral voided — no reward will be paid');
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not void the referral', 'err');
+    }
+  }
+  async function removeRef(r) {
+    if (
+      !window.confirm(
+        'Delete this pending referral?\n\nIt disappears from the list and no reward will be paid. This cannot be undone.',
+      )
+    )
+      return;
+    try {
+      await api.del(`/admin/growth/referrals/${encodeURIComponent(r.id)}`);
+      toast('Referral deleted');
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not delete the referral', 'err');
+    }
+  }
+
   return (
     <>
       <div className="stat-grid stagger" style={{ marginBottom: 16 }}>
@@ -525,6 +562,7 @@ function Referrals() {
                   <th>Order</th>
                   <th>Invited on</th>
                   <th>Settled</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -548,6 +586,23 @@ function Referrals() {
                     <td className="data__name">{dateTime(r.at)}</td>
                     <td className="data__name">
                       {r.settledAt ? dateTime(r.settledAt) : <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      {r.status === 'PENDING' && (
+                        <div className="hstack" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                          <button className="btn btn--ghost btn--sm" onClick={() => voidRef(r)}>
+                            Void
+                          </button>
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            style={{ color: 'var(--tomato)' }}
+                            onClick={() => removeRef(r)}
+                            aria-label="Delete referral"
+                          >
+                            <IconTrash size={15} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

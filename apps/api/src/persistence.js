@@ -594,6 +594,15 @@ export const persist = {
     (p) => p.id,
   ),
   productDelete: wt('product.delete', (pid) => prisma.product.delete({ where: { id: pid } })),
+  categoryUpsert: wt(
+    'category.upsert',
+    (c) => {
+      const row = { id: c.id, name: c.name, tint: c.tint || null, order: Number(c.order) || 0 };
+      return prisma.category.upsert({ where: { id: c.id }, create: row, update: row });
+    },
+    (c) => c.id,
+  ),
+  categoryDelete: wt('category.delete', (id) => prisma.category.delete({ where: { id } })),
   couponUpsert: wt(
     'coupon.upsert',
     (c) => {

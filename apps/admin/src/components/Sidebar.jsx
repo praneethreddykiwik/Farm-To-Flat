@@ -9,6 +9,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   IconBasket,
+  IconBook,
   IconBulb,
   IconLedger,
   IconStar,
@@ -58,6 +59,7 @@ const NAV = [
   { to: '/payments', label: 'Payments & COD', icon: IconRupee },
   { to: '/charges', label: 'Fees & tax', icon: IconReceipt },
   { to: '/settings', label: 'Support contact', icon: IconLifeBuoy },
+  { to: '/audit', label: 'Audit log', icon: IconBook },
 ];
 
 /**

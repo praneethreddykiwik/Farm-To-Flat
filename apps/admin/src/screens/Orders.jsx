@@ -646,6 +646,8 @@ export function OrderDrawer({ id, onClose, onChanged }) {
             </span>
           </div>
 
+          <OrderSource orderId={o.id} />
+
           <div className="field__label">Timeline</div>
           <div className="vstack" style={{ gap: 0 }}>
             {o.timeline.map((t, i) => (
@@ -675,5 +677,157 @@ export function OrderDrawer({ id, onClose, onChanged }) {
         </>
       )}
     </Drawer>
+  );
+}
+
+/**
+ * Where the order came from — the promoter code it was credited to and, on a household's first
+ * order, its "how did you hear" answer. Editable so a wrong code typed at the counter can be put
+ * right; every correction is audit-logged on the server (ORDER_SOURCE_CORRECTED).
+ */
+function OrderSource({ orderId }) {
+  const { data, error, reload } = useResource(`/admin/orders/${orderId}/source`);
+  const [editing, setEditing] = useState(false);
+  const [promoter, setPromoter] = useState('');
+  const [heard, setHeard] = useState('');
+  const [busy, setBusy] = useState(false);
+  // Choices load only once the form is opened.
+  const [promoterList, setPromoterList] = useState(/** @type {any[]|null} */ (null));
+  const [answerList, setAnswerList] = useState(/** @type {any[]|null} */ (null));
+
+  function open() {
+    setPromoter(data?.promoterCode || '');
+    setHeard(data?.heardFromKey || '');
+    setEditing(true);
+    if (!promoterList)
+      api
+        .get('/admin/growth/promoters')
+        .then((d) => setPromoterList(d?.promoters || []))
+        .catch((e) => toast(e.message || 'Could not load the promoters', 'err'));
+    if (!answerList && data?.isFirstOrder)
+      api
+        .get('/admin/business/settings/sourceQuestion')
+        .then((d) => setAnswerList(d?.settings?.options || []))
+        .catch((e) => toast(e.message || 'Could not load the answers', 'err'));
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      await api.patch(`/admin/orders/${orderId}/source`, {
+        promoterCode: promoter || null,
+        ...(data?.isFirstOrder ? { heardFrom: heard || null } : {}),
+      });
+      toast('Order source corrected');
+      setEditing(false);
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not save the source', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (error) return null; // older servers have no source route; the rest of the order still shows
+  // Keep the current code selectable even if that promoter was since switched off or removed.
+  const codes =
+    promoter && !(promoterList || []).some((p) => p.code === promoter)
+      ? [{ code: promoter, name: 'current' }, ...(promoterList || [])]
+      : promoterList || [];
+  const options = (answerList || []).filter((op) => op.enabled !== false || op.key === heard);
+
+  return (
+    <div className="glass--flat glass" style={{ padding: 14, marginBottom: 18 }}>
+      <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+        <span className="field__label" style={{ margin: 0 }}>
+          Source
+        </span>
+        {data && !editing && (
+          <button className="btn btn--ghost btn--sm" onClick={open}>
+            Edit
+          </button>
+        )}
+      </div>
+      {!data ? (
+        <div className="skeleton" style={{ height: 40 }} />
+      ) : editing ? (
+        <div className="vstack" style={{ gap: 10 }}>
+          <label className="field">
+            <span className="field__label">Promoter code</span>
+            <select
+              className="field__input"
+              value={promoter}
+              onChange={(e) => setPromoter(e.target.value)}
+              disabled={!promoterList}
+            >
+              <option value="">None</option>
+              {codes.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.code} · {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {data.isFirstOrder ? (
+            <label className="field">
+              <span className="field__label">How did you hear about us</span>
+              <select
+                className="field__input"
+                value={heard}
+                onChange={(e) => setHeard(e.target.value)}
+                disabled={!answerList}
+              >
+                <option value="">None</option>
+                {options.map((op) => (
+                  <option key={op.key} value={op.key}>
+                    {op.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <span className="muted" style={{ fontSize: 12 }}>
+              The “how did you hear” answer belongs to the household’s first order only.
+            </span>
+          )}
+          <div className="hstack" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => setEditing(false)}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+            <button className="btn btn--primary btn--sm" onClick={save} disabled={busy}>
+              Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="vstack" style={{ gap: 4, fontSize: 13.5 }}>
+          <div>
+            <span className="muted">Promoter: </span>
+            {data.promoterCode || '—'}
+          </div>
+          {data.isFirstOrder && (
+            <div>
+              <span className="muted">Heard from: </span>
+              {data.heardFrom || '—'}
+            </div>
+          )}
+          {data.invitedBy?.name && (
+            <div>
+              <span className="muted">Invited by: </span>
+              {data.invitedBy.name}
+            </div>
+          )}
+          {data.isFirstOrder && (
+            <span className="muted" style={{ fontSize: 12 }}>
+              This is the household’s first order.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

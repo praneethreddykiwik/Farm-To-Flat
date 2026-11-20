@@ -20,12 +20,30 @@
  * delivered, not to be messaged. Marketing to customers needs a consent nobody has been asked for.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast, usePager, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { Drawer, ErrorNote, Pager, Stat, StatusBadge, TableSkeleton } from '../components/ui.jsx';
+import {
+  Drawer as UiDrawer,
+  ErrorNote,
+  Pager,
+  Stat,
+  StatusBadge,
+  TableSkeleton,
+} from '../components/ui.jsx';
 import { IconReceipt, IconSearch, IconShield, IconUsers } from '../components/icons.jsx';
 import { dateTime, inr, ordinal, shortDate } from '../lib/format.js';
 import { DateRange, rangeLabel, useDateRange } from '../components/business.jsx';
+import {
+  AccountDrawer,
+  AccountPanel,
+  DeletionsDrawer,
+  MobileLookup,
+  hasAccount,
+} from './CustomerAccount.jsx';
+
+/** Drawers are portalled to <body> so no card's stacking layer paints over them. */
+const Drawer = (props) => createPortal(<UiDrawer {...props} />, document.body);
 
 const WITHIN = [
   { key: '', label: 'Any' },
@@ -93,6 +111,16 @@ export function Customers() {
   );
   const pager = usePager(shown, 25, `${tab}|${qstr}`);
   const totals = data?.totals;
+  // Account management: an account found by its number (it may have no orders), and every account
+  // waiting out its 60 days before erasure.
+  const [found, setFound] = useState(/** @type {any} */ (null));
+  const [showDeletions, setShowDeletions] = useState(false);
+  const deletions = useResource('/admin/deletions');
+  const deletionCount = deletions.data?.deletions?.length || 0;
+  const accountChanged = () => {
+    deletions.reload();
+    reload();
+  };
 
   return (
     <>
@@ -100,6 +128,13 @@ export function Customers() {
         <div>
           <h1 className="page-title">Customers</h1>
           <p className="page-sub">Everyone who has ordered, and which order they are on.</p>
+        </div>
+        <div className="hstack" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <MobileLookup onFound={setFound} />
+          <button className="btn btn--ghost" onClick={() => setShowDeletions(true)}>
+            Scheduled deletions
+            {deletionCount > 0 && <span className="chip__count">{deletionCount}</span>}
+          </button>
         </div>
       </header>
 
@@ -315,13 +350,29 @@ export function Customers() {
           customerKey={openKey}
           reasons={data?.reasons || {}}
           onClose={() => setOpenKey(null)}
+          onAccountChanged={accountChanged}
+        />
+      )}
+      {found && (
+        <AccountDrawer account={found} onClose={() => setFound(null)} onChanged={accountChanged} />
+      )}
+      {showDeletions && (
+        <DeletionsDrawer
+          data={deletions.data}
+          error={deletions.error}
+          reload={deletions.reload}
+          onOpen={(d) => {
+            setShowDeletions(false);
+            setFound({ key: d.key, name: d.name, mobileMasked: d.mobileMasked });
+          }}
+          onClose={() => setShowDeletions(false)}
         />
       )}
     </>
   );
 }
 
-function CustomerDrawer({ customerKey, reasons, onClose }) {
+function CustomerDrawer({ customerKey, reasons, onClose, onAccountChanged }) {
   const { data, loading, error, reload } = useResource(
     `/admin/customers/${encodeURIComponent(customerKey)}`,
   );
@@ -378,6 +429,13 @@ function CustomerDrawer({ customerKey, reasons, onClose }) {
               <Contact customerKey={customerKey} masked={c.mobileMasked} reasons={reasons} />
             )}
           </section>
+
+          {hasAccount(customerKey) && !c.erased && (
+            <section className="demand__section">
+              <h4>Account</h4>
+              <AccountPanel customerKey={customerKey} onChanged={onAccountChanged} />
+            </section>
+          )}
 
           <section className="demand__section">
             <h4>Orders — newest first</h4>

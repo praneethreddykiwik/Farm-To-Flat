@@ -150,7 +150,7 @@ function WeeklyReport({ week }) {
       await api.download(`/admin/report/weekly.xlsx?week=${week}`, `fooducia-weekly-${week}.xlsx`);
       toast('Weekly export downloaded');
     } catch (e) {
-      toast(e.message || 'Could not download the export.', 'error');
+      toast(e.message || 'Could not download the export.', 'err');
     } finally {
       setBusy(false);
     }
@@ -429,7 +429,7 @@ function CounterSessions({ week }) {
       toast('Session deleted');
       reload();
     } catch (e) {
-      toast(e.message, 'error');
+      toast(e.message, 'err');
     }
   }
   if (error) return <ErrorNote error={error} onRetry={reload} />;
@@ -542,7 +542,7 @@ function SessionDrawer({ session, communities, onClose, onSaved }) {
       toast(session.id ? 'Session saved' : 'Session added');
       onSaved();
     } catch (e) {
-      toast(e.message, 'error');
+      toast(e.message, 'err');
     } finally {
       setBusy(false);
     }
@@ -717,7 +717,7 @@ async function saveSettings(name, body, done) {
     toast('Saved');
     done();
   } catch (e) {
-    toast(e.message, 'error');
+    toast(e.message, 'err');
   }
 }
 

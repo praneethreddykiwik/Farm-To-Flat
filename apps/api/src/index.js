@@ -82,6 +82,7 @@ import { supportRouter, adminSupportRouter } from './routes/support.js';
 import { adminChargesRouter } from './routes/admin/charges.js';
 import { adminEmailsRouter } from './routes/admin/admin-emails.js';
 import { adminBusinessRouter } from './routes/admin/business.js';
+import { adminManageRouter } from './routes/admin/manage.js';
 import { loadOps, startOpsRecheck } from './ops-store.js';
 import { startDeletionSweep } from './lib/account-deletion.js';
 import { startCutoffReminders } from './lib/reminders.js';
@@ -332,6 +333,7 @@ admin.use(adminSupportRouter);
 admin.use(adminChargesRouter);
 admin.use(adminEmailsRouter);
 admin.use(adminBusinessRouter);
+admin.use(adminManageRouter);
 app.use(`${v1}/admin`, admin);
 
 // Unknown route → 404 (was 501 NOT_IMPLEMENTED, which reads as a server fault to clients/monitors).

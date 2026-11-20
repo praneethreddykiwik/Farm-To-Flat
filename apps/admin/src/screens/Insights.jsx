@@ -13,6 +13,7 @@
  * community's capacity, why a delivery was late — is saved under /admin/insights/*.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bar as RBar,
   BarChart,
@@ -28,9 +29,10 @@ import {
 } from 'recharts';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
+import { Drawer as UiDrawer, ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
 import {
   IconClock,
+  IconEdit,
   IconPlus,
   IconReceipt,
   IconRupee,
@@ -428,11 +430,120 @@ const CHANNELS = [
 ];
 const channelLabel = (k) => CHANNELS.find((c) => c.key === k)?.label || sentence(k);
 
+/** Drawers are portalled to <body> so a card's stacking layer cannot paint over them. */
+const Drawer = (props) => createPortal(<UiDrawer {...props} />, document.body);
+
+/** ISO → the value a datetime-local input takes, in the browser's own time zone. */
+function toLocalInput(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Correct a logged reminder — its time, channel, community or note. Audit-logged on the server. */
+function ReminderDrawer({ reminder, communities, onClose, onSaved }) {
+  const [f, setF] = useState({
+    at: toLocalInput(reminder.at),
+    channel: reminder.channel || 'WHATSAPP',
+    communityId: reminder.communityId || '',
+    note: reminder.note || '',
+  });
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const t = new Date(f.at);
+    if (!f.at || Number.isNaN(t.getTime())) return toast('That time could not be read.', 'err');
+    setBusy(true);
+    try {
+      await api.patch(`/admin/insights/reminders/${encodeURIComponent(reminder.id)}`, {
+        at: t.toISOString(),
+        channel: f.channel,
+        communityId: f.communityId || null,
+        note: f.note.trim() || null,
+      });
+      toast('Reminder updated');
+      onSaved();
+    } catch (e) {
+      toast(e.message || 'Could not update the reminder', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Drawer
+      title="Edit reminder"
+      subtitle={`Logged ${dateTime(reminder.at)}${reminder.by ? ` by ${reminder.by}` : ''}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button className="btn btn--primary" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label className="field__label">Sent</label>
+        <input
+          type="datetime-local"
+          className="field__input"
+          value={f.at}
+          onChange={(e) => setF((s) => ({ ...s, at: e.target.value }))}
+        />
+      </div>
+      <div className="field">
+        <label className="field__label">Sent by</label>
+        <select
+          className="field__select"
+          value={f.channel}
+          onChange={(e) => setF((s) => ({ ...s, channel: e.target.value }))}
+        >
+          {CHANNELS.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label className="field__label">To</label>
+        <select
+          className="field__select"
+          value={f.communityId}
+          onChange={(e) => setF((s) => ({ ...s, communityId: e.target.value }))}
+        >
+          <option value="">All communities</option>
+          {communities.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label className="field__label">Note (optional)</label>
+        <input
+          className="field__input"
+          value={f.note}
+          maxLength={200}
+          onChange={(e) => setF((s) => ({ ...s, note: noLead(e.target.value) }))}
+        />
+      </div>
+    </Drawer>
+  );
+}
+
 function Routine({ r, onChanged }) {
   const communities = r.communities;
   const nameOf = (id) => communities.find((c) => c.id === id)?.name || 'All communities';
   const [f, setF] = useState({ channel: 'WHATSAPP', communityId: '', note: '', at: '' });
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(/** @type {any} */ (null));
 
   async function logReminder() {
     const body = {
@@ -470,6 +581,17 @@ function Routine({ r, onChanged }) {
 
   return (
     <div className="vstack" style={{ gap: 16 }}>
+      {editing && (
+        <ReminderDrawer
+          reminder={editing}
+          communities={communities}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onChanged();
+          }}
+        />
+      )}
       <Card title="Log a reminder">
         <div className="field__row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="field">
@@ -577,6 +699,13 @@ function Routine({ r, onChanged }) {
                       {x.lift > 0 ? `+${x.lift}` : x.lift}
                     </td>
                     <td className="row-actions-cell">
+                      <button
+                        className="btn btn--ghost btn--icon"
+                        onClick={() => setEditing(x)}
+                        aria-label="Edit reminder"
+                      >
+                        <IconEdit size={15} />
+                      </button>
                       <button
                         className="btn btn--ghost btn--icon"
                         style={{ color: 'var(--tomato)' }}

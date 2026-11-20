@@ -52,6 +52,7 @@ import {
 } from '../../ops-store.js';
 import {
   HEARD_FROM,
+  heardFromLabels,
   PROMOTER_CODE_RE,
   isReservedPrefix,
   normaliseCode,
@@ -745,7 +746,9 @@ adminBusinessRouter.get(
     const attr = o.customerId ? getOps('attribution', o.customerId) : null;
     res.json({
       promoterCode: getOps('orderAttr', o.id)?.promoterCode || null,
-      heardFrom: attr?.heardFrom ? HEARD_FROM[attr.heardFrom] : null,
+      heardFrom: attr?.heardFrom ? heardFromLabels()[attr.heardFrom] || attr.heardFrom : null,
+      heardFromKey: attr?.heardFrom || null,
+      isFirstOrder: !!(attr && attr.firstOrderId === o.id),
       invitedBy: attr?.referrerId ? nameOf(attr.referrerId) : null,
       review: getOps('review', o.id) ? reviewView(getOps('review', o.id)) : null,
     });

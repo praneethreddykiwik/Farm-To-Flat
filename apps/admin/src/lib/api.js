@@ -30,7 +30,10 @@ export class ApiError extends Error {
  * happens the first time someone rotates ADMIN_TOKEN on Render.
  */
 function signOutIfRejected(status) {
-  if (status === 401 || status === 403) clearToken();
+  // 401 only: the API answers 401 for a missing, expired or rotated sign-in. A 403 means "signed in,
+  // but your role cannot do that" (an Admin opening the owner-only audit log) — signing them out
+  // for it threw away a working session (20 Nov 2026).
+  if (status === 401) clearToken();
 }
 
 async function request(method, path, body) {

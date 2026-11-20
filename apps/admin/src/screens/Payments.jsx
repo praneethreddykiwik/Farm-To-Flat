@@ -11,8 +11,93 @@ import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote, TableSkeleton } from '../components/ui.jsx';
 import { IconRupee } from '../components/icons.jsx';
+import { dateTime } from '../lib/format.js';
 
 const rupees = (paise) => Math.round(Number(paise || 0) / 100);
+
+const KIND_LABEL = {
+  mismatch: 'Amount does not match the order',
+  orphaned: 'Payment with no order to attach it to',
+  'authorized-not-captured': 'Money held but not taken',
+};
+
+/**
+ * Where money and order state disagree — the cases the 10-minute reconciler could not settle on its
+ * own. Read-only: fix each one at the gateway or on the order. Loading this list also runs one
+ * reconcile pass, so "Check again" really does check again.
+ */
+function PaymentExceptions() {
+  const { data, loading, error, reload } = useResource('/admin/payment-exceptions');
+  const list = data?.exceptions || [];
+  const pass = data?.lastPass;
+  return (
+    <div className="glass card reveal" style={{ marginTop: 18 }}>
+      <div className="card__head" style={{ justifyContent: 'space-between', gap: 10 }}>
+        <h2 className="card__title">Payment exceptions</h2>
+        <button className="btn btn--ghost btn--sm" onClick={reload} disabled={loading}>
+          {loading ? 'Checking…' : 'Check again'}
+        </button>
+      </div>
+      <p className="muted" style={{ fontSize: 13, marginTop: -4, marginBottom: 10 }}>
+        Orders where the gateway and our order book disagree and the automatic check could not put
+        it right. Each needs a person to look at it in the Razorpay dashboard.
+      </p>
+      {error ? (
+        <ErrorNote error={error} onRetry={reload} />
+      ) : !data ? (
+        <TableSkeleton rows={3} />
+      ) : (
+        <>
+          {pass && (
+            <p className="field__hint" style={{ marginBottom: 10 }}>
+              {pass.skipped === 'gateway-disabled'
+                ? 'The online payment gateway is off, so there is nothing to check.'
+                : `Just checked ${pass.checked} unpaid order${pass.checked === 1 ? '' : 's'}: ${pass.captured} recovered, ${pass.flagged} flagged.`}
+            </p>
+          )}
+          {list.length === 0 ? (
+            <div className="empty" style={{ padding: '20px 12px' }}>
+              No exceptions. Money and orders agree.
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Found</th>
+                    <th>Problem</th>
+                    <th>Order</th>
+                    <th>Payment</th>
+                    <th className="num">Expected</th>
+                    <th className="num">Received</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((x, i) => (
+                    <tr key={`${x.at}-${x.paymentId || i}`}>
+                      <td className="data__name" style={{ whiteSpace: 'nowrap' }}>
+                        {dateTime(x.at)}
+                      </td>
+                      <td className="data__name">{KIND_LABEL[x.kind] || x.kind}</td>
+                      <td className="mono">{x.orderNumber || '—'}</td>
+                      <td className="mono" style={{ fontSize: 12 }}>
+                        {x.paymentId || '—'}
+                      </td>
+                      <td className="num">
+                        {x.expectedPaise != null ? `₹${rupees(x.expectedPaise)}` : '—'}
+                      </td>
+                      <td className="num">{x.gotPaise != null ? `₹${rupees(x.gotPaise)}` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function Payments() {
   const { data, loading, error, reload } = useResource('/admin/payment-settings');
@@ -146,6 +231,8 @@ export default function Payments() {
               </p>
             )}
           </div>
+
+          <PaymentExceptions />
         </>
       )}
     </>

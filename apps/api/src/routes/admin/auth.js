@@ -131,11 +131,17 @@ const RULES = [
   // Deliberately throws. Harmless, but there is no reason for anyone but the owner to be able
   // to put noise in the error tracker.
   { when: (p) => p === '/sentry-test', roles: [] },
+  // Correcting where an order came from changes promoter and referral credit: admins, not drivers.
+  { when: (p, m) => /^\/orders\/[^/]+\/source$/.test(p) && m !== 'GET', roles: ADMIN_UP },
+  // Moving money in a wallet, and deleting someone's account on their behalf: owner only.
+  { when: (p, m) => /^\/customers\/[^/]+\/wallet$/.test(p) && m !== 'GET', roles: [] },
+  { when: (p, m) => /^\/customers\/[^/]+\/deletion$/.test(p) && m !== 'GET', roles: [] },
   { when: (p) => p.startsWith('/orders'), sections: ['orders', 'fulfilment'] },
   { when: (p, m) => p === '/procurement/settings' && m !== 'GET', roles: ADMIN_UP },
   { when: (p) => p === '/procurement/approve' || p === '/procurement/approvals', roles: ADMIN_UP },
   { when: (p) => p.startsWith('/procurement'), sections: ['procurement'] },
   { when: (p) => p.startsWith('/products'), sections: ['products'] },
+  { when: (p) => p.startsWith('/categories'), sections: ['products'] },
   { when: (p) => p.startsWith('/communities'), sections: ['communities'] },
   // Where to deliver next is the communities decision seen from the other side — and this list
   // carries the names and mobile numbers of people who asked, so it is deliberately NOT open to the

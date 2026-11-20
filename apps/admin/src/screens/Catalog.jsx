@@ -4,14 +4,20 @@
  * always cross the wire as integer paise.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useResource, usePager, toast } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
-import { Drawer, ErrorNote, Pager, TableSkeleton, Thumb } from '../components/ui.jsx';
+import { Drawer as UiDrawer, ErrorNote, Pager, TableSkeleton, Thumb } from '../components/ui.jsx';
 import { IconBook, IconEdit, IconPlus, IconSearch, IconTrash } from '../components/icons.jsx';
 import { ProductStoryDrawer } from './ProductStory.jsx';
 import { UNIT_LABEL, inr, noLead, num, toPaise, toRupees } from '../lib/format.js';
 
+/** Drawers are portalled to <body> so no card's stacking layer paints over them. */
+const Drawer = (props) => createPortal(<UiDrawer {...props} />, document.body);
+
 const UNITS = ['KG', 'BUNCH', 'PIECE', 'DOZEN', 'PACK'];
+/** Category colours the API accepts (the chip and placeholder tile in the app). */
+const TINTS = ['mint', 'butter', 'sky', 'blush', 'lilac', 'sand', 'leaf', 'peach'];
 
 /** Availability states, with what each means for the customer (shown in the picker). */
 const AVAIL = {
@@ -28,6 +34,7 @@ export function Catalog() {
   const [editing, setEditing] = useState(null); // product | 'new' | null
   const [availFor, setAvailFor] = useState(null); // product id whose availability menu is open
   const [story, setStory] = useState(null); // product whose app page text is being edited
+  const [managingCats, setManagingCats] = useState(false);
 
   const products = useMemo(() => data?.products || [], [data]);
   const categories = data?.categories || [];
@@ -66,9 +73,14 @@ export function Catalog() {
             {products.length} in the catalog · {categories.length} categories
           </p>
         </div>
-        <button className="btn btn--primary" onClick={() => setEditing('new')}>
-          <IconPlus size={18} /> New product
-        </button>
+        <div className="hstack" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn--ghost" onClick={() => setManagingCats(true)}>
+            <IconEdit size={17} /> Manage categories
+          </button>
+          <button className="btn btn--primary" onClick={() => setEditing('new')}>
+            <IconPlus size={18} /> New product
+          </button>
+        </div>
       </header>
 
       <div className="toolbar">
@@ -246,7 +258,247 @@ export function Catalog() {
         />
       )}
       {story && <ProductStoryDrawer product={story} onClose={() => setStory(null)} />}
+      {managingCats && (
+        <CategoriesDrawer
+          onClose={() => setManagingCats(false)}
+          onChanged={reload}
+          onDeleted={(id) => cat === id && setCat('all')}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * Categories: rename, recolour, reorder, delete (only an empty one — the server refuses otherwise
+ * and says how many products to move), and add. After every change the product list reloads so the
+ * category names on it and in the filter chips are current.
+ * API: GET/POST /admin/categories, PATCH/DELETE /admin/categories/:id (audit-logged).
+ */
+function CategoriesDrawer({ onClose, onChanged, onDeleted }) {
+  const { data, error, reload } = useResource('/admin/categories');
+  const cats = data?.categories || [];
+  const nextOrder = cats.reduce((m, c) => Math.max(m, Number(c.order) || 0), 0) + 1;
+  const [add, setAdd] = useState({ name: '', tint: 'mint', order: '' });
+  const [adding, setAdding] = useState(false);
+
+  const changed = () => {
+    reload();
+    onChanged();
+  };
+
+  async function create() {
+    const name = add.name.trim();
+    if (name.length < 2) return toast('A category name needs at least 2 characters.', 'err');
+    setAdding(true);
+    try {
+      await api.post('/admin/categories', {
+        name,
+        tint: add.tint,
+        order: add.order === '' ? nextOrder : Number(add.order),
+      });
+      toast(`${name} added`);
+      setAdd({ name: '', tint: 'mint', order: '' });
+      changed();
+    } catch (e) {
+      toast(e.message || 'Could not add the category.', 'err');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <Drawer
+      title="Categories"
+      subtitle="The sections of the app's catalog, in the order shown"
+      onClose={onClose}
+      footer={null}
+    >
+      {error ? (
+        <ErrorNote error={error} onRetry={reload} />
+      ) : !data ? (
+        <TableSkeleton rows={4} />
+      ) : (
+        <div className="vstack" style={{ gap: 10 }}>
+          {cats.length === 0 && (
+            <div className="empty">No categories yet. Add the first below.</div>
+          )}
+          {cats.map((c) => (
+            <CategoryRow
+              key={`${c.id}|${c.name}|${c.tint}|${c.order}`}
+              category={c}
+              onChanged={changed}
+              onDeleted={(id) => {
+                onDeleted(id);
+                changed();
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="glass card" style={{ marginTop: 18 }}>
+        <div className="card__head">
+          <h4 className="card__title" style={{ fontSize: 15 }}>
+            Add a category
+          </h4>
+        </div>
+        <div className="field">
+          <label className="field__label">Name</label>
+          <input
+            className="field__input"
+            value={add.name}
+            maxLength={40}
+            placeholder="Exotic vegetables"
+            onChange={(e) => setAdd((s) => ({ ...s, name: noLead(e.target.value) }))}
+            onKeyDown={(e) => e.key === 'Enter' && create()}
+          />
+        </div>
+        <div className="field__row">
+          <div className="field">
+            <label className="field__label">Colour</label>
+            <TintSelect value={add.tint} onChange={(tint) => setAdd((s) => ({ ...s, tint }))} />
+          </div>
+          <div className="field">
+            <label className="field__label">Position</label>
+            <input
+              className="field__input"
+              inputMode="numeric"
+              value={add.order}
+              placeholder={String(nextOrder)}
+              onChange={(e) =>
+                setAdd((s) => ({ ...s, order: num(e.target.value, { max: 999, integer: true }) }))
+              }
+            />
+          </div>
+        </div>
+        <button className="btn btn--primary" onClick={create} disabled={adding}>
+          <IconPlus size={17} /> {adding ? 'Adding…' : 'Add category'}
+        </button>
+        <p className="field__hint">
+          Lower positions come first in the app. Leave it empty to put the new one last.
+        </p>
+      </div>
+    </Drawer>
+  );
+}
+
+function TintSelect({ value, onChange }) {
+  return (
+    <div className="hstack" style={{ gap: 8, alignItems: 'center' }}>
+      <span
+        className={`thumb thumb--ph tint-${value || 'mint'}`}
+        style={{ width: 28, height: 28, minWidth: 28, borderRadius: 8 }}
+        aria-hidden
+      />
+      <select
+        className="field__select"
+        value={value || 'mint'}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {TINTS.map((t) => (
+          <option key={t} value={t}>
+            {t[0].toUpperCase() + t.slice(1)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function CategoryRow({ category, onChanged, onDeleted }) {
+  const [f, setF] = useState({
+    name: category.name,
+    tint: category.tint || 'mint',
+    order: String(category.order ?? ''),
+  });
+  const [busy, setBusy] = useState(false);
+  const dirty =
+    f.name.trim() !== category.name ||
+    f.tint !== (category.tint || 'mint') ||
+    f.order !== String(category.order ?? '');
+
+  async function save() {
+    const name = f.name.trim();
+    if (name.length < 2) return toast('A category name needs at least 2 characters.', 'err');
+    const body = {};
+    if (name !== category.name) body.name = name;
+    if (f.tint !== (category.tint || 'mint')) body.tint = f.tint;
+    if (f.order !== String(category.order ?? '') && f.order !== '') body.order = Number(f.order);
+    if (!Object.keys(body).length) return;
+    setBusy(true);
+    try {
+      await api.patch(`/admin/categories/${category.id}`, body);
+      toast(`${name} saved`);
+      onChanged();
+    } catch (e) {
+      toast(e.message || 'Could not save the category.', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (
+      !window.confirm(
+        `Delete the category “${category.name}”?\n\nIt disappears from the app's catalog. Only an empty category can be deleted — if products are still in it, move them to another category first.`,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await api.del(`/admin/categories/${category.id}`);
+      toast(`${category.name} deleted`);
+      onDeleted(category.id);
+    } catch (e) {
+      toast(e.message || 'Could not delete the category.', 'err');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="glass card" style={{ padding: 12 }}>
+      <div className="field" style={{ marginBottom: 8 }}>
+        <label className="field__label">Name</label>
+        <input
+          className="field__input"
+          value={f.name}
+          maxLength={40}
+          onChange={(e) => setF((s) => ({ ...s, name: noLead(e.target.value) }))}
+          onKeyDown={(e) => e.key === 'Enter' && dirty && save()}
+        />
+      </div>
+      <div className="field__row">
+        <div className="field">
+          <label className="field__label">Colour</label>
+          <TintSelect value={f.tint} onChange={(tint) => setF((s) => ({ ...s, tint }))} />
+        </div>
+        <div className="field">
+          <label className="field__label">Position</label>
+          <input
+            className="field__input"
+            inputMode="numeric"
+            value={f.order}
+            onChange={(e) =>
+              setF((s) => ({ ...s, order: num(e.target.value, { max: 999, integer: true }) }))
+            }
+          />
+        </div>
+      </div>
+      <div className="hstack" style={{ gap: 8, justifyContent: 'flex-end' }}>
+        <button
+          className="btn btn--ghost btn--sm"
+          style={{ color: 'var(--tomato)', marginRight: 'auto' }}
+          onClick={remove}
+          disabled={busy}
+        >
+          <IconTrash size={15} /> Delete
+        </button>
+        <button className="btn btn--primary btn--sm" onClick={save} disabled={!dirty || busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
   );
 }
 

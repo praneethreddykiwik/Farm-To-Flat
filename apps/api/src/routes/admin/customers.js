@@ -29,12 +29,26 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../../http.js';
 import { validateBody } from '../../validate.js';
 import { listOrders } from '../../store.js';
-import { getCustomer } from '../../customer-store.js';
+import {
+  flushWallet,
+  getCustomer,
+  getCustomerIdByMobile,
+  getWallet,
+  ledgerPush,
+  updateCustomer,
+} from '../../customer-store.js';
+import { getOps, listOps, removeOps } from '../../ops-store.js';
+import {
+  ordersBlockingDeletion,
+  requestDeletion,
+  scheduledDeletion,
+} from '../../lib/account-deletion.js';
 import { recordAction } from '../../lib/audit.js';
 import {
   customerBook,
   historyLine,
   isErased,
+  maskMobile,
   ordersByCustomer,
   summarise,
 } from '../../lib/customer-history.js';
@@ -160,5 +174,167 @@ adminCustomersRouter.post(
       mobile,
       name: account?.name || (last.customerId ? null : last.customerName) || null,
     });
+  }),
+);
+
+// ── managing an account: profile, wallet, deletion (20 Nov 2026) ───────────────
+// Keyed like the rest of this section: the key is the customer id (guest keys have no account to
+// manage). An account with no orders yet is found by its exact mobile number, which is logged.
+
+function accountOr404(key) {
+  const c = getCustomer(key);
+  if (!c)
+    throw fail(
+      404,
+      'NOT_FOUND',
+      'No account with that id. Guest orders have no account to manage.',
+    );
+  if (isErased(c)) throw fail(410, 'ERASED', 'This account has been deleted.');
+  return c;
+}
+
+const accountView = (c) => {
+  const w = getWallet(c.id);
+  const del = scheduledDeletion(c.id);
+  return {
+    key: c.id,
+    name: c.name || null,
+    mobileMasked: maskMobile(c.mobile),
+    createdAt: c.createdAt || null,
+    walletBalancePaise: String(w.balancePaise),
+    deletion: del || null,
+  };
+};
+
+adminCustomersRouter.get(
+  '/customer-lookup',
+  asyncHandler(async (req, res) => {
+    const mobile = String(req.query.mobile || '')
+      .replace(/\D/g, '')
+      .slice(-10);
+    if (!/^[6-9]\d{9}$/.test(mobile))
+      throw fail(422, 'VALIDATION', 'Enter a 10-digit mobile number.');
+    const cid = getCustomerIdByMobile(mobile);
+    await recordAction({
+      staff: req.staff,
+      action: 'CUSTOMER_LOOKUP',
+      target: maskMobile(mobile),
+      details: { found: !!cid },
+    });
+    if (!cid) throw fail(404, 'NOT_FOUND', 'No account uses that number.');
+    res.json({ account: accountView(accountOr404(cid)) });
+  }),
+);
+
+adminCustomersRouter.get(
+  '/customers/:key/account',
+  asyncHandler(async (req, res) => {
+    const c = accountOr404(req.params.key);
+    res.json({ account: accountView(c), ledger: getWallet(c.id).ledger.slice(0, 100) });
+  }),
+);
+
+adminCustomersRouter.patch(
+  '/customers/:key/account',
+  validateBody(z.object({ name: z.string().trim().min(1).max(80) })),
+  asyncHandler(async (req, res) => {
+    const c = accountOr404(req.params.key);
+    updateCustomer(c.id, { name: req.body.name });
+    await recordAction({ staff: req.staff, action: 'CUSTOMER_NAME_CHANGED', target: c.id });
+    res.json({ account: accountView(getCustomer(c.id)) });
+  }),
+);
+
+// Goodwill credit or a correction, with a reason the customer can read in their wallet history.
+const WalletBody = z.object({
+  direction: z.enum(['CREDIT', 'DEBIT']),
+  amountPaise: z.number().int().min(100).max(500000),
+  reason: z.string().trim().min(3).max(140),
+});
+
+adminCustomersRouter.post(
+  '/customers/:key/wallet',
+  validateBody(WalletBody),
+  asyncHandler(async (req, res) => {
+    const c = accountOr404(req.params.key);
+    const { direction, amountPaise, reason } = req.body;
+    if (direction === 'DEBIT' && amountPaise > getWallet(c.id).balancePaise)
+      throw fail(422, 'INSUFFICIENT', 'That is more than the wallet holds.');
+    const entry = ledgerPush(
+      c.id,
+      direction,
+      amountPaise,
+      'ADJUSTMENT',
+      `adj_${Date.now().toString(36)}`,
+      reason,
+      {
+        actor: req.staff?.email || req.staff?.name || 'admin',
+      },
+    );
+    await flushWallet(c.id);
+    await recordAction({
+      staff: req.staff,
+      action: direction === 'CREDIT' ? 'WALLET_CREDITED' : 'WALLET_DEBITED',
+      target: c.id,
+      details: { amountPaise, reason, entry: entry.id },
+    });
+    res.status(201).json({ account: accountView(getCustomer(c.id)) });
+  }),
+);
+
+// Delete on the customer's request (phone, email): same 60-day grace and the same blocks as in the
+// app. Cancelling restores the account at once.
+adminCustomersRouter.post(
+  '/customers/:key/deletion',
+  validateBody(z.object({ reason: z.string().trim().min(3).max(140) })),
+  asyncHandler(async (req, res) => {
+    const c = accountOr404(req.params.key);
+    const blocking = ordersBlockingDeletion(c.id);
+    if (blocking.length)
+      throw fail(
+        409,
+        'ORDERS_IN_PROGRESS',
+        `${blocking.length} order(s) are still in progress. Finish or cancel them first.`,
+      );
+    const r = await requestDeletion(c.id, { walletBalancePaise: getWallet(c.id).balancePaise });
+    await recordAction({
+      staff: req.staff,
+      action: 'CUSTOMER_DELETION_SCHEDULED',
+      target: c.id,
+      details: { reason: req.body.reason },
+    });
+    res.json(r);
+  }),
+);
+
+adminCustomersRouter.delete(
+  '/customers/:key/deletion',
+  asyncHandler(async (req, res) => {
+    const c = accountOr404(req.params.key);
+    if (!getOps('deletion', c.id))
+      throw fail(404, 'NOT_FOUND', 'No deletion is scheduled for this account.');
+    await removeOps('deletion', c.id);
+    await recordAction({ staff: req.staff, action: 'CUSTOMER_DELETION_CANCELLED', target: c.id });
+    res.json({ account: accountView(getCustomer(c.id)) });
+  }),
+);
+
+// Every scheduled deletion, soonest first.
+adminCustomersRouter.get(
+  '/deletions',
+  asyncHandler(async (_req, res) => {
+    const rows = listOps('deletion')
+      .map((d) => {
+        const c = getCustomer(d.id);
+        return {
+          key: d.id,
+          name: c?.name || null,
+          mobileMasked: c ? maskMobile(c.mobile) : null,
+          requestedAt: d.requestedAt,
+          deleteAfter: d.deleteAfter,
+        };
+      })
+      .sort((a, b) => (a.deleteAfter < b.deleteAfter ? -1 : 1));
+    res.json({ deletions: rows });
   }),
 );
