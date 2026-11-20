@@ -90,6 +90,7 @@ import { adminManageRouter } from './routes/admin/manage.js';
 import { listOps, loadOps, startOpsRecheck } from './ops-store.js';
 import { startDeletionSweep } from './lib/account-deletion.js';
 import { startCutoffReminders } from './lib/reminders.js';
+import { startMemoryLog } from './lib/memory-log.js';
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
@@ -434,10 +435,6 @@ async function hydrateOnce() {
   await loadOps();
   // If the table is not there yet, keep looking — creating it then needs no restart.
   startOpsRecheck();
-  // Accounts whose 60-day deletion grace period has ended are erased by this hourly sweep.
-  if (!IS_TEST_ENV) startDeletionSweep();
-  // The 5 PM cut-off reminder — off until switched on in the admin.
-  if (!IS_TEST_ENV) startCutoffReminders();
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);
@@ -449,6 +446,18 @@ async function hydrateOnce() {
   void import('./lib/wallet-integrity.js').then((m) => m.runWalletIntegrityCheck());
   // From here this instance may run the scheduled jobs — if it holds the lease (review #14).
   startLeaderLease();
+  // Timers start only now, once EVERYTHING is in memory. They used to start half-way through,
+  // before customers and orders were loaded, so a slow or failed load could let the 5 PM reminder
+  // or the deletion sweep run against a half-filled book (review #16, 21 Nov 2026). Both are
+  // idempotent, so a rehydration after a failed boot does not start a second copy.
+  if (!IS_TEST_ENV) {
+    // Accounts whose 60-day deletion grace period has ended are erased by this hourly sweep.
+    startDeletionSweep();
+    // The 5 PM cut-off reminder — off until switched on in the admin.
+    startCutoffReminders();
+    // A log line of record counts and memory, so growth is visible before it is an outage.
+    startMemoryLog();
+  }
   return `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
 }
 

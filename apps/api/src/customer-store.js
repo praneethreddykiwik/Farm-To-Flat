@@ -62,6 +62,13 @@ const cs = {
   payments: new Map(),
 };
 
+/** How many entries each in-memory customer map holds — counts only, no copies (review #16). */
+export function customerStoreSizes() {
+  const out = {};
+  for (const [name, v] of Object.entries(cs)) if (v instanceof Map) out[name] = v.size;
+  return out;
+}
+
 const cart = (cid) =>
   cs.carts.get(cid) || cs.carts.set(cid, { items: [], couponCode: null }).get(cid);
 /** Write the basket through to Supabase. Every mutation below ends with one of these. */

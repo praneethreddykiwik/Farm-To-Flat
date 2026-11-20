@@ -219,6 +219,13 @@ async function deleteRow(kind, id) {
   }
 }
 
+/** Records held in memory, per kind — counts only, no copies (review #16). */
+export function opsSizes() {
+  const out = {};
+  for (const [kind, m] of mem) out[kind] = m.size;
+  return out;
+}
+
 /** Every record of a kind (copies). */
 export function listOps(kind) {
   assertKind(kind);
