@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { hydrateHousehold } from '../src/features/household/householdSlice';
 import { BrandIntro } from '../src/components/BrandIntro';
+import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
   Fraunces_500Medium_Italic,
@@ -430,16 +431,20 @@ function Root() {
 }
 
 export default function RootLayout() {
+  // Outermost, so a render error anywhere — providers included — lands on a "Something went wrong
+  // / Reload" screen and is reported, instead of a blank app (review #43, 21 Nov 2026).
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <Provider store={store}>
-          <BottomSheetModalProvider>
-            <Root />
-          </BottomSheetModalProvider>
-        </Provider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <Provider store={store}>
+            <BottomSheetModalProvider>
+              <Root />
+            </BottomSheetModalProvider>
+          </Provider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }
 
