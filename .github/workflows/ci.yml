@@ -27,7 +27,8 @@ permissions:
 # in its setup step, six seconds in, before a single line of ours was linted or tested — on every
 # push for weeks, with the run marked failed and nobody the wiser as to why. One source of truth.
 jobs:
-  # ESLint over the customer app. Blocking.
+  # ESLint over every package with a `lint` script (turbo): the customer app, and since review #52
+  # (21 Nov 2026) the API and the admin console too. Blocking on errors; warnings are reported only.
   lint:
     runs-on: ubuntu-latest
     steps:
