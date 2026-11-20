@@ -16,6 +16,16 @@ export function todayISO(now = Date.now()) {
   return ist.toISOString().slice(0, 10);
 }
 
+/**
+ * The IST month (`YYYY-MM`) a stored UTC timestamp falls in. Slicing the raw ISO string gives the
+ * UTC month, so anything between 00:00 and 05:30 IST on the 1st landed in the month before
+ * (review #19, 21 Nov 2026). Returns '' for a missing or unreadable timestamp.
+ */
+export function istMonthOf(isoTimestamp) {
+  const ms = Date.parse(isoTimestamp || '');
+  return Number.isFinite(ms) ? todayISO(ms).slice(0, 7) : '';
+}
+
 /** Add `n` days to a `YYYY-MM-DD` string, returning a `YYYY-MM-DD` string. */
 export function addDaysISO(iso, n) {
   const d = new Date(`${iso}T00:00:00Z`);
