@@ -89,13 +89,20 @@ export function refreshSessionShared(api) {
 }
 /** @type {any} */
 let lastRefresh = null;
+/** How the last shared refresh ended: 'ok', 'invalid' (401 — signed out), 'gave-up', 'no-token'. */
+let outcome = /** @type {'ok'|'invalid'|'gave-up'|'no-token'|null} */ (null);
+export const lastRefreshOutcome = () => outcome;
 
 async function refreshSession(api) {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       lastRefresh = null;
+      outcome = null;
       const refreshToken = await readRefreshToken();
-      if (!refreshToken) return null;
+      if (!refreshToken) {
+        outcome = 'no-token';
+        return null;
+      }
       // Render's free tier cold-starts (~50s). Retry the refresh through it, and ONLY sign the user
       // out on a DEFINITIVE 401 (the refresh token is genuinely invalid/expired) — never on a transient
       // network failure (status 0), timeout, or 5xx. Signing out on a cold-start blip is what dumped
@@ -117,12 +124,14 @@ async function refreshSession(api) {
         });
         if (res.status >= 200 && res.status < 300 && res.data?.accessToken) {
           lastRefresh = res.data;
+          outcome = 'ok';
           await saveRefreshToken(res.data.refreshToken);
           api.dispatch(accessRefreshed(res.data.accessToken));
           return res.data.accessToken;
         }
         if (res.status === 401) {
           lastRefresh = null;
+          outcome = 'invalid';
           await clearRefreshToken();
           api.dispatch(signedOut());
           return null;
@@ -130,6 +139,7 @@ async function refreshSession(api) {
         // transient (0 / 5xx / cold start) — wait, then retry; keep the session either way
         await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
       }
+      outcome = 'gave-up';
       return null; // gave up, but the session is preserved (no sign-out on a transient failure)
     })().finally(() => {
       refreshPromise = null;
