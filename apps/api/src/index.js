@@ -438,6 +438,8 @@ async function hydrateOnce() {
   mergeMealLogBackups(listOps('mealLog'));
   hydrateOrders(tx.orders);
   enableOrderPersistence(); // real orders now write through (import-time seed did not)
+  // Read-only: do the cached wallet balances still match the ledger table? Reports, never fixes.
+  void import('./lib/wallet-integrity.js').then((m) => m.runWalletIntegrityCheck());
   return `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
 }
 

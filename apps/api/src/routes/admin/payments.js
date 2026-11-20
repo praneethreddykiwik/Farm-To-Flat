@@ -75,7 +75,13 @@ adminPaymentsRouter.get(
   '/payment-exceptions',
   asyncHandler(async (_req, res) => {
     const { listReconcileExceptions, reconcileOnce } = await import('../../lib/reconcile.js');
-    res.json({ exceptions: listReconcileExceptions(), lastPass: await reconcileOnce() });
+    const { lastWalletIntegrity } = await import('../../lib/wallet-integrity.js');
+    res.json({
+      exceptions: listReconcileExceptions(),
+      lastPass: await reconcileOnce(),
+      // review #13: balances that do not match the wallet ledger, found at the last boot
+      walletIntegrity: lastWalletIntegrity(),
+    });
   }),
 );
 
