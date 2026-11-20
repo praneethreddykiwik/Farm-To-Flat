@@ -31,6 +31,7 @@ import {
   loadTransactional,
   persistEnabled,
   drainPersistence,
+  writeBacklog,
 } from './persistence.js';
 import { replaceKnowledgeOverrides, setKnowledgeTableReady } from './lib/knowledge.js';
 import { demandDb } from './demand-db.js';
@@ -254,6 +255,9 @@ app.get('/health', (_req, res) => {
     // Whether the origin is refusing traffic that bypassed Cloudflare. Reported because the whole
     // point of the lock is that it fails invisibly when it is off — everything still works.
     originLock: originLockEnabled(),
+    // Writes waiting for the database (review #12). Above zero means the database refused some
+    // writes and they are being retried; it should drain back to 0 on its own within minutes.
+    unsavedWrites: writeBacklog().pending,
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     ts: Date.now(),
