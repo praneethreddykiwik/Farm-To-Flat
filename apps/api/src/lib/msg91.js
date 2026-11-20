@@ -21,6 +21,12 @@
 //   MSG91_SENDER_ID / MSG91_OTP_TEMPLATE_ID   SMS-only, DLT-registered (fallback path)
 const AUTH_KEY = process.env.MSG91_AUTH_KEY;
 
+// Every MSG91 call gives up after 8 s. Without a limit a hung connection held the request open —
+// the customer's OTP spinner, or an order notification — for as long as the socket lived. A
+// timeout throws like any other network failure, so the existing error handling (SMS fallback,
+// "code not sent") takes over (review #18, 21 Nov 2026).
+export const MSG91_TIMEOUT_MS = 8000;
+
 const WA_NUMBER = process.env.MSG91_WA_NUMBER;
 const WA_TEMPLATE = process.env.MSG91_WA_TEMPLATE_NAME;
 const WA_LANG = process.env.MSG91_WA_TEMPLATE_LANG || 'en_US';
@@ -126,6 +132,7 @@ export async function sendOtpWhatsApp({ mobile, otp }) {
   const r = await fetch('https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/', {
     method: 'POST',
     headers: { authkey: AUTH_KEY, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(MSG91_TIMEOUT_MS),
     body: JSON.stringify(body),
   });
   const data = await r.json().catch(() => ({}));
@@ -218,6 +225,7 @@ export async function sendTemplate({ mobile, template, lang, params = [] }) {
   const r = await fetch('https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/', {
     method: 'POST',
     headers: { authkey: AUTH_KEY, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(MSG91_TIMEOUT_MS),
     body: JSON.stringify(body),
   });
   const data = await r.json().catch(() => ({}));
@@ -242,6 +250,7 @@ export async function sendOtpSms({ mobile, otp }) {
   const r = await fetch(url, {
     method: 'POST',
     headers: { authkey: AUTH_KEY, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(MSG91_TIMEOUT_MS),
     body: JSON.stringify({}),
   });
   const data = await r.json().catch(() => ({}));
