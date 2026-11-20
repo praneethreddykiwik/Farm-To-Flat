@@ -157,7 +157,7 @@ const SECTIONS = (CONTACT) => [
       ],
       [
         'Technical and security data',
-        'when the app or website talks to our servers, our systems record the IP address, the type of device or browser, and the time and address of each request, to keep the Service running and secure and to detect abuse. Sign-in codes, passwords and access tokens are removed from these records.',
+        'when the app or website talks to our servers, our systems record the IP address, the type of device or browser, and the time and address of each request, to keep the Service running and secure and to detect abuse. Sign-in codes, passwords and access tokens are removed from these records. If you change your mobile number in the app, we keep a record that it was changed and when, with both numbers partly hidden, so a misused account can be traced. When you sign out, the phone stops receiving notifications for your account. Our delivery and purchasing staff see your full number and flat only on the orders they are delivering or packing that day or the next.',
       ],
       [
         'Crash reports',
