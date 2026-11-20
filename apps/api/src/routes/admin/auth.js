@@ -184,5 +184,44 @@ export function adminAuthorize(req, _res, next) {
   const role = req.staff?.role;
   if (!roleMayAccess(role, req.path, req.method))
     return next(fail(403, 'FORBIDDEN', 'Your role cannot do that.'));
+  if (needsGoogle(req))
+    return next(
+      fail(
+        403,
+        'GOOGLE_SIGNIN_REQUIRED',
+        'Sign in to the admin panel with your Google account to do this.',
+      ),
+    );
   next();
+}
+
+/**
+ * Review #25 (21 Nov 2026): ADMIN and SUPER_ADMIN power — moving wallet money, refunds, granting
+ * roles — rested on the phone code alone, so a SIM swap or a guessed code was enough. The owner can
+ * now require a Google sign-in for those roles, without a deploy, through ADMIN_REQUIRE_GOOGLE:
+ *   unset / 'off' — as before (default, so nothing changes until the owner decides);
+ *   'money'       — phone-signed-in admins keep the console, but the money-moving and role-granting
+ *                   routes need Google;
+ *   'all'         — phone-signed-in ADMIN / SUPER_ADMIN cannot use admin routes at all.
+ * Delivery and purchasing staff are never affected; they keep signing in with their phone.
+ * The shared ADMIN_TOKEN is not affected either (see ADMIN_TOKEN_SUNSET for that).
+ */
+const MONEY_ROUTES = [
+  (p, m) => /^\/customers\/[^/]+\/(wallet|deletion)$/.test(p) && m !== 'GET',
+  (p) => p === '/orders/close-stale',
+  (p, m) => /^\/orders\/[^/]+\/(refund|cancel)$/.test(p) && m !== 'GET',
+  (p, m) => p.startsWith('/access') && m !== 'GET',
+  (p, m) => p.startsWith('/admin-emails') && m !== 'GET',
+];
+export function needsGoogle(req) {
+  const mode = String(process.env.ADMIN_REQUIRE_GOOGLE || 'off').toLowerCase();
+  if (mode !== 'money' && mode !== 'all') return false;
+  const staff = req.staff;
+  if (!staff || staff.viaGoogle || !staff.mobile) return false; // Google session or shared token
+  if (!ADMIN_UP.includes(staff.role)) return false;
+  if (mode === 'all') return true;
+  const p = String(req.path || '')
+    .toLowerCase()
+    .replace(/\/+$/, '');
+  return MONEY_ROUTES.some((rule) => rule(p, req.method));
 }
