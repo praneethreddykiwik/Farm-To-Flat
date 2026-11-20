@@ -932,7 +932,7 @@ export function validateCoupon(cid, code, subtotal) {
  */
 export function evaluateCoupon(cid, code, subtotal) {
   const r = validateCoupon(cid, code, subtotal);
-  if (r.error) return r;
+  if (r.error) return { error: r.error };
   const c = r.coupon;
   if (c.type === 'FREE_ITEM') {
     const p = getProduct(c.freeProductId);
