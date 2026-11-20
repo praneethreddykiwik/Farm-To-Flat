@@ -17,6 +17,7 @@ import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist, drainChain } from './persistence.js';
+import { takeDaily } from './lib/spend-cap.js';
 import { putOpsSoft, removeOps } from './ops-store.js';
 import { deleteSubscriptionsForCustomer } from './demand-store.js';
 import { servingCommunity } from './lib/geo.js';
@@ -357,6 +358,16 @@ export async function requestOtp(mobile) {
         },
       };
     }
+    // A ceiling on the day's paid sends (review #32): per-number and per-IP limits can be spread
+    // across many numbers and addresses; this cannot.
+    if (!takeDaily('otp'))
+      return {
+        error: {
+          status: 503,
+          code: 'OTP_DAILY_LIMIT',
+          message: "We can't send more codes right now. Please try again in a little while.",
+        },
+      };
     try {
       await deliverOtp({ mobile, otp }); // WhatsApp, with SMS only if enabled as a fallback
     } catch {

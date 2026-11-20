@@ -98,3 +98,28 @@ export function requireCloudflare(req, res, next) {
     },
   });
 }
+
+/**
+ * The address a rate limit should count against (review #24, 21 Nov 2026).
+ *
+ * An IPv6 customer is handed a whole /64 — 18 quintillion addresses — and can pick a fresh one for
+ * every request, so counting per full IPv6 address limited nothing: OTP sends, code guesses and AI
+ * calls were all effectively unlimited from one connection. IPv6 addresses now count per /64 (the
+ * unit one subscriber is given); IPv4, and IPv4 written in IPv6 form, count per address as before.
+ */
+export function ipBucket(ip) {
+  const raw = String(ip || 'unknown').trim();
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(raw);
+  if (mapped) return mapped[1];
+  if (!raw.includes(':')) return raw;
+  const addr = raw.split('%')[0].toLowerCase();
+  const [head, tail = ''] = addr.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const missing = addr.includes('::') ? 8 - left.length - right.length : 0;
+  const full = [...left, ...Array(Math.max(0, missing)).fill('0'), ...right];
+  return `${full
+    .slice(0, 4)
+    .map((h) => (h || '0').replace(/^0+(?=.)/, ''))
+    .join(':')}::/64`;
+}
