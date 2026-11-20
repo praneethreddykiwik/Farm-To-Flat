@@ -39,6 +39,10 @@ export const EVENT_NAMES = {
   referral_link_shared: 'client',
   repeat_basket_used: 'client',
   voice_order_used: 'client',
+  // LATER (built early, 20 Nov 2026 — each is one line in the app)
+  product_viewed: 'client',
+  product_story_viewed: 'client',
+  cart_updated: 'client',
 };
 
 export const CLIENT_EVENTS = Object.keys(EVENT_NAMES).filter((n) => EVENT_NAMES[n] === 'client');

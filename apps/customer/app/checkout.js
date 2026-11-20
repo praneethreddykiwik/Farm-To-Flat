@@ -147,7 +147,8 @@ export default function Checkout() {
     if (startedTracked.current || !cart) return;
     startedTracked.current = true;
     track('checkout_started', {
-      basket_value: Number(cart.subtotalPaise) || 0,
+      cart_value: Number(cart.subtotalPaise) || 0,
+      below_minimum: !cart.meetsMinimum,
       items_count: (cart.items || []).length,
     });
   }, [cart]);

@@ -158,6 +158,20 @@ app.use(v1, (req, res, next) => {
 // exact bytes it sent, and a parsed-then-reserialised body hashes differently. It also sits outside
 // requireAuth below — Razorpay holds no bearer token, the signature is the credential.
 app.use(`${v1}/webhooks`, razorpayWebhookRouter);
+// Small bodies first on routes that never carry an image — the public ones especially, so nobody
+// can make the server read megabytes without signing in (security audit, 20 Nov 2026). The first
+// parser to read a body wins; the 8 MB one below then skips these requests.
+for (const p of [
+  '/auth',
+  '/links',
+  '/events',
+  '/growth',
+  '/devices',
+  '/cart',
+  '/support',
+  '/coupons',
+])
+  app.use(`/api/v1${p}`, express.json({ limit: '32kb' }));
 app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
 // Request logging. Credentials are REDACTED: pino-http logs every request header by default, so
 // customer Bearer tokens and the admin token were being written into the host's log retention.

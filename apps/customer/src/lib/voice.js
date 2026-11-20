@@ -65,9 +65,14 @@ export function useVoiceSearch({ onResult, onFinal, lang = 'en-IN' } = {}) {
     cbs.current.onResult?.(text);
     if (e.isFinal) {
       cbs.current.onFinal?.(text);
-      // voice_order_used (tracking brief): only that voice was used and how long the phrase was —
+      // voice_order_used (tracking brief): the recogniser language and how many words were heard —
       // never the words themselves.
-      track('voice_order_used', { words: text.trim().split(/\s+/).length });
+      track('voice_order_used', {
+        language: lang,
+        items_heard: text.trim().split(/\s+/).length,
+        // Voice fills the search box; what is then added shows up as cart_updated events.
+        items_added: null,
+      });
     }
   });
 

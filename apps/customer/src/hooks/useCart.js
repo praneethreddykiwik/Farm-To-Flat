@@ -4,6 +4,7 @@ import { api, useGetCartQuery } from '../api/api';
 import { pulseBag, showToast } from '../features/ui/uiSlice';
 import { selectIsSignedIn } from '../features/auth/authSlice';
 import { pendingQty, requestQuantity, watchLine } from '../lib/cartWrites';
+import { track } from '../lib/tracking';
 
 /** Current server cart with derived totals. */
 export function useCart() {
@@ -63,6 +64,12 @@ export function useCartLine(product) {
         send: async (q) => {
           const write = api.endpoints.setCartItem.initiate({ productId: id, quantity: String(q) });
           const res = await /** @type {any} */ (dispatch)(write).unwrap();
+          // cart_updated (tracking brief, LATER): the item and the basket value after the change.
+          track('cart_updated', {
+            product_id: id,
+            quantity: Number(q) || 0,
+            cart_value: Number(res?.cart?.subtotalPaise) || 0,
+          });
           if (!res?.cart) return q;
           return Number(res.cart.items?.find((i) => i.productId === id)?.quantity || 0);
         },

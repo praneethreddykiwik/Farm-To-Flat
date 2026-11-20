@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { AlertTriangle, Clock, Users } from 'lucide-react-native';
 import { Label, Pressy, Skeleton, Small, Text } from '../ui';
 import { useGetProductKnowledgeQuery } from '../api/api';
 import { colors, fonts, radius, shadow } from '../theme';
+import { track } from '../lib/tracking';
 
 /**
  * What we know about a product, in three short tabs: what it naturally contains, its story, and a
@@ -40,6 +41,16 @@ export function ProductKnowledge({ productId, initialTab, compact = false }) {
   }, [k]);
   const [picked, setPicked] = useState(/** @type {string|null} */ (initialTab || null));
   const tab = tabs.find((t) => t.key === picked) ? picked : tabs[0]?.key;
+  // product_story_viewed (tracking brief, LATER): how long the story tab stayed open.
+  useEffect(() => {
+    if (tab !== 'story' || !productId) return undefined;
+    const since = Date.now();
+    return () =>
+      track('product_story_viewed', {
+        product_id: String(productId),
+        seconds_on_story: Math.round((Date.now() - since) / 1000),
+      });
+  }, [tab, productId]);
 
   if (isLoading) {
     return (

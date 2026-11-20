@@ -19,7 +19,7 @@ import { listOrdersForCustomer } from '../store.js';
 import { wasPlaced } from '../lib/customer-history.js';
 import { id as newId } from '../lib/ids.js';
 import { getOps, listOps, putOps, putOpsSoft, removeOps, getSettings } from '../ops-store.js';
-import { checkCode, heardFromOptions, inviteSummary } from '../lib/growth.js';
+import { checkCode, heardFromOptions, inviteSummary, resolveCode } from '../lib/growth.js';
 import { todayISO } from '../lib/dates.js';
 import { track } from '../lib/events.js';
 
@@ -270,6 +270,12 @@ const InstallSource = z.object({
 });
 
 /** Parse "src=counter&p=PR01&c=aquantis" (also accepts utm_source / utm_campaign). */
+/** The customer behind an invite code, for install_source_captured's referrer_id. */
+function inviterOf(code) {
+  const r = code ? resolveCode(code) : null;
+  return r && r.kind === 'INVITE' ? r.customerId : null;
+}
+
 export function parseReferrer(raw) {
   let q;
   try {
@@ -308,7 +314,13 @@ growthRouter.post(
       putOpsSoft('installSource', cid, { ...tag, at: new Date().toISOString() });
       track(
         'install_source_captured',
-        { source_tag: tag.src, promoter_id: tag.p, referrer_code: tag.r, community: tag.c },
+        {
+          source_tag: tag.src,
+          promoter_id: tag.p,
+          referrer_code: tag.r,
+          referrer_id: inviterOf(tag.r),
+          community: tag.c,
+        },
         { customerId: cid },
       );
     }

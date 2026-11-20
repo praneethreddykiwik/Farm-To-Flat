@@ -441,7 +441,7 @@ export function weeklyExportRows(range) {
       tower: list[list.length - 1].address?.block || null,
       acquisition_source: att?.acquisitionSource || att?.heardFrom || null,
       promoter_id: att?.promoterCode || null,
-      referrer: att?.referrerId ? householdKey(att.referrerId) : null,
+      referrer_id: att?.referrerId ? householdKey(att.referrerId) : null,
       first_order_date: istDate(first.createdAt),
       order_count: delivered.length,
       last_order_date: istDate(list[list.length - 1].createdAt),

@@ -213,3 +213,46 @@ describe('Home nudges and the neighbour-number switch', () => {
     }
   });
 });
+
+describe('LATER events and referrer_id', () => {
+  it('product_viewed, product_story_viewed and cart_updated are accepted', async () => {
+    const s = await shopper();
+    for (const [name, props] of [
+      ['product_viewed', { product_id: 'p_palak' }],
+      ['product_story_viewed', { product_id: 'p_palak', seconds_on_story: 12 }],
+      ['cart_updated', { product_id: 'p_palak', quantity: 2, cart_value: 5000 }],
+    ]) {
+      const r = await request(app).post('/api/v1/events').set(auth(s.token)).send({ name, props });
+      expect(r.status, name).toBe(202);
+      expect(listEvents({ name }).find((e) => e.customerId === s.id)?.props).toMatchObject(props);
+    }
+  });
+
+  it('an install through a neighbour’s invite link names the neighbour as referrer_id', async () => {
+    const inviter = await shopper();
+    const inv = await request(app).get('/api/v1/growth/invite').set(auth(inviter.token));
+    const s = await shopper();
+    await request(app)
+      .post('/api/v1/growth/install-source')
+      .set(auth(s.token))
+      .send({ referrer: `src=referral&r=${inv.body.code}` });
+    const ev = listEvents({ name: 'install_source_captured' }).find((e) => e.customerId === s.id);
+    expect(ev.props.referrer_id).toBe(inviter.id);
+  });
+});
+
+describe('body size on public routes', () => {
+  it('refuses a large body on the public scan counter and on sign-in', async () => {
+    const big = JSON.stringify({ src: 'counter', pad: 'a'.repeat(100_000) });
+    const r = await request(app)
+      .post('/api/v1/links/click')
+      .set('content-type', 'application/json')
+      .send(big);
+    expect(r.status).toBe(413);
+    const o = await request(app)
+      .post('/api/v1/auth/otp/request')
+      .set('content-type', 'application/json')
+      .send(big);
+    expect(o.status).toBe(413);
+  });
+});

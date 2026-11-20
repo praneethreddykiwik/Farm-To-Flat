@@ -40,6 +40,7 @@ import { ProductKnowledge } from '../../src/components/ProductKnowledge';
 import { useBagBounce, useBagTarget } from '../../src/components/FlyToBag';
 import { canFly, flyToBag } from '../../src/lib/flyToBag';
 import { useScreenFocused } from '../../src/hooks/useScreenFocused';
+import { track } from '../../src/lib/tracking';
 
 const { width: W } = Dimensions.get('window');
 const HERO = W * 1.05;
@@ -64,6 +65,10 @@ const unitPlural = (unit, n) => {
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams();
+  // product_viewed (tracking brief, LATER): once per opening of this page.
+  React.useEffect(() => {
+    if (id) track('product_viewed', { product_id: String(id) });
+  }, [id]);
   const lang = useSelector(selectLanguage);
   const router = useRouter();
   const insets = useSafeAreaInsets();

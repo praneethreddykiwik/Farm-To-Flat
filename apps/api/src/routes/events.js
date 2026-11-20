@@ -16,7 +16,7 @@ const LINK_TAGS_PER_DAY = 300;
 
 export const eventsRouter = Router();
 
-export const CLIENT_EVENTS_PER_DAY = 300;
+export const CLIENT_EVENTS_PER_DAY = 600;
 
 eventsRouter.post(
   '/',

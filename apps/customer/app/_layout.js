@@ -170,6 +170,8 @@ function AuthGate({ ready }) {
       // cutoff_reminder_opened (tracking brief): did the 5 PM reminder bring them in?
       if (resp.notification?.request?.content?.data?.type === 'CUTOFF_REMINDER')
         track('cutoff_reminder_opened', {
+          channel: 'push',
+          opened_at: new Date().toISOString(),
           sent_on: String(resp.notification.request.content.data.reminder || ''),
         });
       const target = routeForNotification({
