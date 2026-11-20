@@ -127,6 +127,17 @@ customerOrdersRouter.post(
     if (!address) throw fail(422, 'VALIDATION', 'Choose a delivery address.');
 
     const community = getCommunity(address.communityId);
+    // Review #10 (21 Nov 2026): a community the operator has switched off (or removed) is not one
+    // we deliver to. GET /communities already hides it, but an address saved while it was live
+    // still pointed at it, and checkout took the order — for a van that is not going there.
+    // Checked at commit time, like the cut-off below, never trusted from the app's earlier read.
+    if (!community || community.isActive === false)
+      throw fail(
+        409,
+        'COMMUNITY_INACTIVE',
+        'We are not delivering to this community right now, so this order can’t be placed.',
+        { communityId: address.communityId },
+      );
     const windows = generateWindows(community, todayISO(), bookedIndex(community.id));
     const win = windows.find((w) => w.date === deliveryDate && w.window === window);
     if (!win) throw fail(422, 'VALIDATION', 'Choose a delivery window.');
