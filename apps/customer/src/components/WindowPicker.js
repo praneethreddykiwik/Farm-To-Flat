@@ -12,6 +12,7 @@ import {
   windowHours,
   windowLabel,
 } from '../lib/dates';
+import { deadlineFrom, secondsLeft } from '../lib/countdown';
 
 /** "12:45" / "1:02:45" from a whole number of seconds. */
 function hms(totalSeconds) {
@@ -48,9 +49,13 @@ function CutoffCountdown({ windowId, secondsUntilCutoff, urgent }) {
   useEffect(() => {
     // Re-sync to the server's latest snapshot whenever it changes (a refetch, or a new window),
     // then tick locally every second in between — intentional, not the "derive state" antipattern.
+    // Review #48 (21 Nov 2026): this used to count a counter down by one per tick, which falls
+    // behind whenever the timer is throttled or paused (app in the background). The snapshot is
+    // now a deadline, and each tick reads the clock against it.
+    const deadline = deadlineFrom(secondsUntilCutoff, Date.now());
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLeft(secondsUntilCutoff);
-    const t = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    setLeft(secondsLeft(deadline, Date.now()));
+    const t = setInterval(() => setLeft(secondsLeft(deadline, Date.now())), 1000);
     return () => clearInterval(t);
   }, [windowId, secondsUntilCutoff]);
   return (
