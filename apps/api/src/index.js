@@ -160,21 +160,54 @@ app.use(v1, (req, res, next) => {
 // exact bytes it sent, and a parsed-then-reserialised body hashes differently. It also sits outside
 // requireAuth below — Razorpay holds no bearer token, the signature is the credential.
 app.use(`${v1}/webhooks`, razorpayWebhookRouter);
-// Small bodies first on routes that never carry an image — the public ones especially, so nobody
-// can make the server read megabytes without signing in (security audit, 20 Nov 2026). The first
-// parser to read a body wins; the 8 MB one below then skips these requests.
-for (const p of [
-  '/auth',
-  '/links',
-  '/events',
-  '/growth',
-  '/devices',
-  '/cart',
-  '/support',
-  '/coupons',
-])
-  app.use(`/api/v1${p}`, express.json({ limit: '32kb' }));
-app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
+
+// A ceiling on everything, so one host cannot simply flood the service. Set well above real use:
+// behind carrier-grade NAT a single IP can be very many genuine customers, and throttling them to
+// protect against a flood would be the worse failure. A blunt instrument, not a usage quota.
+//
+// BEFORE the body parsers (review #26, 21 Nov 2026). It used to sit after them, so a flood was
+// refused only once each request's body had already been read and parsed — the limiter protected
+// everything except the expensive part.
+app.use(
+  v1,
+  rateLimit({
+    windowMs: 60 * 1000,
+    // Tunable without a deploy: ops may need to raise it for a known burst (a campaign, a load
+    // test) or lower it under attack.
+    max: Number(process.env.RATE_LIMIT_PER_MIN) || 600,
+    key: (req) => `all:${ipOf(req)}`,
+  }),
+);
+
+/**
+ * Body size, by route (review #26, 21 Nov 2026).
+ *
+ * Every request used to be parsed with an 8 MB limit before anyone was authenticated, so anybody
+ * could make the server read and JSON-parse megabytes per request. Now:
+ *   - 32 KB for everything by default — no ordinary request comes near it;
+ *   - 8 MB only on the routes that carry a base64 photograph, and only AFTER the caller has signed
+ *     in (the auth check is repeated in front of the parser so a stranger's body is never read);
+ *   - 1 MB for a saved meal plan (the route itself caps it at 600 KB) and, after admin sign-in,
+ *     for the operator console, whose bulk actions are the one place a large-but-legitimate body
+ *     is plausible and whose callers are staff.
+ * The default parser skips the routes below; each gets its own parser further down, after auth.
+ * Case-insensitive, because Express routing is.
+ */
+const json32k = express.json({ limit: '32kb' });
+const json1mb = express.json({ limit: '1mb' });
+const json8mb = express.json({ limit: '8mb' });
+const LATE_BODY = [
+  /^\/api\/v1\/ai\/identify(\/|$)/i,
+  /^\/api\/v1\/meals\/log(\/|$)/i,
+  /^\/api\/v1\/meals\/plan(\/|$)/i,
+  /^\/api\/v1\/meals\/[^/]+\/photo(\/|$)/i,
+  /^\/api\/v1\/orders\/[^/]+\/issue(\/|$)/i,
+  // The whole console except its sign-in routes, which stay at 32 KB: they are public.
+  /^\/api\/v1\/admin\/(?!auth(\/|$))/i,
+];
+app.use((req, res, next) =>
+  LATE_BODY.some((r) => r.test(req.path)) ? next() : json32k(req, res, next),
+);
 // Request logging. Credentials are REDACTED: pino-http logs every request header by default, so
 // customer Bearer tokens and the admin token were being written into the host's log retention.
 if (process.env.NODE_ENV !== 'test')
@@ -261,19 +294,7 @@ app.get('/health', (_req, res) => {
 });
 
 // ── public ──────────────────────────────────────────────────────────────────
-// A ceiling on everything, so one host cannot simply flood the service. Set well above real use:
-// behind carrier-grade NAT a single IP can be very many genuine customers, and throttling them to
-// protect against a flood would be the worse failure. A blunt instrument, not a usage quota.
-app.use(
-  v1,
-  rateLimit({
-    windowMs: 60 * 1000,
-    // Tunable without a deploy: ops may need to raise it for a known burst (a campaign, a load
-    // test) or lower it under attack.
-    max: Number(process.env.RATE_LIMIT_PER_MIN) || 600,
-    key: (req) => `all:${ipOf(req)}`,
-  }),
-);
+// (The global rate limit now sits above the body parsers — see review #26 there.)
 
 // Private media, authenticated by the token in the path rather than by a header, because an
 // <img> cannot send one. Public by necessity, unguessable by construction. See routes/media.js.
@@ -289,6 +310,13 @@ app.use(`${v1}/support`, supportRouter);
 app.use(`${v1}/access`, requireAuth, accessRouter); // authenticated: resolves the caller's OWN number only
 
 // ── authenticated customer contract ───────────────────────────────────────────
+// The large-body routes (LATE_BODY above): signed in first, then parsed. requireAuth runs again in
+// the router mount below; it is a map lookup, and repeating it keeps each router self-contained.
+app.use(`${v1}/ai/identify`, requireAuth, json8mb);
+app.use(`${v1}/meals/log`, requireAuth, json8mb);
+app.use(`${v1}/meals/plan`, requireAuth, json1mb);
+app.use(`${v1}/meals/:id/photo`, requireAuth, json8mb);
+app.use(`${v1}/orders/:id/issue`, requireAuth, json8mb);
 app.use(`${v1}/me`, requireAuth, meRouter);
 app.use(`${v1}/addresses`, requireAuth, addressesRouter);
 app.use(`${v1}/cart`, requireAuth, cartRouter);
@@ -319,6 +347,10 @@ app.use(`${v1}/admin/auth`, adminAuthPublicRouter);
 const admin = express.Router();
 admin.use(adminAuth);
 admin.use(adminAuthorize); // per-route role check — any staff is NOT full admin
+// Bodies are read only once the operator is known (review #26): 8 MB for a product photograph,
+// 1 MB for everything else in the console.
+admin.use('/products/upload-image', json8mb);
+admin.use(json1mb);
 admin.use(adminProductsRouter);
 admin.use(adminCommunitiesRouter);
 admin.use(adminDemandRouter);
