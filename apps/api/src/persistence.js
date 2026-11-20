@@ -496,12 +496,31 @@ export async function drainChain(key) {
  * @returns {Promise<{drained:boolean, pending:number}>}
  */
 export async function drainPersistence(ms = 4000) {
-  const pendingAtStart = chains.size;
+  const pendingAtStart = chains.size + loose.size;
   if (!pendingAtStart) return { drained: true, pending: 0 };
-  const all = Promise.allSettled([...chains.values()]);
+  const all = Promise.allSettled([...chains.values(), ...loose]);
   const timeout = new Promise((r) => setTimeout(() => r('timeout'), ms));
   const outcome = await Promise.race([all.then(() => 'drained'), timeout]);
-  return { drained: outcome === 'drained', pending: chains.size };
+  return { drained: outcome === 'drained', pending: chains.size + loose.size };
+}
+
+/**
+ * Writes that have no record key — deletes by id, staff/community upserts, the ops store's soft
+ * writes — never entered `chains`, so the shutdown drain did not wait for them and a deploy could
+ * cut them off mid-flight (review #15, 21 Nov 2026). They are held here until they settle.
+ */
+const loose = new Set();
+/**
+ * Count an un-awaited write as pending until it settles, so `drainPersistence` waits for it.
+ * Returns the same promise. Never adds a rejection of its own: the caller still handles failures.
+ * @template T
+ * @param {Promise<T>} p
+ * @returns {Promise<T>}
+ */
+export function trackWrite(p) {
+  loose.add(p);
+  p.finally(() => loose.delete(p)).catch(() => {});
+  return p;
 }
 
 export function serialize(key, run) {
@@ -530,7 +549,7 @@ const wt =
       Promise.resolve()
         .then(() => fn(...args))
         .catch(logErr(op));
-    return keyOf ? serialize(`${op.split('.')[0]}:${keyOf(...args)}`, run) : run();
+    return keyOf ? serialize(`${op.split('.')[0]}:${keyOf(...args)}`, run) : trackWrite(run());
   };
 
 // ── the operator's product-page text ────────────────────────────────────────

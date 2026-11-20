@@ -33,7 +33,7 @@
  * the reason someone could not buy their vegetables. They are kept in memory and retried once.
  */
 import { prisma } from './db.js';
-import { persistEnabled, persistenceOn } from './persistence.js';
+import { persistEnabled, persistenceOn, trackWrite } from './persistence.js';
 import { fail } from './http.js';
 
 export const OPS_KINDS = [
@@ -258,10 +258,13 @@ export function putOpsSoft(kind, id, data) {
   assertKind(kind);
   const rec = { ...clone(data), id: String(id) };
   mem.get(kind).set(String(id), rec);
+  // Tracked so the shutdown drain waits for it like any other write (review #15, 21 Nov 2026).
   if (state !== 'memory')
-    writeRow(kind, String(id), rec).catch((e) =>
-      // eslint-disable-next-line no-console
-      console.error(`[ops] soft write ${kind}/${id} not saved:`, e?.message || e),
+    trackWrite(
+      writeRow(kind, String(id), rec).catch((e) =>
+        // eslint-disable-next-line no-console
+        console.error(`[ops] soft write ${kind}/${id} not saved:`, e?.message || e),
+      ),
     );
   return clone(rec);
 }
