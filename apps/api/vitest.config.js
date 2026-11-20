@@ -18,6 +18,9 @@ export default defineConfig({
      * The cost is wall-clock: a few seconds longer. Worth it for a result you can act on.
      */
     fileParallelism: false,
+    // Supertest's per-request servers bind 127.0.0.1 — see test/setup/loopback-listen.js for the
+    // random-failure this ended.
+    setupFiles: ['./test/setup/loopback-listen.js'],
     // A hung request should fail loudly rather than sit until the whole run times out.
     testTimeout: 20000,
     hookTimeout: 20000,
