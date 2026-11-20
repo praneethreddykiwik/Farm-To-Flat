@@ -79,11 +79,24 @@ let seq = 4210;
 // createOrder (called during seeding) can read it without a temporal-dead-zone error.
 let orderPersist = false;
 
-/** Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped. */
-function makeLine(productId, qty, note = null) {
+/**
+ * Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped.
+ *
+ * `free` is a FREE_ITEM coupon's gift (review #6, 21 Nov 2026): a real line — packed, procured,
+ * printed on the invoice at ₹0 — so the customer actually receives it. The price is 0; the COST is
+ * kept, because the farm still has to grow it and the margin should say so.
+ */
+function makeLine(productId, qty, note = null, free = false) {
   const p = db.products.find((x) => x.id === productId);
   if (!p) return null;
   const quantity = Number(qty);
+  if (free)
+    return {
+      ...makeLine(productId, qty, note),
+      unitPricePaise: 0,
+      lineTotalPaise: 0,
+      free: true,
+    };
   return {
     id: id('ci', 8),
     productId: p.id,
@@ -113,7 +126,9 @@ export function createOrder(input) {
   const community = db.communities.find((c) => c.id === input.communityId);
   const items = (input.lines || [])
     .map((l) =>
-      Array.isArray(l) ? makeLine(l[0], l[1]) : makeLine(l.productId, l.quantity, l.note),
+      Array.isArray(l)
+        ? makeLine(l[0], l[1])
+        : makeLine(l.productId, l.quantity, l.note, l.free === true),
     )
     .filter(Boolean);
   const subtotal = items.reduce((s, l) => s + l.lineTotalPaise, 0);
