@@ -30,7 +30,7 @@ import {
 import { showToast } from '../../src/features/ui/uiSlice';
 import { colors, fonts, radius } from '../../src/theme';
 import { formatPaise } from '../../src/lib/money';
-import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
+import { openRazorpay, paymentPathFor } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
 import { notifyLocal } from '../../src/lib/notifications';
 
@@ -96,7 +96,11 @@ export default function Wallet() {
       topupSheet.current?.dismiss();
       const pi = res.paymentIntent;
       setIntent(pi);
-      if (razorpayAvailable) {
+      // Review #46 (21 Nov 2026): this fell through to the simulated sheet whenever the SDK was
+      // missing — in a production build too — and opened the SDK without a gateway order. The
+      // shared rule (lib/paymentPath.js) allows the simulator in development/mocks only.
+      const path = paymentPathFor(pi);
+      if (path === 'native') {
         try {
           const r = await openRazorpay(pi);
           await settle(pi.paymentId, {
@@ -108,8 +112,18 @@ export default function Wallet() {
         } catch {
           await settle(pi.paymentId, { success: false });
         }
-      } else {
+      } else if (path === 'simulated') {
         setTimeout(() => simSheet.current?.present(), 250);
+      } else {
+        haptic.error();
+        setIntent(null);
+        dispatch(
+          showToast({
+            title: 'Couldn’t start the payment',
+            message: 'Nothing was charged. Please try again shortly.',
+            tone: 'error',
+          }),
+        );
       }
     } catch (e) {
       dispatch(showToast({ title: e?.message || 'Could not start top-up', tone: 'error' }));
