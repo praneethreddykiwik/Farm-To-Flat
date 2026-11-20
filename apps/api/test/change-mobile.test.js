@@ -76,15 +76,25 @@ describe('changing your mobile number keeps your account', () => {
     expect(old.customerId).not.toBe(customerId);
   });
 
-  it('refuses a number another account already holds, and sends no code for it', async () => {
+  it('refuses a number another account already holds, without saying so, and sends no code', async () => {
     await signIn('9333000004');
     const { token } = await withAddress('9333000005', '405');
     const r = await request(app)
       .post('/api/v1/me/mobile/request')
       .set(auth(token))
       .send({ mobile: '9333000004' });
-    expect(r.status).toBe(409);
-    expect(r.body.error.code).toBe('MOBILE_TAKEN');
+    // Review #27: the same reply as for a free number, so the endpoint cannot be used to find out
+    // who is a customer...
+    expect(r.status).toBe(200);
+    expect(r.body.ok).toBe(true);
+    // ...but no code exists for it, so even the test-mode fixed code cannot complete the move.
+    const v = await request(app)
+      .post('/api/v1/me/mobile/verify')
+      .set(auth(token))
+      .send({ mobile: '9333000004', otp: '123456' });
+    expect(v.status).toBe(401);
+    const me = await request(app).get('/api/v1/me').set(auth(token));
+    expect(me.body.customer.mobile).toBe('9333000005');
   });
 
   it('refuses a wrong code, and leaves the number untouched', async () => {
