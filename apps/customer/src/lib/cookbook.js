@@ -1,333 +1,542 @@
 /**
- * "What are you cooking?" — from the name of a dish to the things on our shelf that go into it.
+ * "What are you cooking?" — from the name of a dish to the things on our shelf that go into it,
+ * how much of each for this family, and what to have ready in the kitchen.
  *
- * A written cookbook, not a model asked to improvise. Three reasons:
+ * A written cookbook, not a model asked to improvise (version 2, 21 Nov 2026):
  *  - it answers at once, with the phone offline, and costs nothing per question;
  *  - it can only ever suggest what is actually in today's catalogue, because it works by matching
  *    its ingredients against the catalogue it is handed;
- *  - every line a shopper reads here was written by a person and can be checked. A model asked why
+ *  - every line a shopper reads here was written down and can be checked. A model asked why
  *    spinach is good for you will happily say things no food business is allowed to say.
  *
- * So the words about TASTE are here, one line per ingredient per dish. The words about NUTRITION
- * are not here at all: they are the product's own computed badge ("Naturally high in vitamin A"),
- * worked out on the server from published composition data against the FSSAI thresholds, and shown
- * as-is beside the line.
+ * The book itself lives in ./cookbook-data: an ingredient dictionary (ingredients.js — every
+ * vegetable, green, herb, meat, fish, egg, dairy and pantry staple, with its English, Telugu and
+ * Hindi names) and a few hundred dishes from across India (dishes/*.js). Each dish says what it
+ * NEEDS, what makes it BETTER, how many grams per adult, and which pantry staples it uses.
  *
- * Each dish lists what it NEEDS and what makes it BETTER. A dish it has never heard of is not a
- * dead end: if the words name something we sell ("beetroot fry") it builds the dish around that;
- * failing that it offers the base most everyday curries start from, and says that is what it is.
+ * What this file adds on top:
+ *  - matching that works on whole words (so "kheer" is never "kheera", the cucumber), forgives a
+ *    typo, and reads Telugu and Devanagari script;
+ *  - quantities for the family ("about 750 g for 2 adults and a child"), rounded up to what the
+ *    product is sold in;
+ *  - a kitchen list of pantry staples we don't sell, and a plain note when the dish's main
+ *    ingredient isn't on our shelf ("We don't sell fish yet").
+ *
+ * The words about NUTRITION are not here at all: they are the product's own computed badge
+ * ("Naturally high in vitamin A"), worked out on the server, and shown as-is beside the line.
  *
  * Pure. No React, no network.
  */
+import { ALL_DISHES, ING } from './cookbook-data/index.js';
+import { appetites, cleanHousehold, householdLabel } from './household';
 
 /**
- * An ingredient, and how to recognise it among product names and aliases (lower-cased substrings).
- * `not` keeps "onion" from claiming "spring onion", and "spinach" from "malabar spinach".
+ * @typedef {{ key: string, why: string, g?: number }} Part
+ * @typedef {{ id: string, name: string, te?: string, hi?: string, say: string[],
+ *   diet: 'veg'|'egg'|'nonveg', meal: string[], region: string, main: string|null,
+ *   needs: Part[], better: Part[], pantry: string[] }} Dish
  */
-const ING = {
-  tomato: { is: ['tomato', 'tamata', 'tamatar'] },
-  onion: { is: ['onion', 'ullipaya', 'pyaz'], not: ['spring', 'ullikadalu'] },
-  springOnion: { is: ['spring onion', 'ullikadalu'] },
-  chilli: { is: ['green chilli', 'chilli', 'pachimirchi', 'mirch'] },
-  ginger: { is: ['ginger', 'allam', 'adrak'] },
-  garlic: { is: ['garlic', 'velluli', 'lehsun'] },
-  coriander: { is: ['coriander', 'kothimeera', 'dhania'] },
-  mint: { is: ['mint', 'pudina'] },
-  curryLeaves: { is: ['curry leaves', 'karivepaku', 'kadi patta'] },
-  lemon: { is: ['lemon', 'nimmakaya', 'nimbu'] },
-  potato: { is: ['potato', 'bangaladumpa', 'aloo'] },
-  carrot: { is: ['carrot', 'gajar'] },
-  peas: { is: ['green peas', 'peas', 'matar', 'batani'] },
-  beans: { is: ['french beans'] },
-  broadBeans: { is: ['broad beans', 'chikkudukaya'] },
-  clusterBeans: { is: ['cluster beans', 'goruchikkudu'] },
-  drumstick: { is: ['drumstick', 'munakkaya'], not: ['leaves'] },
-  brinjal: { is: ['brinjal', 'vankaya', 'baingan', 'eggplant'] },
-  okra: { is: ["lady's finger", 'ladies finger', 'bendakaya', 'bhindi', 'okra'] },
-  cauliflower: { is: ['cauliflower', 'gobi'], not: ['patta'] },
-  cabbage: { is: ['cabbage'] },
-  bottleGourd: { is: ['bottle gourd', 'sorakaya', 'lauki'] },
-  ridgeGourd: { is: ['ridge gourd', 'beerakaya', 'turai'] },
-  bitterGourd: { is: ['bitter gourd', 'kakarakaya', 'karela'] },
-  snakeGourd: { is: ['snake gourd', 'potlakaya'] },
-  pumpkin: { is: ['pumpkin', 'gummadikaya', 'kaddu'] },
-  cucumber: { is: ['cucumber', 'dosakaya', 'kheera'] },
-  radish: { is: ['radish', 'mullangi', 'mooli'] },
-  beetroot: { is: ['beetroot', 'chukandar'] },
-  spinach: { is: ['spinach', 'palakura', 'palak'], not: ['malabar'] },
-  methi: { is: ['fenugreek', 'menthikura', 'methi'] },
-  gongura: { is: ['roselle', 'gongura', 'sorrel'] },
-  amaranth: { is: ['amaranth', 'thotakura'] },
-  drumstickLeaves: { is: ['drumstick leaves', 'moringa leaves'] },
-  dill: { is: ['dill'] },
-  chicken: { is: ['chicken', 'kodi'], not: ['egg', 'guddu'] },
-  mutton: { is: ['mutton curry', 'mamsam', 'goat meat'] },
-  keema: { is: ['keema', 'mince'] },
-  paya: { is: ['paya', 'trotters'] },
-  fish: { is: ['fish', 'chepalu', 'rohu'] },
-  prawns: { is: ['prawn', 'royyalu', 'jhinga'] },
-  eggs: { is: ['egg', 'guddu', 'desi ande'], not: ['eggplant'] },
-  pomegranate: { is: ['pomegranate', 'danimma', 'anar'] },
-  banana: { is: ['banana', 'arati'] },
-  papaya: { is: ['papaya', 'boppayi'] },
-  guava: { is: ['guava', 'jama'] },
-  grapes: { is: ['grapes', 'draksha'] },
-  lettuce: { is: ['lettuce'] },
-};
 
-/** Lines used again and again, so the same ingredient reads the same way across dishes. */
-const W = {
-  onionBase: 'Browned slowly, it is the body of the gravy.',
-  tomatoBase: 'Cooks down into the gravy and gives it its tang.',
-  chilli: 'Fresh heat — slit it and let it fry in the oil.',
-  ginger: 'A little, crushed, lifts the whole pot.',
-  garlic: 'Crushed into the oil first; the smell is half the dish.',
-  gg: 'Pounded with garlic into the paste every gravy starts from.',
-  coriander: 'Torn over the top just before serving.',
-  curryLeaves: 'Crackled in hot oil for the tempering.',
-  lemon: 'A squeeze at the end wakes everything up.',
-  mint: 'A handful makes it smell like a feast.',
-};
+/** @type {Dish[]} */
+export const DISHES = ALL_DISHES;
+export { ING };
 
-/**
- * @typedef {{ key: string, why: string, alt?: boolean }} Part
- * `alt`: one of several a dish can be built on (a gourd curry is made with ONE gourd). Only the one
- * the shopper named is offered — or, if they named none, the first we have.
- * @typedef {{ id: string, name: string, say: string[], needs: Part[], better: Part[] }} Dish
- * `say`: lower-case words and phrases a shopper might type, in English or romanised Telugu/Hindi.
- * @type {Dish[]}
- */
-// prettier-ignore
-export const DISHES = [
-  { id: 'tomato_curry', name: 'Tomato curry', say: ['tomato curry', 'tamata kura', 'tomato kura', 'tamatar sabzi', 'tomato gravy', 'tomato'],
-    needs: [ { key: 'tomato', why: 'The dish itself — ripe ones, about two per person.' }, { key: 'onion', why: W.onionBase }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'garlic', why: 'A few crushed cloves make it taste slow-cooked.' }, { key: 'ginger', why: W.ginger }, { key: 'coriander', why: W.coriander }, { key: 'drumstick', why: 'Simmered in the gravy, it soaks up the tang.' }, { key: 'eggs', why: 'Boiled and dropped in, it becomes a full meal.' } ] },
-  { id: 'tomato_dal', name: 'Tomato pappu', say: ['tomato pappu', 'tamata pappu', 'tomato dal', 'pappu', 'dal', 'dal tadka', 'dal fry'],
-    needs: [ { key: 'tomato', why: 'Cooked soft with the dal for its sour-sweet body.' }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'garlic', why: 'Fried golden in the tempering — do not skip it.' } ],
-    better: [ { key: 'onion', why: 'Softened with the dal for a little sweetness.' }, { key: 'coriander', why: W.coriander }, { key: 'spinach', why: 'A bunch stirred in turns it into palak pappu.' }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'palak_dal', name: 'Palak pappu', say: ['palak pappu', 'palakura pappu', 'palak dal', 'spinach dal', 'dal palak', 'spinach'],
-    needs: [ { key: 'spinach', why: 'A whole bunch — it cooks down to almost nothing.' }, { key: 'tomato', why: 'Gives the dal its tang.' }, { key: 'garlic', why: 'Fried golden in the tempering.' }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'onion', why: 'Softened in for sweetness.' }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'gongura_dal', name: 'Gongura pappu', say: ['gongura pappu', 'gongura', 'gongura dal', 'sorrel', 'gongura pachadi', 'gongura chutney'],
-    needs: [ { key: 'gongura', why: 'The sour leaf the dish is named for.' }, { key: 'chilli', why: 'Gongura wants real heat beside it.' }, { key: 'garlic', why: 'Plenty, fried in the tempering.' }, { key: 'onion', why: 'Raw on the side, the way it is eaten at home.' } ],
-    better: [ { key: 'curryLeaves', why: W.curryLeaves }, { key: 'mutton', why: 'Cooked with gongura, it is the famous Andhra curry.' }, { key: 'chicken', why: 'Gongura chicken, for a Sunday.' } ] },
-  { id: 'sambar', name: 'Sambar', say: ['sambar', 'sambhar', 'sambaar'],
-    needs: [ { key: 'drumstick', why: 'The vegetable that makes it taste like sambar.' }, { key: 'tomato', why: 'For the sour-sweet base.' }, { key: 'onion', why: 'Small pieces, left a little firm.' }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'carrot', why: 'A touch of sweetness against the tamarind.' }, { key: 'brinjal', why: 'Goes soft and drinks the sambar.' }, { key: 'pumpkin', why: 'Melts in and thickens it.' }, { key: 'radish', why: 'The classic mullangi sambar.' }, { key: 'okra', why: 'Fried first, then dropped in.' }, { key: 'coriander', why: W.coriander } ] },
-  { id: 'rasam', name: 'Rasam', say: ['rasam', 'charu', 'chaaru', 'saaru', 'tomato rasam'],
-    needs: [ { key: 'tomato', why: 'Crushed by hand into the water.' }, { key: 'garlic', why: 'Pounded with pepper — the heart of rasam.' }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'coriander', why: 'Stems and all, right at the end.' } ],
-    better: [ { key: 'chilli', why: W.chilli }, { key: 'ginger', why: 'For a rasam that clears a cold.' }, { key: 'lemon', why: 'Instead of tamarind, for a lighter one.' } ] },
-  { id: 'chicken_curry', name: 'Chicken curry', say: ['chicken curry', 'kodi kura', 'chicken', 'chicken gravy', 'chicken masala', 'kodi pulusu', 'butter chicken', 'chicken fry', 'kodi vepudu'],
-    needs: [ { key: 'chicken', why: 'Curry cut, on the bone, for the best gravy.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: W.tomatoBase }, { key: 'ginger', why: W.gg }, { key: 'garlic', why: 'Half the ginger-garlic paste.' }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'coriander', why: W.coriander }, { key: 'curryLeaves', why: 'Fried crisp on top, Andhra style.' }, { key: 'mint', why: W.mint }, { key: 'lemon', why: W.lemon }, { key: 'potato', why: 'Stretches the curry and drinks the gravy.' } ] },
-  { id: 'mutton_curry', name: 'Mutton curry', say: ['mutton curry', 'mamsam kura', 'mutton', 'mutton gravy', 'mamsam', 'mutton fry', 'goat curry'],
-    needs: [ { key: 'mutton', why: 'Curry cut — let it cook low and long.' }, { key: 'onion', why: 'A lot of it; it melts into the gravy.' }, { key: 'ginger', why: W.gg }, { key: 'garlic', why: 'Mutton can take plenty.' }, { key: 'tomato', why: W.tomatoBase } ],
-    better: [ { key: 'chilli', why: W.chilli }, { key: 'mint', why: W.mint }, { key: 'coriander', why: W.coriander }, { key: 'potato', why: 'Soaks up the gravy better than the meat does.' }, { key: 'gongura', why: 'Turns it into gongura mamsam.' } ] },
-  { id: 'biryani', name: 'Biryani', say: ['biryani', 'biriyani', 'chicken biryani', 'mutton biryani', 'dum biryani', 'pulao', 'pulav', 'bagara rice'],
-    needs: [ { key: 'onion', why: 'Sliced thin and fried dark — the birista.' }, { key: 'mint', why: 'Layered through the rice; there is no biryani without it.' }, { key: 'coriander', why: 'Layered with the mint.' }, { key: 'ginger', why: W.gg }, { key: 'garlic', why: 'For the marinade.' }, { key: 'chilli', why: 'Slit, into the marinade.' } ],
-    better: [ { key: 'chicken', why: 'For chicken dum biryani.' }, { key: 'mutton', why: 'For the real Hyderabadi one.' }, { key: 'lemon', why: 'Squeezed over each plate.' }, { key: 'tomato', why: 'A couple, for a softer masala.' }, { key: 'cucumber', why: 'For the raita on the side.' }, { key: 'eggs', why: 'Boiled, one on every plate.' } ] },
-  { id: 'veg_biryani', name: 'Vegetable biryani', say: ['veg biryani', 'vegetable biryani', 'veg pulao', 'vegetable pulao', 'veg pulav', 'fried rice', 'veg fried rice'],
-    needs: [ { key: 'carrot', why: 'Diced, for colour and sweetness.' }, { key: 'beans', why: 'Cut small so they stay crisp.' }, { key: 'peas', why: 'A handful through the rice.' }, { key: 'onion', why: 'Fried dark for the top.' }, { key: 'mint', why: 'Layered through the rice.' } ],
-    better: [ { key: 'potato', why: 'Cubed and fried first.' }, { key: 'cauliflower', why: 'Small florets hold the masala.' }, { key: 'coriander', why: W.coriander }, { key: 'chilli', why: W.chilli }, { key: 'springOnion', why: 'For fried rice, stirred in at the end.' }, { key: 'cucumber', why: 'For the raita on the side.' } ] },
-  { id: 'keema', name: 'Keema curry', say: ['keema', 'kheema', 'qeema', 'keema curry', 'keema matar', 'mince'],
-    needs: [ { key: 'keema', why: 'Fresh mince — cook it until the oil comes out.' }, { key: 'onion', why: W.onionBase }, { key: 'ginger', why: W.gg }, { key: 'garlic', why: 'Half the paste.' }, { key: 'tomato', why: W.tomatoBase } ],
-    better: [ { key: 'peas', why: 'Keema matar — the classic pairing.' }, { key: 'chilli', why: W.chilli }, { key: 'mint', why: W.mint }, { key: 'coriander', why: W.coriander }, { key: 'potato', why: 'Aloo keema stretches it for a crowd.' }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'paya', name: 'Paya soup', say: ['paya', 'paya soup', 'paya curry', 'trotters'],
-    needs: [ { key: 'paya', why: 'Simmered for hours until the broth turns silky.' }, { key: 'onion', why: 'For the base of the broth.' }, { key: 'ginger', why: 'Generous — it is what makes paya warming.' }, { key: 'garlic', why: 'Pounded with the ginger.' } ],
-    better: [ { key: 'chilli', why: W.chilli }, { key: 'coriander', why: W.coriander }, { key: 'mint', why: 'A few leaves in the bowl.' }, { key: 'lemon', why: 'Squeezed in at the table.' } ] },
-  { id: 'fish_curry', name: 'Fish pulusu', say: ['fish curry', 'chepala pulusu', 'fish pulusu', 'fish', 'meen curry', 'fish fry', 'chepa'],
-    needs: [ { key: 'fish', why: 'Thick slices, slipped in only at the end.' }, { key: 'onion', why: 'Ground or sliced, for the pulusu.' }, { key: 'tomato', why: 'With tamarind, the sour of the gravy.' }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'garlic', why: W.garlic }, { key: 'ginger', why: 'Rubbed on the fish with turmeric first.' }, { key: 'coriander', why: W.coriander }, { key: 'lemon', why: 'For a fish fry, squeezed over while hot.' }, { key: 'drumstick', why: 'Cooked in the pulusu, coastal style.' } ] },
-  { id: 'prawn_curry', name: 'Prawn curry', say: ['prawn curry', 'prawns', 'royyala kura', 'royyalu', 'prawn fry', 'prawn masala', 'shrimp'],
-    needs: [ { key: 'prawns', why: 'Two minutes in the pan — no more.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: W.tomatoBase }, { key: 'garlic', why: 'Prawns and garlic belong together.' }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'ginger', why: W.ginger }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'coriander', why: W.coriander }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'egg_curry', name: 'Egg curry', say: ['egg curry', 'guddu kura', 'anda curry', 'egg pulusu', 'egg', 'eggs', 'egg masala', 'omelette', 'omelet', 'egg burji', 'bhurji', 'egg fry'],
-    needs: [ { key: 'eggs', why: 'Country eggs — boiled, scored and fried a little first.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: W.tomatoBase }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'ginger', why: W.gg }, { key: 'garlic', why: W.garlic }, { key: 'coriander', why: W.coriander }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'springOnion', why: 'Chopped into an omelette or burji.' } ] },
-  { id: 'aloo_curry', name: 'Aloo curry', say: ['aloo curry', 'potato curry', 'aloo', 'potato', 'bangaladumpa', 'aloo fry', 'potato fry', 'aloo sabzi', 'dum aloo', 'aloo kurma'],
-    needs: [ { key: 'potato', why: 'The dish itself — waxy ones hold their shape.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: W.tomatoBase }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'peas', why: 'Aloo matar — sweet against the potato.' }, { key: 'cauliflower', why: 'Makes it aloo gobi.' }, { key: 'methi', why: 'Aloo methi: a little bitter, very good.' }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'coriander', why: W.coriander }, { key: 'ginger', why: W.ginger } ] },
-  { id: 'aloo_gobi', name: 'Aloo gobi', say: ['aloo gobi', 'gobi', 'cauliflower', 'cauliflower curry', 'gobi fry', 'gobi masala', 'gobi manchurian'],
-    needs: [ { key: 'cauliflower', why: 'Small florets, fried until the edges brown.' }, { key: 'potato', why: 'Cubed to cook in the same time.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: 'Just enough to coat, not to drown.' } ],
-    better: [ { key: 'ginger', why: 'Slivers on top — the proper finish.' }, { key: 'chilli', why: W.chilli }, { key: 'peas', why: 'For sweetness and colour.' }, { key: 'coriander', why: W.coriander }, { key: 'springOnion', why: 'For gobi manchurian.' } ] },
-  { id: 'bhindi', name: 'Bendakaya fry', say: ['bhindi', 'bendakaya', 'bhindi fry', 'bendakaya fry', 'okra', 'ladies finger', 'lady finger', 'bendakaya vepudu', 'bhindi masala'],
-    needs: [ { key: 'okra', why: 'Wiped dry before cutting, so it fries instead of going slimy.' }, { key: 'onion', why: 'Sliced, fried alongside until sweet.' }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'curryLeaves', why: W.curryLeaves }, { key: 'garlic', why: 'Crushed in for the last minute.' }, { key: 'tomato', why: 'For a bhindi masala instead of a dry fry.' }, { key: 'lemon', why: 'A squeeze keeps it bright.' } ] },
-  { id: 'brinjal', name: 'Vankaya curry', say: ['brinjal', 'vankaya', 'brinjal curry', 'vankaya kura', 'gutti vankaya', 'baingan', 'baingan bharta', 'eggplant', 'bagara baingan'],
-    needs: [ { key: 'brinjal', why: 'Small ones, slit in four for the masala.' }, { key: 'onion', why: 'Ground into the stuffing or fried for the gravy.' }, { key: 'tomato', why: W.tomatoBase }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'garlic', why: W.garlic }, { key: 'ginger', why: W.ginger }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'coriander', why: W.coriander }, { key: 'potato', why: 'Vankaya-aloo, the everyday version.' } ] },
-  { id: 'mixed_veg', name: 'Mixed vegetable curry', say: ['mixed veg', 'mixed vegetable', 'vegetable curry', 'veg curry', 'kurma', 'veg kurma', 'korma', 'sabzi', 'sabji', 'curry', 'kura', 'koora'],
-    needs: [ { key: 'potato', why: 'The one that holds the curry together.' }, { key: 'carrot', why: 'Sweetness and colour.' }, { key: 'beans', why: 'Cut short; they keep a little bite.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: W.tomatoBase } ],
-    better: [ { key: 'peas', why: 'A handful near the end.' }, { key: 'cauliflower', why: 'Florets hold the masala.' }, { key: 'ginger', why: W.gg }, { key: 'garlic', why: W.garlic }, { key: 'chilli', why: W.chilli }, { key: 'coriander', why: W.coriander }, { key: 'mint', why: 'In a kurma, it is the difference.' } ] },
-  { id: 'drumstick', name: 'Munakkaya curry', say: ['drumstick', 'munakkaya', 'drumstick curry', 'munakkaya kura', 'mulakkada'],
-    needs: [ { key: 'drumstick', why: 'Cut finger-length; cook until you can scrape it with your teeth.' }, { key: 'tomato', why: 'Drumstick and tomato are the classic pair.' }, { key: 'onion', why: W.onionBase }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'curryLeaves', why: W.curryLeaves }, { key: 'garlic', why: W.garlic }, { key: 'potato', why: 'Makes it a fuller curry.' }, { key: 'coriander', why: W.coriander } ] },
-  { id: 'gourd', name: 'Sorakaya curry', say: ['bottle gourd', 'sorakaya', 'lauki', 'sorakaya kura', 'anapakaya', 'ridge gourd', 'beerakaya', 'turai', 'beerakaya kura', 'snake gourd', 'potlakaya'],
-    needs: [ { alt: true, key: 'bottleGourd', why: 'Peeled and cubed; it cooks soft in minutes.' }, { alt: true, key: 'ridgeGourd', why: 'Beerakaya — ridges scraped, then sliced.' }, { alt: true, key: 'snakeGourd', why: 'Potlakaya — sliced into rings.' }, { key: 'onion', why: 'Softened first for sweetness.' }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'tomato', why: 'A little, so a mild gourd has something to hold on to.' }, { key: 'garlic', why: W.garlic }, { key: 'coriander', why: W.coriander } ] },
-  { id: 'karela', name: 'Kakarakaya fry', say: ['bitter gourd', 'kakarakaya', 'karela', 'kakarakaya fry', 'karela fry', 'kakarakaya vepudu'],
-    needs: [ { key: 'bitterGourd', why: 'Sliced thin and salted first to draw the bitterness.' }, { key: 'onion', why: 'A lot of it — its sweetness balances the bitter.' }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'garlic', why: W.garlic }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'lemon', why: 'Sour takes the edge off bitter.' }, { key: 'potato', why: 'Fried with it, for those who find it too bitter.' } ] },
-  { id: 'cabbage', name: 'Cabbage fry', say: ['cabbage', 'cabbage fry', 'cabbage curry', 'patta gobi', 'cabbage poriyal', 'cabbage vepudu'],
-    needs: [ { key: 'cabbage', why: 'Shredded fine; cook it fast so it stays crisp.' }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'onion', why: 'A little, for sweetness.' } ],
-    better: [ { key: 'carrot', why: 'Grated in for colour.' }, { key: 'peas', why: 'The classic cabbage-matar.' }, { key: 'ginger', why: W.ginger }, { key: 'coriander', why: W.coriander }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'root_fry', name: 'Carrot & beetroot fry', say: ['carrot', 'carrot fry', 'beetroot', 'beetroot fry', 'beetroot curry', 'carrot curry', 'gajar', 'carrot halwa', 'gajar halwa', 'radish', 'mullangi'],
-    needs: [ { alt: true, key: 'carrot', why: 'Diced small, cooked just until tender.' }, { alt: true, key: 'beetroot', why: 'Diced small — it stains everything a good colour.' }, { key: 'onion', why: 'For the base.' }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'radish', why: 'For a sharper fry, or a mullangi sambar.' }, { key: 'peas', why: 'Carrot and peas, the lunch-box classic.' }, { key: 'ginger', why: W.ginger }, { key: 'coriander', why: W.coriander }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'pumpkin', name: 'Gummadikaya curry', say: ['pumpkin', 'gummadikaya', 'kaddu', 'pumpkin curry', 'gummadikaya kura', 'pumpkin soup'],
-    needs: [ { key: 'pumpkin', why: 'Cubed with the skin on, so it holds together.' }, { key: 'onion', why: 'For the base.' }, { key: 'chilli', why: 'Heat against the sweetness.' }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'tomato', why: 'A little sour sets off the sweet.' }, { key: 'ginger', why: 'Pumpkin and ginger suit each other.' }, { key: 'garlic', why: W.garlic }, { key: 'coriander', why: W.coriander } ] },
-  { id: 'greens_fry', name: 'Thotakura fry', say: ['thotakura', 'amaranth', 'thotakura fry', 'greens', 'akukura', 'aaku kura', 'saag', 'leafy', 'methi', 'menthikura', 'methi dal', 'aloo methi'],
-    needs: [ { alt: true, key: 'amaranth', why: 'Chopped fine; it wilts in two minutes.' }, { alt: true, key: 'methi', why: 'Leaves only — a little bitter, very fragrant.' }, { key: 'garlic', why: 'Greens and garlic — fry it golden first.' }, { key: 'onion', why: 'Softened before the leaves go in.' }, { key: 'chilli', why: W.chilli } ],
-    better: [ { key: 'spinach', why: 'Mix two greens; it tastes rounder.' }, { key: 'drumstickLeaves', why: 'A handful of munagaku in any greens fry.' }, { key: 'tomato', why: 'For a greens pappu instead of a fry.' }, { key: 'potato', why: 'With methi, it is aloo methi.' }, { key: 'lemon', why: W.lemon } ] },
-  { id: 'palak_paneer', name: 'Palak curry', say: ['palak', 'palak paneer', 'palak curry', 'saag paneer', 'palakura', 'palak soup'],
-    needs: [ { key: 'spinach', why: 'Blanched and ground — two bunches for a proper gravy.' }, { key: 'onion', why: W.onionBase }, { key: 'tomato', why: 'One, so the green stays green.' }, { key: 'garlic', why: 'Fried in butter for the top.' }, { key: 'ginger', why: W.ginger } ],
-    better: [ { key: 'chilli', why: 'Ground in with the spinach.' }, { key: 'potato', why: 'Aloo palak, if there is no paneer.' }, { key: 'lemon', why: 'Keeps the colour bright.' }, { key: 'methi', why: 'A few leaves deepen the flavour.' } ] },
-  { id: 'khichdi', name: 'Khichdi / pongal', say: ['khichdi', 'kichdi', 'khichri', 'pongal', 'upma', 'poha', 'atukulu', 'rava upma', 'dalia'],
-    needs: [ { key: 'onion', why: 'Softened in the tempering.' }, { key: 'chilli', why: W.chilli }, { key: 'ginger', why: 'Chopped fine — you should bite into it now and then.' }, { key: 'curryLeaves', why: W.curryLeaves } ],
-    better: [ { key: 'carrot', why: 'Diced, for colour and sweetness.' }, { key: 'peas', why: 'A handful makes it a meal.' }, { key: 'beans', why: 'Cut small, cooked with the grain.' }, { key: 'tomato', why: 'For a tomato upma or a masala khichdi.' }, { key: 'coriander', why: W.coriander }, { key: 'lemon', why: 'Poha and upma both want it.' } ] },
-  { id: 'chutney', name: 'Chutney', say: ['chutney', 'pachadi', 'pudina chutney', 'mint chutney', 'coriander chutney', 'tomato chutney', 'tomato pachadi', 'kothimeera pachadi', 'dosa', 'idli', 'idly'],
-    needs: [ { key: 'tomato', why: 'Fried soft for tomato pachadi.' }, { key: 'chilli', why: 'The heat of the chutney.' }, { key: 'garlic', why: 'A clove or two, raw or fried.' }, { key: 'coriander', why: 'A whole bunch, for the green one.' } ],
-    better: [ { key: 'mint', why: 'With coriander, it is the pudina chutney for dosa.' }, { key: 'ginger', why: 'For allam pachadi with pesarattu.' }, { key: 'onion', why: 'Fried with the tomato for body.' }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'lemon', why: 'Sour, and it keeps the green from darkening.' } ] },
-  { id: 'lemon_rice', name: 'Lemon rice', say: ['lemon rice', 'nimmakaya pulihora', 'pulihora', 'chitrannam', 'curd rice', 'daddojanam', 'perugannam'],
-    needs: [ { key: 'lemon', why: 'Two or three — squeezed over once the rice has cooled.' }, { key: 'chilli', why: W.chilli }, { key: 'curryLeaves', why: 'Plenty; this dish is mostly tempering.' }, { key: 'ginger', why: 'Chopped fine into the tempering.' } ],
-    better: [ { key: 'coriander', why: W.coriander }, { key: 'carrot', why: 'Grated in, especially for curd rice.' }, { key: 'cucumber', why: 'Diced into curd rice, cool and crisp.' }, { key: 'pomegranate', why: 'Scattered over curd rice.' } ] },
-  { id: 'salad', name: 'Salad & raita', say: ['salad', 'raita', 'kachumber', 'perugu pachadi', 'sprouts', 'sprout salad', 'cucumber'],
-    needs: [ { key: 'cucumber', why: 'The cool, crisp base.' }, { key: 'tomato', why: 'Firm ones, diced.' }, { key: 'onion', why: 'Sliced thin and rinsed, so it is not harsh.' }, { key: 'lemon', why: 'The dressing is mostly this and salt.' } ],
-    better: [ { key: 'carrot', why: 'Grated, for sweetness and crunch.' }, { key: 'coriander', why: W.coriander }, { key: 'mint', why: 'Torn in, it makes a raita taste fresh.' }, { key: 'pomegranate', why: 'A handful of seeds changes a salad.' }, { key: 'beetroot', why: 'Grated raw, for colour.' }, { key: 'lettuce', why: 'For a salad with some leaf to it.' }, { key: 'chilli', why: 'One, chopped fine.' } ] },
-  { id: 'fruit', name: 'Fruit bowl', say: ['fruit', 'fruit salad', 'fruits', 'juice', 'smoothie', 'breakfast', 'snack', 'kids snack'],
-    needs: [ { key: 'banana', why: 'The sweet, filling base of any fruit bowl.' }, { key: 'papaya', why: 'Ripe and soft, cut into cubes.' }, { key: 'pomegranate', why: 'Seeds for crunch and colour.' } ],
-    better: [ { key: 'guava', why: 'Sliced with a pinch of salt and chilli.' }, { key: 'grapes', why: 'Halved in; children pick these out first.' }, { key: 'lemon', why: 'A squeeze stops the fruit browning.' }, { key: 'mint', why: 'A few leaves on top.' }, { key: 'cucumber', why: 'For a lighter, less sweet bowl.' } ] },
-  { id: 'soup', name: 'Vegetable soup', say: ['soup', 'veg soup', 'vegetable soup', 'tomato soup', 'noodles', 'manchurian', 'chowmein', 'stir fry'],
-    needs: [ { key: 'carrot', why: 'Diced fine; the sweetness of the broth.' }, { key: 'beans', why: 'Cut small.' }, { key: 'cabbage', why: 'Shredded in for the last few minutes.' }, { key: 'garlic', why: 'Fried first — it flavours everything.' }, { key: 'ginger', why: 'For warmth.' } ],
-    better: [ { key: 'springOnion', why: 'Whites in the pan, greens on top.' }, { key: 'tomato', why: 'For a tomato soup, or a little sour.' }, { key: 'peas', why: 'A handful.' }, { key: 'coriander', why: W.coriander }, { key: 'chilli', why: W.chilli }, { key: 'lemon', why: W.lemon } ] },
-];
+// ── text ─────────────────────────────────────────────────────────────────────────────────────────
 
-/** The base most everyday curries start from — what is offered for a dish this book does not know. */
-// prettier-ignore
-const BASE = [
-  { key: 'onion', why: W.onionBase }, { key: 'tomato', why: W.tomatoBase }, { key: 'chilli', why: W.chilli },
-  { key: 'ginger', why: W.gg }, { key: 'garlic', why: W.garlic }, { key: 'curryLeaves', why: W.curryLeaves }, { key: 'coriander', why: W.coriander },
-];
-
-const norm = (s) =>
+/** Lower-case, punctuation to spaces, one space between words. Keeps Telugu and Devanagari. */
+export const norm = (s) =>
   String(s || '')
+    .normalize('NFKC')
     .toLowerCase()
+    .replace(/[’`]/g, "'")
     .replace(/[^a-z0-9ऀ-ॿఀ-౿' ]+/g, ' ')
+    .replace(/'/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-/** Everything a product can be called, lower-cased. */
-const namesOf = (p) => [p?.name, ...(p?.aliases || [])].map(norm).filter(Boolean);
+/** Spellings that mean the same word, folded so either one matches. */
+const FOLD = {
+  koora: 'kura',
+  kooralu: 'kura',
+  curri: 'curry',
+  currie: 'curry',
+  biriyani: 'biryani',
+  biriani: 'biryani',
+  briyani: 'biryani',
+  pulav: 'pulao',
+  pulaav: 'pulao',
+  panner: 'paneer',
+  paner: 'paneer',
+  chiken: 'chicken',
+  chikken: 'chicken',
+  muttan: 'mutton',
+  pakoda: 'pakora',
+  bajji: 'bajji',
+  bhaji: 'bhaji',
+  dhal: 'dal',
+  daal: 'dal',
+  sambhar: 'sambar',
+  rasm: 'rasam',
+  dosai: 'dosa',
+  iddli: 'idli',
+  upmaa: 'upma',
+};
+const words = (s) =>
+  norm(s)
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => FOLD[w] || w);
 
-/** Does this product count as that ingredient? */
-function isIngredient(product, key) {
-  const def = ING[key];
-  if (!def) return false;
-  const names = namesOf(product);
-  if (def.not && names.some((n) => def.not.some((x) => n.includes(x)))) return false;
-  return names.some((n) => def.is.some((x) => n === x || n.includes(x)));
+/** Does `phrase` (words) appear in `query` (words) as whole, consecutive words? */
+function containsWords(query, phrase) {
+  if (!phrase.length || phrase.length > query.length) return false;
+  outer: for (let i = 0; i + phrase.length <= query.length; i += 1) {
+    for (let j = 0; j < phrase.length; j += 1) if (query[i + j] !== phrase[j]) continue outer;
+    return true;
+  }
+  return false;
 }
 
-/** The first available product on the shelf that is this ingredient. */
-function shelfFor(key, products) {
-  return products.find((p) => isIngredient(p, key)) || null;
+/** Edit distance with transpositions, stopping early once it passes `max`. */
+function distance(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j += 1) d[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    let rowMin = Infinity;
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      rowMin = Math.min(rowMin, d[i][j]);
+    }
+    if (rowMin > max) return max + 1;
+  }
+  return d[a.length][b.length];
 }
+
+/** How many typos a phrase of this length can carry and still be the same phrase. */
+const typoBudget = (len) => (len >= 9 ? 2 : len >= 5 ? 1 : 0);
+
+// ── the dish index ───────────────────────────────────────────────────────────────────────────────
+
+/** Every phrase a dish answers to, as words. Built once. */
+const INDEX = DISHES.flatMap((d) =>
+  [d.name, ...(d.say || []), d.te, d.hi]
+    .filter(Boolean)
+    .map((p) => ({ dish: d, words: words(p), text: words(p).join(' ') }))
+    .filter((x) => x.words.length),
+);
 
 /**
- * The dish a shopper most likely means. Longest phrase wins, so "tomato pappu" is the dal and not
- * the curry that merely mentions tomato.
- * @returns {Dish|null}
+ * Rank the dishes for what was typed. Best first; each dish once.
+ *   exact phrase  >  phrase inside the sentence (longer wins)  >  typed the start of it  >  typo
+ * @returns {{ dish: Dish, score: number, len: number }[]}
  */
-export function findDish(text) {
-  return matchDish(text).dish;
-}
-
-/** The dish, and how many letters of what was typed it accounts for. */
-function matchDish(text) {
-  const q = norm(text);
-  if (!q) return { dish: null, len: 0 };
-  let best = null;
-  let bestLen = 0;
-  for (const d of DISHES) {
-    for (const phrase of d.say) {
-      const hit = q === phrase || q.includes(phrase) || (q.length >= 4 && phrase.startsWith(q));
-      if (hit && phrase.length > bestLen) {
-        best = d;
-        bestLen = phrase.length;
+function rankDishes(text) {
+  const q = words(text);
+  const qText = q.join(' ');
+  if (!qText) return [];
+  const best = new Map();
+  const consider = (dish, score, len) => {
+    const prev = best.get(dish.id);
+    if (!prev || score > prev.score) best.set(dish.id, { dish, score, len });
+  };
+  for (const { dish, words: ph, text: pt } of INDEX) {
+    if (pt === qText) consider(dish, 1000 + pt.length, pt.length);
+    else if (containsWords(q, ph)) consider(dish, 500 + pt.length, pt.length);
+    else if (
+      qText.length >= 4 &&
+      pt.startsWith(qText) &&
+      /^\s|^$/.test(pt.slice(qText.length, qText.length + 1) || ' ')
+    )
+      consider(dish, 300 + qText.length - pt.length / 100, qText.length);
+    else if (qText.length >= 4 && pt.startsWith(qText))
+      consider(dish, 250 + qText.length - pt.length / 100, qText.length);
+    else {
+      const budget = typoBudget(Math.min(qText.length, pt.length));
+      if (budget) {
+        const dist = distance(qText, pt, budget);
+        if (dist <= budget) consider(dish, 150 - dist * 20 + pt.length / 100, pt.length);
       }
     }
   }
-  return { dish: best, len: bestLen };
+  // A word for a KIND of dish ("soup", "chutney", "breakfast", "kura"): every dish of that kind,
+  // the everyday favourites first, so the answer is one of them and the rest are offered beside it.
+  // "biryni", "soupp": a one-word kind of dish, typed with a slip.
+  let kind = q.length === 1 ? q[0] : null;
+  if (kind && !GENERIC[kind] && !best.size)
+    kind =
+      Object.keys(GENERIC).find(
+        (g) => distance(kind, g, typoBudget(g.length)) <= typoBudget(g.length),
+      ) || null;
+  if (kind && GENERIC[kind]) {
+    const test = GENERIC[kind];
+    const first = GENERIC_FIRST[kind] || FAVOURITES;
+    DISHES.filter(test).forEach((d, i) => {
+      const pref = first.indexOf(d.id);
+      // The classic of the kind first, then vegetarian dishes, then the rest in book order.
+      const rank = pref >= 0 ? 10 - pref / 10 : d.diet === 'veg' ? 5 : 0;
+      consider(d, 350 + rank - i / 10000, kind.length);
+    });
+  }
+  // "veg biryani", "vegetarian curry": never answer with meat because a shared word matched.
+  const wantsVeg = q.some((w) => VEG_WORDS.has(w));
+  const wantsEgg = q.some((w) => EGG_WORDS.has(w));
+  for (const x of best.values()) {
+    if (wantsVeg && x.dish.diet !== 'veg') x.score -= 600;
+    if (!wantsEgg && x.dish.diet === 'egg' && q.some((w) => VEG_WORDS.has(w))) x.score -= 600;
+  }
+  return [...best.values()].sort((a, b) => b.score - a.score);
 }
 
+const VEG_WORDS = new Set([
+  'veg',
+  'vegetable',
+  'vegetables',
+  'vegetarian',
+  'sabzi',
+  'sabji',
+  'paneer',
+]);
+const EGG_WORDS = new Set(['egg', 'eggs', 'anda', 'guddu']);
+
+/** For a word naming a kind of dish, the ones to offer first, classic first. */
+const GENERIC_FIRST = {
+  breakfast: ['idli', 'masala_dosa', 'rava_upma', 'kanda_poha', 'pesarattu'],
+  tiffin: ['idli', 'masala_dosa', 'pesarattu', 'rava_upma', 'kanda_poha'],
+  sweet: ['rice_kheer', 'gajar_ka_halwa', 'double_ka_meetha'],
+  sweets: ['rice_kheer', 'gajar_ka_halwa', 'double_ka_meetha'],
+  dessert: ['rice_kheer', 'gajar_ka_halwa', 'double_ka_meetha'],
+  soup: ['tomato_soup'],
+  snack: ['onion_pakoda', 'samosa', 'mirchi_bajji'],
+  snacks: ['onion_pakoda', 'samosa', 'mirchi_bajji'],
+  drink: ['nimbu_pani', 'mango_lassi', 'masala_chaas', 'watermelon_juice'],
+  drinks: ['nimbu_pani', 'mango_lassi', 'masala_chaas', 'watermelon_juice'],
+  juice: ['watermelon_juice'],
+  chutney: ['coconut_chutney', 'tomato_pachadi'],
+  pachadi: ['tomato_pachadi'],
+  rice: ['lemon_rice', 'veg_pulao_north'],
+  fry: ['bendakaya_fry'],
+  vepudu: ['bendakaya_fry'],
+  salad: ['kachumber_salad'],
+  biryani: [
+    'hyderabadi_chicken_dum_biryani',
+    'chicken_biryani',
+    'hyderabadi_mutton_dum_biryani',
+    'hyderabadi_veg_dum_biryani',
+  ],
+};
+
+/** Words that name a kind of dish rather than one dish. */
+const nameHas = (w) => (d) =>
+  words(d.name).includes(w) || (d.say || []).some((x) => words(x).includes(w));
+const GENERIC = {
+  curry: nameHas('curry'),
+  kura: (d) => nameHas('kura')(d) || nameHas('curry')(d),
+  sabzi: nameHas('sabzi'),
+  dal: nameHas('dal'),
+  pappu: nameHas('pappu'),
+  pulusu: nameHas('pulusu'),
+  fry: (d) => nameHas('fry')(d) || nameHas('vepudu')(d),
+  vepudu: (d) => nameHas('vepudu')(d) || nameHas('fry')(d),
+  soup: nameHas('soup'),
+  salad: nameHas('salad'),
+  chutney: (d) => nameHas('chutney')(d) || nameHas('pachadi')(d),
+  pachadi: (d) => nameHas('pachadi')(d) || nameHas('chutney')(d),
+  rice: (d) => nameHas('rice')(d) || nameHas('annam')(d) || nameHas('pulao')(d),
+  paratha: nameHas('paratha'),
+  juice: (d) => nameHas('juice')(d) || nameHas('sharbat')(d),
+  biryani: nameHas('biryani'),
+  breakfast: (d) => d.meal.includes('breakfast'),
+  tiffin: (d) => d.meal.includes('breakfast'),
+  snack: (d) => d.meal.includes('snack'),
+  snacks: (d) => d.meal.includes('snack'),
+  sweet: (d) => d.meal.includes('sweet'),
+  sweets: (d) => d.meal.includes('sweet'),
+  dessert: (d) => d.meal.includes('sweet'),
+  drink: (d) => d.meal.includes('drink'),
+  drinks: (d) => d.meal.includes('drink'),
+};
+
+/**
+ * The dish a shopper most likely means, or null.
+ * @returns {Dish|null}
+ */
+export function findDish(text) {
+  return rankDishes(text)[0]?.dish || null;
+}
+
+// ── ingredients on the shelf ─────────────────────────────────────────────────────────────────────
+
+/** Every name a product goes by, as words. */
+const namesOf = (p) => [p?.name, ...(p?.aliases || [])].map(words).filter((w) => w.length);
+
+/** Does this product count as that ingredient? Whole words only, both ways. */
+export function isIngredient(product, key) {
+  const def = ING[key];
+  if (!def) return false;
+  const names = namesOf(product);
+  if (def.not && names.some((n) => def.not.some((x) => containsWords(n, words(x))))) return false;
+  return names.some((n) => def.is.some((x) => containsWords(n, words(x))));
+}
+
+/**
+ * When the exact thing isn't sold, the nearest thing that does the same job in the pot: chicken 65
+ * is usually made boneless, but a curry cut works and is what we sell.
+ */
+const STAND_IN = {
+  chickenBoneless: 'chicken',
+  smallOnion: 'onion',
+  babyCorn: 'corn',
+};
+
+/** The best product on the shelf for this ingredient: one whose name IS it beats one that mentions it. */
+function shelfFor(key, products) {
+  const def = ING[key];
+  if (!def) return null;
+  const hits = products.filter((p) => isIngredient(p, key));
+  if (!hits.length) return STAND_IN[key] ? shelfFor(STAND_IN[key], products) : null;
+  if (hits.length === 1) return hits[0];
+  const exact = hits.find((p) => namesOf(p).some((n) => def.is.includes(n.join(' '))));
+  return exact || hits[0];
+}
+
+/** The ingredient keys named in what was typed ("paneer", "royyalu"), longest name first. */
+function ingredientsNamed(text) {
+  const q = words(text);
+  const found = [];
+  for (const [key, def] of Object.entries(ING)) {
+    let len = 0;
+    for (const alias of def.is) {
+      const a = words(alias);
+      if (containsWords(q, a) && a.join(' ').length > len) len = a.join(' ').length;
+    }
+    if (len && !(def.not || []).some((x) => containsWords(q, words(x)))) found.push({ key, len });
+  }
+  return found.sort((a, b) => b.len - a.len).map((x) => x.key);
+}
+
+// ── amounts ──────────────────────────────────────────────────────────────────────────────────────
+
+/** Grams per adult when a dish does not say: by what the thing is, and whether it is the star. */
+function defaultGrams(key, isMain) {
+  const kind = ING[key]?.kind;
+  switch (kind) {
+    case 'veg':
+      return isMain ? 150 : 50;
+    case 'leafy':
+      return isMain ? 125 : 40;
+    case 'meat':
+    case 'fish':
+      return isMain ? 175 : 75;
+    case 'egg':
+      return isMain ? 100 : 50;
+    case 'fruit':
+      return isMain ? 150 : 50;
+    case 'sprout':
+      return 60;
+    case 'dairy':
+      return isMain ? 100 : 30;
+    default:
+      return null;
+  }
+}
+
+/** Aromatics and herbs: a small amount per person, and never less than one unit of sale. */
+const AROMATIC_GRAMS = { chilli: 8, ginger: 5, garlic: 6, lemon: 15 };
+
+/** Grams in one unit of sale, for products not sold by weight. */
+function gramsPerUnit(product, key) {
+  const def = /** @type {any} */ (ING[key] || {});
+  switch (product?.unit) {
+    case 'KG':
+      return 1000;
+    case 'G':
+      return 1;
+    case 'DOZEN':
+      return def.dozen || (def.kind === 'fruit' ? 1400 : 600);
+    case 'BUNCH':
+      return def.each || (def.kind === 'leafy' ? 250 : 100);
+    case 'PIECE':
+      return def.each || 250;
+    case 'PACK':
+      return def.each || 250;
+    default:
+      return def.each || null;
+  }
+}
+
+const UNIT_WORD = {
+  BUNCH: ['bunch', 'bunches'],
+  PIECE: ['piece', 'pieces'],
+  DOZEN: ['dozen', 'dozen'],
+  PACK: ['pack', 'packs'],
+};
+
+function amountLabel(product, qty) {
+  if (product?.unit === 'KG') {
+    const g = Math.round(qty * 1000);
+    return g < 1000 ? `${g} g` : `${Number((g / 1000).toFixed(2))} kg`;
+  }
+  if (product?.unit === 'G') return `${Math.round(qty)} g`;
+  const w = UNIT_WORD[product?.unit] || ['', ''];
+  const n = Number(qty.toFixed(2));
+  return `${n} ${n === 1 ? w[0] : w[1]}`.trim();
+}
+
+/**
+ * How much of `product` this family needs for this part of the dish, in the product's own unit,
+ * rounded UP to what can be bought. Herbs are one bunch whatever the size of the family (two for a
+ * crowd); aromatics a little per person.
+ * @returns {{ quantity: number, label: string } | null}
+ */
+export function amountFor(product, part, dish, people) {
+  const key = part.key;
+  const def = /** @type {any} */ (ING[key] || {});
+  const isMain = dish?.main === key || dish?.needs?.[0]?.key === key;
+  const step = Number(product?.increment) > 0 ? Number(product.increment) : 1;
+  let units;
+  if (def.kind === 'herb' && product?.unit === 'BUNCH') {
+    units = people > 6 ? 2 : 1;
+  } else {
+    const per =
+      Number(part.g) > 0 ? Number(part.g) : AROMATIC_GRAMS[key] || defaultGrams(key, isMain);
+    const unitG = gramsPerUnit(product, key);
+    if (!per || !unitG) return null;
+    units = (per * people) / unitG;
+  }
+  // A hair under a step is that step, not the next one up.
+  let quantity = Math.max(step, Math.ceil(units / step - 1e-6) * step);
+  quantity = Math.round(quantity * 1000) / 1000;
+  const cap = Number(product?.dailyCap);
+  if (cap > 0 && quantity > cap) quantity = cap;
+  // Ginger for one dish is 15 g, but it is sold in 250 g: say that this is the smallest pack, so
+  // nobody thinks the dish needs a quarter-kilo of it.
+  const smallest = product?.unit === 'KG' && quantity === step && units < step * 0.25;
+  return { quantity, label: amountLabel(product, quantity) + (smallest ? ' (smallest pack)' : '') };
+}
+
+// ── the answer ───────────────────────────────────────────────────────────────────────────────────
+
 const sellable = (p) => (p?.availability || 'AVAILABLE') === 'AVAILABLE' && p?.isActive !== false;
+
+/** Pantry staples too obvious to list. */
+const TOO_OBVIOUS = new Set(['salt']);
+
+/** The base most everyday curries start from — offered for a dish this book does not know. */
+// prettier-ignore
+const BASE = [
+  { key: 'onion', g: 50, why: 'Browned slowly, it is the body of the gravy.' },
+  { key: 'tomato', g: 60, why: 'Cooks down into the gravy and gives it its tang.' },
+  { key: 'chilli', why: 'Fresh heat — slit it and let it fry in the oil.' },
+  { key: 'ginger', why: 'Pounded with garlic into the paste every gravy starts from.' },
+  { key: 'garlic', why: 'Crushed into the oil first; the smell is half the dish.' },
+  { key: 'curryLeaves', why: 'Crackled in hot oil for the tempering.' },
+  { key: 'coriander', why: 'Torn over the top just before serving.' },
+];
+const BASE_PANTRY = [
+  'oil',
+  'turmeric',
+  'chilliPowder',
+  'corianderPowder',
+  'mustardSeeds',
+  'cumin',
+  'salt',
+];
+
+const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * What to put in front of the shopper for what they typed.
  *
  * @param {string} text  what they typed
  * @param {any[]} products  today's catalogue (public product shape)
- * @param {{ inBasket?: Set<string>|string[], diet?: 'ALL'|'VEG'|'NONVEG' }} [opts]
+ * @param {{ inBasket?: Set<string>|string[], basketQty?: Record<string, number|string>,
+ *           diet?: 'ALL'|'VEG'|'NONVEG', household?: {adults:number, children:number}|null }} [opts]
  * @returns {null | {
- *   title: string, known: boolean, note: string|null,
+ *   title: string, known: boolean, note: string|null, dishId: string|null,
+ *   diet: 'veg'|'egg'|'nonveg'|null,
  *   have: number, total: number,
- *   picks: { product: any, why: string, badge: string|null, role: 'needs'|'better', inBasket: boolean }[]
+ *   forLabel: string, people: number,
+ *   picks: { product: any, why: string, badge: string|null, role: 'needs'|'better', inBasket: boolean,
+ *            quantity: number|null, amount: string|null, enough: boolean }[],
+ *   kitchen: string[], notSold: string[], others: { id: string, name: string }[]
  * }}
- *   `have`/`total` count the NEEDED ingredients we sell and how many are already in the basket.
- *   `picks` is needed-first, each product once, things already in the basket last within their role.
+ *   `have`/`total` count the NEEDED ingredients we sell and how many are already in the basket
+ *   in a big enough quantity. `kitchen`: pantry staples to have ready (ones we don't sell today).
+ *   `notSold`: needed fresh things we don't have today. `others`: next-best dish matches.
  */
 export function suggest(text, products, opts = {}) {
   const typed = String(text || '').trim();
   if (!typed) return null;
   const inBasket = opts.inBasket instanceof Set ? opts.inBasket : new Set(opts.inBasket || []);
-  const shelf = (products || []).filter(
-    (p) => sellable(p) && (opts.diet !== 'VEG' || p.diet !== 'NONVEG'),
-  );
+  const basketQty = opts.basketQty || {};
+  const veg = opts.diet === 'VEG';
+  const shelf = (products || []).filter((p) => sellable(p) && (!veg || p.diet !== 'NONVEG'));
+  const household = cleanHousehold(opts.household);
+  const people = household ? appetites(household) : 2;
+  const forLabel = household ? householdLabel(household) : '2 people';
 
-  const q = norm(typed);
-  // The thing on our shelf that the words name most completely, if any.
+  const q = words(typed);
+  const ranked = rankDishes(typed);
+  let dish = ranked[0]?.dish || null;
+  const dishLen = ranked[0]?.len || 0;
+  const exact = (ranked[0]?.score || 0) >= 1000;
+
+  // "Drumstick leaves fry" names drumstick LEAVES; a drumstick dish only matched part of it.
   let named = null;
   let namedLen = 0;
   for (const p of shelf)
-    for (const n of namesOf(p))
-      if (n.length >= 3 && n.length > namedLen && (q.includes(n) || n.includes(q))) {
+    for (const n of namesOf(p)) {
+      const t = n.join(' ');
+      if (t.length >= 3 && t.length > namedLen && containsWords(q, n)) {
         named = p;
-        namedLen = n.length;
+        namedLen = t.length;
       }
-  const m = matchDish(typed);
-  // "Drumstick leaves fry" names drumstick LEAVES; the drumstick curry only matched part of it.
-  let dish = named && namedLen > m.len && q.includes(norm(named.name)) ? null : m.dish;
-  let title = dish?.name || null;
+    }
+  if (dish && named && !exact && namedLen > dishLen) dish = null;
+
+  let title = dish?.name || cap1(typed);
   let note = null;
+  /** @type {Part[]} */
   let needs = dish?.needs || [];
+  /** @type {Part[]} */
   let better = dish?.better || [];
+  let pantry = dish?.pantry || [];
+  const notSold = [];
 
   if (!dish) {
-    // Not a dish this book knows. Does it at least name something we sell?
-    title = typed.charAt(0).toUpperCase() + typed.slice(1);
+    const ingKeys = ingredientsNamed(typed);
     if (named) {
       needs = [{ key: `#${named.id}`, why: 'The one you named — the dish is built around it.' }];
       better = BASE;
+      pantry = BASE_PANTRY;
       note = 'I don’t have this exact recipe, so here is what most dishes like it start with.';
+    } else if (ingKeys.length) {
+      // It names an ingredient we don't sell today (or one this shelf has under another name).
+      const key = ingKeys[0];
+      const onShelf = shelfFor(key, shelf);
+      needs = [
+        { key, why: 'The one you named — the dish is built around it.' },
+        ...BASE.slice(0, 3),
+      ];
+      better = BASE.slice(3);
+      pantry = BASE_PANTRY;
+      note = onShelf
+        ? 'I don’t have this exact recipe, so here is what most dishes like it start with.'
+        : `We don’t sell ${ING[key].name.toLowerCase()} yet. Here is the rest of what most dishes like it start with.`;
     } else {
       needs = BASE.slice(0, 4);
       better = BASE.slice(4);
+      pantry = BASE_PANTRY;
       note = 'I don’t know this dish yet. This is the base most everyday curries start from.';
     }
   }
 
-  // Of a dish's alternatives, keep the one that was asked for.
-  const q0 = q;
-  const alts = needs.filter((x) => x.alt);
-  if (alts.length > 1) {
-    const named = alts.filter((x) => ING[x.key]?.is.some((w) => q0.includes(w)));
-    const keep = named.length ? named : [alts.find((x) => shelfFor(x.key, shelf)) || alts[0]];
-    needs = needs.filter((x) => !x.alt || keep.includes(x));
-    // "Beerakaya" asked for by name should not be answered under another gourd's title.
-    if (named.length && named[0] !== alts[0])
-      title = typed.charAt(0).toUpperCase() + typed.slice(1);
-  }
+  if (dish && veg && dish.diet !== 'veg')
+    note = 'This dish has meat, fish or eggs. You shop vegetarian, so here are its vegetables.';
 
   const seen = new Set();
   const build = (parts, role) => {
@@ -336,33 +545,114 @@ export function suggest(text, products, opts = {}) {
       const product = part.key.startsWith('#')
         ? shelf.find((p) => p.id === part.key.slice(1))
         : shelfFor(part.key, shelf);
-      if (!product || seen.has(product.id)) continue;
+      if (!product) {
+        const def = ING[part.key];
+        // Something the dish needs that we don't sell today: pantry staples go to the kitchen
+        // list; fresh things are named, so the shopper knows to get them elsewhere.
+        if (def && role === 'needs') {
+          if (def.pantry) pantry = [...pantry, part.key];
+          else if (!(veg && (def.kind === 'meat' || def.kind === 'fish' || def.kind === 'egg')))
+            notSold.push(def.name);
+        }
+        continue;
+      }
+      if (seen.has(product.id)) continue;
       seen.add(product.id);
+      const amount = amountFor(product, part, dish, people);
+      const has =
+        Number(basketQty[product.id]) ||
+        (inBasket.has(product.id) ? Number(product.increment) || 1 : 0);
+      const enough = has > 0 && (!amount || has >= amount.quantity - 1e-6);
       const badge = Array.isArray(product.goodToKnow) ? product.goodToKnow[0] : null;
       out.push({
         product,
         why: part.why,
         badge: typeof badge === 'string' ? badge : badge?.label || null,
         role,
-        inBasket: inBasket.has(product.id),
+        inBasket: inBasket.has(product.id) || has > 0,
+        quantity: amount?.quantity ?? null,
+        amount: amount?.label ?? null,
+        enough,
       });
     }
     // Things still to buy come before things already bought.
-    return out.sort((a, b) => Number(a.inBasket) - Number(b.inBasket));
+    return out.sort((a, b) => Number(a.enough) - Number(b.enough));
   };
-
   const needed = build(needs, 'needs');
   const extra = build(better, 'better');
-  if (!needed.length && !extra.length) return null;
+
+  // Pantry staples we happen to sell today join the list as "makes it better"; the rest are listed.
+  const kitchen = [];
+  for (const key of [...new Set(pantry)]) {
+    if (TOO_OBVIOUS.has(key) || !ING[key]) continue;
+    const product = shelfFor(key, shelf);
+    if (product && !seen.has(product.id)) {
+      seen.add(product.id);
+      const amount = amountFor(product, { key }, dish, people);
+      const has = Number(basketQty[product.id]) || (inBasket.has(product.id) ? 1 : 0);
+      extra.push({
+        product,
+        why: 'From your kitchen list — we have it today.',
+        badge: null,
+        role: 'better',
+        inBasket: has > 0,
+        quantity: amount?.quantity ?? null,
+        amount: amount?.label ?? null,
+        enough: has > 0,
+      });
+    } else if (!product) kitchen.push(ING[key].name);
+  }
+
+  if (dish && notSold.length) {
+    const mainName = dish.main ? ING[dish.main]?.name : null;
+    note =
+      mainName && notSold.includes(mainName)
+        ? `We don’t sell ${mainName.toLowerCase()} yet — here is everything else for ${dish.name.toLowerCase()}.`
+        : `Not on our shelf today: ${notSold.join(', ').toLowerCase()}.`;
+  }
+
+  // A dish made entirely from the kitchen (kheer: milk, rice, sugar) still gets its kitchen list.
+  const fromKitchen = !!dish && dish.needs.every((part) => ING[part.key]?.pantry);
+  // A dish we know still gets an answer when its main thing isn't sold (mango lassi without
+  // mangoes): the note says so, and the kitchen list is still useful.
+  const explained = !!dish && (notSold.length > 0 || fromKitchen) && (kitchen.length > 0 || !!note);
+  if (!needed.length && !extra.length && !explained) return null;
+  const others = ranked
+    .slice(1)
+    .filter(
+      (x) => x.score >= 500 || (x.score >= 300 && words(x.dish.name).some((w) => q.includes(w))),
+    )
+    .slice(0, 3)
+    .map((x) => ({ id: x.dish.id, name: x.dish.name }));
   return {
     title,
     known: !!dish,
+    dishId: dish?.id || null,
+    diet: dish?.diet || null,
     note,
-    have: needed.filter((x) => x.inBasket).length,
+    have: needed.filter((x) => x.enough).length,
     total: needed.length,
+    forLabel,
+    people,
     picks: [...needed, ...extra],
+    kitchen,
+    notSold,
+    others,
   };
 }
+
+/** The dishes a shopper is most likely to want when they have nothing in mind yet. */
+const FAVOURITES = [
+  'tomato_kura',
+  'tomato_pappu',
+  'drumstick_sambar',
+  'chicken_curry',
+  'hyderabadi_chicken_dum_biryani',
+  'palakura_pappu',
+  'egg_curry_dhaba',
+  'paneer_butter_masala',
+  'aloo_gobi',
+];
 
 /**
  * A few dishes to offer as one-tap ideas: those that use what is already in the basket first, then
@@ -370,26 +660,23 @@ export function suggest(text, products, opts = {}) {
  * @returns {{ id: string, name: string }[]}
  */
 export function ideas(products, inBasketIds, limit = 6) {
-  const have = (products || []).filter((p) => new Set(inBasketIds || []).has(p.id));
+  const ids = new Set(inBasketIds || []);
+  const have = (products || []).filter((p) => ids.has(p.id));
   const scored = DISHES.map((d, i) => ({
     d,
     i,
-    n: d.needs.filter((part) => have.some((p) => isIngredient(p, part.key))).length,
+    // The star ingredient counts double: chicken in the basket suggests chicken dishes, not every
+    // dish with onion in it.
+    n: d.needs.reduce(
+      (s, part, j) => s + (have.some((p) => isIngredient(p, part.key)) ? (j === 0 ? 2 : 1) : 0),
+      0,
+    ),
   }));
   const fromBasket = scored
     .filter((x) => x.n > 0)
     .sort((a, b) => b.n - a.n || a.i - b.i)
     .map((x) => x.d);
-  const favourites = [
-    'tomato_curry',
-    'sambar',
-    'chicken_curry',
-    'biryani',
-    'palak_dal',
-    'egg_curry',
-  ]
-    .map((id) => DISHES.find((d) => d.id === id))
-    .filter(Boolean);
+  const favourites = FAVOURITES.map((id) => DISHES.find((d) => d.id === id)).filter(Boolean);
   const out = [];
   for (const d of [...fromBasket, ...favourites]) {
     if (!out.some((x) => x.id === d.id)) out.push({ id: d.id, name: d.name });
