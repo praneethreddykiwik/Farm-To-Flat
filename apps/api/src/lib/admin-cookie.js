@@ -43,7 +43,13 @@ export function readAdminCookie(req) {
     const i = part.indexOf('=');
     if (i === -1) continue;
     if (part.slice(0, i).trim() === ADMIN_COOKIE) {
-      return decodeURIComponent(part.slice(i + 1).trim());
+      // A malformed value ('%ZZ') makes decodeURIComponent throw; treat it as no cookie rather than
+      // a 500 — or, on the unwrapped sign-out route, a hung request (security pentest 21 Nov 2026).
+      try {
+        return decodeURIComponent(part.slice(i + 1).trim());
+      } catch {
+        return null;
+      }
     }
   }
   return null;

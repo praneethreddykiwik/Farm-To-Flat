@@ -61,10 +61,10 @@ export function adminAuth(req, res, next) {
   // the token", it bypasses the Google allowlist entirely, and it cannot be revoked for one
   // person. It exists because it was the only way in before Google sign-in worked.
   //
-  // ADMIN_TOKEN_SUNSET=1 turns it off. That is the last step of this migration and it is
+  // ADMIN_TOKEN_SUNSET=1 (or 'true') turns it off. That is the last step of this migration and it is
   // deliberately a separate switch: turning it off before Google is proven working would lock
   // everyone out of the console, so it must be a decision taken after, not a side effect.
-  if (process.env.ADMIN_TOKEN_SUNSET === '1')
+  if (tokenSunset())
     return res.status(401).json({
       error: {
         code: 'UNAUTHENTICATED',
@@ -88,6 +88,18 @@ export function adminAuth(req, res, next) {
   return res
     .status(401)
     .json({ error: { code: 'UNAUTHENTICATED', message: 'Admin sign-in required.' } });
+}
+
+/**
+ * Is the shared token switched off? '1' or 'true' (any case). Security pentest 21 Nov 2026: only
+ * '1' used to count, so an owner who wrote ADMIN_TOKEN_SUNSET=true believed the token was dead while
+ * it still opened the console as SUPER_ADMIN. Exported so /auth/config reports the same answer.
+ */
+export function tokenSunset() {
+  const v = String(process.env.ADMIN_TOKEN_SUNSET || '')
+    .trim()
+    .toLowerCase();
+  return v === '1' || v === 'true';
 }
 
 /** Constant-time string compare so the shared token can't be guessed byte-by-byte via timing. */
@@ -213,18 +225,50 @@ const MONEY_ROUTES = [
   (p, m) => /^\/customers\/[^/]+\/(wallet|deletion)$/.test(p) && m !== 'GET',
   (p) => p === '/orders/close-stale',
   (p, m) => /^\/orders\/[^/]+\/(refund|cancel)$/.test(p) && m !== 'GET',
+  // Approving a customer's cancellation refunds their wallet and Razorpay (security pentest 21 Nov
+  // 2026: the rule above names routes that do not exist, so the real refund path was ungated).
+  // /orders/advance and /orders/:id/status refund only when the body says CANCELLED, and the body is
+  // not parsed yet at this point — those two are gated in the handler by assertMayCancelOrders.
+  (p, m) => /^\/orders\/[^/]+\/cancel-decision$/.test(p) && m !== 'GET',
   (p, m) => p.startsWith('/access') && m !== 'GET',
   (p, m) => p.startsWith('/admin-emails') && m !== 'GET',
 ];
-export function needsGoogle(req) {
+/** The ADMIN_REQUIRE_GOOGLE mode that applies to this caller, or null if none does. */
+function googleModeFor(req) {
   const mode = String(process.env.ADMIN_REQUIRE_GOOGLE || 'off').toLowerCase();
-  if (mode !== 'money' && mode !== 'all') return false;
+  if (mode !== 'money' && mode !== 'all') return null;
   const staff = req.staff;
-  if (!staff || staff.viaGoogle || !staff.mobile) return false; // Google session or shared token
-  if (!ADMIN_UP.includes(staff.role)) return false;
+  if (!staff || staff.viaGoogle || !staff.mobile) return null; // Google session or shared token
+  if (!ADMIN_UP.includes(staff.role)) return null;
+  return mode;
+}
+export function needsGoogle(req) {
+  const mode = googleModeFor(req);
+  if (!mode) return false;
   if (mode === 'all') return true;
   const p = String(req.path || '')
     .toLowerCase()
     .replace(/\/+$/, '');
   return MONEY_ROUTES.some((rule) => rule(p, req.method));
+}
+
+/**
+ * Moving an order to CANCELLED refunds the wallet and Razorpay, so it is admin power — security
+ * pentest 21 Nov 2026: a FULFILMENT driver could cancel-and-refund up to 500 orders in one
+ * /orders/advance request (the very thing close-stale is owner-only to prevent), and one at a time
+ * through PATCH /orders/:id/status. The /orders RULE cannot see it: it depends on the body, which is
+ * parsed after adminAuthorize, so the status routes call this before doing anything. Approving a
+ * customer's OWN cancellation request (/orders/:id/cancel-decision) stays with the fulfilment board.
+ * Also applies the ADMIN_REQUIRE_GOOGLE=money gate to these two routes for the same reason.
+ */
+export function assertMayCancelOrders(req) {
+  if (!ADMIN_UP.includes(req.staff?.role))
+    throw fail(403, 'FORBIDDEN', 'Your role cannot do that.');
+  // 'all' never reaches a handler (adminAuthorize refused it), so a mode here means 'money'.
+  if (googleModeFor(req))
+    throw fail(
+      403,
+      'GOOGLE_SIGNIN_REQUIRED',
+      'Sign in to the admin panel with your Google account to do this.',
+    );
 }
