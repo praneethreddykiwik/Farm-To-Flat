@@ -281,6 +281,16 @@ describe('a dish it has never heard of', () => {
   });
 });
 
+describe('speed — it runs on every basket change', () => {
+  it('ideas for a full basket take a few milliseconds, not the 86 ms they used to', () => {
+    const basket = CATALOGUE.slice(0, 12).map((p) => p.id);
+    ideas(CATALOGUE, basket, 6); // first run fills the caches
+    const t = performance.now();
+    for (let i = 0; i < 10; i += 1) ideas(CATALOGUE, basket, 6);
+    expect((performance.now() - t) / 10).toBeLessThan(10);
+  });
+});
+
 describe('the one-tap ideas', () => {
   it('start from what is already in the basket', () => {
     const list = ideas(SHELF, ['chk']);

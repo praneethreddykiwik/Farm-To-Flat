@@ -271,15 +271,53 @@ export function findDish(text) {
 // ── ingredients on the shelf ─────────────────────────────────────────────────────────────────────
 
 /** Every name a product goes by, as words. */
-const namesOf = (p) => [p?.name, ...(p?.aliases || [])].map(words).filter((w) => w.length);
+/**
+ * Speed (21 Nov 2026): the basket recomputed its dish ideas on every tap, and with 384 dishes that
+ * meant re-splitting every product name and every ingredient alias into words thousands of times —
+ * about 86 ms on a fast Mac for a nine-item basket, and many times that on a phone, which made the
+ * basket slow to open and slow to change. Both sides are now split once and remembered:
+ *  - ingredient aliases, once at start-up (ING_WORDS);
+ *  - each product's names and its answer for each ingredient, once per product object (the
+ *    catalogue's objects are stable between renders, so a WeakMap keeps the work until the
+ *    catalogue itself changes, then lets it go).
+ */
+const ING_WORDS = Object.fromEntries(
+  Object.entries(ING).map(([key, def]) => [
+    key,
+    { is: def.is.map(words), not: (def.not || []).map(words) },
+  ]),
+);
+/** @type {WeakMap<object, string[][]>} */
+const NAMES_CACHE = new WeakMap();
+/** @type {WeakMap<object, Map<string, boolean>>} */
+const MATCH_CACHE = new WeakMap();
+
+function namesOf(p) {
+  if (p && typeof p === 'object') {
+    const hit = NAMES_CACHE.get(p);
+    if (hit) return hit;
+  }
+  const names = [p?.name, ...(p?.aliases || [])].map(words).filter((w) => w.length);
+  if (p && typeof p === 'object') NAMES_CACHE.set(p, names);
+  return names;
+}
 
 /** Does this product count as that ingredient? Whole words only, both ways. */
 export function isIngredient(product, key) {
-  const def = ING[key];
+  const def = ING_WORDS[key];
   if (!def) return false;
+  const memo = product && typeof product === 'object' ? MATCH_CACHE.get(product) : null;
+  if (memo?.has(key)) return /** @type {boolean} */ (memo.get(key));
   const names = namesOf(product);
-  if (def.not && names.some((n) => def.not.some((x) => containsWords(n, words(x))))) return false;
-  return names.some((n) => def.is.some((x) => containsWords(n, words(x))));
+  const answer =
+    !(def.not.length && names.some((n) => def.not.some((x) => containsWords(n, x)))) &&
+    names.some((n) => def.is.some((x) => containsWords(n, x)));
+  if (product && typeof product === 'object') {
+    const m = memo || new Map();
+    m.set(key, answer);
+    if (!memo) MATCH_CACHE.set(product, m);
+  }
+  return answer;
 }
 
 /**
@@ -307,13 +345,12 @@ function shelfFor(key, products) {
 function ingredientsNamed(text) {
   const q = words(text);
   const found = [];
-  for (const [key, def] of Object.entries(ING)) {
+  for (const [key, def] of Object.entries(ING_WORDS)) {
     let len = 0;
-    for (const alias of def.is) {
-      const a = words(alias);
+    for (const a of def.is) {
       if (containsWords(q, a) && a.join(' ').length > len) len = a.join(' ').length;
     }
-    if (len && !(def.not || []).some((x) => containsWords(q, words(x)))) found.push({ key, len });
+    if (len && !def.not.some((x) => containsWords(q, x))) found.push({ key, len });
   }
   return found.sort((a, b) => b.len - a.len).map((x) => x.key);
 }
@@ -662,15 +699,19 @@ const FAVOURITES = [
 export function ideas(products, inBasketIds, limit = 6) {
   const ids = new Set(inBasketIds || []);
   const have = (products || []).filter((p) => ids.has(p.id));
+  // Which ingredients the basket covers, worked out once rather than once per dish.
+  const covered = new Set();
+  if (have.length)
+    for (const key of Object.keys(ING_WORDS))
+      if (have.some((p) => isIngredient(p, key))) covered.add(key);
   const scored = DISHES.map((d, i) => ({
     d,
     i,
     // The star ingredient counts double: chicken in the basket suggests chicken dishes, not every
     // dish with onion in it.
-    n: d.needs.reduce(
-      (s, part, j) => s + (have.some((p) => isIngredient(p, part.key)) ? (j === 0 ? 2 : 1) : 0),
-      0,
-    ),
+    n: covered.size
+      ? d.needs.reduce((s, part, j) => s + (covered.has(part.key) ? (j === 0 ? 2 : 1) : 0), 0)
+      : 0,
   }));
   const fromBasket = scored
     .filter((x) => x.n > 0)

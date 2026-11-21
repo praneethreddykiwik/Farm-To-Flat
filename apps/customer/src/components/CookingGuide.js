@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { Keyboard, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -44,10 +44,13 @@ export function CookingGuide({ products, basket, onReveal }) {
   const [asked, setAsked] = useState('');
   const input = useRef(/** @type {any} */ (null));
 
-  const inBasket = useMemo(() => (basket || []).map((i) => i.productId), [basket]);
+  // Deferred (21 Nov 2026): a tap on a basket line repaints the basket first; the guide below
+  // catches up a moment later, so it can never make a stepper or a remove feel slow.
+  const lazyBasket = useDeferredValue(basket);
+  const inBasket = useMemo(() => (lazyBasket || []).map((i) => i.productId), [lazyBasket]);
   const basketQty = useMemo(
-    () => Object.fromEntries((basket || []).map((i) => [i.productId, Number(i.quantity) || 0])),
-    [basket],
+    () => Object.fromEntries((lazyBasket || []).map((i) => [i.productId, Number(i.quantity) || 0])),
+    [lazyBasket],
   );
   const quick = useMemo(() => ideas(products, inBasket, 6), [products, inBasket]);
   const answer = useMemo(
