@@ -42,12 +42,16 @@ for (const cmd of ['lsof -nP -iTCP -sTCP:LISTEN', 'ss -ltnH']) {
   }
 }
 
+// macOS only. Linux (CI) never hands a wildcard bind a port another socket already holds on
+// 127.0.0.1, so there the kernel's own choice is the safe one — and a fixed sequence there collided
+// with ports still in use (EADDRINUSE on CI, 21 Nov 2026).
 const listen = http.Server.prototype.listen;
-http.Server.prototype.listen = function patchedListen(...args) {
-  if (args[0] === 0 && (args.length === 1 || typeof args[1] === 'function')) {
-    do next = LOW + ((next - LOW + 1) % SPAN);
-    while (taken.has(next));
-    return listen.call(this, next, ...args.slice(1));
-  }
-  return listen.apply(this, args);
-};
+if (process.platform === 'darwin')
+  http.Server.prototype.listen = function patchedListen(...args) {
+    if (args[0] === 0 && (args.length === 1 || typeof args[1] === 'function')) {
+      do next = LOW + ((next - LOW + 1) % SPAN);
+      while (taken.has(next));
+      return listen.call(this, next, ...args.slice(1));
+    }
+    return listen.apply(this, args);
+  };
