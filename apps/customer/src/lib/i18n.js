@@ -42,6 +42,9 @@ export const categoryLabel = (product, lang) =>
  */
 const STRINGS = {
   en: {
+    privacyBoxTitle: 'Your data and privacy',
+    privacyBoxBody:
+      'To see, correct or delete your data, withdraw consent or name someone to act for you, write to our Grievance Officer, {name}, at {email}. We reply within 30 days. You can also complain to the Data Protection Board of India.',
     // DPDP consent (21 Nov 2026)
     consentAgree: 'I have read the privacy notice and agree to how my data is used.',
     consentAdult: 'I am 18 years or older.',
@@ -371,6 +374,9 @@ const STRINGS = {
     addAnotherAddress: 'Add another address',
   },
   hi: {
+    privacyBoxTitle: 'आपका डेटा और निजता',
+    privacyBoxBody:
+      'अपना डेटा देखने, सुधारने या हटाने, सहमति वापस लेने या अपनी ओर से किसी को नामित करने के लिए हमारे शिकायत अधिकारी {name} को {email} पर लिखें। हम 30 दिनों में जवाब देते हैं। आप भारतीय डेटा संरक्षण बोर्ड (Data Protection Board of India) से भी शिकायत कर सकते हैं।',
     consentAgree: 'मैंने निजता सूचना पढ़ ली है और अपने डेटा के उपयोग के तरीके से सहमत हूँ।',
     consentAdult: 'मेरी उम्र 18 वर्ष या उससे अधिक है।',
     consentNeeded: 'आगे बढ़ने के लिए दोनों बॉक्स चुनें।',
@@ -683,6 +689,9 @@ const STRINGS = {
     addAnotherAddress: 'दूसरा पता जोड़ें',
   },
   te: {
+    privacyBoxTitle: 'మీ డేటా, గోప్యత',
+    privacyBoxBody:
+      'మీ డేటాను చూడటానికి, సరిచేయడానికి లేదా తొలగించడానికి, సమ్మతిని ఉపసంహరించుకోవడానికి లేదా మీ తరఫున ఒకరిని నామినేట్ చేయడానికి మా గ్రీవెన్స్ ఆఫీసర్ {name} గారికి {email} కు రాయండి. 30 రోజుల్లో జవాబిస్తాం. మీరు Data Protection Board of India కు కూడా ఫిర్యాదు చేయవచ్చు.',
     consentAgree:
       'నేను గోప్యతా నోటీసును చదివాను, నా డేటాను ఉపయోగించే విధానానికి అంగీకరిస్తున్నాను.',
     consentAdult: 'నా వయస్సు 18 సంవత్సరాలు లేదా అంతకంటే ఎక్కువ.',
