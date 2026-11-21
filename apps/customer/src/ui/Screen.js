@@ -20,6 +20,9 @@ import { selectReducedMotion } from '../features/ui/uiSlice';
  * This is what makes the frost read as glass rather than grey boxes. Respects reduced motion.
  * @param {{ variant?: 'canvas'|'night', intensity?: number }} props
  */
+/** Richer versions of the ambient tints (mint / butter / sky), for the background glows only. */
+const VIVID = { mint: '#A6E3C0', butter: '#F7E08E', sky: '#B7D5F2' };
+
 export function Ambient({ variant = 'canvas', intensity = 1 }) {
   // Still on Android, as it is for someone who has asked for less motion. This drift touches the
   // whole screen, so while it runs every frame is a full redraw — sixty or a hundred and twenty a
@@ -70,20 +73,22 @@ export function Ambient({ variant = 'canvas', intensity = 1 }) {
 
   const night = variant === 'night';
   const a = intensity;
+  // The background glows are drawn richer than the pastel tokens (owner, 21 Nov 2026: "bright on
+  // the simulator, lighter on my phone"). A Mac screen shows pale pastels at high brightness in wide
+  // colour; a phone at everyday brightness — with True Tone, a Xiaomi/Samsung colour profile, or
+  // outdoor light — washes the same values out to near-white. These keep the same hues, about a
+  // third more saturated, so the screen reads green / sunlit / sky on the phone too.
+  const glow = VIVID;
   return (
     <View
       pointerEvents="none"
       style={[StyleSheet.absoluteFill, { backgroundColor: night ? colors.night : colors.canvas }]}
     >
       <Animated.View
-        style={[
-          styles.blob,
-          { top: -120, left: -80, width: 360, height: 360, opacity: 0.9 * a },
-          b1,
-        ]}
+        style={[styles.blob, { top: -120, left: -80, width: 360, height: 360, opacity: 1 * a }, b1]}
       >
         <LinearGradient
-          colors={night ? ['#1E7A4C', 'rgba(30,122,76,0)'] : [colors.mint, 'rgba(191,233,208,0)']}
+          colors={night ? ['#1E7A4C', 'rgba(30,122,76,0)'] : [glow.mint, 'rgba(166,227,192,0)']}
           style={styles.fill}
           start={{ x: 0.3, y: 0.2 }}
           end={{ x: 0.9, y: 1 }}
@@ -92,12 +97,12 @@ export function Ambient({ variant = 'canvas', intensity = 1 }) {
       <Animated.View
         style={[
           styles.blob,
-          { top: 180, right: -140, width: 380, height: 380, opacity: 0.85 * a },
+          { top: 180, right: -140, width: 380, height: 380, opacity: 0.95 * a },
           b2,
         ]}
       >
         <LinearGradient
-          colors={night ? ['#3C5A2A', 'rgba(60,90,42,0)'] : [colors.butter, 'rgba(244,233,183,0)']}
+          colors={night ? ['#3C5A2A', 'rgba(60,90,42,0)'] : [glow.butter, 'rgba(247,224,142,0)']}
           style={styles.fill}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
@@ -106,12 +111,12 @@ export function Ambient({ variant = 'canvas', intensity = 1 }) {
       <Animated.View
         style={[
           styles.blob,
-          { bottom: -160, left: 20, width: 420, height: 420, opacity: 0.8 * a },
+          { bottom: -160, left: 20, width: 420, height: 420, opacity: 0.9 * a },
           b3,
         ]}
       >
         <LinearGradient
-          colors={night ? ['#12352A', 'rgba(18,53,42,0)'] : [colors.sky, 'rgba(207,226,243,0)']}
+          colors={night ? ['#12352A', 'rgba(18,53,42,0)'] : [glow.sky, 'rgba(183,213,242,0)']}
           style={styles.fill}
           start={{ x: 0.2, y: 0.1 }}
           end={{ x: 0.8, y: 1 }}
