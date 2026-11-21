@@ -34,6 +34,16 @@ async function withAddress(mobile) {
   return { ...s, addressId: a.body.address.id };
 }
 const DAY = 864e5;
+// Security pentest 21 Nov 2026: the code-free DELETE /me now refuses (426), so these tests go
+// through the in-app flow the current app uses: ask for a code, confirm with it.
+async function deleteWithCode(token) {
+  const ask = await request(app).post('/api/v1/me/deletion/request').set(auth(token));
+  if (ask.status !== 200) return ask;
+  return request(app)
+    .post('/api/v1/me/deletion/confirm')
+    .set(auth(token))
+    .send({ otp: ask.body.devOtp || '123456' });
+}
 
 beforeAll(() => {
   updatePaymentSettings({ codEnabled: true, codMaxOrderPaise: 500000, deliveryOtpEnabled: true });
@@ -43,7 +53,7 @@ describe('scheduling and the grace period', () => {
   it('signs out at once, keeps the account for 60 days, and signing in again cancels it', async () => {
     const mobile = '9557000010';
     const s = await withAddress(mobile);
-    const del = await request(app).delete('/api/v1/me').set(auth(s.accessToken));
+    const del = await deleteWithCode(s.accessToken);
     expect(del.status).toBe(200);
     expect(del.body.scheduled).toBe(true);
     const days = Math.round((Date.parse(del.body.deleteAfter) - Date.now()) / DAY);
@@ -67,8 +77,8 @@ describe('scheduling and the grace period', () => {
 
   it('deleting twice is a 401, never a 500', async () => {
     const { accessToken } = await login('9557000011');
-    expect((await request(app).delete('/api/v1/me').set(auth(accessToken))).status).toBe(200);
-    expect((await request(app).delete('/api/v1/me').set(auth(accessToken))).status).toBe(401);
+    expect((await deleteWithCode(accessToken)).status).toBe(200);
+    expect((await deleteWithCode(accessToken)).status).toBe(401);
   });
 });
 
@@ -124,15 +134,12 @@ describe('orders in progress block deletion', () => {
       .get(`/api/v1/delivery-windows?addressId=${s.addressId}`)
       .set(auth(s.accessToken));
     const win = w.body.windows.find((x) => x.isOpen);
-    const placed = await request(app)
-      .post('/api/v1/orders')
-      .set(auth(s.accessToken))
-      .send({
-        addressId: s.addressId,
-        deliveryDate: win.date,
-        window: win.window,
-        paymentMethod: 'COD',
-      });
+    const placed = await request(app).post('/api/v1/orders').set(auth(s.accessToken)).send({
+      addressId: s.addressId,
+      deliveryDate: win.date,
+      window: win.window,
+      paymentMethod: 'COD',
+    });
     expect(placed.status).toBe(201);
     const id = placed.body.order.id;
 
@@ -143,7 +150,8 @@ describe('orders in progress block deletion', () => {
     expect(ask.status).toBe(409);
     expect(ask.body.error.code).toBe('ORDERS_IN_PROGRESS');
     const old = await request(app).delete('/api/v1/me').set(auth(s.accessToken)); // older app
-    expect(old.status).toBe(409);
+    expect(old.status).toBe(426); // the code-free path is retired
+    expect(old.body.error.code).toBe('USE_DELETION_CONFIRM');
     expect((await me(s.accessToken)).status).toBe(200); // still signed in, nothing scheduled
 
     // delivered, code read out, cash taken
@@ -159,8 +167,18 @@ describe('orders in progress block deletion', () => {
 
     const now = await request(app).get('/api/v1/me/deletion').set(auth(s.accessToken));
     expect(now.body.canDelete).toBe(true);
-    const del = await request(app).delete('/api/v1/me').set(auth(s.accessToken));
+    const del = await deleteWithCode(s.accessToken);
     expect(del.status).toBe(200);
     expect(del.body.scheduled).toBe(true);
+  });
+
+  it('the code-free DELETE /me refuses with a bare access token and changes nothing', async () => {
+    const { accessToken } = await login('9557000014');
+    const r = await request(app).delete('/api/v1/me').set(auth(accessToken));
+    expect(r.status).toBe(426);
+    expect(r.body.error.code).toBe('USE_DELETION_CONFIRM');
+    expect((await me(accessToken)).status).toBe(200);
+    const st = await request(app).get('/api/v1/me/deletion').set(auth(accessToken));
+    expect(st.body.scheduled).toBeNull();
   });
 });

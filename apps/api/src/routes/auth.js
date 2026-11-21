@@ -33,7 +33,14 @@ export const authRouter = Router();
 const otpPerMobile = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  key: (req) => `otp:m:${req.body?.mobile}`,
+  // Security pentest 21 Nov 2026 (R3/P08): this runs before validateBody, so it used to key on the
+  // raw string and '+91 98765 00303' / '09876500303' / '9876500303' each got their own 5. Key on
+  // the number the shared validator normalises to (raw string only when it is not a valid mobile —
+  // those are refused by validateBody anyway).
+  key: (req) => {
+    const m = mobile.safeParse(req.body?.mobile);
+    return `otp:m:${m.success ? m.data : String(req.body?.mobile)}`;
+  },
   code: 'OTP_RATE_LIMITED',
   message: 'Too many codes requested for this number. Please wait a few minutes.',
 });

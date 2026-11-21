@@ -50,6 +50,17 @@ export async function capturePayment({
   // partial capture, a currency mismatch, or an order created with partial_payment would have
   // confirmed the order in full and credited a top-up that was never funded. Only the webhook knows
   // the real figure (the client leg has only a signature), so this runs when a caller supplies one.
+  // Security pentest 21 Nov 2026 (W12): the webhook is the one caller whose amount comes straight
+  // from the gateway's event, so an event without one (malformed, or a future payload shape) used to
+  // skip the comparison and credit in full. On that path a missing amount is a mismatch, not a pass.
+  // The client /verify leg is unaffected: it re-fetches the payment from the gateway itself.
+  if (source === 'webhook' && amountPaise == null)
+    return {
+      outcome: 'mismatch',
+      payment: pay,
+      expectedPaise: String(pay.amountPaise),
+      gotPaise: 'no-amount',
+    };
   if (amountPaise != null && Number(amountPaise) !== Number(pay.amountPaise))
     return {
       outcome: 'mismatch',
@@ -65,7 +76,6 @@ export async function capturePayment({
       gotPaise: `${currency}`,
     };
 
-  pay.status = 'CAPTURED';
   // With a live gateway, a capture MUST carry the gateway's own payment id. Inventing one
   // (`pay_rzp_<timestamp>`) made a mock credit indistinguishable from a real payment in the
   // permanent record — there are 14 such rows from the test period, and at reconciliation time
@@ -77,6 +87,11 @@ export async function capturePayment({
       expectedPaise: String(pay.amountPaise),
       gotPaise: 'no-gateway-payment-id',
     };
+  // Security pentest 21 Nov 2026 (W13): this used to be set BEFORE the payment-id check above, so a
+  // signed-but-malformed event (no payment id) left the in-memory intent CAPTURED with nothing
+  // credited — and the real capture that followed was ignored as "already". Only after every
+  // check has passed does the intent become CAPTURED.
+  pay.status = 'CAPTURED';
   pay.razorpayPaymentId = razorpayPaymentId || pay.razorpayPaymentId || `pay_rzp_${Date.now()}`;
   pay.capturedVia = source;
 

@@ -17,6 +17,13 @@ import { getSettings } from '../ops-store.js';
 import { todayISO } from './dates.js';
 
 const PLACED = new Set(['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']);
+// Security pentest 21 Nov 2026 (C10): counting only CONFIRMED-or-later let a customer open several
+// prepaid checkouts in a row — each one still PENDING_PAYMENT, so each one looked like the "first"
+// and took the first-order discount — then pay them all. An order awaiting payment already holds
+// the offer, so it counts. Orders that will never be paid (PAYMENT_FAILED — which is also what an
+// expired checkout becomes — and CANCELLED) do not count, so a failed first payment never burns
+// the offer: the customer's next real first order still gets it.
+const HOLDS_OFFER = new Set([...PLACED, 'PENDING_PAYMENT']);
 
 /**
  * The offer this customer would get on a basket of `subtotalPaise` right now, or null.
@@ -27,7 +34,7 @@ export function launchOfferFor(customerId, subtotalPaise, now = Date.now()) {
   if (!s.enabled || !customerId || !(subtotalPaise > 0)) return null;
   const today = todayISO(now);
   if (today < s.startDate || today > s.endDate) return null;
-  const placed = listOrdersForCustomer(customerId).filter((o) => PLACED.has(o.status));
+  const placed = listOrdersForCustomer(customerId).filter((o) => HOLDS_OFFER.has(o.status));
 
   if (placed.length === 0) {
     const pct = Number(s.firstOrderPct) || 0;

@@ -24,6 +24,7 @@
  */
 import { Router } from 'express';
 import { fail } from '../http.js';
+import { safeImageType } from '../lib/storage.js';
 
 export const imgRouter = Router();
 
@@ -95,18 +96,27 @@ imgRouter.get('/:key', async (req, res, next) => {
           'IMAGE_UNAVAILABLE',
           'Image unavailable.',
         );
-      return stream(raw, res);
+      return stream(raw, res, key);
     }
-    return stream(r, res);
+    return stream(r, res, key);
   } catch (e) {
     next(e);
   }
 });
 
+const typeOfKey = (key) => {
+  const ext = String(key).split('.').pop().toLowerCase();
+  return safeImageType(`image/${ext}`) || 'image/webp';
+};
+
 /** Copy an upstream image response to the client with an immutable cache and no leaked headers. */
-async function stream(upstream, res) {
+async function stream(upstream, res, key) {
   const buf = Buffer.from(await upstream.arrayBuffer());
-  res.set('Content-Type', upstream.headers.get('content-type') || 'image/webp');
+  // Security pentest 21 Nov 2026: never relay a non-image upstream type (an object stored as
+  // text/html would otherwise render as HTML on our origin). Only png/jpeg/webp/avif pass; anything
+  // else is labelled with the image type of the key's own extension (KEY_RE allows only those), so
+  // with nosniff the browser can only ever treat the bytes as an image.
+  res.set('Content-Type', safeImageType(upstream.headers.get('content-type')) || typeOfKey(key));
   // Content-addressed keys never change, so a long immutable cache is safe and is what lets
   // Cloudflare and the device cache carry the load instead of Render.
   res.set('Cache-Control', 'public, max-age=31536000, immutable');

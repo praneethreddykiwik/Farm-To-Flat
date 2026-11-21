@@ -57,6 +57,19 @@ beforeAll(() => {
   product = listProducts().find((p) => (p.availability || 'AVAILABLE') === 'AVAILABLE');
 });
 
+// Security pentest 21 Nov 2026: DELETE /me (no code) now refuses with 426; delete the way the
+// current app does — ask for a code to the account's own number, then confirm with it.
+async function deleteWithCode(token) {
+  const ask = await request(app)
+    .post('/api/v1/me/deletion/request')
+    .set({ Authorization: `Bearer ${token}` });
+  if (ask.status !== 200) return ask;
+  return request(app)
+    .post('/api/v1/me/deletion/confirm')
+    .set({ Authorization: `Bearer ${token}` })
+    .send({ otp: ask.body.devOtp || '123456' });
+}
+
 describe('what counts as an order', () => {
   it('is one that was placed — confirmed, on its way, delivered', () => {
     for (const status of ['CONFIRMED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED'])
@@ -321,7 +334,7 @@ describe('a customer who deleted their account', () => {
     const gone = await account('9833300041', 'Soon Erased');
     order(gone, { at: '2026-08-01T05:00:00.000Z' });
     order(gone, { at: '2026-08-08T05:00:00.000Z' });
-    expect((await request(app).delete('/api/v1/me').set(auth(gone.token))).status).toBe(200);
+    expect((await deleteWithCode(gone.token)).status).toBe(200);
     // Deletion is scheduled with a 60-day grace period; the sweep erases it once that has passed.
     const { sweepDeletions } = await import('../src/lib/account-deletion.js');
     await sweepDeletions(Date.now() + 61 * 864e5);

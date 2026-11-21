@@ -30,6 +30,18 @@ describe('session lifetime', () => {
     expect((await me(tokens[11])).status).toBe(200);
   });
 
+  it('a session dropped by the cap cannot refresh itself back in (security pentest 21 Nov 2026)', async () => {
+    const sessions = [];
+    for (let i = 0; i < 12; i += 1) sessions.push(await login('9555000005'));
+    const refresh = (t) => request(app).post('/api/v1/auth/refresh').send({ refreshToken: t });
+    // the two oldest were evicted: their refresh tokens are dead too
+    expect((await refresh(sessions[0].refreshToken)).status).toBe(401);
+    expect((await refresh(sessions[1].refreshToken)).status).toBe(401);
+    expect((await me(sessions[0].accessToken)).status).toBe(401);
+    // a kept session still refreshes normally
+    expect((await refresh(sessions[11].refreshToken)).status).toBe(200);
+  });
+
   it('sweep removes expired sessions and abandoned OTPs', async () => {
     await login('9555000002');
     await request(app).post('/api/v1/auth/otp/request').send({ mobile: '9555000003' }); // never verified

@@ -48,6 +48,7 @@ import { listActions, recordAction } from '../../lib/audit.js';
 import { redactForStaff } from '../../lib/contact-policy.js';
 import { orderNumbers } from '../../lib/customer-history.js';
 import { IS_PROD } from '../../lib/env.js';
+import { assertMayCancelOrders } from './auth.js';
 
 // Orders snapshot the customer name at order time; show the customer's CURRENT name in the operator
 // panel so a profile rename reflects everywhere (falls back to the snapshot for guest/seed orders).
@@ -623,6 +624,8 @@ adminOrdersRouter.patch(
   '/orders/:id/status',
   validateBody(StatusBody),
   asyncHandler(async (req, res) => {
+    // CANCELLED refunds: admins only, checked before anything else (security pentest 21 Nov 2026).
+    if (req.body.status === 'CANCELLED') assertMayCancelOrders(req);
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
     // Already there: answer with the order as it is — no new door code, no second notification.
@@ -681,6 +684,8 @@ adminOrdersRouter.post(
   validateBody(AdvanceBody),
   asyncHandler(async (req, res) => {
     const { orderIds, status } = req.body;
+    // A bulk CANCELLED is a bulk refund: admins only (security pentest 21 Nov 2026).
+    if (status === 'CANCELLED') assertMayCancelOrders(req);
     const updated = [];
     const skipped = [];
     for (const id of orderIds) {

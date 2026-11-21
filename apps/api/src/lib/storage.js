@@ -240,6 +240,33 @@ export function issuePhotoPath(ref) {
 }
 
 /**
+ * The content-type we are willing to put on bytes read back from storage, or null.
+ *
+ * Security pentest 21 Nov 2026: the readers below (and the public /img proxy) used to relay
+ * whatever type storage answered with — so an object stored as text/html would be served as HTML
+ * from api.fooducia.in. Only the raster image types we upload are passed through; anything else is
+ * the caller's to neutralise (a fixed image type, or a download).
+ */
+const SAFE_IMAGE_TYPES = new Map([
+  ['image/png', 'image/png'],
+  ['image/jpeg', 'image/jpeg'],
+  ['image/jpg', 'image/jpeg'],
+  ['image/webp', 'image/webp'],
+  ['image/avif', 'image/avif'],
+]);
+export function safeImageType(contentType) {
+  const base = String(contentType || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  return SAFE_IMAGE_TYPES.get(base) || null;
+}
+
+/** A stored photo with its type reduced to a safe image type (else a plain download). */
+const asSafeFile = (file) =>
+  file && { ...file, contentType: safeImageType(file.contentType) || 'application/octet-stream' };
+
+/**
  * Read one stored object back, so the API can serve it itself.
  *
  * This is the ONE read path for complaint photographs now, which is also what makes moving to S3 a
@@ -250,7 +277,7 @@ export function issuePhotoPath(ref) {
  */
 export async function downloadIssuePhoto(path, width) {
   if (!path) return null;
-  if (useS3()) return s3Get(`${ISSUE_BUCKET}/${path}`);
+  if (useS3()) return asSafeFile(await s3Get(`${ISSUE_BUCKET}/${path}`));
   if (!supabase) return null;
 
   // Thumbnails. These are photographs straight off a phone — the queue was pulling 1080x2400
@@ -265,10 +292,10 @@ export async function downloadIssuePhoto(path, width) {
         { headers: { Authorization: `Bearer ${KEY}`, apikey: KEY } },
       );
       if (res.ok)
-        return {
+        return asSafeFile({
           buffer: Buffer.from(await res.arrayBuffer()),
           contentType: res.headers.get('content-type') || 'image/jpeg',
-        };
+        });
     } catch {
       /* fall through to the original */
     }
@@ -280,10 +307,10 @@ export async function downloadIssuePhoto(path, width) {
     console.error(`[storage] could not read ${path}: ${error?.message || 'no body'}`);
     return null;
   }
-  return {
+  return asSafeFile({
     buffer: Buffer.from(await data.arrayBuffer()),
     contentType: data.type || 'application/octet-stream',
-  };
+  });
 }
 
 /**

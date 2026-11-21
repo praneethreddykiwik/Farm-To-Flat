@@ -66,6 +66,10 @@ async function paidOrder(mobile) {
     paymentId: pid,
     razorpayPaymentId: 'pay_gw_1',
     source: 'webhook',
+    // A real payment.captured webhook always carries the amount; since the security pentest of
+    // 21 Nov 2026 (W12) a webhook capture without one is refused, so the fixture sends it.
+    amountPaise: r.body.paymentIntent.amountPaise,
+    currency: 'INR',
   });
   expect(cap.outcome).toBe('captured');
   return { orderId: r.body.order.id, paymentId: pid };

@@ -45,6 +45,15 @@ export const SPREAD = { high: 0.15, medium: 0.25, low: 0.4 };
 const TOO_LOW = 0.5;
 const TOO_HIGH = 1.7;
 
+// Hard per-item ceilings (security pentest 21 Nov 2026). The reference check above only covers dishes
+// we know; an UNKNOWN dish used to keep whatever the model said, so a hostile or confused reply
+// ("1e12 kcal") went straight into the log and poisoned the day/range totals. No single plate item
+// is plausibly heavier than 3 kg, denser than pure fat, or over 5,000 kcal / 500 g of one macro.
+const MAX_ITEM_G = 3000;
+const MAX_ITEM_KCAL = 5000;
+const MAX_ITEM_MACRO_G = 500;
+const MAX_KCAL_PER_G = FAT_KCAL_PER_G; // nothing edible beats pure fat
+
 /**
  * Check one item from the vision model against the reference table.
  * @param {{ name:string, grams?:number|null, kcal?:number|null, protein?:number|null, carbs?:number|null, fat?:number|null, count?:number|null, unit?:string|null }} raw
@@ -53,6 +62,11 @@ export function checkItem(raw) {
   const name = String(raw?.name || 'item').slice(0, 60);
   const dish = matchDish(name);
   let grams = num(raw?.grams);
+  let clamped = false;
+  if (grams != null && grams > MAX_ITEM_G) {
+    grams = MAX_ITEM_G;
+    clamped = true;
+  }
   const count = num(raw?.count);
   // "2 roti" with no weight: use the household portion
   if (!grams && dish && count) grams = count * dish.serve[0];
@@ -82,6 +96,25 @@ export function checkItem(raw) {
       if (fat == null) fat = ref(dish.fat) * k;
     }
   }
+
+  // Unknown dish (or anything that slipped past): clamp to the ceilings and say we corrected it,
+  // the same 'adjusted' marker a known dish gets, so the plate is never shown as high confidence.
+  const kcalCap = Math.min(MAX_ITEM_KCAL, grams ? grams * MAX_KCAL_PER_G : MAX_ITEM_KCAL);
+  if (kcal != null && kcal > kcalCap) {
+    kcal = kcalCap;
+    clamped = true;
+  }
+  const capMacro = (v) => {
+    if (v != null && v > MAX_ITEM_MACRO_G) {
+      clamped = true;
+      return MAX_ITEM_MACRO_G;
+    }
+    return v;
+  };
+  protein = capMacro(protein);
+  carbs = capMacro(carbs);
+  fat = capMacro(fat);
+  if (clamped) check = 'adjusted';
 
   return {
     name,

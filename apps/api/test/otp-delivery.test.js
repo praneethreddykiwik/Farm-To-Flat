@@ -28,10 +28,12 @@ describe('who may use the fixed dev code', () => {
     expect(devOtpAllowedFor('9000000001', ctx)).toBe(false);
   });
 
-  it('is open to every number when the flag is on and nothing narrows it', () => {
-    // The posture that made 123456 a public bypass — true for staff numbers too.
+  it('admits nobody when the flag is on but no allowlist names anyone (fails closed)', () => {
+    // This was the posture that made 123456 a public bypass, staff numbers included. Closed in the
+    // 21 Nov 2026 security audit.
     const ctx = { isProd: true, allowDev: true, allowlist: list(), isStaff: true };
-    expect(devOtpAllowedFor('9000000001', ctx)).toBe(true);
+    expect(devOtpAllowedFor('9000000001', ctx)).toBe(false);
+    expect(devOtpAllowedFor('9000000001', { ...ctx, isStaff: false })).toBe(false);
   });
 
   it('confines to the named numbers the moment an allowlist exists', () => {

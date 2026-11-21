@@ -21,6 +21,7 @@
 import { randomInt } from 'node:crypto';
 import { getOps, listOps, putOps, putOpsSoft, getSettings, opsReady } from '../ops-store.js';
 import { getCustomer, getCustomerIdByMobile, ledgerPush } from '../customer-store.js';
+import { getOrder } from '../store.js';
 import { track } from './events.js';
 import { emitNotification } from './notify.js';
 import { isErased } from './customer-history.js';
@@ -282,6 +283,22 @@ export function rewardReferral(order) {
   if (!ref || ref.status !== 'PENDING') return null;
   const s = getSettings('growth');
   const now = new Date().toISOString();
+  // Security pentest 21 Nov 2026 (R5): the reward is for the order the invite came in on, and ONLY
+  // that order. Any DELIVERED order used to pay it, so a first order placed with the invite and then
+  // cancelled still paid both rewards when a later, uninvited order arrived. A different order never
+  // pays; if the invite's own order was cancelled (or never got paid), the referral is settled VOID
+  // so it cannot pay later either. Referrals from before orderId was recorded keep the old rule.
+  if (ref.orderId && order.id !== ref.orderId) {
+    const own = getOrder(ref.orderId);
+    if (!own || own.status === 'CANCELLED' || own.status === 'PAYMENT_FAILED')
+      putOpsSoft('referral', order.customerId, {
+        ...ref,
+        status: 'VOID',
+        reason: 'FIRST_ORDER_CANCELLED',
+        settledAt: now,
+      });
+    return null;
+  }
   if (!s.referralEnabled) return null;
   const inviter = getCustomer(ref.referrerId);
   if (!inviter || isErased(inviter)) {

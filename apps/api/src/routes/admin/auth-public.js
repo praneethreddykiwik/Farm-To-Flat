@@ -26,6 +26,8 @@ import {
 } from '../../lib/admin-session.js';
 import { setAdminCookie, clearAdminCookie, readAdminCookie } from '../../lib/admin-cookie.js';
 import { ROLE_META } from '../../lib/roles.js';
+import { asyncHandler } from '../../http.js';
+import { tokenSunset } from './auth.js';
 
 export const adminAuthPublicRouter = Router();
 
@@ -48,7 +50,8 @@ adminAuthPublicRouter.get('/config', (_req, res) => {
     },
     // Report the truth rather than a constant. The sign-in screen needs to know whether to offer
     // the token box at all, and "always yes" stops being true the moment the token is sunset.
-    token: { enabled: process.env.ADMIN_TOKEN_SUNSET !== '1' && !!process.env.ADMIN_TOKEN },
+    // Same reading of ADMIN_TOKEN_SUNSET as adminAuth ('1' or 'true'), so the two cannot disagree.
+    token: { enabled: !tokenSunset() && !!process.env.ADMIN_TOKEN },
   });
 });
 
@@ -121,22 +124,27 @@ adminAuthPublicRouter.post('/google', signInLimit, async (req, res) => {
   });
 });
 
-adminAuthPublicRouter.post('/signout', async (req, res) => {
-  // Read the session BEFORE revoking it, or there is nobody left to name in the record. Accept it
-  // from the header OR the cookie, so a cookie-only console can sign itself out too.
-  const presented = req.header('x-admin-session') || readAdminCookie(req) || '';
-  const who = verifyAdminSession(presented);
-  revokeAdminSession(presented);
-  clearAdminCookie(res);
-  // Sign-out matters as much as sign-in: "when did this person stop having access" is half of
-  // any access question. Not awaited-and-refused like sign-in — refusing to sign someone OUT
-  // because the log is down would be the wrong way round.
-  if (who)
-    recordAction({
-      staff: { email: who.email, role: who.role, viaGoogle: true },
-      action: 'ADMIN_SIGN_OUT',
-    }).catch(() => {});
-  // Always 200: whether that token was real is not information this endpoint should hand out, and
-  // the client's job after signing out is identical either way.
-  res.json({ ok: true });
-});
+// asyncHandler: an async handler that throws without it is an unhandled rejection and the request
+// never answers (security pentest 21 Nov 2026: a malformed cookie hung sign-out).
+adminAuthPublicRouter.post(
+  '/signout',
+  asyncHandler(async (req, res) => {
+    // Read the session BEFORE revoking it, or there is nobody left to name in the record. Accept it
+    // from the header OR the cookie, so a cookie-only console can sign itself out too.
+    const presented = req.header('x-admin-session') || readAdminCookie(req) || '';
+    const who = verifyAdminSession(presented);
+    revokeAdminSession(presented);
+    clearAdminCookie(res);
+    // Sign-out matters as much as sign-in: "when did this person stop having access" is half of
+    // any access question. Not awaited-and-refused like sign-in — refusing to sign someone OUT
+    // because the log is down would be the wrong way round.
+    if (who)
+      recordAction({
+        staff: { email: who.email, role: who.role, viaGoogle: true },
+        action: 'ADMIN_SIGN_OUT',
+      }).catch(() => {});
+    // Always 200: whether that token was real is not information this endpoint should hand out, and
+    // the client's job after signing out is identical either way.
+    res.json({ ok: true });
+  }),
+);

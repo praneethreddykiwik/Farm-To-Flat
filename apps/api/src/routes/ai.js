@@ -1,8 +1,8 @@
 /**
  * AI diet planner passthrough (contract, authenticated). Builds a system prompt from the live
  * catalog, calls Groq (openai/gpt-oss-120b) or Gemini (gemini-3.6-flash) with the SERVER-side key,
- * and returns the raw model JSON untouched — the app validates it against the catalog and computes
- * every calorie itself. Owner: Vivek. In dev the app calls providers directly with EXPO_PUBLIC keys;
+ * and returns the model JSON after a server-side shape check (sanitisePlan) — the app still validates
+ * it against the catalog and computes every calorie itself. Owner: Vivek. In dev the app calls providers directly with EXPO_PUBLIC keys;
  * this server route is the production path and stays behind the in-memory per-IP rate limiter below
  * (planLimiter) — the upstream models cost real money, so /plan is capped per caller.
  *
@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { clientIp, ipBucket } from '../lib/edge.js';
 import { takeDaily } from '../lib/spend-cap.js';
+import { assertRealImage } from '../lib/storage.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
 import {
@@ -56,22 +57,23 @@ function requireAiAccess(req, _res, next) {
  */
 const RATE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const RATE_MAX = 10; // requests per window per IP
-const planHits = new Map(); // ip -> number[] (ms timestamps within the window)
+const planHits = new Map(); // bucket key -> number[] (ms timestamps within the window)
 
 function planLimiter(req, _res, next) {
-  const ip = ipBucket(clientIp(req));
+  // Keyed per network AND per account, like identifyLimiter (security pentest 21 Nov 2026): an
+  // IP-only key let one staff token rotating addresses call the paid model without limit.
   const now = Date.now();
-  const recent = (planHits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
-  if (recent.length >= RATE_MAX) {
-    planHits.set(ip, recent);
+  const keys = [`ip:${ipBucket(clientIp(req))}`, `c:${req.customerId || 'anon'}`];
+  const recents = keys.map((k) => (planHits.get(k) || []).filter((t) => now - t < RATE_WINDOW_MS));
+  if (recents.some((r) => r.length >= RATE_MAX)) {
+    keys.forEach((k, i) => planHits.set(k, recents[i]));
     return next(
       fail(429, 'RATE_LIMITED', 'Too many planner requests. Please try again in a few minutes.'),
     );
   }
-  if (!takeDaily('ai'))
-    return next(fail(503, 'DAILY_LIMIT', 'The planner is resting for today. Please try tomorrow.'));
-  recent.push(now);
-  planHits.set(ip, recent);
+  // The shared daily AI unit is NOT spent here: it is taken in the handler, after access, body
+  // validation and the key check, so a refused request costs the shared allowance nothing.
+  keys.forEach((k, i) => planHits.set(k, [...recents[i], now]));
   // Opportunistic cleanup so the map does not grow unbounded across many IPs.
   if (planHits.size > 5000) {
     for (const [k, v] of planHits) {
@@ -197,10 +199,60 @@ async function callGemini(key, prompt, user) {
   return extractJSON(data.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '{}');
 }
 
+/**
+ * Server-side shape check of the model's plan (security pentest 21 Nov 2026). The model's JSON used
+ * to be returned untouched, so a prompt-injected reply could carry invented productIds, absurd or
+ * negative grams, and extra keys (price, action, tool_call) to whatever consumes it. We now rebuild
+ * the plan from the known keys only, keep items whose productId is a real active catalog product,
+ * and clamp grams. The app's normalisePlan (apps/customer/src/lib/ai.js) still does its own
+ * tighter clamps and computes every calorie; this keeps the same field names it reads.
+ */
+const PLAN_MIN_G = 1;
+const PLAN_MAX_G = 2000;
+const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+function sanitisePlan(raw) {
+  const ids = new Set(
+    listProducts()
+      .filter((p) => p.isActive !== false)
+      .map((p) => p.id),
+  );
+  const days = (Array.isArray(raw?.days) ? raw.days : []).slice(0, 31).map((d, di) => ({
+    day: Number.isInteger(d?.day) && d.day > 0 && d.day <= 31 ? d.day : di + 1,
+    meals: (Array.isArray(d?.meals) ? d.meals : []).slice(0, 8).map((m) => ({
+      slot: str(m?.slot, 20),
+      name: str(m?.name, 120),
+      items: (Array.isArray(m?.items) ? m.items : [])
+        .filter((it) => it && typeof it.productId === 'string' && ids.has(it.productId))
+        .slice(0, 20)
+        .map((it) => {
+          const g = Number(it.grams);
+          return {
+            productId: it.productId,
+            grams: Number.isFinite(g)
+              ? Math.min(PLAN_MAX_G, Math.max(PLAN_MIN_G, Math.round(g)))
+              : PLAN_MIN_G,
+          };
+        }),
+      steps: (Array.isArray(m?.steps) ? m.steps : []).slice(0, 8).map((x) => str(x, 240)),
+      prepMinutes: Math.min(240, Math.max(0, Math.round(Number(m?.prepMinutes) || 0))),
+    })),
+  }));
+  return {
+    title: str(raw?.title, 120),
+    summary: str(raw?.summary, 600),
+    days,
+    cautions: (Array.isArray(raw?.cautions) ? raw.cautions : [])
+      .slice(0, 10)
+      .map((x) => str(x, 240)),
+  };
+}
+
+// Access is checked FIRST (security pentest 21 Nov 2026): the limiter used to run before it and
+// spend the shared daily AI unit, so a customer without AI access could drain the cap for everyone.
 aiRouter.post(
   '/plan',
-  planLimiter,
   requireAiAccess,
+  planLimiter,
   validateBody(PlanBody),
   asyncHandler(async (req, res) => {
     const groq = process.env.GROQ_API_KEY;
@@ -211,6 +263,9 @@ aiRouter.post(
         'NOT_IMPLEMENTED',
         'AI planner needs a server key (GROQ_API_KEY or GEMINI_API_KEY). In dev the app calls the provider directly.',
       );
+    // Spend the shared daily unit only for a request that will really reach the model.
+    if (!takeDaily('ai'))
+      throw fail(503, 'DAILY_LIMIT', 'The planner is resting for today. Please try tomorrow.');
 
     const prompt = systemPrompt(req.body.horizon, req.body.lang);
     const user = JSON.stringify({
@@ -235,7 +290,7 @@ aiRouter.post(
       }
     }
     if (!plan) throw lastErr || fail(502, 'AI_UPSTREAM', 'The planner is unavailable right now.');
-    res.json({ plan });
+    res.json({ plan: sanitisePlan(plan) });
   }),
 );
 
@@ -263,10 +318,8 @@ function identifyLimiter(req, _res, next) {
     keys.forEach((k, i) => identHits.set(k, recents[i]));
     return next(fail(429, 'RATE_LIMITED', 'Too many photos. Please try again in a few minutes.'));
   }
-  if (!takeDaily('ai'))
-    return next(
-      fail(503, 'DAILY_LIMIT', 'Photo search is resting for today. Please try again tomorrow.'),
-    );
+  // The daily AI unit is taken in the handler, after validation and the image check (security
+  // pentest 21 Nov 2026) — a malformed or non-image body must not spend the shared allowance.
   keys.forEach((k, i) => identHits.set(k, [...recents[i], now]));
   if (identHits.size > 5000)
     for (const [k, v] of identHits) {
@@ -294,8 +347,24 @@ aiRouter.post(
     const key = process.env.GROQ_API_KEY;
     if (!key) throw fail(501, 'NOT_IMPLEMENTED', 'Photo search needs GROQ_API_KEY on the server.');
 
+    // Verify the bytes really are the declared image (security pentest 21 Nov 2026), as /meals/log
+    // does: the schema alone let any bytes — SVG/script, base64 garbage — through to a paid vision
+    // call. Rebuild the data URL from the decoded buffer so only clean base64 is ever forwarded.
+    const buffer = Buffer.from(req.body.imageBase64, 'base64');
+    try {
+      assertRealImage(buffer, req.body.contentType);
+    } catch {
+      throw fail(422, 'VALIDATION', 'That file is not a valid image.');
+    }
+    if (!takeDaily('ai'))
+      throw fail(
+        503,
+        'DAILY_LIMIT',
+        'Photo search is resting for today. Please try again tomorrow.',
+      );
+
     const products = listProducts();
-    const dataUrl = `data:${req.body.contentType};base64,${req.body.imageBase64}`;
+    const dataUrl = `data:${req.body.contentType};base64,${buffer.toString('base64')}`;
 
     // A customer is holding a phone up to a vegetable. If the model is slow, saying so beats a
     // spinner that never ends.
