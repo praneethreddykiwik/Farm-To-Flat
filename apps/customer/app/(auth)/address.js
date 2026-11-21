@@ -20,7 +20,7 @@ export default function AddressCapture() {
   // Render server that call hangs ~50s and the button would feel dead. Clear the local session now
   // (the route guard sends us to /welcome) and invalidate the token server-side in the background.
   const back = () => {
-    logout().catch(() => {});
+    logout(undefined).catch(() => {});
     clearRefreshToken().catch(() => {});
     dispatch(signedOut({ reason: 'user' }));
     dispatch(api.util.resetApiState());

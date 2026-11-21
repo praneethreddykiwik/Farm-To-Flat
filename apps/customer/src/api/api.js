@@ -11,6 +11,7 @@ export const api = createApi({
   reducerPath: 'api',
   baseQuery,
   tagTypes: [
+    'Consent',
     'Me',
     'Addresses',
     'Demand',
@@ -32,7 +33,20 @@ export const api = createApi({
       query: (body) => ({ url: '/auth/otp/request', method: 'POST', body }),
     }),
     verifyOtp: b.mutation({ query: (body) => ({ url: '/auth/otp/verify', method: 'POST', body }) }),
-    logout: b.mutation({ query: () => ({ url: '/auth/logout', method: 'POST', body: {} }) }),
+    // DPDP: has this account agreed to the current privacy notice (and said it is 18+)?
+    consentStatus: b.query({ query: () => '/me/consent', providesTags: ['Consent'] }),
+    consentSave: b.mutation({
+      query: (body) => ({ url: '/me/consent', method: 'POST', body }),
+      invalidatesTags: ['Consent'],
+    }),
+    // `expoPushToken`: this phone stops getting the signed-out account's notifications (review #42).
+    logout: b.mutation({
+      query: (/** @type {{ expoPushToken?: string|null } | undefined} */ arg) => ({
+        url: '/auth/logout',
+        method: 'POST',
+        body: arg?.expoPushToken ? { expoPushToken: arg.expoPushToken } : {},
+      }),
+    }),
 
     // ---- profile & address ----
     getMe: b.query({ query: () => '/me', providesTags: ['Me'] }),
@@ -225,10 +239,12 @@ export const api = createApi({
       keepUnusedDataFor: 60,
     }),
     placeOrder: b.mutation({
+      // The key goes in the header (baseQuery) AND the body: API builds before 21 Nov 2026 read only
+      // the body, so the header alone never reached them (review #2).
       query: ({ idempotencyKey, ...body }) => ({
         url: '/orders',
         method: 'POST',
-        body,
+        body: { ...body, idempotencyKey },
         idempotencyKey,
       }),
       invalidatesTags: ['Cart', 'Orders', 'Wallet', 'Windows', 'Me'],
@@ -427,6 +443,8 @@ export const {
   useRequestOtpMutation,
   useVerifyOtpMutation,
   useLogoutMutation,
+  useConsentStatusQuery,
+  useConsentSaveMutation,
   useGetMeQuery,
   useUpdateMeMutation,
   useDeleteAccountMutation,

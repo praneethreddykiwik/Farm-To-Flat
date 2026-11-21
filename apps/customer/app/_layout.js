@@ -2,7 +2,7 @@ import '../global.css';
 import { initSentry } from '../src/lib/sentry';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { hydrateHousehold } from '../src/features/household/householdSlice';
 import { BrandIntro } from '../src/components/BrandIntro';
+import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
   Fraunces_500Medium_Italic,
@@ -28,10 +29,12 @@ import * as Notifications from 'expo-notifications';
 import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
+import { UpdateRequired } from '../src/components/UpdateRequired';
+import { ConsentPrompt } from '../src/components/ConsentPrompt';
 import { StatusScrim } from '../src/components/StatusScrim';
 import { FlyToBagHost } from '../src/components/FlyToBag';
 import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
-import { useSessionBootstrap } from '../src/hooks/useSession';
+import { retrySessionNow, useSessionBootstrap } from '../src/hooks/useSession';
 import { selectAuth } from '../src/features/auth/authSlice';
 import {
   ROLE_META,
@@ -49,6 +52,8 @@ import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification'
 import { useMealReminders } from '../src/hooks/useMealReminders';
 import { usePlanSync } from '../src/hooks/usePlanSync';
 import { routeForNotification } from '../src/lib/notificationRoutes';
+import { createHandledResponses } from '../src/lib/notificationDedup';
+import { KV_KEYS, kv } from '../src/lib/kv';
 import { api } from '../src/api/api';
 import { initTracking, readInstallReferrerOnce, track } from '../src/lib/tracking';
 
@@ -63,6 +68,12 @@ import { hydrateLanguage, readSavedLanguage } from '../src/features/ui/uiSlice';
 initSentry();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Notification taps already acted on, kept on the phone so a relaunch cannot replay one (#47).
+const handledResponses = createHandledResponses({
+  load: () => kv.getJSON(KV_KEYS.handledNotifications),
+  save: (keys) => kv.setJSON(KV_KEYS.handledNotifications, keys),
+});
 // Short: the system splash hands over to BrandIntro, which carries on from the same plain screen.
 SplashScreen.setOptions?.({ duration: 160, fade: true });
 
@@ -157,17 +168,19 @@ function AuthGate({ ready }) {
   // thing that launched it from cold (the "last response", read once the app is ready to navigate).
   // The evening-before "Confirm tomorrow's order" reminder used to fall through both: its payload
   // carries a date, not an order id, so tapping it opened the app and went nowhere.
-  const handled = useRef(null);
   const here = useRef(segments);
   useEffect(() => {
     here.current = segments;
   }, [segments]);
   useEffect(() => {
     const go = (resp) => {
-      const id = resp?.notification?.request?.identifier;
-      const key = `${id}|${resp?.actionIdentifier}|${resp?.notification?.date}`;
-      if (!resp || handled.current === key) return;
-      handled.current = key;
+      // Once per response, across launches (review #47, 21 Nov 2026): the last response survives a
+      // restart, and an in-memory marker let the next cold start replay it — "Skip this day"
+      // skipped the day again. Also cleared natively so it is not handed back at all.
+      if (!resp || !handledResponses.claim(resp)) return;
+      try {
+        Notifications.clearLastNotificationResponse?.();
+      } catch {}
       // cutoff_reminder_opened (tracking brief): did the 5 PM reminder bring them in?
       if (resp.notification?.request?.content?.data?.type === 'CUTOFF_REMINDER')
         track('cutoff_reminder_opened', {
@@ -196,7 +209,10 @@ function AuthGate({ ready }) {
   }, [router, ready, auth.status, role.resolved]);
 
   useEffect(() => {
-    if (!ready || auth.status === 'booting') return;
+    // Reconnecting = a stored session the server has not confirmed yet. Hold routing exactly as
+    // while booting, so a slow network never lands a signed-in customer on the login screen
+    // (review #41, 21 Nov 2026).
+    if (!ready || auth.status === 'booting' || auth.status === 'reconnecting') return;
     const inAuth = segments[0] === '(auth)';
     const inStaff = segments[0] === 'staff';
     if (auth.status === 'signedOut') {
@@ -272,6 +288,36 @@ function SigningInCover() {
     >
       <ActivityIndicator color={colors.leaf} size="large" />
       <Text style={styles.signingInText}>Signing you in…</Text>
+    </View>
+  );
+}
+
+/**
+ * Shown while a stored session is being restored over a slow or absent network (review #41,
+ * 21 Nov 2026). It replaces what used to be the login screen in that case: the customer is still
+ * signed in, the app is just waiting for the server. Retries run on their own; the button only
+ * cuts the wait between them short.
+ */
+function ReconnectingCover() {
+  return (
+    <View
+      style={styles.signingIn}
+      accessibilityRole="progressbar"
+      accessibilityLabel="Reconnecting"
+    >
+      <ActivityIndicator color={colors.leaf} size="large" />
+      <Text style={styles.signingInText}>Reconnecting…</Text>
+      <Text style={styles.reconnectHint}>
+        {"You're still signed in. We'll carry on when the network does."}
+      </Text>
+      <Pressable
+        onPress={retrySessionNow}
+        accessibilityRole="button"
+        hitSlop={12}
+        style={styles.reconnectBtn}
+      >
+        <Text style={styles.reconnectBtnText}>Try again now</Text>
+      </Pressable>
     </View>
   );
 }
@@ -371,6 +417,7 @@ function Root() {
         </Stack>
       ) : null}
       {signingIn ? <SigningInCover /> : null}
+      {ready && auth.status === 'reconnecting' ? <ReconnectingCover /> : null}
       {/* "Added to basket" flights. Above the screens, below the toasts. */}
       <FlyToBagHost />
       {/* Every scrolling screen starts its content at the top safe-area inset, so without this the
@@ -385,6 +432,10 @@ function Root() {
       )}
       <ToastHost />
       <KeyboardDoneBar />
+      {/* A retired app version (MIN_APP_VERSION on the server) stops here — review #45. */}
+      {/* The privacy notice once for earlier customers, or after it changes (DPDP). */}
+      <ConsentPrompt />
+      <UpdateRequired />
       {/* The opening: the logo drawing itself in, and on a phone's first launch, what Fooducia is.
           On top of everything, and started the moment the system splash comes down. */}
       <BrandIntro start={ready && auth.status !== 'booting'} />
@@ -393,16 +444,20 @@ function Root() {
 }
 
 export default function RootLayout() {
+  // Outermost, so a render error anywhere — providers included — lands on a "Something went wrong
+  // / Reload" screen and is reported, instead of a blank app (review #43, 21 Nov 2026).
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <Provider store={store}>
-          <BottomSheetModalProvider>
-            <Root />
-          </BottomSheetModalProvider>
-        </Provider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <Provider store={store}>
+            <BottomSheetModalProvider>
+              <Root />
+            </BottomSheetModalProvider>
+          </Provider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }
 
@@ -423,4 +478,13 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   signingInText: { color: colors.ink3, fontSize: 15 },
+  reconnectHint: { color: colors.ink3, fontSize: 13, textAlign: 'center', paddingHorizontal: 32 },
+  reconnectBtn: {
+    marginTop: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.night,
+  },
+  reconnectBtnText: { color: colors.inkOnDark, fontSize: 15 },
 });

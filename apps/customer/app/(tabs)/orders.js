@@ -1,5 +1,5 @@
-import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -23,7 +23,7 @@ import { CartBar } from '../../src/components/CartBar';
 import { useGetOrdersQuery } from '../../src/api/api';
 import { colors, motion, radius } from '../../src/theme';
 import { arrivalPhrase, formatDateShort, windowLabel } from '../../src/lib/dates';
-import { STEP_LABELS, isLiveStatus, liveStep } from '../../src/lib/liveOrder';
+import { STEP_LABELS, isLiveStatus, liveStep, orderListRows } from '../../src/lib/liveOrder';
 import { selectLanguage } from '../../src/features/ui/uiSlice';
 import { productLabel } from '../../src/lib/i18n';
 import { useSelector } from 'react-redux';
@@ -38,21 +38,33 @@ export default function Orders() {
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
-  const orders = data?.orders || [];
-  // Whatever is still moving goes first, under its own heading; the rest is history.
-  const live = orders.filter((o) => isLiveStatus(o.status));
-  const earlier = orders.filter((o) => !isLiveStatus(o.status));
+  // Whatever is still moving goes first, under its own heading; the rest is history. Flat rows for
+  // a FlatList, so only what is on screen is drawn — the history is unbounded (review #48).
+  const rows = useMemo(() => orderListRows(data?.orders), [data?.orders]);
 
   return (
     <View style={styles.root}>
       <Ambient />
-      <ScrollView
+      <FlatList
+        data={isLoading ? [] : rows}
+        keyExtractor={(r) => r.key}
+        renderItem={({ item: r, index }) =>
+          r.kind === 'label' ? (
+            <Label style={{ marginTop: index ? 14 : 0, marginBottom: 12 }}>{r.text}</Label>
+          ) : (
+            <View style={{ marginBottom: 12 }}>
+              <OrderCard order={r.order} index={r.index} lang={lang} />
+            </View>
+          )
+        }
         contentContainerStyle={{
           paddingTop: insets.top + 12,
           paddingHorizontal: 20,
           paddingBottom: 200,
         }}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={8}
+        windowSize={7}
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !!data}
@@ -60,45 +72,30 @@ export default function Orders() {
             tintColor={colors.leaf}
           />
         }
-      >
-        <Display>Your orders</Display>
-        <Small muted style={{ marginTop: 4, marginBottom: 20 }}>
-          What’s coming, and what already came.
-        </Small>
-
-        {isLoading ? (
-          <View style={{ gap: 12 }}>
-            <Skeleton height={112} radius={radius.lg} />
-            <Skeleton height={112} radius={radius.lg} />
-          </View>
-        ) : orders.length === 0 ? (
-          <EmptyState
-            icon={<PackageOpen size={30} color={colors.ink2} />}
-            title="No orders yet"
-            message="Your first basket lands here with its delivery window and live status."
-            action={{ title: 'Browse the catalog', onPress: () => router.push('/(tabs)') }}
-          />
-        ) : (
-          <View style={{ gap: 26 }}>
-            {live.length ? (
-              <View style={{ gap: 12 }}>
-                <Label>On its way</Label>
-                {live.map((o, i) => (
-                  <OrderCard key={o.id} order={o} index={i} lang={lang} />
-                ))}
-              </View>
-            ) : null}
-            {earlier.length ? (
-              <View style={{ gap: 12 }}>
-                {live.length ? <Label>Earlier</Label> : null}
-                {earlier.map((o, i) => (
-                  <OrderCard key={o.id} order={o} index={live.length + i} lang={lang} />
-                ))}
-              </View>
-            ) : null}
-          </View>
-        )}
-      </ScrollView>
+        ListHeaderComponent={
+          <>
+            <Display>Your orders</Display>
+            <Small muted style={{ marginTop: 4, marginBottom: 20 }}>
+              What’s coming, and what already came.
+            </Small>
+          </>
+        }
+        ListEmptyComponent={
+          isLoading ? (
+            <View style={{ gap: 12 }}>
+              <Skeleton height={112} radius={radius.lg} />
+              <Skeleton height={112} radius={radius.lg} />
+            </View>
+          ) : (
+            <EmptyState
+              icon={<PackageOpen size={30} color={colors.ink2} />}
+              title="No orders yet"
+              message="Your first basket lands here with its delivery window and live status."
+              action={{ title: 'Browse the catalog', onPress: () => router.push('/(tabs)') }}
+            />
+          )
+        }
+      />
       <CartBar />
     </View>
   );
@@ -117,10 +114,16 @@ function OrderCard({ order: o, index, lang }) {
   const more = o.items.length - shown.length;
   return (
     <Animated.View
-      entering={FadeInDown.delay(Math.min(index, 6) * motion.stagger)
-        .duration(360)
-        .springify()
-        .damping(18)}
+      // Only the first screenful slides in. In a virtualised list the rest mount as they scroll
+      // into view, and a delayed entrance there reads as lag.
+      entering={
+        index < 8
+          ? FadeInDown.delay(Math.min(index, 6) * motion.stagger)
+              .duration(360)
+              .springify()
+              .damping(18)
+          : undefined
+      }
     >
       <Pressy
         onPress={() => router.push({ pathname: '/order/[id]', params: { id: o.id } })}

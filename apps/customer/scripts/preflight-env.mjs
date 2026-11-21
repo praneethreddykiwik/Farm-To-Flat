@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { secretLookingPublicNames } from './public-env-names.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const profile = process.argv[2];
@@ -39,8 +40,19 @@ const warnings = [];
 const need = (key, test, message) => {
   const value = env[key];
   if (value === undefined) return problems.push(`${key} is not set for "${profile}"`);
-  if (test && !test(value)) problems.push(`${key} ${message} (got "${String(value).slice(0, 40)}")`);
+  if (test && !test(value))
+    problems.push(`${key} ${message} (got "${String(value).slice(0, 40)}")`);
 };
+
+// Checked before the mock shortcut: a mock build still ships its bundle to testers (review #53).
+const leaky = secretLookingPublicNames(Object.keys(env));
+if (leaky.length) {
+  console.error(`\n✗ Build profile "${profile}" would ship secret-looking public variables:\n`);
+  for (const n of leaky)
+    console.error(`    • ${n} — EXPO_PUBLIC_* is readable by anyone with the app`);
+  console.error('\n  Move the secret behind the API. See scripts/public-env-names.mjs.\n');
+  process.exit(1);
+}
 
 // A build that runs entirely on the in-app mock server needs none of the live wiring.
 if (usesMocks) {
@@ -56,7 +68,11 @@ need(
 // No Supabase vars any more: the app never talks to supabase.co directly. Product images come back
 // from our own API already pointing at the /api/v1/img proxy, so the client needs neither the
 // Supabase URL nor the anon key — and we don't ship them, keeping the storage host off the device.
-need('EXPO_PUBLIC_USE_MOCKS', (v) => v === '0', 'must be "0" for a build that talks to the real API');
+need(
+  'EXPO_PUBLIC_USE_MOCKS',
+  (v) => v === '0',
+  'must be "0" for a build that talks to the real API',
+);
 
 // There is deliberately no Razorpay key check here any more. The app takes the key id from the
 // payment intent, so the gateway account is whatever the API is configured with and the bundle has

@@ -13,6 +13,7 @@ import { money } from '../lib/money.js';
 import { constants, getOrder, patchOrder } from '../store.js';
 import {
   createPayment,
+  setGatewayOrderId,
   getPayment,
   getWallet,
   ledgerPush,
@@ -62,7 +63,7 @@ walletRouter.post(
         receipt: pay.id,
         notes: { purpose: 'TOPUP', customerId: req.customerId },
       });
-      pay.razorpayOrderId = order.id;
+      setGatewayOrderId(pay, order.id);
     }
     res.status(201).json({
       paymentIntent: {
@@ -215,6 +216,9 @@ paymentsRouter.post(
       return res.json({
         status: 'CAPTURED',
         orphaned: true,
+        // Why the money went to the wallet instead — e.g. ORDER_CUTOFF_PASSED for items added to
+        // an order whose window closed while the payment sheet was open (review #7).
+        ...(r.reason ? { reason: r.reason } : {}),
         order: r.order ? orderCustomer(r.order) : null,
         walletBalancePaise: money(getWallet(cid).balancePaise),
       });

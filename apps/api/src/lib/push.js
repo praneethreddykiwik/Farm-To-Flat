@@ -8,6 +8,9 @@
  * no-op in that case — the app's live in-app status still updates by polling.
  */
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+// Give up on Expo after 8 s so a hung connection cannot hold the caller open; the timeout lands in
+// the same catch as any other failed send (review #18, 21 Nov 2026).
+export const EXPO_PUSH_TIMEOUT_MS = 8000;
 
 // Friendly copy per fulfilment status. Keys match the order.status values the app already uses.
 const MESSAGES = {
@@ -70,6 +73,7 @@ export async function sendExpoPush(tokens, { title, body, data, replaceKey, cate
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(messages),
+      signal: AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS),
     });
   } catch (e) {
     // eslint-disable-next-line no-console

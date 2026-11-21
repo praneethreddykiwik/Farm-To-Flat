@@ -23,6 +23,7 @@ import { addDaysISO, todayISO } from './lib/dates.js';
 import { keyFromLabel } from './lib/windows.js';
 import { IS_PROD } from './lib/env.js';
 import { id } from './lib/ids.js';
+import { wasPlaced } from './lib/customer-history.js';
 import { persist } from './persistence.js';
 import { breakdownSnapshot, priceBreakdown, reconstructSnapshot } from './lib/charges.js';
 
@@ -79,11 +80,24 @@ let seq = 4210;
 // createOrder (called during seeding) can read it without a temporal-dead-zone error.
 let orderPersist = false;
 
-/** Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped. */
-function makeLine(productId, qty, note = null) {
+/**
+ * Build one order line, capturing price AND cost at this moment. Unknown product ids are dropped.
+ *
+ * `free` is a FREE_ITEM coupon's gift (review #6, 21 Nov 2026): a real line — packed, procured,
+ * printed on the invoice at ₹0 — so the customer actually receives it. The price is 0; the COST is
+ * kept, because the farm still has to grow it and the margin should say so.
+ */
+function makeLine(productId, qty, note = null, free = false) {
   const p = db.products.find((x) => x.id === productId);
   if (!p) return null;
   const quantity = Number(qty);
+  if (free)
+    return {
+      ...makeLine(productId, qty, note),
+      unitPricePaise: 0,
+      lineTotalPaise: 0,
+      free: true,
+    };
   return {
     id: id('ci', 8),
     productId: p.id,
@@ -113,7 +127,9 @@ export function createOrder(input) {
   const community = db.communities.find((c) => c.id === input.communityId);
   const items = (input.lines || [])
     .map((l) =>
-      Array.isArray(l) ? makeLine(l[0], l[1]) : makeLine(l.productId, l.quantity, l.note),
+      Array.isArray(l)
+        ? makeLine(l[0], l[1])
+        : makeLine(l.productId, l.quantity, l.note, l.free === true),
     )
     .filter(Boolean);
   const subtotal = items.reduce((s, l) => s + l.lineTotalPaise, 0);
@@ -141,10 +157,18 @@ export function createOrder(input) {
   // First-time customer? True when neither this customer id nor this mobile already has an earlier
   // order. Computed at placement and frozen on the order, so the "new customer" signal (used to hand
   // out welcome goodies) stays stable for delivery, the console and procurement.
+  //
+  // Only orders that were really PLACED count (wasPlaced — the helper checkout's own first-order
+  // test, the launch offer and the admin badge already use). Review #56 (21 Nov 2026): an abandoned
+  // checkout (PENDING_PAYMENT / PAYMENT_FAILED) counted here, so a customer whose first payment
+  // failed and who then paid was frozen as NOT new — checkout had accepted their invite code
+  // (it uses wasPlaced), then recordOrderSource silently dropped the referral and the attribution.
+  // The mobile half stays: it is what stops an erased-and-re-signed-up number counting as new.
   const isFirstOrder = !db.orders.some(
     (o) =>
-      (input.customerId && o.customerId === input.customerId) ||
-      (input.mobile && o.mobile === input.mobile),
+      wasPlaced(o) &&
+      ((input.customerId && o.customerId === input.customerId) ||
+        (input.mobile && o.mobile === input.mobile)),
   );
   const order = {
     id: id('ord', 10),
@@ -351,6 +375,13 @@ export const getCommunity = (cid) => {
 };
 export const listCoupons = () => clone(db.coupons);
 export const listOrders = () => clone(db.orders);
+/** How many records this store holds in memory — counts only, no copies (review #16). */
+export const storeSizes = () => ({
+  products: db.products.length,
+  communities: db.communities.length,
+  orders: db.orders.length,
+  procurementRecords: db.procurementRecords.size,
+});
 export const getOrder = (oid) => {
   const o = db.orders.find((x) => x.id === oid);
   return o ? clone(o) : null;
@@ -884,7 +915,7 @@ export function createCommunity(data) {
  * problem the code exists to prevent — a tester marked one delivered without entering anything and
  * rightly called it a big issue. So cash always requires a code, whatever the global setting says.
  */
-function doorCodeRequired(o) {
+export function doorCodeRequired(o) {
   return db.constants.deliveryOtp.enabled || o.paymentMethod === 'COD';
 }
 
@@ -903,9 +934,60 @@ export function updateOrderStatus(oid, status) {
     // over the full 4-digit range (1000–9999 inclusive).
     o.deliveryOtp = String(randomInt(1000, 10000));
     o.deliveryOtpIssuedAt = new Date().toISOString();
+    // A fresh code starts a fresh count: the guesses spent on the old one say nothing about this one.
+    o.deliveryOtpAttempts = 0;
+    o.deliveryOtpLockedAt = null;
   }
   if (orderPersist) persist.orderUpsert(o);
   return clone(o);
+}
+
+/**
+ * Wrong door codes allowed per issued code before the order locks (review #30, 21 Nov 2026).
+ *
+ * A 4-digit code is 9,000 possibilities. With no limit, anyone holding a delivery login could walk
+ * the whole space from the staff app in minutes and mark an order delivered without ever reaching
+ * the customer — the one thing the code exists to prove. Five is plenty for a customer misreading
+ * their phone; after that the order refuses further codes until an admin unlocks it or the order is
+ * sent out again (which mints a new code and tells the customer).
+ *
+ * The count lives on the order in memory, not in a column (there is none, and tables are created by
+ * hand): a restart resets it. That is a deploy, not something a rider can trigger, so the bound
+ * holds in practice; the lock itself is in the audit trail either way.
+ */
+export const DELIVERY_CODE_MAX_ATTEMPTS = 5;
+
+const deliveryCodeLocked = () => ({
+  status: 423,
+  code: 'DELIVERY_CODE_LOCKED',
+  message:
+    'Too many wrong codes for this order. Ask an admin to unlock it, or send it out for delivery again to issue a new code.',
+});
+
+/** Count one wrong code; returns the error to send, and whether THIS attempt locked the order. */
+function wrongDeliveryCode(o) {
+  o.deliveryOtpAttempts = Number(o.deliveryOtpAttempts || 0) + 1;
+  if (o.deliveryOtpAttempts >= DELIVERY_CODE_MAX_ATTEMPTS) {
+    o.deliveryOtpLockedAt = new Date().toISOString();
+    return { error: deliveryCodeLocked(), locked: true, attempts: o.deliveryOtpAttempts };
+  }
+  return {
+    error: {
+      status: 422,
+      code: 'DELIVERY_OTP_INVALID',
+      message: 'That code does not match. Ask the customer to read it again.',
+      details: { attemptsLeft: DELIVERY_CODE_MAX_ATTEMPTS - o.deliveryOtpAttempts },
+    },
+  };
+}
+
+/** An admin lifts a delivery-code lock (the customer is on the phone and the rider at the door). */
+export function unlockDeliveryCode(oid) {
+  const o = db.orders.find((x) => x.id === oid);
+  if (!o) return null;
+  o.deliveryOtpAttempts = 0;
+  o.deliveryOtpLockedAt = null;
+  return { order: clone(o) };
 }
 
 /**
@@ -938,14 +1020,11 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
   // and the comparison is skipped entirely. A tester entered a wrong code and the order went to
   // DELIVERED. So the setting now decides only whether a MISSING code is fatal; a present one is
   // always verified.
-  if (o.deliveryOtp && String(otp || '').trim() !== o.deliveryOtp)
-    return {
-      error: {
-        status: 422,
-        code: 'DELIVERY_OTP_INVALID',
-        message: 'That code does not match. Ask the customer to read it again.',
-      },
-    };
+  //
+  // A locked order refuses every code, the right one included — otherwise the lock would only slow
+  // a guesser down rather than stop them (review #30).
+  if (o.deliveryOtp && o.deliveryOtpLockedAt) return { error: deliveryCodeLocked() };
+  if (o.deliveryOtp && String(otp || '').trim() !== o.deliveryOtp) return wrongDeliveryCode(o);
   if (doorCodeRequired(o)) {
     // No code on the order means it was dispatched while codes were switched OFF, and the setting
     // has been turned on since. The old guard was `enabled && o.deliveryOtp`, so that order sailed
@@ -961,14 +1040,7 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
             'This order went out before door codes were required, so it has none. Send it out for delivery again to issue one.',
         },
       };
-    if (String(otp || '').trim() !== o.deliveryOtp)
-      return {
-        error: {
-          status: 422,
-          code: 'DELIVERY_OTP_INVALID',
-          message: 'That code does not match. Ask the customer to read it again.',
-        },
-      };
+    if (String(otp || '').trim() !== o.deliveryOtp) return wrongDeliveryCode(o);
   }
   const due =
     o.paymentMethod === 'COD'
@@ -987,6 +1059,20 @@ export function completeDelivery(oid, { otp, collectedPaise } = {}) {
           status: 422,
           code: 'COD_SHORT_PAYMENT',
           message: 'That is less than the amount due. Collect the full amount or contact support.',
+          details: { duePaise: String(due), collectedPaise: String(taken) },
+        },
+      };
+    // Review #11 (21 Nov 2026): and refuse MORE than is due. An over-entry (₹5,000 for ₹500, or the
+    // note handed over before change) was banked as collected cash, so the order read as paid
+    // beyond its total and cash reconciliation was out by the difference with nothing to explain
+    // it. The figure is the cash KEPT, after change.
+    if (taken > due)
+      return {
+        error: {
+          status: 422,
+          code: 'COD_OVER_PAYMENT',
+          message:
+            'That is more than the amount due. Enter the cash kept for this order, after giving change.',
           details: { duePaise: String(due), collectedPaise: String(taken) },
         },
       };

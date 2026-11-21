@@ -25,6 +25,8 @@ import {
   patchOrder,
   updateOrderStatus,
   completeDelivery,
+  unlockDeliveryCode,
+  doorCodeRequired,
   listOrderIssues,
   openIssueCount,
   resolveOrderIssue,
@@ -43,6 +45,7 @@ import { emitNotification, COPY } from '../../lib/notify.js';
 import { communityWindows } from '../../lib/windows.js';
 import { cancelOrder } from '../../lib/order-lifecycle.js';
 import { listActions, recordAction } from '../../lib/audit.js';
+import { redactForStaff } from '../../lib/contact-policy.js';
 import { orderNumbers } from '../../lib/customer-history.js';
 import { IS_PROD } from '../../lib/env.js';
 
@@ -51,6 +54,11 @@ import { IS_PROD } from '../../lib/env.js';
 const liveName = (o) => {
   const c = o?.customerId ? getCustomer(o.customerId) : null;
   return c?.name ? { ...o, customerName: c.name } : o;
+};
+/** liveName, then only the contact details this staff member may see (review #33 / #34). */
+const viewFor = (req) => {
+  const today = todayISO();
+  return (o) => redactForStaff(liveName(o), req.staff, today);
 };
 import { todayISO, addDaysISO, weekdayOf } from '../../lib/dates.js';
 import { formatINR } from '../../lib/money.js';
@@ -102,6 +110,26 @@ function mayConfirmUnpaid(order) {
   return !!capturedPaymentForOrder(order.id);
 }
 
+/**
+ * Is this a move to the state the order is already in?
+ *
+ * Review #8 (21 Nov 2026): the state machine let "X → X" through, and a repeat is not harmless —
+ * OUT_FOR_DELIVERY → OUT_FOR_DELIVERY minted a NEW door code (so the one the customer had already
+ * been sent stopped working at the door) and every repeat re-sent the push and WhatsApp. A double
+ * tap on the board, or a community swept twice, did exactly that. A repeat now changes nothing and
+ * tells nobody.
+ *
+ * The one repeat kept on purpose: an order that went out while door codes were switched off has no
+ * code, and completeDelivery's DELIVERY_OTP_MISSING tells the operator to "send it out for delivery
+ * again to issue one". That re-dispatch still mints a code and notifies, because there is no code
+ * yet to break.
+ */
+function isRepeat(o, status) {
+  if (o.status !== status) return false;
+  if (status === 'OUT_FOR_DELIVERY' && !o.deliveryOtp && doorCodeRequired(o)) return false;
+  return true;
+}
+
 /** Every transition INTO CANCELLED goes through the shared cancel path (refund + coupon release). */
 function transition(orderId, status) {
   if (status === 'CANCELLED') return cancelOrder(orderId).order;
@@ -136,7 +164,8 @@ adminOrdersRouter.get(
     // other tab and the client no longer holds every order, so it could not count them and hid the
     // number — which reads as the count being broken rather than withheld. Counted here, where the
     // unfiltered list already is.
-    const today = new Date().toISOString().slice(0, 10);
+    // IST business day, not the UTC date — see orderAdmin (review #19, 21 Nov 2026).
+    const today = todayISO();
     counts.CANCEL_REQUESTED = all.filter(
       (o) => o.cancelRequested && !['CANCELLED', 'DELIVERED'].includes(o.status),
     ).length;
@@ -150,12 +179,13 @@ adminOrdersRouter.get(
     // who tried again and succeeded, was never marked new and never got their welcome. Counting
     // only orders that were really placed gives the badge to the right one.
     const nos = orderNumbers(all);
+    const view = viewFor(req);
     res.json({
       orders: linkOrderIssuePhotos(
         filtered.map((o) => {
           const no = nos.get(o.id);
           return {
-            ...orderAdmin(liveName(o)),
+            ...orderAdmin(view(o)),
             firstOrder: no?.n === 1,
             customerOrderNo: no?.n ?? null,
             customerOrders: no?.of ?? null,
@@ -237,7 +267,8 @@ adminOrdersRouter.get(
     const type = req.query.type === 'manifest' ? 'manifest' : 'packing';
     const orders = applyFilters(listOrders(), req.query)
       .filter((o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status))
-      .map(liveName);
+      .map(viewFor(req));
+    auditExport(req, type, orders.length);
 
     const sheet =
       type === 'manifest'
@@ -319,7 +350,8 @@ adminOrdersRouter.get(
     const type = req.query.type === 'manifest' ? 'manifest' : 'packing';
     const orders = applyFilters(listOrders(), req.query)
       .filter((o) => !['CANCELLED', 'PAYMENT_FAILED'].includes(o.status))
-      .map(liveName);
+      .map(viewFor(req));
+    auditExport(req, type, orders.length);
     const csv = type === 'manifest' ? manifestCsv(orders) : packingCsv(orders);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="f2f-${type}-${Date.now()}.csv"`);
@@ -384,7 +416,7 @@ adminOrdersRouter.get(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
-    res.json({ order: linkOrderIssuePhotos(orderAdmin(liveName(o)), baseUrlOf(req)) });
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(viewFor(req)(o)), baseUrlOf(req)) });
   }),
 );
 
@@ -404,8 +436,41 @@ adminOrdersRouter.post(
   ),
   asyncHandler(async (req, res) => {
     const r = completeDelivery(req.params.id, req.body);
+    if (r.locked) {
+      // The attempt that tripped the lock is the one worth a durable record: who was at the door
+      // typing codes, and when (review #30, 21 Nov 2026). The lock is already in force, so a failed
+      // audit write is logged rather than allowed to undo it.
+      await recordAction({
+        staff: req.staff,
+        action: 'DELIVERY_CODE_LOCKED',
+        target: req.params.id,
+        details: { attempts: r.attempts },
+      }).catch((e) =>
+        // eslint-disable-next-line no-console
+        console.error('[deliver] audit of DELIVERY_CODE_LOCKED not saved:', e?.message || e),
+      );
+    }
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
     notifyCustomer(r.order);
+    res.json({ order: linkOrderIssuePhotos(orderAdmin(r.order), baseUrlOf(req)) });
+  }),
+);
+
+/**
+ * Lift a delivery-code lock (review #30). Admins only — see RULES in auth.js; the person typing
+ * the codes must not be the one who can reset the count. Audited before it takes effect.
+ */
+adminOrdersRouter.post(
+  '/orders/:id/deliver-unlock',
+  asyncHandler(async (req, res) => {
+    if (!getOrder(req.params.id)) throw fail(404, 'NOT_FOUND', 'Order not found');
+    await recordAction({
+      staff: req.staff,
+      action: 'DELIVERY_CODE_UNLOCKED',
+      target: req.params.id,
+    });
+    const r = unlockDeliveryCode(req.params.id);
+    if (!r) throw fail(404, 'NOT_FOUND', 'Order not found');
     res.json({ order: linkOrderIssuePhotos(orderAdmin(r.order), baseUrlOf(req)) });
   }),
 );
@@ -560,6 +625,12 @@ adminOrdersRouter.patch(
   asyncHandler(async (req, res) => {
     const o = getOrder(req.params.id);
     if (!o) throw fail(404, 'NOT_FOUND', 'Order not found');
+    // Already there: answer with the order as it is — no new door code, no second notification.
+    if (isRepeat(o, req.body.status))
+      return res.json({
+        order: linkOrderIssuePhotos(orderAdmin(o), baseUrlOf(req)),
+        unchanged: true,
+      });
     // A cash order, or one with a code waiting to be read out, must go through /deliver so the
     // proof is actually taken. Without this the board could mark it delivered and the money would
     // never be recorded against it.
@@ -616,6 +687,12 @@ adminOrdersRouter.post(
       const o = getOrder(id);
       if (!o) {
         skipped.push({ id, reason: 'NOT_FOUND' });
+        continue;
+      }
+      // Already in that state (moved by hand, or the group swept twice): leave it alone — see
+      // isRepeat. Reported, not silently dropped, so the count still adds up.
+      if (isRepeat(o, status)) {
+        skipped.push({ id, reason: 'UNCHANGED', orderNumber: o.orderNumber });
         continue;
       }
       if (o.status !== status && !(NEXT[o.status] || []).includes(status)) {
@@ -848,3 +925,20 @@ adminOrdersRouter.get(
     res.json({ actions: await listActions({ limit, target: req.query.target || undefined }) });
   }),
 );
+
+/**
+ * Every download of the packing sheet or driver manifest is written to the audit trail (review
+ * #33): it is a list of customers' names and flats leaving the system, and it used to leave no trace.
+ */
+function auditExport(req, type, rows) {
+  recordAction({
+    staff: req.staff,
+    action: 'ORDERS_EXPORTED',
+    target: null,
+    details: {
+      type,
+      rows,
+      filters: { date: req.query.date || null, status: req.query.status || null },
+    },
+  }).catch((e) => console.error('[audit] export not recorded:', e?.message || e));
+}

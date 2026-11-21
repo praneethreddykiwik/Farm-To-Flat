@@ -5,6 +5,7 @@ import { shortId } from './ids.js';
 import { createClient } from '@supabase/supabase-js';
 import { mediaUrl } from './media.js';
 import { s3Delete, s3Enabled, s3Get, s3Put } from './s3.js';
+import { stripImageMetadata } from './strip-metadata.js';
 
 /**
  * Which object store is in use.
@@ -128,7 +129,9 @@ export async function uploadProductImage({ buffer, contentType }) {
  *
  * Filed under the order so a reviewer can tell at a glance which delivery it belongs to.
  */
-export async function uploadIssuePhoto({ buffer, contentType, orderId }) {
+export async function uploadIssuePhoto({ buffer: raw, contentType, orderId }) {
+  // No GPS, time or device details leave with the photo (review #36).
+  const buffer = stripImageMetadata(raw);
   const ext = EXT[contentType] || 'jpg';
   const name = `${orderId}/${Date.now()}-${shortId(6)}.${ext}`;
   if (useS3()) return s3Put(`${ISSUE_BUCKET}/${name}`, buffer, contentType).then(() => name);
@@ -159,7 +162,9 @@ export async function uploadIssuePhoto({ buffer, contentType, orderId }) {
  * complaint photos are: it's a photo from inside someone's kitchen, tied to a named account. Filed
  * under the customer so a reviewer can tell whose meal it is. Mirrors uploadIssuePhoto.
  */
-export async function uploadMealPhoto({ buffer, contentType, customerId }) {
+export async function uploadMealPhoto({ buffer: raw, contentType, customerId }) {
+  // No GPS, time or device details leave with the photo (review #36).
+  const buffer = stripImageMetadata(raw);
   const ext = EXT[contentType] || 'jpg';
   const name = `${customerId}/${Date.now()}-${shortId(6)}.${ext}`;
   if (useS3()) return s3Put(`${MEAL_BUCKET}/${name}`, buffer, contentType).then(() => name);

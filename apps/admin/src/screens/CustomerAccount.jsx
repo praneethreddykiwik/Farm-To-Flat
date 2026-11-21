@@ -67,13 +67,15 @@ export function AccountPanel({ customerKey, onChanged }) {
   };
 
   if (error) {
-    if (error.status === 404)
+    // The API client attaches the HTTP status to the Error it throws.
+    const status = /** @type {any} */ (error).status;
+    if (status === 404)
       return (
         <p className="field__hint" style={{ margin: 0 }}>
           No account behind these orders — they were placed as a guest.
         </p>
       );
-    if (error.status === 410)
+    if (status === 410)
       return (
         <p className="field__hint" style={{ margin: 0 }}>
           This account has been deleted.

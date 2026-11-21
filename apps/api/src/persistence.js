@@ -398,6 +398,90 @@ const logErr = (op) => (e) =>
   // eslint-disable-next-line no-console
   console.error(`[persist] ${op} failed:`, e?.message || e);
 
+// ── failed writes are retried, not dropped ──────────────────────────────────
+// Review #12 (21 Nov 2026). A write that failed used to be logged and forgotten: the in-memory copy
+// kept showing the change, so nobody noticed, and the next restart quietly took it away — an order,
+// a payment status, a wallet change. Now:
+//   1. a failing write is retried a few times straight away (a blip — a dropped pooled connection —
+//      is the common case);
+//   2. if it still fails it is PARKED, together with every later write for the same record, so the
+//      record's writes still land in the order they were made (a newer row is never overwritten by
+//      an older one arriving late);
+//   3. a background sweep keeps retrying parked writes, every failure is counted and sent to
+//      Sentry, and the backlog size is on /health, so a stuck queue is visible from outside.
+// Errors that retrying cannot fix (a unique-constraint clash, a missing parent row) are reported and
+// dropped as before — replaying them forever would only block the record's later writes.
+const PERMANENT = new Set(['P2002', 'P2003', 'P2025', 'P2000', 'P2006', 'P2007', 'P2011', 'P2012']);
+export const isPermanentWriteError = (e) =>
+  PERMANENT.has(e?.code) || e?.name === 'PrismaClientValidationError';
+const RETRY_DELAYS_MS = process.env.NODE_ENV === 'test' ? [0, 0] : [300, 1500, 4000];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** key -> [{ op, fn, args, firstFailedAt, tries }] — parked writes, oldest first, per record */
+const parked = new Map();
+let unkeyedSeq = 0;
+const stats = { failed: 0, recovered: 0, dropped: 0 };
+
+/** For /health and alerts: how many writes are waiting for the database. */
+export function writeBacklog() {
+  let pending = 0;
+  for (const q of parked.values()) pending += q.length;
+  return { pending, records: parked.size, ...stats };
+}
+
+async function attempt(op, fn, args) {
+  let last;
+  for (let i = 0; i <= RETRY_DELAYS_MS.length; i += 1) {
+    try {
+      await fn(...args);
+      return { ok: true };
+    } catch (e) {
+      last = e;
+      if (isPermanentWriteError(e)) return { ok: false, permanent: true, error: e };
+      if (i < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[i]);
+    }
+  }
+  return { ok: false, permanent: false, error: last };
+}
+
+function park(key, item) {
+  const q = parked.get(key) || parked.set(key, []).get(key);
+  q.push(item);
+}
+
+/**
+ * Retry every parked record's writes, oldest first. A record stops at its first write that still
+ * fails (so its order is kept); other records carry on. Exported for the shutdown drain and tests.
+ */
+export async function retryParkedWrites() {
+  for (const [key, q] of [...parked]) {
+    while (q.length) {
+      const item = q[0];
+      item.tries += 1;
+      const r = await attempt(item.op, item.fn, item.args);
+      if (r.ok) {
+        q.shift();
+        stats.recovered += 1;
+        continue;
+      }
+      if (r.permanent) {
+        q.shift();
+        stats.dropped += 1;
+        logErr(item.op)(r.error);
+        reportError(r.error, { scope: 'persistence', op: item.op, parked: true });
+        continue;
+      }
+      break; // still unreachable: try this record again on the next sweep
+    }
+    if (!q.length) parked.delete(key);
+  }
+  return writeBacklog();
+}
+if (process.env.NODE_ENV !== 'test')
+  setInterval(() => {
+    if (parked.size && enabled) retryParkedWrites().catch(() => {});
+  }, 15_000).unref();
+
 // Persistence can be switched off at runtime: if boot-time hydration fails, the process is serving
 // the in-memory SEED, and letting it write through would overwrite live rows with demo data.
 let enabled = persistEnabled;
@@ -496,12 +580,40 @@ export async function drainChain(key) {
  * @returns {Promise<{drained:boolean, pending:number}>}
  */
 export async function drainPersistence(ms = 4000) {
-  const pendingAtStart = chains.size;
-  if (!pendingAtStart) return { drained: true, pending: 0 };
-  const all = Promise.allSettled([...chains.values()]);
+  // One last go at writes that are waiting for the database; whatever is still parked after this
+  // is lost with the process, so it is reported (loudly) rather than vanishing.
+  if (parked.size && enabled)
+    await Promise.race([retryParkedWrites().catch(() => {}), sleep(Math.min(ms, 2000))]);
+  const backlog = writeBacklog().pending;
+  if (backlog)
+    reportError(new Error(`shutting down with ${backlog} unsaved write(s)`), {
+      scope: 'persistence',
+    });
+  const pendingAtStart = chains.size + loose.size;
+  if (!pendingAtStart) return { drained: backlog === 0, pending: backlog };
+  const all = Promise.allSettled([...chains.values(), ...loose]);
   const timeout = new Promise((r) => setTimeout(() => r('timeout'), ms));
   const outcome = await Promise.race([all.then(() => 'drained'), timeout]);
-  return { drained: outcome === 'drained', pending: chains.size };
+  return { drained: outcome === 'drained', pending: chains.size + loose.size };
+}
+
+/**
+ * Writes that have no record key — deletes by id, staff/community upserts, the ops store's soft
+ * writes — never entered `chains`, so the shutdown drain did not wait for them and a deploy could
+ * cut them off mid-flight (review #15, 21 Nov 2026). They are held here until they settle.
+ */
+const loose = new Set();
+/**
+ * Count an un-awaited write as pending until it settles, so `drainPersistence` waits for it.
+ * Returns the same promise. Never adds a rejection of its own: the caller still handles failures.
+ * @template T
+ * @param {Promise<T>} p
+ * @returns {Promise<T>}
+ */
+export function trackWrite(p) {
+  loose.add(p);
+  p.finally(() => loose.delete(p)).catch(() => {});
+  return p;
 }
 
 export function serialize(key, run) {
@@ -526,11 +638,33 @@ const wt =
   (op, fn, keyOf) =>
   (...args) => {
     if (!enabled) return undefined;
-    const run = () =>
-      Promise.resolve()
-        .then(() => fn(...args))
-        .catch(logErr(op));
-    return keyOf ? serialize(`${op.split('.')[0]}:${keyOf(...args)}`, run) : run();
+    const key = keyOf ? `${op.split('.')[0]}:${keyOf(...args)}` : null;
+    const run = async () => {
+      // This record already has writes waiting for the database: queue behind them, never jump
+      // ahead (an older parked row would otherwise land after this newer one).
+      if (key && parked.get(key)?.length) {
+        park(key, { op, fn, args, firstFailedAt: Date.now(), tries: 0 });
+        return;
+      }
+      const r = await attempt(op, fn, args);
+      if (r.ok) return;
+      stats.failed += 1;
+      logErr(op)(r.error);
+      if (r.permanent) {
+        stats.dropped += 1;
+        reportError(r.error, { scope: 'persistence', op });
+        return;
+      }
+      park(key || `unkeyed:${(unkeyedSeq += 1)}`, {
+        op,
+        fn,
+        args,
+        firstFailedAt: Date.now(),
+        tries: 0,
+      });
+      reportError(r.error, { scope: 'persistence', op, parked: true });
+    };
+    return key ? serialize(key, run) : trackWrite(run());
   };
 
 // ── the operator's product-page text ────────────────────────────────────────
@@ -809,6 +943,9 @@ export const persist = {
   ),
   devicesDeleteForCustomer: wt('device.deleteForCustomer', (customerId) =>
     prisma.device.deleteMany({ where: { customerId } }),
+  ),
+  deviceDelete: wt('device.delete', (cid, token) =>
+    prisma.device.deleteMany({ where: { expoPushToken: token, customerId: cid } }),
   ),
   deviceUpsert: wt('device.upsert', (cid, token) =>
     prisma.device.upsert({

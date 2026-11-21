@@ -21,6 +21,7 @@
  *   tagLink        a saved /go link (counter QR, WhatsApp post, flyer) made in the admin
  *   deletion       an account scheduled for deletion, and when the 60-day grace period ends
  *   settings       small documents of switches: referral reward, waitlist threshold, tax rate
+ *   adminRevoked   an operator session that was signed out, kept until the token's own expiry
  *
  * ONE generic table rather than a dozen, because this project creates tables by hand on the
  * production database (no migrations run on deploy) and every new table is a step the owner has to
@@ -33,7 +34,7 @@
  * the reason someone could not buy their vegetables. They are kept in memory and retried once.
  */
 import { prisma } from './db.js';
-import { persistEnabled, persistenceOn } from './persistence.js';
+import { persistEnabled, persistenceOn, trackWrite } from './persistence.js';
 import { fail } from './http.js';
 
 export const OPS_KINDS = [
@@ -61,6 +62,13 @@ export const OPS_KINDS = [
   'deletionConsent',
   'mealPlan',
   'mealLog',
+  // review #4 (21 Nov 2026): reconcile problems used to live in memory and vanished on restart
+  'reconcileException',
+  'adminRevoked',
+  // DPDP (21 Nov 2026): consent to the privacy notice + 18+ confirmation, and the one-year
+  // security record of sign-ins, account changes and consents (Rules 3, 6(1)(e), 8(3), 10)
+  'consent',
+  'securityEvent',
 ];
 
 /**
@@ -217,6 +225,13 @@ async function deleteRow(kind, id) {
   }
 }
 
+/** Records held in memory, per kind — counts only, no copies (review #16). */
+export function opsSizes() {
+  const out = {};
+  for (const [kind, m] of mem) out[kind] = m.size;
+  return out;
+}
+
 /** Every record of a kind (copies). */
 export function listOps(kind) {
   assertKind(kind);
@@ -258,10 +273,13 @@ export function putOpsSoft(kind, id, data) {
   assertKind(kind);
   const rec = { ...clone(data), id: String(id) };
   mem.get(kind).set(String(id), rec);
+  // Tracked so the shutdown drain waits for it like any other write (review #15, 21 Nov 2026).
   if (state !== 'memory')
-    writeRow(kind, String(id), rec).catch((e) =>
-      // eslint-disable-next-line no-console
-      console.error(`[ops] soft write ${kind}/${id} not saved:`, e?.message || e),
+    trackWrite(
+      writeRow(kind, String(id), rec).catch((e) =>
+        // eslint-disable-next-line no-console
+        console.error(`[ops] soft write ${kind}/${id} not saved:`, e?.message || e),
+      ),
     );
   return clone(rec);
 }

@@ -12,6 +12,8 @@ import { validateBody } from '../validate.js';
 import { mobile } from '../lib/validators.js';
 import { ipOf, rateLimit } from '../lib/rate-limit.js';
 import { customerPublic } from '../serialize.js';
+import { consentRequired, recordConsent } from '../lib/consent.js';
+import { logSecurityEvent } from '../lib/security-log.js';
 import {
   hasAddress,
   issueTokens,
@@ -19,6 +21,7 @@ import {
   requestOtp,
   resolveAccess,
   rotateRefresh,
+  unregisterDevice,
   verifyOtp,
 } from '../customer-store.js';
 
@@ -70,10 +73,38 @@ authRouter.post(
 authRouter.post(
   '/otp/verify',
   verifyPerIp,
-  validateBody(z.object({ mobile, otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.') })),
+  validateBody(
+    z.object({
+      mobile,
+      otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.'),
+      // The two boxes ticked on the sign-in screen (DPDP §6, §9). Optional so an app from before
+      // 21 Nov 2026 can still sign in; such customers are asked once in the app instead.
+      consent: z.object({ version: z.string().max(60), adult: z.boolean() }).optional(),
+    }),
+  ),
   asyncHandler(async (req, res) => {
     const r = verifyOtp(req.body.mobile, req.body.otp);
-    if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
+    if (r.error) {
+      logSecurityEvent(r.error.code === 'OTP_LOCKED' ? 'OTP_LOCKED' : 'SIGN_IN_FAILED', {
+        req,
+        mobile: req.body.mobile,
+      });
+      throw fail(r.error.status, r.error.code, r.error.message);
+    }
+    logSecurityEvent('SIGN_IN', { req, customerId: r.customer.id, mobile: req.body.mobile });
+    if (req.body.consent) {
+      // Never let a failed save stop a sign-in: an unrecorded consent just means the one-time
+      // prompt in the app asks again.
+      const c = await recordConsent(r.customer.id, { ...req.body.consent, via: 'signup' }).catch(
+        () => ({ ok: false }),
+      );
+      if ('ok' in c && c.ok)
+        logSecurityEvent('CONSENT_GIVEN', {
+          req,
+          customerId: r.customer.id,
+          details: { via: 'signup' },
+        });
+    }
     const tokens = issueTokens(r.customer.id);
     // Signing in during the 60-day grace period keeps the account (lib/account-deletion.js) — the
     // deletion screen says so before anyone confirms. The app tells them it was cancelled.
@@ -86,6 +117,8 @@ authRouter.post(
     res.json({
       ...tokens,
       ...(deletionCancelled ? { deletionCancelled: true } : {}),
+      // True until this account has agreed to the current privacy notice (and said it is 18+).
+      consentRequired: consentRequired(r.customer.id),
       customer: customerPublic(r.customer, {
         isNew: r.isNew,
         hasAddress: hasAddress(r.customer.id),
@@ -115,7 +148,13 @@ authRouter.post(
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     const cid = token && resolveAccess(token);
-    if (cid) logout(cid);
+    if (cid) {
+      // The app sends this phone's push token so the signed-out account stops notifying it.
+      const push = typeof req.body?.expoPushToken === 'string' ? req.body.expoPushToken : null;
+      if (push) unregisterDevice(cid, push);
+      logout(cid);
+      logSecurityEvent('SIGN_OUT', { req, customerId: cid });
+    }
     res.json({ ok: true });
   }),
 );

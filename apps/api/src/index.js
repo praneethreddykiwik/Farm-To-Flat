@@ -16,6 +16,7 @@ import { razorpayMode, webhookEnabled } from './lib/razorpay.js';
 initSentry();
 
 import './load-env.js'; // load apps/api/.env before anything reads process.env
+import { timingSafeEqual } from 'node:crypto';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -31,6 +32,7 @@ import {
   loadTransactional,
   persistEnabled,
   drainPersistence,
+  writeBacklog,
 } from './persistence.js';
 import { replaceKnowledgeOverrides, setKnowledgeTableReady } from './lib/knowledge.js';
 import { demandDb } from './demand-db.js';
@@ -38,10 +40,12 @@ import { hydrateDemand } from './demand-store.js';
 import { hydrate, hydrateOrders, enableOrderPersistence } from './store.js';
 import { IS_PROD } from './lib/env.js';
 import { hydrateStaff } from './access-store.js';
+import { releaseLeadership, startLeaderLease } from './lib/leader.js';
 import { hydrateCustomerData, mergeMealLogBackups } from './customer-store.js';
 
 // public
 import { authRouter } from './routes/auth.js';
+import { appVersionRouter } from './routes/app-version.js';
 import { catalogRouter } from './routes/catalog.js';
 import { communitiesRouter, windowsRouter } from './routes/communities.js';
 import { couponsRouter } from './routes/coupons.js';
@@ -87,6 +91,7 @@ import { adminManageRouter } from './routes/admin/manage.js';
 import { listOps, loadOps, startOpsRecheck } from './ops-store.js';
 import { startDeletionSweep } from './lib/account-deletion.js';
 import { startCutoffReminders } from './lib/reminders.js';
+import { startMemoryLog } from './lib/memory-log.js';
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 import { accessRouter } from './routes/access.js';
 import { ipOf, rateLimit } from './lib/rate-limit.js';
@@ -160,21 +165,54 @@ app.use(v1, (req, res, next) => {
 // exact bytes it sent, and a parsed-then-reserialised body hashes differently. It also sits outside
 // requireAuth below — Razorpay holds no bearer token, the signature is the credential.
 app.use(`${v1}/webhooks`, razorpayWebhookRouter);
-// Small bodies first on routes that never carry an image — the public ones especially, so nobody
-// can make the server read megabytes without signing in (security audit, 20 Nov 2026). The first
-// parser to read a body wins; the 8 MB one below then skips these requests.
-for (const p of [
-  '/auth',
-  '/links',
-  '/events',
-  '/growth',
-  '/devices',
-  '/cart',
-  '/support',
-  '/coupons',
-])
-  app.use(`/api/v1${p}`, express.json({ limit: '32kb' }));
-app.use(express.json({ limit: '8mb' })); // headroom for base64 product-image uploads
+
+// A ceiling on everything, so one host cannot simply flood the service. Set well above real use:
+// behind carrier-grade NAT a single IP can be very many genuine customers, and throttling them to
+// protect against a flood would be the worse failure. A blunt instrument, not a usage quota.
+//
+// BEFORE the body parsers (review #26, 21 Nov 2026). It used to sit after them, so a flood was
+// refused only once each request's body had already been read and parsed — the limiter protected
+// everything except the expensive part.
+app.use(
+  v1,
+  rateLimit({
+    windowMs: 60 * 1000,
+    // Tunable without a deploy: ops may need to raise it for a known burst (a campaign, a load
+    // test) or lower it under attack.
+    max: Number(process.env.RATE_LIMIT_PER_MIN) || 600,
+    key: (req) => `all:${ipOf(req)}`,
+  }),
+);
+
+/**
+ * Body size, by route (review #26, 21 Nov 2026).
+ *
+ * Every request used to be parsed with an 8 MB limit before anyone was authenticated, so anybody
+ * could make the server read and JSON-parse megabytes per request. Now:
+ *   - 32 KB for everything by default — no ordinary request comes near it;
+ *   - 8 MB only on the routes that carry a base64 photograph, and only AFTER the caller has signed
+ *     in (the auth check is repeated in front of the parser so a stranger's body is never read);
+ *   - 1 MB for a saved meal plan (the route itself caps it at 600 KB) and, after admin sign-in,
+ *     for the operator console, whose bulk actions are the one place a large-but-legitimate body
+ *     is plausible and whose callers are staff.
+ * The default parser skips the routes below; each gets its own parser further down, after auth.
+ * Case-insensitive, because Express routing is.
+ */
+const json32k = express.json({ limit: '32kb' });
+const json1mb = express.json({ limit: '1mb' });
+const json8mb = express.json({ limit: '8mb' });
+const LATE_BODY = [
+  /^\/api\/v1\/ai\/identify(\/|$)/i,
+  /^\/api\/v1\/meals\/log(\/|$)/i,
+  /^\/api\/v1\/meals\/plan(\/|$)/i,
+  /^\/api\/v1\/meals\/[^/]+\/photo(\/|$)/i,
+  /^\/api\/v1\/orders\/[^/]+\/issue(\/|$)/i,
+  // The whole console except its sign-in routes, which stay at 32 KB: they are public.
+  /^\/api\/v1\/admin\/(?!auth(\/|$))/i,
+];
+app.use((req, res, next) =>
+  LATE_BODY.some((r) => r.test(req.path)) ? next() : json32k(req, res, next),
+);
 // Request logging. Credentials are REDACTED: pino-http logs every request header by default, so
 // customer Bearer tokens and the admin token were being written into the host's log retention.
 if (process.env.NODE_ENV !== 'test')
@@ -226,8 +264,26 @@ export const markShuttingDown = () => {
   shuttingDown = true;
 };
 
-app.get('/health', (_req, res) => {
+/**
+ * Is this /health caller allowed the operational details (review #31, 21 Nov 2026)?
+ *
+ * The probe is public — Render reads it, and so can anyone. Status and commit stay public: they are
+ * what a dashboard and a deploy check need. But payment mode, whether the webhook can verify and
+ * whether the origin lock is on are a map for someone probing the payment path, so they now come
+ * back only to a caller that sends `x-health-token` matching HEALTH_TOKEN. With HEALTH_TOKEN unset,
+ * nobody gets them; the same facts stay available to an admin at /admin/payments-status.
+ */
+function healthDetailsAllowed(req) {
+  const want = (process.env.HEALTH_TOKEN || '').trim();
+  if (!want) return false;
+  const got = Buffer.from(String(req.header('x-health-token') || ''), 'utf8');
+  const exp = Buffer.from(want, 'utf8');
+  return got.length === exp.length && timingSafeEqual(got, exp);
+}
+
+app.get('/health', (req, res) => {
   const degraded = (persistEnabled && !isPersistenceEnabled()) || shuttingDown;
+  const details = healthDetailsAllowed(req);
   res.status(degraded ? 503 : 200).json({
     ok: !degraded,
     ...(shuttingDown ? { shuttingDown: true } : {}),
@@ -245,15 +301,23 @@ app.get('/health', (_req, res) => {
     // Whether error reporting is actually ON in THIS process. A DSN set in the dashboard but not
     // yet picked up by the running process looks identical from outside, and "we have Sentry" is
     // worth nothing if the process that would report never initialised it.
-    sentry: sentryEnabled,
-    // Which Razorpay account is actually serving, and whether the webhook can verify. The key ID
-    // is public by design (it ships in the app bundle and goes out with every payment intent), so
-    // only the MODE is exposed here — but "are we on live keys?" is the single most important
-    // operational fact once real money is involved, and it should not require a token to answer.
-    payments: { mode: razorpayMode(), webhook: webhookEnabled },
-    // Whether the origin is refusing traffic that bypassed Cloudflare. Reported because the whole
-    // point of the lock is that it fails invisibly when it is off — everything still works.
-    originLock: originLockEnabled(),
+    //
+    // Which Razorpay account is actually serving, and whether the webhook can verify — "are we on
+    // live keys?" is the single most important operational fact once real money is involved.
+    // Whether the origin is refusing traffic that bypassed Cloudflare: reported because the whole
+    // point of the lock is that it fails invisibly when it is off. All three behind HEALTH_TOKEN
+    // (healthDetailsAllowed above).
+    ...(details
+      ? {
+          sentry: sentryEnabled,
+          payments: { mode: razorpayMode(), webhook: webhookEnabled },
+          originLock: originLockEnabled(),
+        }
+      : {}),
+    // Writes waiting for the database (review #12). Above zero means the database refused some
+    // writes and they are being retried; it should drain back to 0 on its own within minutes.
+    // Public on purpose: it is a count, and it is what an uptime monitor should alert on.
+    unsavedWrites: writeBacklog().pending,
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 8) || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     ts: Date.now(),
@@ -261,24 +325,13 @@ app.get('/health', (_req, res) => {
 });
 
 // ── public ──────────────────────────────────────────────────────────────────
-// A ceiling on everything, so one host cannot simply flood the service. Set well above real use:
-// behind carrier-grade NAT a single IP can be very many genuine customers, and throttling them to
-// protect against a flood would be the worse failure. A blunt instrument, not a usage quota.
-app.use(
-  v1,
-  rateLimit({
-    windowMs: 60 * 1000,
-    // Tunable without a deploy: ops may need to raise it for a known burst (a campaign, a load
-    // test) or lower it under attack.
-    max: Number(process.env.RATE_LIMIT_PER_MIN) || 600,
-    key: (req) => `all:${ipOf(req)}`,
-  }),
-);
+// (The global rate limit now sits above the body parsers — see review #26 there.)
 
 // Private media, authenticated by the token in the path rather than by a header, because an
 // <img> cannot send one. Public by necessity, unguessable by construction. See routes/media.js.
 app.use(`${v1}/media`, mediaRouter);
 app.use(`${v1}/img`, imgRouter); // public product-image proxy — see routes/img.js (ISP hijacks supabase.co)
+app.use(`${v1}/app`, appVersionRouter); // minimum app version (review #45)
 app.use(`${v1}/auth`, authRouter);
 app.use(`${v1}/catalog`, catalogRouter);
 app.use(`${v1}/communities`, communitiesRouter);
@@ -289,6 +342,13 @@ app.use(`${v1}/support`, supportRouter);
 app.use(`${v1}/access`, requireAuth, accessRouter); // authenticated: resolves the caller's OWN number only
 
 // ── authenticated customer contract ───────────────────────────────────────────
+// The large-body routes (LATE_BODY above): signed in first, then parsed. requireAuth runs again in
+// the router mount below; it is a map lookup, and repeating it keeps each router self-contained.
+app.use(`${v1}/ai/identify`, requireAuth, json8mb);
+app.use(`${v1}/meals/log`, requireAuth, json8mb);
+app.use(`${v1}/meals/plan`, requireAuth, json1mb);
+app.use(`${v1}/meals/:id/photo`, requireAuth, json8mb);
+app.use(`${v1}/orders/:id/issue`, requireAuth, json8mb);
 app.use(`${v1}/me`, requireAuth, meRouter);
 app.use(`${v1}/addresses`, requireAuth, addressesRouter);
 app.use(`${v1}/cart`, requireAuth, cartRouter);
@@ -319,6 +379,10 @@ app.use(`${v1}/admin/auth`, adminAuthPublicRouter);
 const admin = express.Router();
 admin.use(adminAuth);
 admin.use(adminAuthorize); // per-route role check — any staff is NOT full admin
+// Bodies are read only once the operator is known (review #26): 8 MB for a product photograph,
+// 1 MB for everything else in the console.
+admin.use('/products/upload-image', json8mb);
+admin.use(json1mb);
 admin.use(adminProductsRouter);
 admin.use(adminCommunitiesRouter);
 admin.use(adminDemandRouter);
@@ -427,10 +491,6 @@ async function hydrateOnce() {
   await loadOps();
   // If the table is not there yet, keep looking — creating it then needs no restart.
   startOpsRecheck();
-  // Accounts whose 60-day deletion grace period has ended are erased by this hourly sweep.
-  if (!IS_TEST_ENV) startDeletionSweep();
-  // The 5 PM cut-off reminder — off until switched on in the admin.
-  if (!IS_TEST_ENV) startCutoffReminders();
   hydrateStaff(data.staff);
   const tx = await loadTransactional();
   hydrateCustomerData(tx);
@@ -438,6 +498,22 @@ async function hydrateOnce() {
   mergeMealLogBackups(listOps('mealLog'));
   hydrateOrders(tx.orders);
   enableOrderPersistence(); // real orders now write through (import-time seed did not)
+  // Read-only: do the cached wallet balances still match the ledger table? Reports, never fixes.
+  void import('./lib/wallet-integrity.js').then((m) => m.runWalletIntegrityCheck());
+  // From here this instance may run the scheduled jobs — if it holds the lease (review #14).
+  startLeaderLease();
+  // Timers start only now, once EVERYTHING is in memory. They used to start half-way through,
+  // before customers and orders were loaded, so a slow or failed load could let the 5 PM reminder
+  // or the deletion sweep run against a half-filled book (review #16, 21 Nov 2026). Both are
+  // idempotent, so a rehydration after a failed boot does not start a second copy.
+  if (!IS_TEST_ENV) {
+    // Accounts whose 60-day deletion grace period has ended are erased by this hourly sweep.
+    startDeletionSweep();
+    // The 5 PM cut-off reminder — off until switched on in the admin.
+    startCutoffReminders();
+    // A log line of record counts and memory, so growth is visible before it is an outage.
+    startMemoryLog();
+  }
   return `Supabase (${data.products.length} products, ${tx.customers.length} customers, ${tx.orders.length} orders)`;
 }
 
@@ -527,6 +603,8 @@ async function boot() {
     // Fail the health check immediately so the load balancer stops sending new work, even while
     // we are still serving what we already accepted.
     markShuttingDown();
+    // Stop running scheduled jobs and hand them to the new instance now (review #14).
+    void releaseLeadership();
     server.close(async () => {
       try {
         await flushSentry(2000);

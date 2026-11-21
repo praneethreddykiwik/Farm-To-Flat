@@ -7,33 +7,16 @@
  */
 import { env } from './env';
 import { store } from '../store';
-import { accessRefreshed } from '../features/auth/authSlice';
-import { readRefreshToken, saveRefreshToken } from '../features/auth/secure';
+import { refreshSessionShared } from '../api/baseQuery';
 
 const V1 = `${env.apiUrl}/api/v1`;
 const ADMIN = `${V1}/admin`;
 
-// One in-flight refresh shared by concurrent calls.
-let refreshing = null;
+// The app's ONE shared refresh (review #40): a second refresher here used to spend the single-use
+// refresh token at the same moment as the customer screens' own, and one of them lost and signed out.
 async function refreshSession() {
-  if (refreshing) return refreshing;
-  refreshing = (async () => {
-    const refreshToken = await readRefreshToken();
-    if (!refreshToken) return null;
-    const r = await fetch(`${V1}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    if (data?.refreshToken) await saveRefreshToken(data.refreshToken);
-    if (data?.accessToken) store.dispatch(accessRefreshed(data.accessToken));
-    return data?.accessToken || null;
-  })().finally(() => {
-    refreshing = null;
-  });
-  return refreshing;
+  const out = await refreshSessionShared({ dispatch: store.dispatch });
+  return out?.accessToken || null;
 }
 
 async function j(url, opts = {}, retried = false) {

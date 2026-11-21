@@ -15,6 +15,11 @@ import { validateBody } from '../validate.js';
 import { personName, email, flat, floor, shortText, mobile } from '../lib/validators.js';
 import { customerPublic } from '../serialize.js';
 import { money } from '../lib/money.js';
+import { ipOf, rateLimit } from '../lib/rate-limit.js';
+import { findStaffByMobile } from '../access-store.js';
+import { recordAction } from '../lib/audit.js';
+import { NOTICE_VERSION, consentOf, consentRequired, recordConsent } from '../lib/consent.js';
+import { logSecurityEvent } from '../lib/security-log.js';
 import {
   addAddress,
   cartCount,
@@ -32,6 +37,34 @@ import {
   updateAddress,
   updateCustomer,
 } from '../customer-store.js';
+
+// Review #23 (21 Nov 2026): the change-number and deletion codes had only the global per-IP limit,
+// so they could be guessed far faster than the sign-in code. Limits per ACCOUNT (an attacker holds
+// one) and per IP; the per-number wrong-guess cap in customer-store applies on top of both.
+const codeChecksPerAccount = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  key: (req) => `mecode:c:${req.customerId}`,
+  code: 'OTP_RATE_LIMITED',
+  message: 'Too many attempts. Please wait a few minutes.',
+});
+const codeChecksPerIp = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 90,
+  key: (req) => `mecode:ip:${ipOf(req)}`,
+  code: 'OTP_RATE_LIMITED',
+  message: 'Too many attempts. Please wait a few minutes.',
+});
+const numberChangeRequests = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 5,
+  key: (req) => `mobchange:c:${req.customerId}`,
+  code: 'OTP_RATE_LIMITED',
+  message: 'Too many number changes today. Please try again tomorrow.',
+});
+
+/** A number that belongs to a staff member cannot be moved onto a customer account from the app. */
+const isStaffNumber = (m) => !!findStaffByMobile(m);
 
 export const meRouter = Router();
 
@@ -131,6 +164,8 @@ meRouter.post(
 
 meRouter.post(
   '/deletion/confirm',
+  codeChecksPerAccount,
+  codeChecksPerIp,
   validateBody(
     z.object({
       otp: z.string().regex(/^\d{4,8}$/, 'Enter the code we sent.'),
@@ -160,6 +195,7 @@ meRouter.post(
       consent: req.body.consent || null,
       via: 'APP_WITH_CODE',
     });
+    logSecurityEvent('DELETION_REQUESTED', { req, customerId: req.customerId });
     res.json({
       ok: true,
       graceDays: GRACE_DAYS,
@@ -203,17 +239,24 @@ meRouter.delete(
  *   POST /me/mobile/verify   — check it, then move the account
  * The customer id never changes, so addresses, orders, wallet and existing sessions all follow.
  */
+
 meRouter.post(
   '/mobile/request',
+  numberChangeRequests,
   validateBody(z.object({ mobile })),
   asyncHandler(async (req, res) => {
     const next = req.body.mobile;
     const me = getCustomer(req.customerId);
     if (me?.mobile === next) throw fail(422, 'SAME_MOBILE', 'That is already your number.');
-    // Refuse early, before sending a code we would only reject at the last step.
+    // Review #27: answering "that number is already signed up" here told any signed-in user whether a
+    // number belongs to a Fooducia customer. A number that cannot be taken (another account's, or a
+    // staff number) now gets the same reply as any other — but no code is sent to it, so its owner is
+    // not disturbed and the verify step below can only fail.
     const holder = getCustomerIdByMobile(next);
-    if (holder && holder !== req.customerId)
-      throw fail(409, 'MOBILE_TAKEN', 'That number is already signed up. Sign in with it instead.');
+    if ((holder && holder !== req.customerId) || isStaffNumber(next)) {
+      res.json({ ok: true, expiresInSeconds: 300 });
+      return;
+    }
     const r = await requestOtp(next);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
     res.json({ ok: true, expiresInSeconds: r.expiresInSeconds });
@@ -222,14 +265,34 @@ meRouter.post(
 
 meRouter.post(
   '/mobile/verify',
+  codeChecksPerAccount,
+  codeChecksPerIp,
   validateBody(z.object({ mobile, otp: z.string().regex(/^\d{6}$/) })),
   asyncHandler(async (req, res) => {
     const { mobile: next, otp } = req.body;
+    // Staff are recognised by their phone number. Moving a customer account onto a staff number
+    // would hand that account the staff role (review #23), so it is refused outright.
+    if (isStaffNumber(next))
+      throw fail(401, 'OTP_INVALID', 'That code has expired. Request a new one.');
     // checkOtpOnly, not verifyOtp: the latter would mint a second account for the new number.
     const check = checkOtpOnly(next, otp);
     if (check.error) throw fail(check.error.status, check.error.code, check.error.message);
+    const before = getCustomer(req.customerId)?.mobile || null;
     const moved = changeCustomerMobile(req.customerId, next);
     if (moved.error) throw fail(moved.error.status, moved.error.code, moved.error.message);
+    logSecurityEvent('MOBILE_CHANGED', {
+      req,
+      customerId: req.customerId,
+      mobile: next,
+      details: { from: maskMobile(before) },
+    });
+    // Every number change leaves a row in the audit trail — it is how an account is taken over.
+    recordAction({
+      staff: { email: `customer:${req.customerId}`, role: 'CUSTOMER', via: 'app' },
+      action: 'CUSTOMER_MOBILE_CHANGED',
+      target: req.customerId,
+      details: { from: maskMobile(before), to: maskMobile(next) },
+    }).catch((e) => console.error('[audit] mobile change not recorded:', e?.message || e));
     res.json({
       customer: customerPublic(moved.customer, { hasAddress: hasAddress(req.customerId) }),
     });
@@ -328,5 +391,46 @@ addressesRouter.delete(
     const r = deleteAddress(req.customerId, req.params.id);
     if (r.error) throw fail(r.error.status, r.error.code, r.error.message);
     res.json({ addresses: r.addresses });
+  }),
+);
+
+/** 9876543210 -> 98xxxxxx10: enough to tell numbers apart in an audit row, not enough to call. */
+function maskMobile(m) {
+  const d = String(m || '');
+  return d.length >= 6 ? `${d.slice(0, 2)}${'x'.repeat(d.length - 4)}${d.slice(-2)}` : null;
+}
+
+/**
+ * The privacy notice and the 18+ confirmation (DPDP §5, §6, §9; Rules 3 and 10).
+ *   GET  /me/consent  — does this account still have to agree to the current notice?
+ *   POST /me/consent  — { version, adult: true }: the one-time prompt shown to customers who signed
+ *                       up before the consent boxes existed, or after the notice changes.
+ */
+meRouter.get('/consent', (req, res) => {
+  const c = consentOf(req.customerId);
+  res.json({
+    required: consentRequired(req.customerId),
+    version: NOTICE_VERSION,
+    accepted: c ? { version: c.version, adult: c.adult, at: c.at } : null,
+  });
+});
+
+meRouter.post(
+  '/consent',
+  validateBody(z.object({ version: z.string().max(60), adult: z.boolean() })),
+  asyncHandler(async (req, res) => {
+    let r;
+    try {
+      r = await recordConsent(req.customerId, { ...req.body, via: 'prompt' });
+    } catch {
+      throw fail(503, 'TRY_AGAIN', 'Could not save that just now. Please try again.');
+    }
+    if ('error' in r) throw fail(r.error.status, r.error.code, r.error.message);
+    logSecurityEvent('CONSENT_GIVEN', {
+      req,
+      customerId: req.customerId,
+      details: { via: 'prompt' },
+    });
+    res.json({ ok: true, required: false, version: NOTICE_VERSION });
   }),
 );

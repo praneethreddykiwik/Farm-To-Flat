@@ -4,6 +4,7 @@ import { useLazyMealPlanQuery, useMealPlanSaveMutation } from '../api/api';
 import { selectAuth } from '../features/auth/authSlice';
 import {
   planHydrated,
+  selectPlanOwner,
   selectPlanUpdatedAt,
   selectProfile,
   selectScheduled,
@@ -24,7 +25,10 @@ import { selectAiVisible } from '../features/role/roleSlice';
 export function usePlanSync() {
   const dispatch = useDispatch();
   const signedIn = useSelector(selectAuth).status === 'signedIn';
-  const enabled = useSelector(selectAiVisible) && signedIn;
+  const me = useSelector(selectAuth).customer?.id || null;
+  const owner = useSelector(selectPlanOwner);
+  // Only ever send a plan that belongs to the account signed in now (review #35).
+  const enabled = useSelector(selectAiVisible) && signedIn && !!me && owner === me;
   const profile = useSelector(selectProfile);
   const scheduled = useSelector(selectScheduled);
   const updatedAt = useSelector(selectPlanUpdatedAt);

@@ -30,8 +30,9 @@ import {
 } from '../store.js';
 import {
   clearCart,
-  couponDiscount,
+  evaluateCoupon,
   createPayment,
+  setGatewayOrderId,
   getCustomer,
   getWallet,
   ledgerPush,
@@ -40,12 +41,11 @@ import {
   rawCart,
   redeemCoupon,
   releaseCoupon,
-  validateCoupon,
   flushWallet,
   refundablePaymentsForOrder,
 } from '../customer-store.js';
 import { generateWindows } from '../lib/windows.js';
-import { cancelOrder } from '../lib/order-lifecycle.js';
+import { cancelOrder, failUnpaidOrder } from '../lib/order-lifecycle.js';
 import { notifyAdmins } from '../lib/staff-notify.js';
 import { emitNotification, COPY } from '../lib/notify.js';
 import { buildInvoicePdf, invoiceNumberOf } from '../lib/invoice.js';
@@ -73,7 +73,13 @@ import { launchOfferFor } from '../lib/launch-offer.js';
 import { track } from '../lib/events.js';
 import { wasPlaced } from '../lib/customer-history.js';
 import { getOps, putOps } from '../ops-store.js';
-import { idempotencyGet, idempotencyPut } from '../lib/idempotency.js';
+import {
+  idempotencyAbort,
+  idempotencyBegin,
+  idempotencyGet,
+  idempotencyKeyOf,
+  idempotencyPut,
+} from '../lib/idempotency.js';
 import { todayISO } from '../lib/dates.js';
 
 export const customerOrdersRouter = Router();
@@ -96,6 +102,12 @@ const OrderBody = z.object({
   code: z.string().trim().max(20).optional().nullable(),
   // "How did you hear about Fooducia?" — asked before the first order only.
   heardFrom: z.string().max(20).optional().nullable(),
+  // The bill total the checkout screen showed (cart.totalPaise, before any wallet split). Review #5
+  // (21 Nov 2026): without it the server could not tell that its total differs from the one the
+  // customer agreed to. Optional, so builds already on phones (which never send it) behave as before.
+  expectedTotalPaise: z
+    .union([z.string().regex(/^\d{1,12}$/), z.number().int().nonnegative()])
+    .optional(),
 });
 
 customerOrdersRouter.post(
@@ -103,11 +115,21 @@ customerOrdersRouter.post(
   validateBody(OrderBody),
   asyncHandler(async (req, res) => {
     const cid = req.customerId;
-    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote, idempotencyKey } =
-      req.body;
+    const { addressId, deliveryDate, window, couponCode, useWallet, deliveryNote } = req.body;
+    const idempotencyKey = idempotencyKeyOf(req);
     const cod = req.body.paymentMethod === 'COD';
     const replay = idempotencyGet(cid, idempotencyKey);
     if (replay) return res.status(replay.status).json(replay.body);
+    if (!idempotencyBegin(cid, idempotencyKey))
+      throw fail(
+        409,
+        'ORDER_IN_PROGRESS',
+        'Your order is still being placed. Please wait a moment.',
+      );
+    res.on('finish', () => {
+      // Anything but the remembered success releases the key, so a genuine retry can run.
+      if (res.statusCode !== 201) idempotencyAbort(cid, idempotencyKey);
+    });
     const priced = priceCart(cid);
     if (priced.items.length === 0) throw fail(422, 'CART_EMPTY', 'Your basket is empty.');
     if (!priced.meetsMinimum)
@@ -127,6 +149,17 @@ customerOrdersRouter.post(
     if (!address) throw fail(422, 'VALIDATION', 'Choose a delivery address.');
 
     const community = getCommunity(address.communityId);
+    // Review #10 (21 Nov 2026): a community the operator has switched off (or removed) is not one
+    // we deliver to. GET /communities already hides it, but an address saved while it was live
+    // still pointed at it, and checkout took the order — for a van that is not going there.
+    // Checked at commit time, like the cut-off below, never trusted from the app's earlier read.
+    if (!community || community.isActive === false)
+      throw fail(
+        409,
+        'COMMUNITY_INACTIVE',
+        'We are not delivering to this community right now, so this order can’t be placed.',
+        { communityId: address.communityId },
+      );
     const windows = generateWindows(community, todayISO(), bookedIndex(community.id));
     const win = windows.find((w) => w.date === deliveryDate && w.window === window);
     if (!win) throw fail(422, 'VALIDATION', 'Choose a delivery window.');
@@ -168,11 +201,28 @@ customerOrdersRouter.post(
 
     const subtotal = Number(priced.subtotalPaise);
     let discount = 0;
+    let freeLine = null;
     const code = couponCode || rawCart(cid).couponCode;
     if (code) {
-      const r = validateCoupon(cid, code, subtotal);
+      // The SAME evaluator the cart preview used (review #6, 21 Nov 2026).
+      const r = evaluateCoupon(cid, code, subtotal);
       if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
-      discount = couponDiscount(r.coupon, subtotal);
+      discount = r.discountPaise;
+      freeLine = r.freeLine;
+    }
+    // A FREE_ITEM gift is a real line, so it counts against the farm's day cap like any other.
+    if (freeLine) {
+      const p = getProduct(freeLine.productId);
+      const already =
+        (orderedQty.get(p.id) || 0) +
+        Number(priced.items.find((l) => l.productId === p.id)?.quantity || 0);
+      if (freeLine.quantity > Math.max(0, Number(p.dailyCap) - already))
+        throw fail(
+          409,
+          'COUPON_ITEM_UNAVAILABLE',
+          `The free ${p.name} on this code is fully booked for that day. Pick another day or remove the code.`,
+          { productId: p.id },
+        );
     }
     // Launch offer — the same function the cart preview used, and only without a coupon.
     let discountType = code ? 'COUPON' : null;
@@ -196,6 +246,20 @@ customerOrdersRouter.post(
     });
     const delivery = bill.deliveryChargePaise;
     const payable = bill.totalPaise;
+
+    // The customer is charged only the total they saw. A price, fee or offer that changed between
+    // the checkout screen and this moment refuses the order — before the coupon is locked or the
+    // wallet touched — and hands back the new figure so the app can show it and ask again.
+    if (req.body.expectedTotalPaise != null && Number(req.body.expectedTotalPaise) !== payable)
+      throw fail(
+        409,
+        'PRICE_CHANGED',
+        'Prices changed since you opened checkout. Please check the new total.',
+        {
+          expectedTotalPaise: String(req.body.expectedTotalPaise),
+          totalPaise: String(payable),
+        },
+      );
 
     // Cash on delivery. Checked at COMMIT time against the live setting, never against what the app
     // believed when the basket was built — an operator who turns cash off must have it off now.
@@ -241,11 +305,24 @@ customerOrdersRouter.post(
       deliveryDate,
       window,
       deliveryNote: deliveryNote || null,
-      lines: rawCart(cid).items.map((i) => ({
-        productId: i.productId,
-        quantity: i.quantity,
-        note: i.note,
-      })),
+      lines: [
+        ...rawCart(cid).items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          note: i.note,
+        })),
+        // The coupon's gift, at ₹0 — so it is packed and delivered, not just promised.
+        ...(freeLine
+          ? [
+              {
+                productId: freeLine.productId,
+                quantity: freeLine.quantity,
+                note: `Free with ${code}`,
+                free: true,
+              },
+            ]
+          : []),
+      ],
       couponCode: code || null,
       couponDiscountPaise: discount,
       walletAppliedPaise: walletApplied,
@@ -296,12 +373,25 @@ customerOrdersRouter.post(
     if (gateway > 0) {
       const pay = createPayment(cid, { purpose: 'ORDER', orderId: order.id, amountPaise: gateway });
       if (razorpayEnabled) {
-        const rzOrder = await createRazorpayOrder({
-          amountPaise: gateway,
-          receipt: pay.id,
-          notes: { purpose: 'ORDER', orderId: order.id, customerId: cid },
-        });
-        pay.razorpayOrderId = rzOrder.id;
+        let rzOrder;
+        try {
+          rzOrder = await createRazorpayOrder({
+            amountPaise: gateway,
+            receipt: pay.id,
+            notes: { purpose: 'ORDER', orderId: order.id, customerId: cid },
+          });
+        } catch (e) {
+          // Review #3: no gateway order means nothing can be paid. Undo the order now — wallet
+          // back, coupon free, basket restored — instead of leaving it "awaiting payment" for 30
+          // minutes, and tell the customer plainly that no money was taken.
+          failUnpaidOrder(order, { reason: `Payment could not start for ${order.orderNumber}` });
+          throw fail(
+            /** @type {any} */ (e)?.status === 504 ? 504 : 502,
+            'PAYMENT_START_FAILED',
+            'We couldn’t start the payment. No money was taken and your basket is back — please try again.',
+          );
+        }
+        setGatewayOrderId(pay, rzOrder.id);
       }
       paymentIntent = {
         paymentId: pay.id,
@@ -480,7 +570,7 @@ customerOrdersRouter.post(
         receipt: pay.id,
         notes: { purpose: 'ORDER_ADDITION', orderId: order.id, customerId: cid },
       });
-      pay.razorpayOrderId = rz.id;
+      setGatewayOrderId(pay, rz.id);
       razorpayOrderId = rz.id;
     }
     res.json({

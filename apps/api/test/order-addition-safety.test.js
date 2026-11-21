@@ -106,6 +106,29 @@ describe('a paid addition', () => {
     expect(balance(cid) - before).toBe(5100);
   });
 
+  // Review #7 (21 Nov 2026): the cut-off is checked when the lines ATTACH, not only when asked.
+  it('arriving after the order’s cut-off is returned to the wallet, and adds nothing', async () => {
+    const cid = 'cus_add_after_cutoff';
+    const order = confirmedOrder(cid);
+    const pay = pendingAddition(order, 4400);
+    // The window closes while the payment sheet is open: move the order to a day that is no longer
+    // orderable (yesterday), which is what a passed cut-off looks like to generateWindows.
+    const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    store.patchOrder(order.id, (o) => {
+      o.deliveryDate = yesterday;
+    });
+    const before = balance(cid);
+
+    const r = await capturePayment({ paymentId: pay.id });
+
+    expect(r.outcome).toBe('orphaned');
+    expect(r.reason).toBe('ORDER_CUTOFF_PASSED');
+    expect(balance(cid) - before).toBe(4400);
+    expect(store.getOrder(order.id).items).toHaveLength(order.items.length);
+    expect((await capturePayment({ paymentId: pay.id })).outcome).toBe('already');
+    expect(balance(cid) - before).toBe(4400);
+  });
+
   it('for an add request that a later one replaced is returned to the wallet', async () => {
     const cid = 'cus_add_replaced';
     const order = confirmedOrder(cid);

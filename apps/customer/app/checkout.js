@@ -40,12 +40,11 @@ import {
 import { selectCustomer } from '../src/features/auth/authSlice';
 import { showToast } from '../src/features/ui/uiSlice';
 import { colors, radius } from '../src/theme';
-import { env } from '../src/lib/env';
 import { formatDateShort, windowHours, windowLabel } from '../src/lib/dates';
 import { selectLanguage } from '../src/features/ui/uiSlice';
 import { productLabel, t } from '../src/lib/i18n';
 import { idempotencyKey } from '../src/lib/ids';
-import { openRazorpay, razorpayAvailable } from '../src/lib/razorpay';
+import { classifyGatewayError, openRazorpay, paymentPathFor } from '../src/lib/razorpay';
 import { haptic } from '../src/lib/haptics';
 import { notifyLocal } from '../src/lib/notifications';
 
@@ -121,7 +120,7 @@ export default function Checkout() {
       return () => sub.remove();
     }, [toBasket]),
   );
-  const { cart } = useCart();
+  const { cart, refetch: refetchCart } = useCart();
   const addresses = useGetAddressesQuery();
   const wallet = useGetWalletQuery();
   const [placeOrder, { isLoading: placing }] = usePlaceOrderMutation();
@@ -245,11 +244,20 @@ export default function Checkout() {
       else {
         haptic.error();
         dispatch(
-          showToast({
-            title: t('paymentCancelledTitle', lang),
-            message: t('paymentCancelledBody', lang),
-            tone: 'error',
-          }),
+          showToast(
+            result.declined
+              ? {
+                  title: 'Payment declined',
+                  message:
+                    'Your bank or UPI app declined it. Nothing was charged — try another way.',
+                  tone: 'error',
+                }
+              : {
+                  title: t('paymentCancelledTitle', lang),
+                  message: t('paymentCancelledBody', lang),
+                  tone: 'error',
+                },
+          ),
         );
         idem.current = idempotencyKey();
         // The server hands the basket back when a payment is abandoned, so put the customer where
@@ -315,6 +323,10 @@ export default function Checkout() {
         deliveryNote: deliveryNote.trim() || undefined,
         code: source.code || undefined,
         heardFrom: source.heardFrom || undefined,
+        // The bill total on this screen. If the server's differs (a price changed while the
+        // customer was here) it refuses with PRICE_CHANGED instead of charging a figure they never
+        // saw — review #5, 21 Nov 2026.
+        expectedTotalPaise: String(total),
       }).unwrap();
       setPendingOrder(res.order);
       if (!res.paymentIntent) {
@@ -328,8 +340,9 @@ export default function Checkout() {
       // razorpayOrderId, and opening the SDK with that fails with Razorpay's own "Something went
       // wrong" sheet, which made it impossible to complete a checkout locally. Require both; the
       // simulated sheet below then covers dev, and production without a gateway still refuses
-      // outright rather than faking a success.
-      if (razorpayAvailable && res.paymentIntent.razorpayOrderId) {
+      // outright rather than faking a success. The rule is lib/paymentPath.js (review #46).
+      const path = paymentPathFor(res.paymentIntent);
+      if (path === 'native') {
         try {
           const r = await openRazorpay({
             ...res.paymentIntent,
@@ -346,10 +359,32 @@ export default function Checkout() {
             },
             res.order,
           );
-        } catch {
-          await settle(res.paymentIntent, { success: false }, res.order);
+        } catch (gatewayError) {
+          const kind = classifyGatewayError(gatewayError);
+          if (kind === 'unknown') {
+            // The connection dropped mid-payment: the money may have gone. Do NOT report a failure
+            // (that would cancel an order the bank is still paying for) — the server settles it from
+            // Razorpay's own record; show the customer the order so they can watch it (review #3).
+            haptic.warning();
+            dispatch(
+              showToast({
+                title: 'Checking your payment',
+                message: 'If money left your account, this order confirms in a few minutes.',
+                tone: 'neutral',
+              }),
+            );
+            setIntent(null);
+            setSubmitting(false);
+            router.replace({ pathname: '/order/[id]', params: { id: res.order.id } });
+            return;
+          }
+          await settle(
+            res.paymentIntent,
+            { success: false, declined: kind === 'failed' },
+            res.order,
+          );
         }
-      } else if (__DEV__ || env.useMocks || env.isExpoGo) {
+      } else if (path === 'simulated') {
         setTimeout(() => simSheet.current?.present(), 200);
       } else {
         // Real production build with no Razorpay module — never fake a success sheet.
@@ -382,6 +417,20 @@ export default function Checkout() {
           }),
         );
         setTimeout(() => windowSheet.current?.present(), 250);
+      } else if (e?.code === 'PRICE_CHANGED') {
+        // Nothing was placed or charged. Reload the basket so the new total is on screen, and say
+        // so plainly — the next tap confirms the figure they can now see.
+        refetchCart();
+        const now = Number(e?.details?.totalPaise);
+        dispatch(
+          showToast({
+            title: t('priceChangedTitle', lang),
+            message: Number.isFinite(now)
+              ? t('priceChangedBody', lang, { total: `₹${Math.round(now / 100)}` })
+              : t('priceChangedBodyPlain', lang),
+            tone: 'neutral',
+          }),
+        );
       } else if (
         e?.code === 'COUPON_ALREADY_USED' ||
         e?.code === 'COUPON_EXPIRED' ||

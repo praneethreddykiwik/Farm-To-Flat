@@ -3,15 +3,18 @@ import { StyleSheet, View } from 'react-native';
 import { ShieldCheck } from 'lucide-react-native';
 import { Button, Money, Sheet, Small, Text } from '../ui';
 import { colors, radius } from '../theme';
+import { canSimulatePayment } from '../lib/razorpay';
 
 /**
  * Stand-in for the Razorpay checkout while the app runs in Expo Go (no native SDK) or against the
  * mock server. Lets the flow be exercised end to end: success and failure both reach the same
- * handlers the real SDK would. Never shipped in a release build (see checkout.js).
+ * handlers the real SDK would. Renders nothing outside development and mock mode, so a release
+ * build cannot show it even if a screen tries to (review #46, 21 Nov 2026).
  * @param {{ intent: any, onResult: (r: { success: boolean, paymentId?: string }) => void }} props
  */
 export const PaymentSimulator = /** @type {any} */ (
   forwardRef(function PaymentSimulator(/** @type {any} */ { intent, onResult }, ref) {
+    if (!canSimulatePayment) return null;
     return (
       <Sheet
         ref={ref}

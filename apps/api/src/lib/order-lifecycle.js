@@ -22,6 +22,7 @@ import {
 import { createRazorpayRefund, razorpayEnabled } from './razorpay.js';
 import { notifyAdmins } from './staff-notify.js';
 import { IS_TEST } from './env.js';
+import { isLeader } from './leader.js';
 
 const TERMINAL = new Set(['CANCELLED', 'DELIVERED']);
 
@@ -102,21 +103,66 @@ async function refundGatewayPayment(order, pay, note) {
     savePayment(pay);
     return outstanding;
   } catch (e) {
+    const firstFailure = !pay.refundFailed;
     pay.refundFailed = e?.message || 'Refund failed';
-    pay.refundFailedAt = new Date().toISOString();
+    pay.refundFailedAt = pay.refundFailedAt || new Date().toISOString();
+    pay.refundAttempts = Number(pay.refundAttempts || 0) + 1;
     savePayment(pay);
     // eslint-disable-next-line no-console
     console.error(
-      `[refund] ${order.orderNumber}: gateway refund of ${outstanding} paise FAILED — ${pay.refundFailed}. Refund it by hand in the Razorpay dashboard.`,
+      `[refund] ${order.orderNumber}: gateway refund of ${outstanding} paise FAILED (attempt ${pay.refundAttempts}) — ${pay.refundFailed}.`,
     );
-    notifyAdmins({
-      title: 'Refund needs a human',
-      body: `${order.orderNumber} · ₹${Math.round(outstanding / 100)} could not be refunded automatically.`,
-      data: { type: 'REFUND_FAILED', orderId: order.id },
-    });
+    // Tell the operators once when it first fails (it will be retried automatically), and again
+    // only when the retries give up and a person has to refund it by hand.
+    if (firstFailure || pay.refundAttempts === REFUND_MAX_ATTEMPTS)
+      notifyAdmins({
+        title: firstFailure ? 'Refund failed — retrying' : 'Refund needs a human',
+        body: firstFailure
+          ? `${order.orderNumber} · ₹${Math.round(outstanding / 100)} could not be refunded yet. We will keep trying.`
+          : `${order.orderNumber} · ₹${Math.round(outstanding / 100)} still not refunded after ${REFUND_MAX_ATTEMPTS} tries. Refund it in the Razorpay dashboard.`,
+        data: { type: 'REFUND_FAILED', orderId: order.id },
+      });
     return 0;
   }
 }
+
+/**
+ * Retry gateway refunds that failed (review #4, 21 Nov 2026).
+ *
+ * A failed refund used to be attempted exactly once: it was flagged and the operators were told,
+ * but if nobody acted, the customer simply never got their money back. Now cancelled orders with a
+ * failed refund are retried every pass, under the SAME idempotency key (so a refund that actually
+ * went through the first time is returned, never made twice), up to REFUND_MAX_ATTEMPTS.
+ *
+ * Note: `refundAttempts` is kept in memory; after a restart the count starts again, which only
+ * means a few more (safe, idempotent) tries.
+ * @returns {Promise<{ tried: number, refundedPaise: number }>}
+ */
+export async function retryFailedRefunds() {
+  if (!razorpayEnabled) return { tried: 0, refundedPaise: 0 };
+  let tried = 0;
+  let refundedPaise = 0;
+  for (const o of rawOrders()) {
+    if (o.status !== 'CANCELLED') continue;
+    for (const pay of refundablePaymentsForOrder(o.id)) {
+      if (!pay.refundFailed) continue;
+      if (Number(pay.refundAttempts || 0) >= REFUND_MAX_ATTEMPTS) continue;
+      tried += 1;
+      refundedPaise += await refundGatewayPayment(o, pay, 'Order cancelled (retry)');
+    }
+  }
+  return { tried, refundedPaise };
+}
+const REFUND_MAX_ATTEMPTS = 12; // every 10 minutes → about two hours of retries
+if (!IS_TEST)
+  setInterval(
+    () =>
+      retryFailedRefunds().catch((e) =>
+        // eslint-disable-next-line no-console
+        console.error('[refund] retry pass failed', e?.message || e),
+      ),
+    10 * 60 * 1000,
+  ).unref();
 
 /**
  * Cancel an order: status → CANCELLED, request flag cleared, wallet refunded (idempotently), coupon
@@ -184,13 +230,36 @@ export function expirePendingOrders({
     });
   }
   for (const o of expired) {
+    if (
+      failUnpaidOrder(o, {
+        now,
+        reason: `Checkout timed out for ${o.orderNumber}, wallet returned`,
+      })
+    )
+      n += 1;
+  }
+  return n;
+}
+
+/**
+ * Give up on an order that was never paid: PAYMENT_FAILED, wallet returned, coupon released, basket
+ * put back. Shared by the 30-minute expiry above and by checkout itself when the gateway refuses to
+ * open a payment at all (review #3, 21 Nov 2026) — that order used to sit in "awaiting payment"
+ * holding the slot, the stock and the wallet money for half an hour while the customer saw an error.
+ *
+ * @param {{ id: string, orderNumber: string, customerId?: string, couponCode?: string }} o
+ * @param {{ now?: number, reason: string }} opts
+ * @returns {boolean} whether the order was failed by this call
+ */
+export function failUnpaidOrder(o, { now = Date.now(), reason }) {
+  {
     // A payment that is no longer CREATED means the gateway has it — authorised, captured, or
     // being argued over with a bank. Expiring that order would return the wallet leg and restore
     // the cart while the money is still in flight; the capture then lands on an order that no
     // longer wants it and becomes an orphan credit. A UPI collect or a 3DS page can easily sit
     // open past thirty minutes, so this is not a narrow race.
     const pay = paymentForOrder(o.id);
-    if (pay && pay.status !== 'CREATED') continue;
+    if (pay && pay.status !== 'CREATED') return false;
     let changed = false;
     const updated = patchOrder(o.id, (ord) => {
       // Re-assert inside the patch: the order may have been paid between selection and here.
@@ -199,13 +268,12 @@ export function expirePendingOrders({
       ord.timeline.push({ status: 'PAYMENT_FAILED', at: new Date(now).toISOString() });
       changed = true;
     });
-    if (!changed) continue;
-    refundOrderWallet(updated, `Checkout timed out for ${o.orderNumber}, wallet returned`);
+    if (!changed) return false;
+    refundOrderWallet(updated, reason);
     if (o.customerId && o.couponCode) releaseCoupon(o.customerId, o.couponCode);
     // The customer walked away mid-payment. Put the basket back for when they return.
     if (o.customerId) restoreCartFromOrder(o.customerId, updated);
-    n += 1;
+    return true;
   }
-  return n;
 }
-if (!IS_TEST) setInterval(() => expirePendingOrders(), 60 * 1000).unref();
+if (!IS_TEST) setInterval(() => isLeader() && expirePendingOrders(), 60 * 1000).unref();

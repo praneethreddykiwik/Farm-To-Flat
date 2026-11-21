@@ -18,6 +18,7 @@
  *   node scripts/preflight-update.mjs preview
  */
 import { execFileSync } from 'node:child_process';
+import { secretLookingPublicNames } from './public-env-names.mjs';
 
 const environment = process.argv[2];
 if (!environment) {
@@ -52,6 +53,10 @@ for (const line of raw.split('\n')) {
 }
 
 const problems = [];
+// An update inlines every EXPO_PUBLIC_* value into the bundle on the CDN (review #53).
+for (const name of secretLookingPublicNames(found.keys())) {
+  problems.push(`${name} looks like a secret, and EXPO_PUBLIC_* ships to every phone — remove it`);
+}
 for (const [name, valid] of Object.entries(REQUIRED)) {
   if (!found.has(name)) {
     problems.push(`${name} is MISSING from the "${environment}" environment`);

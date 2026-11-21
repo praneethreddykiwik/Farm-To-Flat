@@ -23,6 +23,8 @@ import { getOps, listOps, putOps, putOpsSoft, removeOps, opsReady } from '../ops
 import { deleteMealPhotos } from './storage.js';
 import { reportError } from './sentry.js';
 import { deleteTicketsOf } from './tickets.js';
+import { isLeader } from './leader.js';
+import { logSecurityEvent } from './security-log.js';
 
 export const GRACE_DAYS = 60;
 const DAY = 864e5;
@@ -93,6 +95,8 @@ export const deletionConsentsOf = (cid) =>
 export async function eraseAccountNow(cid) {
   const r = await deleteCustomerAccount(cid);
   if (!r.ok) return r;
+  // Kept for its year (DPDP Rule 8(3)): an internal id and the event, nothing that names anyone.
+  logSecurityEvent('ACCOUNT_ERASED', { customerId: cid });
   await deleteMealPhotos(r.mealPhotoKeys).catch((e) =>
     reportError(e, { scope: 'erasure', what: 'meal photos' }),
   );
@@ -184,6 +188,7 @@ let sweepTimer = null;
 export function startDeletionSweep(everyMs = 60 * 60e3) {
   if (sweepTimer) return sweepTimer;
   const run = () =>
+    isLeader() &&
     sweepDeletions().catch((e) => reportError(e, { scope: 'erasure', what: 'sweep' }));
   setTimeout(run, 60e3).unref?.();
   sweepTimer = setInterval(run, everyMs);

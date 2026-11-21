@@ -4,7 +4,7 @@
  * the Prisma tables replace; the shapes and rules mirror apps/customer/src/api/mock/server.js so the
  * app runs against this API unchanged (EXPO_PUBLIC_USE_MOCKS=0). Money is integer paise.
  */
-import { randomInt, createHash } from 'node:crypto';
+import { randomInt, createHash, timingSafeEqual } from 'node:crypto';
 import {
   adjustCouponRedemption,
   constants,
@@ -17,10 +17,12 @@ import { channelStatus, deliverOtp, msg91Enabled } from './lib/msg91.js';
 import { IS_PROD, IS_TEST } from './lib/env.js';
 import { findStaffByMobile } from './access-store.js';
 import { persist, drainChain } from './persistence.js';
+import { takeDaily } from './lib/spend-cap.js';
 import { putOpsSoft, removeOps } from './ops-store.js';
 import { deleteSubscriptionsForCustomer } from './demand-store.js';
 import { servingCommunity } from './lib/geo.js';
 import { reportError } from './lib/sentry.js';
+import { maskMobileForLog } from './lib/log-mask.js';
 import { priceBreakdown, taxRatesOf } from './lib/charges.js';
 import { proxyImageUrl } from './lib/public-image.js';
 import { productName } from './lib/i18n.js';
@@ -33,6 +35,8 @@ const cs = {
   otp: new Map(),
   /** mobile -> [timestamps] — OTP request rate limiter */
   otpRate: new Map(),
+  /** mobile -> timestamps of WRONG codes in the last hour (survives a fresh code request) */
+  otpFails: new Map(),
   /** customerId -> customer */
   customers: new Map(),
   /** mobile -> customerId */
@@ -58,6 +62,13 @@ const cs = {
   /** paymentId -> { purpose, orderId?, amountPaise, status, razorpayOrderId, customerId } */
   payments: new Map(),
 };
+
+/** How many entries each in-memory customer map holds — counts only, no copies (review #16). */
+export function customerStoreSizes() {
+  const out = {};
+  for (const [name, v] of Object.entries(cs)) if (v instanceof Map) out[name] = v.size;
+  return out;
+}
 
 const cart = (cid) =>
   cs.carts.get(cid) || cs.carts.set(cid, { items: [], couponCode: null }).get(cid);
@@ -357,6 +368,16 @@ export async function requestOtp(mobile) {
         },
       };
     }
+    // A ceiling on the day's paid sends (review #32): per-number and per-IP limits can be spread
+    // across many numbers and addresses; this cannot.
+    if (!takeDaily('otp'))
+      return {
+        error: {
+          status: 503,
+          code: 'OTP_DAILY_LIMIT',
+          message: "We can't send more codes right now. Please try again in a little while.",
+        },
+      };
     try {
       await deliverOtp({ mobile, otp }); // WhatsApp, with SMS only if enabled as a fallback
     } catch {
@@ -383,7 +404,8 @@ export async function requestOtp(mobile) {
   // only the operator sees it.
   if (IS_PROD) {
     // eslint-disable-next-line no-console
-    console.error(`[otp] dev code for allowlisted ${mobile}: ${DEV_OTP}`);
+    // Masked (review #37, 21 Nov 2026): the operator matches it by the ends of the number.
+    console.error(`[otp] dev code for allowlisted ${maskMobileForLog(mobile)}: ${DEV_OTP}`);
     return { ok: true, expiresInSeconds: 300 };
   }
   return { ok: true, expiresInSeconds: 300, devOtp: DEV_OTP };
@@ -402,8 +424,47 @@ export async function requestOtp(mobile) {
  * @returns {StoreResult<{ ok: true }>}
  */
 export function checkOtpOnly(mobile, otp) {
+  return checkCode(mobile, otp);
+}
+
+const OTP_MAX_ATTEMPTS = 3;
+const OTP_FAILS_PER_HOUR = 10;
+const LOCKED = {
+  error: {
+    status: 423,
+    code: 'OTP_LOCKED',
+    message: 'Too many attempts. Wait a few minutes and try again.',
+  },
+};
+
+/** Equal-length, constant-time comparison of two short codes. */
+function sameCode(a, b) {
+  const x = Buffer.from(String(a ?? ''));
+  const y = Buffer.from(String(b ?? ''));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/**
+ * The one place a login / change-number / deletion code is checked.
+ *
+ * Review #22 (21 Nov 2026): the old check compared the code BEFORE looking at the attempt count and
+ * never removed the record, so "3 wrong guesses" locked nothing — guess 4, 50 or 500 still signed
+ * in if it was right. Now:
+ *   - a locked code is refused before it is compared, and the record is dropped, so the only way on
+ *     is a NEW code (which the per-number request limit already caps);
+ *   - wrong guesses are also counted per number for an hour, across fresh codes, so requesting a
+ *     new code does not reset the guessing budget.
+ * @returns {StoreResult<{ ok: true }>}
+ */
+function checkCode(mobile, otp) {
+  const now = Date.now();
+  const fails = (cs.otpFails.get(mobile) || []).filter((t) => now - t < 60 * 60 * 1000);
+  if (fails.length >= OTP_FAILS_PER_HOUR) {
+    cs.otp.delete(mobile);
+    return LOCKED;
+  }
   const rec = cs.otp.get(mobile);
-  if (!rec || Date.now() > rec.expiresAt)
+  if (!rec || now > rec.expiresAt)
     return {
       error: {
         status: 401,
@@ -411,21 +472,23 @@ export function checkOtpOnly(mobile, otp) {
         message: 'That code has expired. Request a new one.',
       },
     };
-  if (otp !== rec.otp) {
+  if (rec.attempts >= OTP_MAX_ATTEMPTS) {
+    cs.otp.delete(mobile);
+    return LOCKED;
+  }
+  if (!sameCode(otp, rec.otp)) {
     rec.attempts += 1;
-    if (rec.attempts >= 3)
-      return {
-        error: {
-          status: 423,
-          code: 'OTP_LOCKED',
-          message: 'Too many attempts. Wait a few minutes and try again.',
-        },
-      };
+    fails.push(now);
+    cs.otpFails.set(mobile, fails);
+    if (rec.attempts >= OTP_MAX_ATTEMPTS) {
+      cs.otp.delete(mobile);
+      return LOCKED;
+    }
     return {
       error: {
         status: 401,
         code: 'OTP_INVALID',
-        message: `That code is not right. ${3 - rec.attempts} attempts left.`,
+        message: `That code is not right. ${OTP_MAX_ATTEMPTS - rec.attempts} attempts left.`,
       },
     };
   }
@@ -471,37 +534,10 @@ export function changeCustomerMobile(customerId, newMobile) {
   return { ok: true, customer };
 }
 
+/** @returns {StoreResult<{ ok: true, customer: any, isNew: boolean }>} */
 export function verifyOtp(mobile, otp) {
-  const rec = cs.otp.get(mobile);
-  if (!rec || Date.now() > rec.expiresAt) {
-    return {
-      error: {
-        status: 401,
-        code: 'OTP_INVALID',
-        message: 'That code has expired. Request a new one.',
-      },
-    };
-  }
-  if (otp !== rec.otp) {
-    rec.attempts += 1;
-    if (rec.attempts >= 3) {
-      return {
-        error: {
-          status: 423,
-          code: 'OTP_LOCKED',
-          message: 'Too many attempts. Wait a few minutes and try again.',
-        },
-      };
-    }
-    return {
-      error: {
-        status: 401,
-        code: 'OTP_INVALID',
-        message: `That code is not right. ${3 - rec.attempts} attempts left.`,
-      },
-    };
-  }
-  cs.otp.delete(mobile);
+  const checked = checkCode(mobile, otp);
+  if (checked.error) return { error: checked.error };
   let customerId = cs.byMobile.get(mobile);
   const isNew = !customerId;
   if (!customerId) {
@@ -538,17 +574,49 @@ const MAX_SESSIONS_PER_CUSTOMER = 10; // phones + tablets; oldest are dropped be
 // once (their raw values were stored pre-migration), so every customer re-logs in a single time.
 const hashRefresh = (token) => createHash('sha256').update(String(token)).digest('hex');
 
-export function issueTokens(customerId) {
+/**
+ * Refresh-token reuse detection (review #31, 21 Nov 2026).
+ *
+ * Every sign-in starts a FAMILY; each rotation hands its family on to the new token. A token that
+ * has been rotated out is remembered here (hash → family), so if it is presented again we know a
+ * copy of it exists somewhere other than the phone that rotated it — and we end that family, not
+ * just refuse the one request. Scoped to the family, never to the customer: their other phones
+ * are other families and are not touched.
+ *
+ * The grace window is for the app's own race (review #40): two requests can fire a refresh with
+ * the same token at once. The loser presents a token the winner rotated a moment ago. Inside the
+ * window that is refused exactly as before (401 for that request) and nothing is revoked, so a
+ * normal parallel refresh never signs anyone out of the session the winner just received.
+ *
+ * Memory only. After a restart the list is empty and detection resumes for rotations from then on;
+ * a family carried over from the database is named after its token's hash.
+ */
+export const REFRESH_REUSE_GRACE_MS = 30_000;
+const RETIRED_KEEP_MS = 30 * 864e5;
+const retiredRefresh = new Map(); // refresh hash → { family, customerId, at, expiresAt }
+
+function revokeRefreshFamily(family) {
+  for (const [key, rec] of cs.refresh)
+    if ((rec.family || key) === family) {
+      cs.refresh.delete(key);
+      persist.sessionDelete(key);
+    }
+  for (const [tok, s] of cs.sessions) if (s.family === family) cs.sessions.delete(tok);
+  for (const [key, r] of retiredRefresh) if (r.family === family) retiredRefresh.delete(key);
+}
+
+export function issueTokens(customerId, family = `fam_${shortId(16)}`) {
   const accessToken = `acc_${shortId(20)}`;
   const refreshToken = `ref_${shortId(28)}`;
   cs.sessions.set(accessToken, {
     customerId,
     refreshToken,
+    family,
     expiresAt: Date.now() + ACCESS_TTL_MS,
   });
   const refreshExpiresAt = Date.now() + REFRESH_TTL_MS;
   const refreshKey = hashRefresh(refreshToken); // store the hash, hand the raw token to the client
-  cs.refresh.set(refreshKey, { customerId, expiresAt: refreshExpiresAt });
+  cs.refresh.set(refreshKey, { customerId, expiresAt: refreshExpiresAt, family });
   persist.sessionUpsert(refreshKey, customerId, refreshExpiresAt);
   // cap live sessions per customer (oldest first)
   const mine = [...cs.sessions.entries()].filter(([, s]) => s.customerId === customerId);
@@ -595,12 +663,24 @@ export function sweepAuthState(now = Date.now()) {
       persist.sessionDelete(tok);
       removed += 1;
     }
+  for (const [key, r] of retiredRefresh)
+    if (now > r.expiresAt) {
+      retiredRefresh.delete(key);
+      removed += 1;
+    }
   for (const [mobile, hits] of cs.otpRate) {
     const live = hits.filter((t) => now - t < 10 * 60 * 1000);
     if (live.length === 0) {
       cs.otpRate.delete(mobile);
       removed += 1;
     } else if (live.length !== hits.length) cs.otpRate.set(mobile, live);
+  }
+  for (const [mobile, fails] of cs.otpFails) {
+    const live = fails.filter((t) => now - t < 60 * 60 * 1000);
+    if (live.length === 0) {
+      cs.otpFails.delete(mobile);
+      removed += 1;
+    } else if (live.length !== fails.length) cs.otpFails.set(mobile, live);
   }
   return removed;
 }
@@ -609,7 +689,16 @@ if (!IS_TEST) setInterval(() => sweepAuthState(), 10 * 60 * 1000).unref();
 export function rotateRefresh(refreshToken) {
   const refreshKey = hashRefresh(refreshToken); // the raw token is only ever compared by its hash
   const rec = cs.refresh.get(refreshKey);
-  if (!rec) return null;
+  if (!rec) {
+    const retired = retiredRefresh.get(refreshKey);
+    // Replayed after the grace window: someone else holds a copy. End that family (review #31).
+    if (retired && Date.now() - retired.at > REFRESH_REUSE_GRACE_MS) {
+      revokeRefreshFamily(retired.family);
+      // eslint-disable-next-line no-console
+      console.error('[auth] refresh token reused after rotation — that session family revoked.');
+    }
+    return null;
+  }
   // Enforce the refresh lifetime: an expired token is rejected and cleared, not rotated into a
   // fresh pair. Without this a leaked refresh token stays usable forever.
   if (rec.expiresAt && Date.now() > rec.expiresAt) {
@@ -618,11 +707,19 @@ export function rotateRefresh(refreshToken) {
     return null;
   }
   const { customerId } = rec;
+  const family = rec.family || refreshKey;
   cs.refresh.delete(refreshKey);
   persist.sessionDelete(refreshKey);
+  const now = Date.now();
+  retiredRefresh.set(refreshKey, {
+    family,
+    customerId,
+    at: now,
+    expiresAt: Math.min(rec.expiresAt || now + RETIRED_KEEP_MS, now + RETIRED_KEEP_MS),
+  });
   // drop old access tokens for this refresh
   for (const [tok, s] of cs.sessions) if (s.refreshToken === refreshToken) cs.sessions.delete(tok);
-  return { customerId, ...issueTokens(customerId) };
+  return { customerId, ...issueTokens(customerId, family) };
 }
 
 export function logout(customerId) {
@@ -860,13 +957,14 @@ export function deleteAddress(cid, addrId) {
 }
 
 // ── coupons ───────────────────────────────────────────────────────────────────
+/**
+ * Money off for a coupon. FREE_ITEM is 0 here: its gift is a ₹0 LINE (evaluateCoupon → freeLine),
+ * not money. It used to take the product's price off instead, so the customer paid less and the
+ * coriander the coupon promised never arrived (review #6, 21 Nov 2026).
+ */
 export function couponDiscount(c, subtotal) {
   if (c.type === 'PERCENT') return Math.round((subtotal * c.valueBp) / 10000);
   if (c.type === 'FLAT') return Math.min(subtotal, c.valuePaise);
-  if (c.type === 'FREE_ITEM') {
-    const p = getProduct(c.freeProductId);
-    return p ? p.pricePaise : 0;
-  }
   return 0;
 }
 
@@ -918,6 +1016,38 @@ export function validateCoupon(cid, code, subtotal) {
       },
     };
   return { coupon: c };
+}
+
+/**
+ * THE coupon evaluator — the cart preview (priceCart) and checkout (POST /orders) both call this,
+ * so the basket can never show a coupon that checkout then refuses, or a discount checkout does not
+ * give. Review #6 (21 Nov 2026): the preview looked the code up and priced it with no checks at all
+ * (expired, switched off, already used, cap reached, minimum not met), while checkout ran them.
+ *
+ * @returns {StoreResult<{ coupon: any, discountPaise: number,
+ *   freeLine: { productId: string, quantity: number, name: string } | null }>}
+ */
+export function evaluateCoupon(cid, code, subtotal) {
+  const r = validateCoupon(cid, code, subtotal);
+  if (r.error) return { error: r.error };
+  const c = r.coupon;
+  if (c.type === 'FREE_ITEM') {
+    const p = getProduct(c.freeProductId);
+    // A gift we cannot pack is a promise we cannot keep — say so before the order, not at the door.
+    if (!p || p.isActive === false || (p.availability && p.availability !== 'AVAILABLE'))
+      return {
+        error: {
+          status: 409,
+          code: 'COUPON_ITEM_UNAVAILABLE',
+          message:
+            'The free item on this code is not available right now. Remove the code to continue.',
+        },
+      };
+    // One of the product's own steps (a bunch, a piece, 250 g) — the smallest thing we sell of it.
+    const quantity = Number(p.increment) > 0 ? Number(p.increment) : 1;
+    return { coupon: c, discountPaise: 0, freeLine: { productId: p.id, quantity, name: p.name } };
+  }
+  return { coupon: c, discountPaise: couponDiscount(c, subtotal), freeLine: null };
 }
 
 export function redeemCoupon(cid, code) {
@@ -974,12 +1104,36 @@ export function priceCart(cid) {
   const subtotal = items.reduce((s, i) => s + Number(i.lineTotalPaise), 0);
   let coupon = null;
   let discount = 0;
+  let freeItem = null;
+  let couponError = null;
   if (cur.couponCode) {
-    const c = listCoupons().find((x) => x.code === cur.couponCode);
-    if (c) {
-      discount = couponDiscount(c, subtotal);
-      coupon = { code: c.code, type: c.type, label: c.label, discountPaise: String(discount) };
+    // The same evaluator checkout uses (evaluateCoupon). A code that checkout would refuse stays
+    // visible — so the customer can see it and remove it — but takes nothing off, and says why.
+    const ev = evaluateCoupon(cid, cur.couponCode, subtotal);
+    const c = ev.coupon || listCoupons().find((x) => x.code === cur.couponCode);
+    if (ev.error) couponError = { code: ev.error.code, message: ev.error.message };
+    else {
+      discount = ev.discountPaise;
+      if (ev.freeLine) {
+        const p = getProduct(ev.freeLine.productId);
+        freeItem = {
+          productId: p.id,
+          name: p.name,
+          unit: p.unit,
+          quantity: ev.freeLine.quantity.toFixed(3),
+          image: proxyImageUrl(p.image),
+          valuePaise: String(Math.round(p.pricePaise * ev.freeLine.quantity)),
+        };
+      }
     }
+    if (c)
+      coupon = {
+        code: c.code,
+        type: c.type,
+        label: c.label,
+        discountPaise: String(discount),
+        ...(couponError ? { error: couponError } : {}),
+      };
   }
   // Launch offer (lib/launch-offer.js) — only when no coupon is applied: one discount per order.
   let offer = null;
@@ -1020,6 +1174,10 @@ export function priceCart(cid) {
     minOrderValuePaise: String(k.minOrderValuePaise),
     meetsMinimum: subtotal >= k.minOrderValuePaise,
     coupon,
+    /** Why the applied code takes nothing off — checkout refuses it with this same error. */
+    couponError,
+    /** A FREE_ITEM coupon's gift: added to the order as a ₹0 line. */
+    freeItem,
     walletBalancePaise: String(wallet(cid).balancePaise),
   };
 }
@@ -1206,6 +1364,21 @@ export function createPayment(cid, { purpose, orderId, amountPaise }) {
   return payment;
 }
 export const getPayment = (paymentId) => cs.payments.get(paymentId) || null;
+/**
+ * Record the order id Razorpay issued for this intent AND write it to the database.
+ *
+ * createPayment persists a placeholder (`order_xxx`) before the gateway call. Setting the real id on
+ * the in-memory object alone (what the routes used to do) left the placeholder in Postgres: after a
+ * restart the webhook and the reconcile sweep look payments up by Razorpay's order id and found
+ * nothing, so a customer who had paid stayed "awaiting payment" (review #1, 21 Nov 2026).
+ */
+export function setGatewayOrderId(payment, razorpayOrderId) {
+  payment.razorpayOrderId = razorpayOrderId;
+  persist.paymentUpsert(payment);
+  return payment;
+}
+/** Every payment intent (a copy of the list, not the objects). For sweeps that look across them. */
+export const listPayments = () => [...cs.payments.values()];
 /** Find a payment from Razorpay's order id — the only handle the webhook has. */
 export function paymentByRazorpayOrderId(razorpayOrderId) {
   if (!razorpayOrderId) return null;
@@ -1269,9 +1442,25 @@ export const savePayment = (payment) => persist.paymentUpsert(payment);
 export function registerDevice(cid, token) {
   const set = cs.devices.get(cid) || cs.devices.set(cid, new Set()).get(cid);
   if (token) {
+    // One phone, one account. The database row already MOVES to the new account (upsert on the
+    // token), but the in-memory copy kept it under the previous account too — so whoever signed in
+    // on this phone before kept receiving their order updates on it (review #42, 21 Nov 2026).
+    for (const [other, tokens] of cs.devices) if (other !== cid) tokens.delete(token);
     set.add(token);
     persist.deviceUpsert(cid, token);
   }
+}
+/**
+ * Stop sending this customer's notifications to this phone (they signed out on it).
+ * Only removes the token if it is registered to THIS customer — a sign-out must not be able to
+ * unregister someone else's phone.
+ */
+export function unregisterDevice(cid, token) {
+  const set = cs.devices.get(cid);
+  if (!token || !set?.has(token)) return false;
+  set.delete(token);
+  persist.deviceDelete(cid, token);
+  return true;
 }
 /** A customer's registered Expo push tokens (for the push sender). */
 export const getDevices = (cid) => [...(cs.devices.get(cid) || [])];

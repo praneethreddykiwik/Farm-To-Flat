@@ -51,4 +51,6 @@ export const KV_KEYS = {
   lastCommunity: 'ui.lastCommunity',
   plan: 'plan.v1',
   language: 'ui.language',
+  /** Notification taps already acted on (lib/notificationDedup.js, review #47). Ids only. */
+  handledNotifications: 'notif.handled.v1',
 };

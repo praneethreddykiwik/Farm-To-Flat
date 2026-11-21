@@ -7,6 +7,7 @@
 import { IS_TEST } from './env.js';
 import { expireMealPhotos } from '../customer-store.js';
 import { deleteMealPhotos } from './storage.js';
+import { isLeader } from './leader.js';
 
 const DAY_MS = 86400000;
 
@@ -27,6 +28,7 @@ export async function sweepMealPhotos(days, now = new Date()) {
 export function startMealRetention(days) {
   if (IS_TEST) return;
   const run = () =>
+    isLeader() &&
     sweepMealPhotos(days).catch((e) =>
       // eslint-disable-next-line no-console
       console.error('[meals] photo retention sweep failed:', e?.message || e),

@@ -6,6 +6,7 @@
  * The client result is ADVISORY. The server's webhook is the only thing that moves money.
  */
 import { env } from './env';
+import { choosePaymentPath, simulatorAllowed } from './paymentPath';
 
 let RazorpayCheckout = null;
 try {
@@ -28,6 +29,26 @@ try {
  * it gives it by returning a key id on the payment intent.
  */
 export const razorpayAvailable = !!RazorpayCheckout && !env.isExpoGo && !env.useMocks;
+
+/**
+ * The simulated sheet exists for development and the mock server only (review #46, 21 Nov 2026).
+ * PaymentSimulator renders nothing when this is false, so no screen can present it by mistake.
+ */
+export const canSimulatePayment = simulatorAllowed({ isDev: __DEV__, useMocks: env.useMocks });
+
+/**
+ * 'native' | 'simulated' | 'unavailable' for a payment intent — the one rule every pay screen uses
+ * (lib/paymentPath.js). 'unavailable' means show an error; never fake a success.
+ * @param {any} intent
+ */
+export function paymentPathFor(intent) {
+  return choosePaymentPath({
+    intent,
+    nativeAvailable: razorpayAvailable,
+    isDev: __DEV__,
+    useMocks: env.useMocks,
+  });
+}
 
 /**
  * The key id comes from the PAYMENT INTENT, not from this bundle.
@@ -70,4 +91,35 @@ export function openRazorpay(intent) {
     prefill: { contact: intent.contact, name: intent.name },
     theme: { color: '#1E7A4C' },
   });
+}
+
+/**
+ * What a rejected checkout sheet actually means (review #3, 21 Nov 2026).
+ *
+ * Every rejection used to be shown as "you cancelled the payment" and reported to the server as a
+ * failure. Three different things reach this catch:
+ *   - 'cancelled' — the customer closed the sheet (SDK code 2 / PAYMENT_CANCELLED);
+ *   - 'failed'    — the bank or UPI app declined it; the customer should hear that, not "cancelled";
+ *   - 'unknown'   — the network dropped mid-payment (code 0) or anything else. The money MAY have
+ *     been taken, so the order must NOT be marked failed from here: the server's webhook and
+ *     reconcile settle it, and the customer is taken to the order to see its real state.
+ *
+ * @param {any} e
+ * @returns {'cancelled'|'failed'|'unknown'}
+ */
+export function classifyGatewayError(e) {
+  const code = e?.code;
+  let desc = e?.description ?? e?.message ?? '';
+  let reason = '';
+  if (typeof desc === 'string' && desc.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(desc);
+      reason = String(parsed?.error?.reason || '');
+      desc = String(parsed?.error?.description || '');
+    } catch {}
+  }
+  const text = `${reason} ${desc}`.toLowerCase();
+  if (code === 2 || code === 'PAYMENT_CANCELLED' || /cancel/.test(text)) return 'cancelled';
+  if (/payment_failed|declin|failed|insufficient/.test(text)) return 'failed';
+  return 'unknown';
 }

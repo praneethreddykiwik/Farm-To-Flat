@@ -31,7 +31,7 @@ import {
   windowLabel,
 } from '../../src/lib/dates';
 import { idempotencyKey } from '../../src/lib/ids';
-import { openRazorpay, razorpayAvailable } from '../../src/lib/razorpay';
+import { classifyGatewayError, openRazorpay, paymentPathFor } from '../../src/lib/razorpay';
 import { haptic } from '../../src/lib/haptics';
 import { notifyLocal } from '../../src/lib/notifications';
 import { colors, radius } from '../../src/theme';
@@ -182,8 +182,10 @@ export default function ConfirmDay() {
         haptic.error();
         dispatch(
           showToast({
-            title: 'Payment not completed',
-            message: 'Nothing was charged.',
+            title: result.declined ? 'Payment declined' : 'Payment not completed',
+            message: result.declined
+              ? 'Your bank or UPI app declined it. Nothing was charged.'
+              : 'Nothing was charged.',
             tone: 'error',
           }),
         );
@@ -263,7 +265,10 @@ export default function ConfirmDay() {
         return;
       }
       setIntent(res.paymentIntent);
-      if (razorpayAvailable) {
+      // Review #46 (21 Nov 2026): this fell through to the simulated sheet in a production build
+      // whenever the SDK was missing. Shared rule: lib/paymentPath.js.
+      const path = paymentPathFor(res.paymentIntent);
+      if (path === 'native') {
         try {
           const r = await openRazorpay({
             ...res.paymentIntent,
@@ -276,11 +281,40 @@ export default function ConfirmDay() {
             razorpayOrderId: r.razorpay_order_id,
             signature: r.razorpay_signature,
           });
-        } catch {
-          await settle(res.paymentIntent, { success: false });
+        } catch (gatewayError) {
+          const kind = classifyGatewayError(gatewayError);
+          if (kind === 'unknown') {
+            // Connection dropped mid-payment — the money may have gone; let the server settle it
+            // instead of marking the order failed from here (review #3).
+            haptic.warning();
+            dispatch(
+              showToast({
+                title: 'Checking your payment',
+                message: 'If money left your account, this order confirms in a few minutes.',
+                tone: 'neutral',
+              }),
+            );
+            setIntent(null);
+            setBusy(false);
+            if (res.order?.id)
+              router.replace({ pathname: '/order/[id]', params: { id: res.order.id } });
+            return;
+          }
+          await settle(res.paymentIntent, { success: false, declined: kind === 'failed' });
         }
-      } else {
+      } else if (path === 'simulated') {
         setTimeout(() => simSheet.current?.present(), 200);
+      } else {
+        haptic.error();
+        setIntent(null);
+        setBusy(false);
+        dispatch(
+          showToast({
+            title: 'Couldn’t start the payment',
+            message: 'Nothing was charged. Please try again shortly.',
+            tone: 'error',
+          }),
+        );
       }
     } catch (e) {
       haptic.error();

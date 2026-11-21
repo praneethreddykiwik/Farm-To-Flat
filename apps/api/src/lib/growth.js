@@ -23,6 +23,7 @@ import { getCustomer, getCustomerIdByMobile, ledgerPush } from '../customer-stor
 import { track } from './events.js';
 import { emitNotification } from './notify.js';
 import { isErased } from './customer-history.js';
+import { istMonthOf } from './dates.js';
 
 export const HEARD_FROM = {
   COUNTER: 'A Fooducia stall in my community',
@@ -266,7 +267,9 @@ export function trackOrderPlaced(order) {
   );
 }
 
-const monthOf = (iso) => String(iso || '').slice(0, 7);
+// The referral monthly cap counts by IST calendar month; slicing the UTC string put rewards paid
+// between 00:00 and 05:30 IST on the 1st into the previous month (review #19, 21 Nov 2026).
+const monthOf = istMonthOf;
 
 /**
  * Pay the inviter once the invited customer's first order arrives. Safe to call on every DELIVERED
