@@ -30,6 +30,7 @@ const SECTIONS = (CONTACT) => [
       'Under India’s Digital Personal Data Protection Act, 2023 (the “DPDP Act”) and the Digital Personal Data Protection Rules, 2025, Fooducia is the “Data Fiduciary” that decides how and why your personal data is processed, and you are the “Data Principal”. This policy also follows the Information Technology Act, 2000 and the Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011 (the “SPDI Rules”).',
       `${ENTITY} runs other products as well. Your Fooducia data is used only to run Fooducia; we do not use it to market Kiwik’s other products to you.`,
       'This policy explains what personal data the Service collects, why, who we share it with, where it is stored, how long we keep it, how we protect it, and the rights and choices you have.',
+      'This notice is available in English, हिन्दी (Hindi) and తెలుగు (Telugu): choose your language at the top of this page. If the versions ever differ, the English version applies.',
     ],
   },
   {
@@ -63,6 +64,10 @@ const SECTIONS = (CONTACT) => [
       'We collect only what a feature needs (data minimisation). Each item below says what it is and what it is for:',
     ],
     list: [
+      [
+        'Your consent',
+        'when you create an account you tick that you have read this notice and that you are 18 or older; we record which version you agreed to and when. Customers who joined earlier are asked once, in the app.',
+      ],
       [
         'Mobile number',
         'to create your account and sign you in with a one-time password (OTP), and to reach you about your orders. The OTP is sent over WhatsApp, or by SMS where available. The app does not read your SMS inbox.',
@@ -292,6 +297,14 @@ const SECTIONS = (CONTACT) => [
       ],
       ['Sign-in', 'you stay signed in for up to 90 days of inactivity on a phone.'],
       [
+        'Security record',
+        'a record of sign-ins (successful and failed), changes to your account, consents you give, and staff access to your data — with your mobile number partly hidden — kept for one year from each event and then deleted, as the DPDP Rules require, so misuse can be detected and investigated. This record is kept for that year even if you delete your account sooner.',
+      ],
+      [
+        'Your consent record',
+        'which version of this notice you agreed to, that you confirmed you are 18 or older, and when; kept while your account is open and for as long as the law requires afterwards, as proof of your consent.',
+      ],
+      [
         'Technical records and crash reports',
         'kept for a limited period by our hosting and crash-reporting providers, and for longer only when needed to investigate a security incident.',
       ],
@@ -362,7 +375,7 @@ const SECTIONS = (CONTACT) => [
   {
     h: '15. Children',
     p: [
-      'The Service is meant for adults (18 and over) who place grocery orders for their homes. Under the DPDP Act a “child” is anyone under 18. We do not knowingly collect a child’s personal data without verifiable consent from a parent or lawful guardian, and we never track children or direct advertising at them. If you believe a child has given us personal data, contact us and we will delete it.',
+      'The Service is meant for adults (18 and over) who place grocery orders for their homes. When you create an account we ask you to confirm that you are 18 or older. Under the DPDP Act a “child” is anyone under 18. We do not knowingly collect a child’s personal data without verifiable consent from a parent or lawful guardian, and we never track children or direct advertising at them. If you believe a child has given us personal data, contact us and we will delete it.',
     ],
   },
   {
