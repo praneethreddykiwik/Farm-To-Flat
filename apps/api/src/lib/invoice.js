@@ -47,6 +47,29 @@ export function sellerDetails() {
   };
 }
 
+/**
+ * The seller address as one tidy paragraph. SELLER_ADDRESS is often pasted straight from the GST
+ * registration ("Building No./Flat No.: Plot No.753", "Road/Street: …", one per line). Printed as-is
+ * those lines ran past the green rule under the header (21 Nov 2026). Here each part loses its form
+ * label, repeats are dropped, and the parts join with commas so the text wraps in its own column.
+ */
+export function compactAddress(address) {
+  if (!address) return null;
+  const seen = new Set();
+  const parts = String(address)
+    .split(/\r?\n|\\n/)
+    .map((line) => line.trim())
+    .map((line) => line.replace(/^[A-Za-z][A-Za-z ./]*:\s*/, '').trim())
+    .map((line) => line.replace(/,$/, '').trim())
+    .filter((line) => {
+      const key = line.toLowerCase();
+      if (!line || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return parts.length ? parts.join(', ') : null;
+}
+
 const rs = (paise) =>
   `Rs. ${(Number(paise || 0) / 100).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
@@ -128,7 +151,7 @@ export function buildInvoicePdf(order) {
     // seller identity just under the logo
     const sellerLines = [
       seller.legalName && seller.legalName !== 'Fooducia' ? `Sold by ${seller.legalName}` : null,
-      seller.address,
+      compactAddress(seller.address),
       [
         seller.gstin ? `GSTIN: ${seller.gstin}` : null,
         seller.fssai ? `FSSAI: ${seller.fssai}` : null,
@@ -136,15 +159,17 @@ export function buildInvoicePdf(order) {
         .filter(Boolean)
         .join('    '),
     ].filter(Boolean);
+    // Measured, not counted: an address wraps onto several lines, and the green rule must sit
+    // below the last of them.
+    let sellerBottom = 98;
     if (sellerLines.length) {
-      doc
-        .font('Helvetica')
-        .fontSize(8.5)
-        .fillColor(MUT)
-        .text(sellerLines.join('\n'), L, 98, { width: W * 0.62, lineGap: 1.5 });
+      const opts = { width: W * 0.62, lineGap: 1.5 };
+      const text = sellerLines.join('\n');
+      doc.font('Helvetica').fontSize(8.5).fillColor(MUT).text(text, L, 98, opts);
+      sellerBottom = 98 + doc.heightOfString(text, opts);
     }
 
-    let y = 100 + Math.max(sellerLines.length, 1) * 12 + 12;
+    let y = Math.max(sellerBottom, 112) + 12;
     doc.rect(L, y, W, 2).fill(BRAND);
     y += 18;
 

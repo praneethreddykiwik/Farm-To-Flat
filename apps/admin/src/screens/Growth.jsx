@@ -43,7 +43,7 @@ import logoFull from '../assets/fooducia-logo-full.png';
 
 const TABS = [
   { key: 'promoters', label: 'Promoters' },
-  { key: 'referrals', label: 'Referrals' },
+  { key: 'referrals', label: 'Neighbour invites' },
   { key: 'waitlist', label: 'Waitlist' },
   { key: 'settings', label: 'Settings' },
 ];
@@ -74,7 +74,12 @@ export function Growth() {
       <SetupBanner />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === 'promoters' && <Promoters />}
-      {tab === 'referrals' && <Referrals />}
+      {tab === 'referrals' && (
+        <>
+          <InviteRewards />
+          <Referrals />
+        </>
+      )}
       {tab === 'waitlist' && <Waitlist />}
       {tab === 'settings' && <GrowthSettings />}
     </>
@@ -985,9 +990,17 @@ function WaitlistDrawer({ item, communities, onClose, onSaved }) {
   );
 }
 
-// ── settings ────────────────────────────────────────────────────────────────
+// ── invite rewards ──────────────────────────────────────────────────────────
 
-function GrowthSettings() {
+/**
+ * The neighbour-invite reward, on the same tab as the list of invites (21 Nov 2026: the owner
+ * looked for it there; it used to sit in Settings). Saves only these four fields.
+ *
+ * How the money works, said on the card so nobody has to ask: the reward is wallet credit, a
+ * discount Fooducia funds. No money moves through Razorpay when it is paid. When the customer spends
+ * it, Razorpay simply collects that much less for the order.
+ */
+function InviteRewards() {
   const { data, error, reload } = useResource('/admin/growth/settings');
   const s = data?.settings;
   const [f, setF] = useState(/** @type {any} */ (null));
@@ -998,6 +1011,122 @@ function GrowthSettings() {
         referralEnabled: !!s.referralEnabled,
         referrer: rupeeInput(s.referrerRewardPaise),
         referee: rupeeInput(s.refereeRewardPaise),
+        cap: String(s.referralMonthlyCap ?? 20),
+      });
+  }, [s]);
+
+  async function save() {
+    const referrerRewardPaise = paiseFrom(f.referrer);
+    const refereeRewardPaise = paiseFrom(f.referee);
+    const referralMonthlyCap = Number(f.cap);
+    if (referrerRewardPaise == null || referrerRewardPaise > 100000)
+      return toast('Enter the inviter’s reward in rupees, up to ₹1,000.', 'err');
+    if (refereeRewardPaise == null || refereeRewardPaise > 100000)
+      return toast('Enter the welcome credit in rupees, up to ₹1,000 (0 for none).', 'err');
+    if (!Number.isInteger(referralMonthlyCap) || referralMonthlyCap < 1 || referralMonthlyCap > 500)
+      return toast('The monthly limit is a whole number from 1 to 500.', 'err');
+    setBusy(true);
+    try {
+      await api.put('/admin/growth/settings', {
+        referralEnabled: f.referralEnabled,
+        referrerRewardPaise,
+        refereeRewardPaise,
+        referralMonthlyCap,
+      });
+      toast('Invite rewards saved');
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not save the invite rewards', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (error) return <ErrorNote error={error} onRetry={reload} />;
+  if (!f)
+    return (
+      <div className="glass card" style={{ marginBottom: 16 }}>
+        <TableSkeleton rows={2} />
+      </div>
+    );
+  const give = Number(f.referee) || 0;
+  const get = Number(f.referrer) || 0;
+  return (
+    <div className="glass card reveal" style={{ marginBottom: 16 }}>
+      <div className="card__head">
+        <h2 className="card__title">Invite rewards</h2>
+        <span className="field__hint" style={{ margin: 0 }}>
+          The app shows: “
+          {give > 0 ? `Give ₹${give}, get ₹${get}` : `Get ₹${get} for every neighbour`}”
+        </span>
+      </div>
+      <label className="check" style={{ marginBottom: 14 }}>
+        <input
+          type="checkbox"
+          checked={f.referralEnabled}
+          onChange={(e) => setF((x) => ({ ...x, referralEnabled: e.target.checked }))}
+        />
+        Invites are on: customers can share their code with neighbours
+      </label>
+      <div className="field__row">
+        <div className="field">
+          <label className="field__label">Reward to the inviter (₹)</label>
+          <input
+            className="field__input"
+            inputMode="decimal"
+            value={f.referrer}
+            onChange={(e) => setF((x) => ({ ...x, referrer: num(e.target.value, { max: 1000 }) }))}
+          />
+          <p className="field__hint">Paid once the new customer’s first order is delivered.</p>
+        </div>
+        <div className="field">
+          <label className="field__label">Welcome credit for the new customer (₹)</label>
+          <input
+            className="field__input"
+            inputMode="decimal"
+            value={f.referee}
+            onChange={(e) => setF((x) => ({ ...x, referee: num(e.target.value, { max: 1000 }) }))}
+          />
+          <p className="field__hint">Paid with the inviter’s reward. 0 for none.</p>
+        </div>
+        <div className="field">
+          <label className="field__label">Most rewards per inviter, per month</label>
+          <input
+            className="field__input"
+            inputMode="numeric"
+            value={f.cap}
+            onChange={(e) =>
+              setF((x) => ({ ...x, cap: num(e.target.value, { max: 500, integer: true }) }))
+            }
+          />
+          <p className="field__hint">Stops one person farming codes. Default 20.</p>
+        </div>
+      </div>
+      <p className="field__hint">
+        Both rewards are <strong>wallet credit</strong>, a discount Fooducia pays for. No money
+        moves through Razorpay when credit is added. When the customer spends it, Razorpay collects
+        that much less for the order (or nothing, if the wallet covers it all). A change applies to
+        invites used from now on; invites already waiting keep the amount they were promised.
+      </p>
+      <div className="hstack" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+        <button className="btn btn--primary" onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Save invite rewards'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── settings ────────────────────────────────────────────────────────────────
+
+function GrowthSettings() {
+  const { data, error, reload } = useResource('/admin/growth/settings');
+  const s = data?.settings;
+  const [f, setF] = useState(/** @type {any} */ (null));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (s)
+      setF({
         waitlistOpenAt: String(s.waitlistOpenAt),
         askHeardFrom: !!s.askHeardFrom,
       });
@@ -1005,21 +1134,12 @@ function GrowthSettings() {
   const heard = useMemo(() => Object.values(data?.heardFrom || {}), [data]);
 
   async function save() {
-    const referrerRewardPaise = paiseFrom(f.referrer);
-    const refereeRewardPaise = paiseFrom(f.referee);
     const waitlistOpenAt = Number(f.waitlistOpenAt);
-    if (referrerRewardPaise == null || referrerRewardPaise > 100000)
-      return toast('Enter the inviter’s reward in rupees, up to ₹1,000.', 'err');
-    if (refereeRewardPaise == null || refereeRewardPaise > 100000)
-      return toast('Enter the welcome credit in rupees, up to ₹1,000 (0 for none).', 'err');
     if (!Number.isInteger(waitlistOpenAt) || waitlistOpenAt < 1 || waitlistOpenAt > 10000)
       return toast('The waitlist threshold is a whole number of households, 1 or more.', 'err');
     setBusy(true);
     try {
       await api.put('/admin/growth/settings', {
-        referralEnabled: f.referralEnabled,
-        referrerRewardPaise,
-        refereeRewardPaise,
         waitlistOpenAt,
         askHeardFrom: f.askHeardFrom,
       });
@@ -1042,41 +1162,6 @@ function GrowthSettings() {
   return (
     <div className="glass card reveal" style={{ maxWidth: 640 }}>
       <div className="card__head">
-        <h2 className="card__title">Neighbour invites</h2>
-      </div>
-      <label className="check" style={{ marginBottom: 14 }}>
-        <input
-          type="checkbox"
-          checked={f.referralEnabled}
-          onChange={(e) => setF((x) => ({ ...x, referralEnabled: e.target.checked }))}
-        />
-        Invite codes are on — customers can share their code with neighbours
-      </label>
-      <div className="field__row">
-        <div className="field">
-          <label className="field__label">Reward to the inviter (₹)</label>
-          <input
-            className="field__input"
-            inputMode="decimal"
-            value={f.referrer}
-            onChange={(e) => setF((x) => ({ ...x, referrer: num(e.target.value, { max: 1000 }) }))}
-          />
-          <p className="field__hint">
-            Wallet credit, paid once the new customer’s first order is delivered.
-          </p>
-        </div>
-        <div className="field">
-          <label className="field__label">Welcome credit for the new customer (₹)</label>
-          <input
-            className="field__input"
-            inputMode="decimal"
-            value={f.referee}
-            onChange={(e) => setF((x) => ({ ...x, referee: num(e.target.value, { max: 1000 }) }))}
-          />
-          <p className="field__hint">0 for none.</p>
-        </div>
-      </div>
-      <div className="card__head" style={{ marginTop: 10 }}>
         <h2 className="card__title">Waitlist</h2>
       </div>
       <div className="field" style={{ maxWidth: 300 }}>
@@ -1115,7 +1200,8 @@ function GrowthSettings() {
         </button>
       </div>
       <p className="field__hint" style={{ marginTop: 10 }}>
-        Changes take effect in the app straight away and are written to the audit trail.
+        Changes take effect in the app straight away and are written to the audit trail. Invite
+        rewards are set on the Neighbour invites tab.
       </p>
     </div>
   );

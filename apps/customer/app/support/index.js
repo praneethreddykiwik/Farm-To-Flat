@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -42,6 +42,7 @@ export default function SupportRequests() {
   const lang = useSelector(selectLanguage);
   const { data, isLoading } = useGetTicketsQuery(undefined, { refetchOnFocus: true });
   const { data: support } = useGetSupportQuery(undefined);
+  const privacyEmail = support?.support?.email || 'support@fooducia.health';
   const [create, { isLoading: sending }] = useCreateTicketMutation();
   const [category, setCategory] = useState(/** @type {string|null} */ (null));
   const [message, setMessage] = useState('');
@@ -172,19 +173,51 @@ export default function SupportRequests() {
         {/* DPDP Rule 9: who answers questions about your data, in the app as well as on the web. */}
         <Label style={{ marginTop: 28, marginBottom: 8 }}>{t('privacyBoxTitle', lang)}</Label>
         <Glass radius={radius.lg} innerStyle={{ padding: 16 }}>
-          <Small>
-            {t('privacyBoxBody', lang, {
-              name: GRIEVANCE_OFFICER,
-              email: support?.support?.email || 'support@fooducia.health',
-            })}
+          <Small>{t('privacyBoxBody', lang, { name: GRIEVANCE_OFFICER })}</Small>
+          <Pressy
+            onPress={() => Linking.openURL(`mailto:${privacyEmail}`).catch(() => {})}
+            haptics="select"
+            style={{ marginTop: 12, alignSelf: 'flex-start' }}
+            accessibilityRole="link"
+          >
+            <Small style={styles.link}>{t('privacyBoxEmail', lang, { email: privacyEmail })}</Small>
+          </Pressy>
+          <View style={styles.divider} />
+          <Small muted style={{ marginBottom: 8 }}>
+            {t('privacyBoxLinks', lang)}
           </Small>
+          <View style={styles.links}>
+            {LEGAL_LINKS.map(([key, path]) => (
+              <Pressy
+                key={path}
+                onPress={() =>
+                  Linking.openURL(`https://fooducia.health/${path}?lang=${lang}`).catch(() => {})
+                }
+                haptics="select"
+                accessibilityRole="link"
+              >
+                <Small style={styles.link}>{t(key, lang)}</Small>
+              </Pressy>
+            ))}
+          </View>
         </Glass>
       </ScrollView>
     </View>
   );
 }
 
+/** The public policy pages, each opened in the customer's language. */
+const LEGAL_LINKS = [
+  ['privacyPolicy', 'privacy'],
+  ['termsOfUse', 'terms'],
+  ['cancellationRefund', 'refunds'],
+  ['aiNoticeLink', 'ai-notice'],
+];
+
 const styles = StyleSheet.create({
+  link: { color: colors.leafDeep, textDecorationLine: 'underline' },
+  links: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 10 },
+  divider: { height: 1, backgroundColor: colors.hairline, marginVertical: 14 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },

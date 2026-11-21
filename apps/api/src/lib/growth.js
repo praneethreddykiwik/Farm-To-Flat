@@ -15,7 +15,8 @@
  *     a cancelled first order earns nothing);
  *   - never to yourself, and never twice for the same new customer (the wallet ledger's idempotency
  *     key is `referral:<newCustomerId>`, so even a replayed status change cannot pay again);
- *   - at most MAX_REWARDS_PER_MONTH paid to one inviter in a calendar month.
+ *   - at most `referralMonthlyCap` (admin setting, default MAX_REWARDS_PER_MONTH) paid to one
+ *     inviter in a calendar month.
  */
 import { randomInt } from 'node:crypto';
 import { getOps, listOps, putOps, putOpsSoft, getSettings, opsReady } from '../ops-store.js';
@@ -298,7 +299,9 @@ export function rewardReferral(order) {
       x.status === 'REWARDED' &&
       monthOf(x.settledAt) === monthOf(now),
   ).length;
-  if (paidThisMonth >= MAX_REWARDS_PER_MONTH) {
+  const cap =
+    Number(s.referralMonthlyCap) > 0 ? Number(s.referralMonthlyCap) : MAX_REWARDS_PER_MONTH;
+  if (paidThisMonth >= cap) {
     putOpsSoft('referral', order.customerId, {
       ...ref,
       status: 'VOID',

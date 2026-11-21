@@ -48,8 +48,13 @@ const STRINGS = {
     consentPrivacyWord: 'privacy notice',
     consentTermsWord: 'terms of use',
     privacyBoxTitle: 'Your data and privacy',
+    // 21 Nov 2026: softer, plainer wording. The Data Protection Board is named in the full privacy
+    // notice (linked right under this box), which is where DPDP Act s.5(1)(iii) asks for it.
     privacyBoxBody:
-      'To see, correct or delete your data, withdraw consent or name someone to act for you, write to our Grievance Officer, {name}, at {email}. We reply within 30 days. You can also complain to the Data Protection Board of India.',
+      'Your data is yours. If you would like to see it, correct it, delete it, change your mind about consent, or have someone look after it for you, just write to {name}, who takes care of privacy at Fooducia. We will reply within 30 days.',
+    privacyBoxEmail: 'Write to {email}',
+    privacyBoxLinks: 'Read more',
+    aiNoticeLink: 'How we use AI',
     // DPDP consent (21 Nov 2026)
     consentAgree: 'I have read the privacy notice and agree to the terms of use.',
     consentAdult: 'I am 18 years or older.',
@@ -274,6 +279,15 @@ const STRINGS = {
     inviteStep1: 'Share your code with a neighbour or friend.',
     inviteStep2: 'They enter it at checkout on their first order.',
     inviteStep3: 'When that order is delivered, ₹{amount} lands in your Fooducia wallet.',
+    inviteHeadlineBoth: 'Give ₹{welcome}, get ₹{amount}',
+    inviteHeadlineOne: 'Get ₹{amount} for every neighbour',
+    inviteCardSubBoth:
+      'Share your code. When a neighbour’s first order arrives, you both get credit in your Fooducia wallets.',
+    inviteCardSubOne:
+      'Share your code. When a neighbour’s first order arrives, ₹{amount} lands in your wallet.',
+    inviteShareShort: 'Share',
+    inviteStep2Welcome:
+      'They enter it at checkout on their first order — and get ₹{welcome} in their wallet when it arrives.',
     inviteFinePrint:
       'Credit is paid once per new customer, only after their first delivery. Wallet credit can be used on your next orders.',
     haveACode: 'Have a code or a neighbour’s number? (optional)',
@@ -384,7 +398,10 @@ const STRINGS = {
     consentTermsWord: 'उपयोग की शर्तों',
     privacyBoxTitle: 'आपका डेटा और निजता',
     privacyBoxBody:
-      'अपना डेटा देखने, सुधारने या हटाने, सहमति वापस लेने या अपनी ओर से किसी को नामित करने के लिए हमारे शिकायत अधिकारी {name} को {email} पर लिखें। हम 30 दिनों में जवाब देते हैं। आप भारतीय डेटा संरक्षण बोर्ड (Data Protection Board of India) से भी शिकायत कर सकते हैं।',
+      'आपका डेटा आपका है। अगर आप उसे देखना, सुधारना या हटाना चाहें, अपनी सहमति बदलना चाहें, या चाहें कि कोई और आपकी ओर से इसे संभाले, तो बस {name} को लिखें, जो Fooducia में निजता का ध्यान रखते हैं। हम 30 दिनों के भीतर जवाब देंगे।',
+    privacyBoxEmail: '{email} पर लिखें',
+    privacyBoxLinks: 'और पढ़ें',
+    aiNoticeLink: 'हम AI का उपयोग कैसे करते हैं',
     consentAgree: 'मैंने निजता सूचना पढ़ ली है और उपयोग की शर्तों से सहमत हूँ।',
     consentAdult: 'मेरी उम्र 18 वर्ष या उससे अधिक है।',
     consentNeeded: 'आगे बढ़ने के लिए दोनों बॉक्स चुनें।',
@@ -597,6 +614,15 @@ const STRINGS = {
     inviteStep1: 'अपना कोड किसी पड़ोसी या दोस्त के साथ शेयर करें।',
     inviteStep2: 'वे अपने पहले ऑर्डर के चेकआउट पर इसे डालें।',
     inviteStep3: 'वह ऑर्डर पहुँचने पर ₹{amount} आपके Fooducia वॉलेट में आ जाएँगे।',
+    inviteHeadlineBoth: '₹{welcome} दें, ₹{amount} पाएँ',
+    inviteHeadlineOne: 'हर पड़ोसी पर ₹{amount} पाएँ',
+    inviteCardSubBoth:
+      'अपना कोड शेयर करें। पड़ोसी का पहला ऑर्डर पहुँचने पर आप दोनों के Fooducia वॉलेट में क्रेडिट आएगा।',
+    inviteCardSubOne:
+      'अपना कोड शेयर करें। पड़ोसी का पहला ऑर्डर पहुँचने पर ₹{amount} आपके वॉलेट में आएँगे।',
+    inviteShareShort: 'शेयर करें',
+    inviteStep2Welcome:
+      'वे अपने पहले ऑर्डर के चेकआउट पर इसे डालें — ऑर्डर पहुँचने पर उन्हें भी ₹{welcome} वॉलेट में मिलेंगे।',
     haveACode: 'कोई कोड है? (वैकल्पिक)',
     codeHint: 'कोड या पड़ोसी का नंबर',
     codeApply: 'लागू करें',
@@ -702,7 +728,10 @@ const STRINGS = {
     consentTermsWord: 'వినియోగ నిబంధనల',
     privacyBoxTitle: 'మీ డేటా, గోప్యత',
     privacyBoxBody:
-      'మీ డేటాను చూడటానికి, సరిచేయడానికి లేదా తొలగించడానికి, సమ్మతిని ఉపసంహరించుకోవడానికి లేదా మీ తరఫున ఒకరిని నామినేట్ చేయడానికి మా గ్రీవెన్స్ ఆఫీసర్ {name} గారికి {email} కు రాయండి. 30 రోజుల్లో జవాబిస్తాం. మీరు Data Protection Board of India కు కూడా ఫిర్యాదు చేయవచ్చు.',
+      'మీ డేటా మీదే. దాన్ని చూడాలన్నా, సరిచేయాలన్నా, తొలగించాలన్నా, మీ సమ్మతిని మార్చుకోవాలన్నా, లేదా మీ తరఫున వేరొకరు చూసుకోవాలన్నా, Fooducia లో గోప్యతను చూసుకునే {name} గారికి రాయండి. 30 రోజుల్లోపు జవాబిస్తాం.',
+    privacyBoxEmail: '{email} కు రాయండి',
+    privacyBoxLinks: 'మరింత చదవండి',
+    aiNoticeLink: 'మేము AI ని ఎలా ఉపయోగిస్తాం',
     consentAgree: 'నేను గోప్యతా నోటీసు చదివాను, వినియోగ నిబంధనలకు అంగీకరిస్తున్నాను.',
     consentAdult: 'నా వయస్సు 18 సంవత్సరాలు లేదా అంతకంటే ఎక్కువ.',
     consentNeeded: 'కొనసాగడానికి రెండు బాక్సులనూ టిక్ చేయండి.',
@@ -915,6 +944,15 @@ const STRINGS = {
     inviteStep1: 'మీ కోడ్‌ను పొరుగువారు లేదా స్నేహితులతో పంచుకోండి.',
     inviteStep2: 'వారు మొదటి ఆర్డర్ చెకౌట్‌లో దాన్ని నమోదు చేస్తారు.',
     inviteStep3: 'ఆ ఆర్డర్ డెలివరీ అయినప్పుడు ₹{amount} మీ Fooducia వాలెట్‌లో జమ అవుతుంది.',
+    inviteHeadlineBoth: '₹{welcome} ఇవ్వండి, ₹{amount} పొందండి',
+    inviteHeadlineOne: 'ప్రతి పొరుగువారికీ ₹{amount} పొందండి',
+    inviteCardSubBoth:
+      'మీ కోడ్ పంచుకోండి. పొరుగువారి మొదటి ఆర్డర్ చేరగానే మీ ఇద్దరి Fooducia వాలెట్లలో క్రెడిట్ జమ అవుతుంది.',
+    inviteCardSubOne:
+      'మీ కోడ్ పంచుకోండి. పొరుగువారి మొదటి ఆర్డర్ చేరగానే ₹{amount} మీ వాలెట్‌లో జమ అవుతుంది.',
+    inviteShareShort: 'పంచుకోండి',
+    inviteStep2Welcome:
+      'వారు మొదటి ఆర్డర్ చెకౌట్‌లో దాన్ని నమోదు చేస్తారు — అది చేరగానే వారికీ ₹{welcome} వాలెట్‌లో జమ అవుతుంది.',
     haveACode: 'కోడ్ ఉందా? (ఐచ్ఛికం)',
     codeHint: 'కోడ్ లేదా పొరుగువారి నంబర్',
     codeApply: 'వర్తించు',

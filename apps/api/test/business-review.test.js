@@ -206,6 +206,24 @@ describe('neighbour invites', () => {
       .send({ referrerRewardPaise: 3000, waitlistOpenAt: 20 });
     expect(back.body.settings.waitlistOpenAt).toBe(20);
   });
+
+  it('the monthly cap on invite rewards is an admin setting (1–500, default 20)', async () => {
+    const before = await request(app).get(`${A}/growth/settings`);
+    expect(before.body.settings.referralMonthlyCap).toBe(20);
+    const bad = await request(app).put(`${A}/growth/settings`).send({ referralMonthlyCap: 0 });
+    expect(bad.status).toBe(422);
+    const r = await request(app).put(`${A}/growth/settings`).send({ referralMonthlyCap: 5 });
+    expect(r.body.settings.referralMonthlyCap).toBe(5);
+    await request(app).put(`${A}/growth/settings`).send({ referralMonthlyCap: 20 });
+  });
+
+  it('the share message tells the neighbour about their welcome credit', async () => {
+    const s = await shopper();
+    const inv = await request(app).get('/api/v1/growth/invite').set(auth(s.token));
+    expect(inv.body.welcomePaise).toBe('3000');
+    expect(inv.body.shareText).toContain('get ₹30 in your Fooducia wallet');
+    expect(inv.body.howItWorks).toContain('they get ₹30');
+  });
 });
 
 describe('waitlist and community requests', () => {
