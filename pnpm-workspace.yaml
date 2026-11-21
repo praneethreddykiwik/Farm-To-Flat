@@ -51,6 +51,10 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: false
+# Don't install a package version until it has been public for a day, so a hijacked or malicious
+# release is usually pulled before it reaches us. pnpm 11 already defaults to 1440 minutes; it is
+# written here so a future pnpm default change cannot switch the protection off unnoticed.
+minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.22 || 57.0.24'
   - expo-modules-core@57.0.16 || 57.0.18
