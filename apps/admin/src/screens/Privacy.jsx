@@ -467,7 +467,8 @@ export function Privacy() {
 /**
  * The shared layout of the public legal pages (Privacy, AI notice): a title, a date, a lede and
  * numbered sections of paragraphs and term — description lists.
- * @param {{ title: string, updated: string, lede: string, sections: any[], contact: string }} props
+ * @param {{ title: string, updated: string, lede: string, sections: any[], contact: string,
+ *   lang?: string, chrome?: any, languages?: string[][] }} props
  */
 export function LegalDoc({
   title,
