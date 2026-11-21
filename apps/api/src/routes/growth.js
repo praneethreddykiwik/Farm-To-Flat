@@ -188,7 +188,11 @@ growthRouter.delete(
   '/waitlist/:id/join',
   asyncHandler(async (req, res) => {
     const w = getOps('waitlist', req.params.id);
-    if (!w) throw fail(404, 'NOT_FOUND', 'That community isn’t on our list.');
+    // Security pentest 21 Nov 2026: same guard as join — a REQUESTED community is private to the
+    // customer who asked for it. Without this, anyone could read its name, area and count, and the
+    // 200-vs-404 confirmed it existed.
+    if (!w || (w.status === 'REQUESTED' && w.requestedBy !== req.customerId))
+      throw fail(404, 'NOT_FOUND', 'That community isn’t on our list.');
     if (getOps('waitlistJoin', `${w.id}:${req.customerId}`))
       await removeOps('waitlistJoin', `${w.id}:${req.customerId}`);
     res.json({ community: view(w, req.customerId, getSettings('growth').waitlistOpenAt) });

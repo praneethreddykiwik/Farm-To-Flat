@@ -68,6 +68,19 @@ afterEach(async () => {
   });
 });
 
+// Security pentest 21 Nov 2026: DELETE /me (no code) now refuses with 426; delete the way the
+// current app does — ask for a code to the account's own number, then confirm with it.
+async function deleteWithCode(token) {
+  const ask = await request(app)
+    .post('/api/v1/me/deletion/request')
+    .set({ Authorization: `Bearer ${token}` });
+  if (ask.status !== 200) return ask;
+  return request(app)
+    .post('/api/v1/me/deletion/confirm')
+    .set({ Authorization: `Bearer ${token}` })
+    .send({ otp: ask.body.devOtp || '123456' });
+}
+
 describe('where a community is', () => {
   it('is sent to the app with every community, so the phone can do the matching itself', async () => {
     const r = await request(app).get('/api/v1/communities');
@@ -476,7 +489,7 @@ describe('tell me when you deliver here', () => {
     await subscribe(c, MIYAPUR);
     expect((await admin('get', '/demand')).body.totals.subscribers).toBe(2);
 
-    const del = await request(app).delete('/api/v1/me').set(as(c.token));
+    const del = await deleteWithCode(c.token);
     expect(del.status).toBe(200);
     // Scheduled with a 60-day grace period; erased by the sweep once it has passed.
     await sweepDeletions(Date.now() + 61 * 864e5);
@@ -492,7 +505,7 @@ describe('tell me when you deliver here', () => {
     );
     const c = await customer();
     await subscribe(c, KONDAPUR);
-    const del = await request(app).delete('/api/v1/me').set(as(c.token));
+    const del = await deleteWithCode(c.token);
     expect(del.status).toBe(200);
     expect((await request(app).get('/api/v1/me').set(as(c.token))).status).toBe(401);
     await sweepDeletions(Date.now() + 61 * 864e5);

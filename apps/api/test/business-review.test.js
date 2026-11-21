@@ -80,6 +80,19 @@ beforeAll(() => {
   updatePaymentSettings({ codEnabled: true, codMaxOrderPaise: 500000, deliveryOtpEnabled: true });
 });
 
+// Security pentest 21 Nov 2026: DELETE /me (no code) now refuses with 426; delete the way the
+// current app does — ask for a code to the account's own number, then confirm with it.
+async function deleteWithCode(token) {
+  const ask = await request(app)
+    .post('/api/v1/me/deletion/request')
+    .set({ Authorization: `Bearer ${token}` });
+  if (ask.status !== 200) return ask;
+  return request(app)
+    .post('/api/v1/me/deletion/confirm')
+    .set({ Authorization: `Bearer ${token}` })
+    .send({ otp: ask.body.devOtp || '123456' });
+}
+
 describe('setup status', () => {
   it('reports the table as ready in a memory-only process', async () => {
     const r = await request(app).get(`${A}/business/status`);
@@ -481,7 +494,7 @@ describe('account deletion', () => {
       .post(`/api/v1/growth/waitlist/${add.body.community.id}/join`)
       .set(auth(s.token));
     const inv = await request(app).get('/api/v1/growth/invite').set(auth(s.token));
-    const del = await request(app).delete('/api/v1/me').set(auth(s.token));
+    const del = await deleteWithCode(s.token);
     expect(del.status).toBe(200);
     // Scheduled with a 60-day grace period; the sweep does the erasure when it ends.
     const { sweepDeletions } = await import('../src/lib/account-deletion.js');

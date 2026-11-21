@@ -50,6 +50,10 @@ mediaRouter.get(
       'Cross-Origin-Resource-Policy': 'cross-origin',
       'X-Content-Type-Options': 'nosniff',
     });
+    // Security pentest 21 Nov 2026: storage.js only passes real image types; anything else comes
+    // back as octet-stream and is offered as a download, never rendered from our origin.
+    if (file.contentType === 'application/octet-stream')
+      res.set('Content-Disposition', 'attachment; filename="photo"');
     return res.end(file.buffer);
   },
 );

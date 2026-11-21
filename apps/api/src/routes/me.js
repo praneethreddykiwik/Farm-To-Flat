@@ -207,23 +207,20 @@ meRouter.post(
   }),
 );
 
+// Security pentest 21 Nov 2026 (A45): this old code-free path scheduled deletion (and, with no ops
+// table, erased at once) and signed the owner out everywhere on a bare access token — a stolen token
+// was enough. The current app uses /deletion/request + /deletion/confirm (code to the account's own
+// number), so this path now refuses and tells an outdated app to update. With it gone, the only
+// customer-reachable way into requestDeletion() — including its "erase immediately" branch — is
+// /deletion/confirm, which checks the code first. (The admin route is staff-only.)
 meRouter.delete(
   '/',
-  asyncHandler(async (req, res) => {
-    // The app version already on phones calls this with no code step. Same rules, same 60 days.
-    const blockers = blockersOf(req.customerId);
-    if (blockers.length) throw blockedError(blockers);
-    if (!getCustomer(req.customerId)) throw fail(404, 'NOT_FOUND', 'Account not found.');
-    const r = await requestDeletion(req.customerId, {
-      walletBalancePaise: getWallet(req.customerId).balancePaise || 0,
-      via: 'APP_OLD_VERSION',
-    });
-    res.json({
-      ok: true,
-      scheduled: r.scheduled,
-      deleteAfter: r.scheduled ? r.deleteAfter : null,
-      walletBalancePaise: String(r.walletBalancePaise || 0),
-    });
+  asyncHandler(async () => {
+    throw fail(
+      426,
+      'USE_DELETION_CONFIRM',
+      'Please update the Fooducia app to delete your account. You will be asked to confirm with a code we send to your number.',
+    );
   }),
 );
 

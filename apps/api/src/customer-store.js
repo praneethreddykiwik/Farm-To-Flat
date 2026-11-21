@@ -618,7 +618,13 @@ export function issueTokens(customerId, family = `fam_${shortId(16)}`) {
     mine
       .sort((a, b) => a[1].expiresAt - b[1].expiresAt)
       .slice(0, mine.length - MAX_SESSIONS_PER_CUSTOMER)
-      .forEach(([tok]) => cs.sessions.delete(tok));
+      .forEach(([tok, s]) => {
+        cs.sessions.delete(tok);
+        // Security pentest 21 Nov 2026: dropping only the access token left that session's refresh
+        // token alive, so an evicted session could simply refresh itself back in. End its whole
+        // refresh family too (never the family being issued right now).
+        if (s.family && s.family !== family) revokeRefreshFamily(s.family);
+      });
   }
   return { accessToken, refreshToken };
 }
@@ -967,6 +973,18 @@ export function redeemedCodes(cid) {
   return new Set(redemptions(cid));
 }
 
+/**
+ * Has this customer already used `code`? Compared without case or surrounding spaces, because
+ * redemptions saved before the security pentest of 21 Nov 2026 kept the code exactly as typed
+ * ("farm-fresh100"), so an exact match let the same coupon be used again as "FARM-FRESH100".
+ */
+export function hasRedeemed(cid, code) {
+  const want = String(code ?? '')
+    .trim()
+    .toLowerCase();
+  return [...redemptions(cid)].some((u) => String(u).trim().toLowerCase() === want);
+}
+
 /** @returns {StoreResult<{ coupon: any }>} */
 export function validateCoupon(cid, code, subtotal) {
   const c = listCoupons().find((x) => x.code.toLowerCase() === String(code).trim().toLowerCase());
@@ -984,7 +1002,7 @@ export function validateCoupon(cid, code, subtotal) {
     };
   if (new Date(c.expiresAt).getTime() < Date.now())
     return { error: { status: 410, code: 'COUPON_EXPIRED', message: 'That code has expired.' } };
-  if (redemptions(cid).has(c.code))
+  if (hasRedeemed(cid, c.code))
     return {
       error: {
         status: 409,
