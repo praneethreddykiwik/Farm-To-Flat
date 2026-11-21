@@ -65,6 +65,7 @@ import {
   uploadMealPhoto,
 } from '../lib/storage.js';
 import { isRateLimited } from '../lib/identify.js';
+import { shrinkForVision, toDataUrl } from '../lib/vision-image.js';
 
 export const mealsRouter = Router();
 
@@ -136,8 +137,9 @@ async function analysePhoto(req, { imageBase64, contentType }) {
   const timer = setTimeout(() => ac.abort(), 20000);
   let parsed;
   try {
+    // The model gets a 640 px copy (lib/vision-image.js); the photo we store stays as it was.
     parsed = await analyseMealPhoto(key, {
-      dataUrl: `data:${contentType};base64,${imageBase64}`,
+      dataUrl: toDataUrl(await shrinkForVision(buffer, contentType)),
       signal: ac.signal,
     });
   } catch (e) {

@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
 import { clientIp, ipBucket } from '../lib/edge.js';
 import { takeDaily } from '../lib/spend-cap.js';
+import { shrinkForVision, toDataUrl } from '../lib/vision-image.js';
 import { assertRealImage } from '../lib/storage.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
@@ -364,7 +365,8 @@ aiRouter.post(
       );
 
     const products = listProducts();
-    const dataUrl = `data:${req.body.contentType};base64,${buffer.toString('base64')}`;
+    // A 640 px copy for the model (lib/vision-image.js): ~10× less to send and a faster reply.
+    const dataUrl = toDataUrl(await shrinkForVision(buffer, req.body.contentType));
 
     // A customer is holding a phone up to a vegetable. If the model is slow, saying so beats a
     // spinner that never ends.

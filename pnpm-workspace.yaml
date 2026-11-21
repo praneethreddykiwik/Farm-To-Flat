@@ -50,6 +50,9 @@ allowBuilds:
   '@sentry/cli': true
   esbuild: true
   prisma: true
+  # sharp ships prebuilt binaries (@img/sharp-*) for every platform we run on; its install script
+  # would only build from source, which we never want on a server.
+  sharp: false
   unrs-resolver: false
 # Don't install a package version until it has been public for a day, so a hijacked or malicious
 # release is usually pulled before it reaches us. pnpm 11 already defaults to 1440 minutes; it is

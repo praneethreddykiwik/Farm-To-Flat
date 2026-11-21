@@ -8,10 +8,17 @@ const PRODUCTS = [
 ];
 
 describe('the prompt we pay for on every photograph', () => {
-  it('lists every product as id + name + aliases', () => {
+  it('lists every product as id + name + romanised aliases (script names cost tokens)', () => {
     const c = catalogueForPrompt(PRODUCTS);
-    expect(c).toContain('p_tomato\tTomato (tamata, టమాటా)');
+    // Telugu script dropped on 21 Nov 2026 to save tokens on Groq's free plan.
+    expect(c).toContain('p_tomato\tTomato (tamata)');
+    expect(c).not.toContain('టమాటా');
     expect(c.split('\n')).toHaveLength(3);
+  });
+
+  it('a label the model gives in Telugu script still finds the product', () => {
+    const r = resolve(PRODUCTS, { label: 'టమాటా', productId: null, confidence: 0.8 });
+    expect(r.product?.id ?? r.productId).toBe('p_tomato');
   });
 
   it('tells the model never to invent an id', () => {
