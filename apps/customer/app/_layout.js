@@ -30,6 +30,7 @@ import { store } from '../src/store';
 import { colors } from '../src/theme';
 import { ToastHost } from '../src/ui';
 import { UpdateRequired } from '../src/components/UpdateRequired';
+import { ConsentPrompt } from '../src/components/ConsentPrompt';
 import { StatusScrim } from '../src/components/StatusScrim';
 import { FlyToBagHost } from '../src/components/FlyToBag';
 import { KeyboardDoneBar } from '../src/ui/KeyboardDone';
@@ -432,6 +433,8 @@ function Root() {
       <ToastHost />
       <KeyboardDoneBar />
       {/* A retired app version (MIN_APP_VERSION on the server) stops here — review #45. */}
+      {/* The privacy notice once for earlier customers, or after it changes (DPDP). */}
+      <ConsentPrompt />
       <UpdateRequired />
       {/* The opening: the logo drawing itself in, and on a phone's first launch, what Fooducia is.
           On top of everything, and started the moment the system splash comes down. */}

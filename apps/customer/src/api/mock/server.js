@@ -565,6 +565,15 @@ async function route(method, path, body, headers = {}) {
   const unauth = requireAuth(headers);
   if (unauth) return unauth;
 
+  // DPDP consent (21 Nov 2026): the mock customer has already agreed unless MOCK_CONSENT_PENDING.
+  if (method === 'GET' && p === '/me/consent') {
+    return ok({ required: !!state.consentPending, version: 'privacy-2026-11-21', accepted: null });
+  }
+  if (method === 'POST' && p === '/me/consent') {
+    if (!body?.adult) return err(422, 'ADULT_REQUIRED', 'Fooducia is for people aged 18 or older.');
+    state.consentPending = false;
+    return ok({ ok: true, required: false });
+  }
   if (method === 'GET' && p === '/me') {
     return ok({
       customer: { ...state.customer, hasAddress: state.addresses.length > 0 },

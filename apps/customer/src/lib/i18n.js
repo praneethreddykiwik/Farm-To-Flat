@@ -42,6 +42,15 @@ export const categoryLabel = (product, lang) =>
  */
 const STRINGS = {
   en: {
+    // DPDP consent (21 Nov 2026)
+    consentAgree: 'I have read the privacy notice and agree to how my data is used.',
+    consentAdult: 'I am 18 years or older.',
+    consentNeeded: 'Tick both boxes to continue.',
+    consentTitle: 'Your privacy, in brief',
+    consentBody:
+      'We use your number, name, address and orders only to deliver your groceries, take payment and support you. You can see, correct or delete your data and withdraw consent at any time. Fooducia is for adults (18+).',
+    consentContinue: 'Agree and continue',
+    consentSignOut: 'Sign out instead',
     language: 'Language',
     chooseLanguage: 'Choose your language',
     chooseLanguageSub: 'You can change this any time from your profile.',
@@ -362,6 +371,14 @@ const STRINGS = {
     addAnotherAddress: 'Add another address',
   },
   hi: {
+    consentAgree: 'मैंने निजता सूचना पढ़ ली है और अपने डेटा के उपयोग के तरीके से सहमत हूँ।',
+    consentAdult: 'मेरी उम्र 18 वर्ष या उससे अधिक है।',
+    consentNeeded: 'आगे बढ़ने के लिए दोनों बॉक्स चुनें।',
+    consentTitle: 'आपकी निजता, संक्षेप में',
+    consentBody:
+      'हम आपका नंबर, नाम, पता और ऑर्डर केवल आपकी सब्ज़ियाँ पहुँचाने, भुगतान लेने और आपकी मदद करने के लिए इस्तेमाल करते हैं। आप कभी भी अपना डेटा देख, सुधार या हटा सकते हैं और सहमति वापस ले सकते हैं। Fooducia केवल वयस्कों (18+) के लिए है।',
+    consentContinue: 'सहमत हूँ, आगे बढ़ें',
+    consentSignOut: 'इसके बजाय साइन आउट करें',
     language: 'भाषा',
     chooseLanguage: 'अपनी भाषा चुनें',
     chooseLanguageSub: 'आप इसे कभी भी अपनी प्रोफ़ाइल से बदल सकते हैं।',
@@ -666,6 +683,15 @@ const STRINGS = {
     addAnotherAddress: 'दूसरा पता जोड़ें',
   },
   te: {
+    consentAgree:
+      'నేను గోప్యతా నోటీసును చదివాను, నా డేటాను ఉపయోగించే విధానానికి అంగీకరిస్తున్నాను.',
+    consentAdult: 'నా వయస్సు 18 సంవత్సరాలు లేదా అంతకంటే ఎక్కువ.',
+    consentNeeded: 'కొనసాగడానికి రెండు బాక్సులనూ టిక్ చేయండి.',
+    consentTitle: 'మీ గోప్యత, క్లుప్తంగా',
+    consentBody:
+      'మీ నంబర్, పేరు, చిరునామా, ఆర్డర్‌లను మీ కూరగాయలు అందించడానికి, చెల్లింపు తీసుకోవడానికి, మీకు సహాయం చేయడానికి మాత్రమే ఉపయోగిస్తాం. మీరు ఎప్పుడైనా మీ డేటాను చూడవచ్చు, సరిచేయవచ్చు లేదా తొలగించవచ్చు, సమ్మతిని ఉపసంహరించుకోవచ్చు. Fooducia పెద్దలకు (18+) మాత్రమే.',
+    consentContinue: 'అంగీకరించి కొనసాగండి',
+    consentSignOut: 'బదులుగా సైన్ అవుట్ చేయండి',
     language: 'భాష',
     chooseLanguage: 'మీ భాషను ఎంచుకోండి',
     chooseLanguageSub: 'దీన్ని మీ ప్రొఫైల్‌లో ఎప్పుడైనా మార్చుకోవచ్చు.',
