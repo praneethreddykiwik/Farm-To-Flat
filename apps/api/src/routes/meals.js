@@ -64,6 +64,7 @@ import {
   deleteMealPhotos,
   uploadMealPhoto,
 } from '../lib/storage.js';
+import { isRateLimited } from '../lib/identify.js';
 
 export const mealsRouter = Router();
 
@@ -142,6 +143,12 @@ async function analysePhoto(req, { imageBase64, contentType }) {
   } catch (e) {
     if (e.name === 'AbortError')
       throw fail(504, 'UPSTREAM_TIMEOUT', 'That took too long. Please try again.');
+    if (isRateLimited(e))
+      throw fail(
+        503,
+        'AI_BUSY',
+        'Photo estimates are busy right now. Try again in a minute, or pick your meal instead.',
+      );
     req.log?.error({ err: e }, '[meals] vision call failed');
     throw fail(502, 'UPSTREAM', 'Could not read that photo. Please try again.');
   } finally {

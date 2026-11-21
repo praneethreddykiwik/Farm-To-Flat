@@ -16,7 +16,13 @@ import { clientIp, ipBucket } from '../lib/edge.js';
 import { takeDaily } from '../lib/spend-cap.js';
 import { validateBody } from '../validate.js';
 import { listCategories, listProducts } from '../store.js';
-import { callVision, parseReply, resolve, systemPrompt as visionPrompt } from '../lib/identify.js';
+import {
+  callVision,
+  isRateLimited,
+  parseReply,
+  resolve,
+  systemPrompt as visionPrompt,
+} from '../lib/identify.js';
 import { getCustomer } from '../customer-store.js';
 import { findStaffByMobile } from '../access-store.js';
 import { hasAi } from '../lib/roles.js';
@@ -166,6 +172,8 @@ async function callGroq(key, prompt, user) {
       response_format: { type: 'json_object' },
     }),
   });
+  if (r.status === 429 || r.status === 413)
+    throw fail(503, 'AI_BUSY', 'The planner is busy right now. Please try again in a minute.');
   if (!r.ok) throw fail(502, 'AI_UPSTREAM', `Planner upstream error (${r.status}).`);
   const data = await r.json();
   return extractJSON(data.choices?.[0]?.message?.content || '{}');
@@ -299,6 +307,8 @@ aiRouter.post(
     } catch (e) {
       if (e.name === 'AbortError')
         throw fail(504, 'UPSTREAM_TIMEOUT', 'That took too long. Please try again.');
+      if (isRateLimited(e))
+        throw fail(503, 'AI_BUSY', 'Photo search is busy right now. Please try again in a minute.');
       req.log?.error({ err: e }, '[identify] vision call failed');
       throw fail(502, 'UPSTREAM', 'Could not read that photo. Please try again.');
     } finally {
