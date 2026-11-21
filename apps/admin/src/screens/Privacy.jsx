@@ -24,7 +24,7 @@ const REG_ADDRESS =
   '753, Prashanth Nagar, Block A, Near Sai Baba Temple, Vanasthalipuram, Hyderabad, Ranga Reddy District, Telangana – 500070, India';
 const GRIEVANCE_OFFICER = 'Praneeth Ramaswamy';
 
-const SECTIONS = (CONTACT) => [
+export const SECTIONS = (CONTACT) => [
   {
     h: '1. Who we are',
     p: [
