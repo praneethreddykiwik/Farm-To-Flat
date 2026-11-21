@@ -91,5 +91,24 @@ export function reportError(err, tags) {
   });
 }
 
+/**
+ * A start-up that took too long (lib/bootTiming). A warning, not an error: nothing broke, but the
+ * timings say where a customer waited. Only milliseconds and the sign-in state are sent.
+ * @param {{ total: number, slowest: string, marks: Record<string, number> }} report
+ */
+export function reportSlowBoot(report) {
+  const S = sentry();
+  if (!sentryEnabled || !S) return;
+  S.withScope((scope) => {
+    scope.setTag('boot.slowest', report.slowest);
+    scope.setTag(
+      'boot.bucket',
+      report.total < 10000 ? '5-10s' : report.total < 20000 ? '10-20s' : '20s+',
+    );
+    scope.setContext('boot', { totalMs: report.total, ...report.marks });
+    S.captureMessage('Slow app start', 'warning');
+  });
+}
+
 /** The native module, or null on a binary built before it existed. */
 export const getSentry = sentry;

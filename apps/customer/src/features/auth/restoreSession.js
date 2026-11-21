@@ -13,7 +13,9 @@
  */
 
 /** How long a first attempt may take before we show the reconnecting screen. */
-export const SLOW_AFTER_MS = 6000;
+// 3 s, was 6 s (21 Nov 2026): the owner's phone sat on the opening logo for what felt like a
+// stall. Saying "reconnecting" sooner tells a customer the app is alive and working on it.
+export const SLOW_AFTER_MS = 3000;
 /** Waits between attempts after a transient failure; the last one repeats. */
 export const RETRY_BACKOFF_MS = [1000, 2000, 4000, 8000, 15000, 20000];
 
