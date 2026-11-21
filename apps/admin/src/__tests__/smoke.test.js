@@ -36,10 +36,12 @@ describe('privacy notice translations', () => {
     REG_ADDRESS: 'R',
     GRIEVANCE_OFFICER: 'G',
   };
-  for (const [name, mod] of [
+  /** @type {Array<[string, typeof HI]>} */
+  const langs = [
     ['Hindi', HI],
     ['Telugu', TE],
-  ]) {
+  ];
+  for (const [name, mod] of langs) {
     it(`${name} has the same sections, paragraphs and list items as the English`, () => {
       const tr = mod.SECTIONS(vars);
       expect(tr.length).toBe(en.length);
