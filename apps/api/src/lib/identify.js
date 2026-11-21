@@ -96,6 +96,19 @@ export async function callVision(apiKey, { prompt, dataUrl, signal, maxTokens = 
   return data.choices?.[0]?.message?.content || '{}';
 }
 
+/**
+ * Did Groq refuse because of its usage limits rather than fail? (21 Nov 2026)
+ *
+ * On the free plan a vision model allows about 8,000 tokens a minute, and one photo costs roughly
+ * 3,000–4,000 — so two searches close together, or a busy evening, get 429 (too many requests) or
+ * 413 (request larger than the minute's allowance). That is "busy, try again shortly", not "your
+ * photo is broken", and the customer should be told so.
+ */
+export function isRateLimited(e) {
+  const s = e?.status;
+  return s === 429 || s === 413 || /rate_limit/i.test(String(e?.message || ''));
+}
+
 /** Parse the model's JSON without letting a malformed reply throw. */
 export function parseReply(text) {
   try {
