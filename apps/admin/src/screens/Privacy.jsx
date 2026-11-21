@@ -256,7 +256,7 @@ export const SECTIONS = (CONTACT) => [
   {
     h: '8. Where your data is stored',
     p: [
-      'Our service providers run servers in several countries. Today your data may be stored or processed outside India, including in Japan (our database) and the United States (our back-end servers, photo recognition and crash reporting), and passes through Cloudflare’s global network. The DPDP Act allows such transfers except to countries the Government of India restricts, and we choose providers that protect data to a standard at least equal to this policy.',
+      'Our service providers run servers in several countries. Today your data may be stored or processed outside India, including in Japan (our database) Singapore (our back-end servers) and the United States (photo recognition and crash reporting), and passes through Cloudflare’s global network. The DPDP Act allows such transfers except to countries the Government of India restricts, and we choose providers that protect data to a standard at least equal to this policy.',
     ],
   },
   {
@@ -308,7 +308,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Technical records and crash reports',
-        'kept for a limited period by our hosting and crash-reporting providers, and for longer only when needed to investigate a security incident.',
+        'server request logs (IP address, device or browser type, and the time and address of each request; never sign-in codes, passwords or tokens) are kept by our hosting provider for up to 14 days, to fix faults and spot attacks. Crash reports are kept for a limited period by our crash-reporting provider. Sign-ins, account changes, consents and staff access are kept for one year in the security record above.',
       ],
       [
         'Records of staff access',
