@@ -87,3 +87,17 @@ describe('security record', () => {
     expect(ids).toContain('recent-one');
   });
 });
+
+describe('consent never locks anyone out', () => {
+  it('is not required while the ops table is unavailable', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+    vi.doMock('../src/ops-store.js', async (orig) => ({
+      ...(await orig()),
+      opsReady: () => false,
+    }));
+    const { consentRequired } = await import('../src/lib/consent.js');
+    expect(consentRequired('cus_any')).toBe(false);
+    vi.doUnmock('../src/ops-store.js');
+  });
+});

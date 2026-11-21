@@ -11,7 +11,7 @@
  * can be kept after the account is erased as proof that consent was given (the policy says so).
  * Raising NOTICE_VERSION makes every customer see the prompt once more.
  */
-import { getOps, putOps } from '../ops-store.js';
+import { getOps, opsReady, putOps } from '../ops-store.js';
 
 export const NOTICE_VERSION = 'privacy-2026-11-21';
 
@@ -22,6 +22,9 @@ export function consentOf(customerId) {
 
 /** Does this customer still have to agree to the current notice? */
 export function consentRequired(customerId) {
+  // Fail open: if the OpsRecord table is missing, the answer could never be saved, and asking would
+  // trap the customer on a prompt they cannot get past. Ask again once the table is back.
+  if (!opsReady()) return false;
   const c = consentOf(customerId);
   return !(c && c.version === NOTICE_VERSION && c.adult === true);
 }
