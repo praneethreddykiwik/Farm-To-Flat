@@ -28,7 +28,10 @@ export const VISION_MODEL = 'qwen/qwen3.8-27b';
 export function catalogueForPrompt(products) {
   return products
     .map((p) => {
-      const alt = (p.aliases || []).join(', ');
+      // Romanised names only (21 Nov 2026). Telugu and Devanagari script cost several tokens a
+      // letter on every photo, and the model recognises the photograph from the English and
+      // romanised names; a script-only label it returns still resolves through search() below.
+      const alt = (p.aliases || []).filter((a) => /^[\x20-\x7E]+$/.test(a)).join(', ');
       return `${p.id}\t${p.name}${alt ? ` (${alt})` : ''}`;
     })
     .join('\n');
@@ -39,7 +42,7 @@ export function systemPrompt(products) {
     'You identify fruit and vegetables in a photograph for an Indian grocery app.',
     '',
     'Below is the ENTIRE catalogue, one product per line as "id<TAB>name (other names it goes by)".',
-    'Other names include Telugu and Hindi, in both script and transliteration.',
+    'Other names are Telugu and Hindi names written in English letters.',
     '',
     catalogueForPrompt(products),
     '',
