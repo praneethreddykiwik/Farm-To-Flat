@@ -21,6 +21,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { Body, Button, Display, Glass, Pressy, Screen, Small, Text } from '../../src/ui';
 import { colors, fonts, radius } from '../../src/theme';
 import { useRequestOtpMutation, useVerifyOtpMutation } from '../../src/api/api';
+import { signupConsent } from '../../src/lib/consent';
 import { selectAuth, signedIn } from '../../src/features/auth/authSlice';
 import { saveRefreshToken } from '../../src/features/auth/secure';
 import { showToast } from '../../src/features/ui/uiSlice';
@@ -73,7 +74,13 @@ export default function OtpScreen() {
     if (submitting.current) return;
     submitting.current = true;
     try {
-      const res = await verify({ mobile: pendingMobile, otp }).unwrap();
+      // The two boxes ticked on the previous screen travel with the code (DPDP §6, §9).
+      const consent = signupConsent();
+      const res = await verify({
+        mobile: pendingMobile,
+        otp,
+        ...(consent ? { consent } : {}),
+      }).unwrap();
       await saveRefreshToken(res.refreshToken);
       // Put the keyboard away before this screen goes. On Android a keyboard whose field has been
       // taken off screen can stay up, and the first thing a new customer saw of the shop was the

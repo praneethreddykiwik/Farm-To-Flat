@@ -65,6 +65,10 @@ export const OPS_KINDS = [
   // review #4 (21 Nov 2026): reconcile problems used to live in memory and vanished on restart
   'reconcileException',
   'adminRevoked',
+  // DPDP (21 Nov 2026): consent to the privacy notice + 18+ confirmation, and the one-year
+  // security record of sign-ins, account changes and consents (Rules 3, 6(1)(e), 8(3), 10)
+  'consent',
+  'securityEvent',
 ];
 
 /**

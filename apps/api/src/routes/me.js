@@ -18,6 +18,8 @@ import { money } from '../lib/money.js';
 import { ipOf, rateLimit } from '../lib/rate-limit.js';
 import { findStaffByMobile } from '../access-store.js';
 import { recordAction } from '../lib/audit.js';
+import { NOTICE_VERSION, consentOf, consentRequired, recordConsent } from '../lib/consent.js';
+import { logSecurityEvent } from '../lib/security-log.js';
 import {
   addAddress,
   cartCount,
@@ -193,6 +195,7 @@ meRouter.post(
       consent: req.body.consent || null,
       via: 'APP_WITH_CODE',
     });
+    logSecurityEvent('DELETION_REQUESTED', { req, customerId: req.customerId });
     res.json({
       ok: true,
       graceDays: GRACE_DAYS,
@@ -277,6 +280,12 @@ meRouter.post(
     const before = getCustomer(req.customerId)?.mobile || null;
     const moved = changeCustomerMobile(req.customerId, next);
     if (moved.error) throw fail(moved.error.status, moved.error.code, moved.error.message);
+    logSecurityEvent('MOBILE_CHANGED', {
+      req,
+      customerId: req.customerId,
+      mobile: next,
+      details: { from: maskMobile(before) },
+    });
     // Every number change leaves a row in the audit trail — it is how an account is taken over.
     recordAction({
       staff: { email: `customer:${req.customerId}`, role: 'CUSTOMER', via: 'app' },
@@ -390,3 +399,38 @@ function maskMobile(m) {
   const d = String(m || '');
   return d.length >= 6 ? `${d.slice(0, 2)}${'x'.repeat(d.length - 4)}${d.slice(-2)}` : null;
 }
+
+/**
+ * The privacy notice and the 18+ confirmation (DPDP §5, §6, §9; Rules 3 and 10).
+ *   GET  /me/consent  — does this account still have to agree to the current notice?
+ *   POST /me/consent  — { version, adult: true }: the one-time prompt shown to customers who signed
+ *                       up before the consent boxes existed, or after the notice changes.
+ */
+meRouter.get('/consent', (req, res) => {
+  const c = consentOf(req.customerId);
+  res.json({
+    required: consentRequired(req.customerId),
+    version: NOTICE_VERSION,
+    accepted: c ? { version: c.version, adult: c.adult, at: c.at } : null,
+  });
+});
+
+meRouter.post(
+  '/consent',
+  validateBody(z.object({ version: z.string().max(60), adult: z.boolean() })),
+  asyncHandler(async (req, res) => {
+    let r;
+    try {
+      r = await recordConsent(req.customerId, { ...req.body, via: 'prompt' });
+    } catch {
+      throw fail(503, 'TRY_AGAIN', 'Could not save that just now. Please try again.');
+    }
+    if ('error' in r) throw fail(r.error.status, r.error.code, r.error.message);
+    logSecurityEvent('CONSENT_GIVEN', {
+      req,
+      customerId: req.customerId,
+      details: { via: 'prompt' },
+    });
+    res.json({ ok: true, required: false, version: NOTICE_VERSION });
+  }),
+);

@@ -1,15 +1,17 @@
 import React, { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, Phone } from 'lucide-react-native';
+import { ArrowLeft, Check, Phone } from 'lucide-react-native';
 import { Body, Button, Display, Glass, Input, Pressy, Screen, Small, Text } from '../../src/ui';
 import { colors, fonts, radius } from '../../src/theme';
 import { useRequestOtpMutation } from '../../src/api/api';
 import { useSlowHint, WAKING_MESSAGE } from '../../src/hooks/useSlowHint';
 import { setPendingMobile } from '../../src/features/auth/authSlice';
-import { showToast } from '../../src/features/ui/uiSlice';
+import { selectLanguage, showToast } from '../../src/features/ui/uiSlice';
+import { t } from '../../src/lib/i18n';
+import { NOTICE_VERSION, setSignupConsent } from '../../src/lib/consent';
 import { haptic } from '../../src/lib/haptics';
 import { checkMobile, cleanMobile, isMobileValid } from '../../src/lib/validators';
 
@@ -18,6 +20,10 @@ export default function PhoneScreen() {
   const dispatch = useDispatch();
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState(null);
+  // DPDP §6 and §9: consent is a clear action (two unticked boxes), not "by continuing you agree".
+  const [agreed, setAgreed] = useState(false);
+  const [adult, setAdult] = useState(false);
+  const lang = useSelector(selectLanguage);
   const [requestOtp, { isLoading }] = useRequestOtpMutation();
   // A tester's very first tap is the one most likely to land on a sleeping server.
   const slow = useSlowHint(isLoading);
@@ -31,6 +37,12 @@ export default function PhoneScreen() {
       haptic.warning();
       return;
     }
+    if (!agreed || !adult) {
+      haptic.warning();
+      dispatch(showToast({ title: t('consentNeeded', lang), tone: 'neutral' }));
+      return;
+    }
+    setSignupConsent({ version: NOTICE_VERSION, adult: true });
     try {
       const res = await requestOtp({ mobile }).unwrap();
       dispatch(setPendingMobile(mobile));
@@ -114,38 +126,86 @@ export default function PhoneScreen() {
 
         <View style={{ flex: 1 }} />
         <Animated.View entering={FadeInDown.delay(160).duration(420).springify().damping(18)}>
-          <Button title="Send code" onPress={submit} loading={isLoading} disabled={!valid} />
+          <Tick
+            checked={agreed}
+            onPress={() => setAgreed((v) => !v)}
+            label={t('consentAgree', lang)}
+          />
+          <Tick
+            checked={adult}
+            onPress={() => setAdult((v) => !v)}
+            label={t('consentAdult', lang)}
+          />
+          <Button
+            title="Send code"
+            onPress={submit}
+            loading={isLoading}
+            disabled={!valid || !agreed || !adult}
+            style={{ marginTop: 12 }}
+          />
           {slow ? (
             <Small muted center style={{ marginTop: 12 }}>
               {WAKING_MESSAGE}
             </Small>
           ) : null}
-          <Small muted center style={{ marginTop: 12 }}>
-            By continuing you agree to our{' '}
-            <Text
-              variant="smallMedium"
-              color={colors.leafDeep}
-              onPress={() => Linking.openURL('https://fooducia.health/terms').catch(() => {})}
+          <View style={styles.links}>
+            <Pressy
+              onPress={() =>
+                Linking.openURL(`https://fooducia.health/privacy?lang=${lang}`).catch(() => {})
+              }
+              haptics="select"
             >
-              terms
-            </Text>{' '}
-            and{' '}
-            <Text
-              variant="smallMedium"
-              color={colors.leafDeep}
-              onPress={() => Linking.openURL('https://fooducia.health/privacy').catch(() => {})}
+              <Small style={styles.link}>{t('privacyPolicy', lang)}</Small>
+            </Pressy>
+            <Pressy
+              onPress={() =>
+                Linking.openURL(`https://fooducia.health/terms?lang=${lang}`).catch(() => {})
+              }
+              haptics="select"
             >
-              privacy policy
-            </Text>
-            .
-          </Small>
+              <Small style={styles.link}>{t('termsOfUse', lang)}</Small>
+            </Pressy>
+          </View>
         </Animated.View>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
+/** One consent box. Unticked until the customer ticks it. */
+function Tick({ checked, onPress, label }) {
+  return (
+    <Pressy
+      onPress={onPress}
+      haptics="select"
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+    >
+      <View style={styles.tick}>
+        <View style={[styles.box, checked && styles.boxOn]}>
+          {checked ? <Check size={15} color={colors.inkOnDark} strokeWidth={3} /> : null}
+        </View>
+        <Small style={{ flex: 1 }}>{label}</Small>
+      </View>
+    </Pressy>
+  );
+}
+
 const styles = StyleSheet.create({
+  tick: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  box: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: colors.ink3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxOn: { backgroundColor: colors.leafDeep, borderColor: colors.leafDeep },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 14 },
+  link: { color: colors.leafDeep, textDecorationLine: 'underline' },
   back: { alignSelf: 'flex-start', marginTop: 8 },
   backInner: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   prefix: {

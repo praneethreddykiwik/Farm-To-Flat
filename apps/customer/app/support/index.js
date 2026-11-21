@@ -18,13 +18,16 @@ import {
   Small,
   Text,
 } from '../../src/ui';
-import { useCreateTicketMutation, useGetTicketsQuery } from '../../src/api/api';
+import { useCreateTicketMutation, useGetSupportQuery, useGetTicketsQuery } from '../../src/api/api';
 import { selectLanguage, showToast } from '../../src/features/ui/uiSlice';
 import { env } from '../../src/lib/env';
 import { haptic } from '../../src/lib/haptics';
 import { t } from '../../src/lib/i18n';
 import { TicketStatus } from '../../src/components/TicketStatus';
 import { colors, radius } from '../../src/theme';
+
+/** Named on the privacy page (apps/admin/src/screens/Privacy.jsx, GRIEVANCE_OFFICER). */
+const GRIEVANCE_OFFICER = 'Praneeth Ramaswamy';
 
 const CATEGORIES = ['APP_PROBLEM', 'PAYMENT', 'ACCOUNT', 'DELIVERY', 'SUGGESTION', 'OTHER'];
 
@@ -38,6 +41,7 @@ export default function SupportRequests() {
   const dispatch = useDispatch();
   const lang = useSelector(selectLanguage);
   const { data, isLoading } = useGetTicketsQuery(undefined, { refetchOnFocus: true });
+  const { data: support } = useGetSupportQuery(undefined);
   const [create, { isLoading: sending }] = useCreateTicketMutation();
   const [category, setCategory] = useState(/** @type {string|null} */ (null));
   const [message, setMessage] = useState('');
@@ -164,6 +168,17 @@ export default function SupportRequests() {
         ) : (
           <Small muted>{t('ticketNone', lang)}</Small>
         )}
+
+        {/* DPDP Rule 9: who answers questions about your data, in the app as well as on the web. */}
+        <Label style={{ marginTop: 28, marginBottom: 8 }}>{t('privacyBoxTitle', lang)}</Label>
+        <Glass radius={radius.lg} innerStyle={{ padding: 16 }}>
+          <Small>
+            {t('privacyBoxBody', lang, {
+              name: GRIEVANCE_OFFICER,
+              email: support?.support?.email || 'support@fooducia.health',
+            })}
+          </Small>
+        </Glass>
       </ScrollView>
     </View>
   );

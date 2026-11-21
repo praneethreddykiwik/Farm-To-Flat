@@ -42,6 +42,18 @@ export const categoryLabel = (product, lang) =>
  */
 const STRINGS = {
   en: {
+    privacyBoxTitle: 'Your data and privacy',
+    privacyBoxBody:
+      'To see, correct or delete your data, withdraw consent or name someone to act for you, write to our Grievance Officer, {name}, at {email}. We reply within 30 days. You can also complain to the Data Protection Board of India.',
+    // DPDP consent (21 Nov 2026)
+    consentAgree: 'I have read the privacy notice and agree to how my data is used.',
+    consentAdult: 'I am 18 years or older.',
+    consentNeeded: 'Tick both boxes to continue.',
+    consentTitle: 'Your privacy, in brief',
+    consentBody:
+      'We use your number, name, address and orders only to deliver your groceries, take payment and support you. You can see, correct or delete your data and withdraw consent at any time. Fooducia is for adults (18+).',
+    consentContinue: 'Agree and continue',
+    consentSignOut: 'Sign out instead',
     language: 'Language',
     chooseLanguage: 'Choose your language',
     chooseLanguageSub: 'You can change this any time from your profile.',
@@ -362,6 +374,17 @@ const STRINGS = {
     addAnotherAddress: 'Add another address',
   },
   hi: {
+    privacyBoxTitle: 'आपका डेटा और निजता',
+    privacyBoxBody:
+      'अपना डेटा देखने, सुधारने या हटाने, सहमति वापस लेने या अपनी ओर से किसी को नामित करने के लिए हमारे शिकायत अधिकारी {name} को {email} पर लिखें। हम 30 दिनों में जवाब देते हैं। आप भारतीय डेटा संरक्षण बोर्ड (Data Protection Board of India) से भी शिकायत कर सकते हैं।',
+    consentAgree: 'मैंने निजता सूचना पढ़ ली है और अपने डेटा के उपयोग के तरीके से सहमत हूँ।',
+    consentAdult: 'मेरी उम्र 18 वर्ष या उससे अधिक है।',
+    consentNeeded: 'आगे बढ़ने के लिए दोनों बॉक्स चुनें।',
+    consentTitle: 'आपकी निजता, संक्षेप में',
+    consentBody:
+      'हम आपका नंबर, नाम, पता और ऑर्डर केवल आपकी सब्ज़ियाँ पहुँचाने, भुगतान लेने और आपकी मदद करने के लिए इस्तेमाल करते हैं। आप कभी भी अपना डेटा देख, सुधार या हटा सकते हैं और सहमति वापस ले सकते हैं। Fooducia केवल वयस्कों (18+) के लिए है।',
+    consentContinue: 'सहमत हूँ, आगे बढ़ें',
+    consentSignOut: 'इसके बजाय साइन आउट करें',
     language: 'भाषा',
     chooseLanguage: 'अपनी भाषा चुनें',
     chooseLanguageSub: 'आप इसे कभी भी अपनी प्रोफ़ाइल से बदल सकते हैं।',
@@ -666,6 +689,18 @@ const STRINGS = {
     addAnotherAddress: 'दूसरा पता जोड़ें',
   },
   te: {
+    privacyBoxTitle: 'మీ డేటా, గోప్యత',
+    privacyBoxBody:
+      'మీ డేటాను చూడటానికి, సరిచేయడానికి లేదా తొలగించడానికి, సమ్మతిని ఉపసంహరించుకోవడానికి లేదా మీ తరఫున ఒకరిని నామినేట్ చేయడానికి మా గ్రీవెన్స్ ఆఫీసర్ {name} గారికి {email} కు రాయండి. 30 రోజుల్లో జవాబిస్తాం. మీరు Data Protection Board of India కు కూడా ఫిర్యాదు చేయవచ్చు.',
+    consentAgree:
+      'నేను గోప్యతా నోటీసును చదివాను, నా డేటాను ఉపయోగించే విధానానికి అంగీకరిస్తున్నాను.',
+    consentAdult: 'నా వయస్సు 18 సంవత్సరాలు లేదా అంతకంటే ఎక్కువ.',
+    consentNeeded: 'కొనసాగడానికి రెండు బాక్సులనూ టిక్ చేయండి.',
+    consentTitle: 'మీ గోప్యత, క్లుప్తంగా',
+    consentBody:
+      'మీ నంబర్, పేరు, చిరునామా, ఆర్డర్‌లను మీ కూరగాయలు అందించడానికి, చెల్లింపు తీసుకోవడానికి, మీకు సహాయం చేయడానికి మాత్రమే ఉపయోగిస్తాం. మీరు ఎప్పుడైనా మీ డేటాను చూడవచ్చు, సరిచేయవచ్చు లేదా తొలగించవచ్చు, సమ్మతిని ఉపసంహరించుకోవచ్చు. Fooducia పెద్దలకు (18+) మాత్రమే.',
+    consentContinue: 'అంగీకరించి కొనసాగండి',
+    consentSignOut: 'బదులుగా సైన్ అవుట్ చేయండి',
     language: 'భాష',
     chooseLanguage: 'మీ భాషను ఎంచుకోండి',
     chooseLanguageSub: 'దీన్ని మీ ప్రొఫైల్‌లో ఎప్పుడైనా మార్చుకోవచ్చు.',
