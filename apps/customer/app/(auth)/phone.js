@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Linking, Platform, StyleSheet, View } from 'react
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, Check, Phone } from 'lucide-react-native';
+import { ArrowLeft, Phone } from 'lucide-react-native';
 import { Body, Button, Display, Glass, Input, Pressy, Screen, Small, Text } from '../../src/ui';
 import { colors, fonts, radius } from '../../src/theme';
 import { useRequestOtpMutation } from '../../src/api/api';
@@ -12,6 +12,7 @@ import { setPendingMobile } from '../../src/features/auth/authSlice';
 import { selectLanguage, showToast } from '../../src/features/ui/uiSlice';
 import { t } from '../../src/lib/i18n';
 import { NOTICE_VERSION, setSignupConsent } from '../../src/lib/consent';
+import { ConsentTicks } from '../../src/components/ConsentTicks';
 import { haptic } from '../../src/lib/haptics';
 import { checkMobile, cleanMobile, isMobileValid } from '../../src/lib/validators';
 
@@ -126,15 +127,12 @@ export default function PhoneScreen() {
 
         <View style={{ flex: 1 }} />
         <Animated.View entering={FadeInDown.delay(160).duration(420).springify().damping(18)}>
-          <Tick
-            checked={agreed}
-            onPress={() => setAgreed((v) => !v)}
-            label={t('consentAgree', lang)}
-          />
-          <Tick
-            checked={adult}
-            onPress={() => setAdult((v) => !v)}
-            label={t('consentAdult', lang)}
+          <ConsentTicks
+            agreed={agreed}
+            onAgree={() => setAgreed((v) => !v)}
+            adult={adult}
+            onAdult={() => setAdult((v) => !v)}
+            lang={lang}
           />
           <Button
             title="Send code"
@@ -172,38 +170,7 @@ export default function PhoneScreen() {
   );
 }
 
-/** One consent box. Unticked until the customer ticks it. */
-function Tick({ checked, onPress, label }) {
-  return (
-    <Pressy
-      onPress={onPress}
-      haptics="select"
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      accessibilityLabel={label}
-    >
-      <View style={styles.tick}>
-        <View style={[styles.box, checked && styles.boxOn]}>
-          {checked ? <Check size={15} color={colors.inkOnDark} strokeWidth={3} /> : null}
-        </View>
-        <Small style={{ flex: 1 }}>{label}</Small>
-      </View>
-    </Pressy>
-  );
-}
-
 const styles = StyleSheet.create({
-  tick: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  box: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: colors.ink3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  boxOn: { backgroundColor: colors.leafDeep, borderColor: colors.leafDeep },
   links: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 14 },
   link: { color: colors.leafDeep, textDecorationLine: 'underline' },
   back: { alignSelf: 'flex-start', marginTop: 8 },

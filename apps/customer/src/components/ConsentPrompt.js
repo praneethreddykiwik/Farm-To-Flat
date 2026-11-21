@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { Check } from 'lucide-react-native';
 import { useConsentSaveMutation, useConsentStatusQuery } from '../api/api';
 import { selectAuth } from '../features/auth/authSlice';
 import { selectLanguage, showToast } from '../features/ui/uiSlice';
@@ -10,6 +9,7 @@ import { NOTICE_VERSION } from '../lib/consent';
 import { t } from '../lib/i18n';
 import { colors } from '../theme';
 import { Body, Button, Display, Pressy, Small } from '../ui';
+import { ConsentTicks } from './ConsentTicks';
 
 /**
  * The privacy notice, once, for customers who signed up before consent became two ticked boxes —
@@ -60,12 +60,13 @@ export function ConsentPrompt() {
           <Small style={styles.link}>{t('privacyPolicy', lang)}</Small>
         </Pressy>
         <View style={{ height: 20 }} />
-        <Tick
-          checked={agreed}
-          onPress={() => setAgreed((v) => !v)}
-          label={t('consentAgree', lang)}
+        <ConsentTicks
+          agreed={agreed}
+          onAgree={() => setAgreed((v) => !v)}
+          adult={adult}
+          onAdult={() => setAdult((v) => !v)}
+          lang={lang}
         />
-        <Tick checked={adult} onPress={() => setAdult((v) => !v)} label={t('consentAdult', lang)} />
         <Button
           title={t('consentContinue', lang)}
           onPress={agree}
@@ -81,25 +82,6 @@ export function ConsentPrompt() {
   );
 }
 
-function Tick({ checked, onPress, label }) {
-  return (
-    <Pressy
-      onPress={onPress}
-      haptics="select"
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      accessibilityLabel={label}
-    >
-      <View style={styles.tick}>
-        <View style={[styles.box, checked && styles.boxOn]}>
-          {checked ? <Check size={15} color={colors.inkOnDark} strokeWidth={3} /> : null}
-        </View>
-        <Small style={{ flex: 1 }}>{label}</Small>
-      </View>
-    </Pressy>
-  );
-}
-
 const styles = StyleSheet.create({
   cover: {
     position: 'absolute',
@@ -111,16 +93,5 @@ const styles = StyleSheet.create({
     zIndex: 900,
   },
   inner: { padding: 24, paddingTop: 96, paddingBottom: 48 },
-  tick: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  box: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: colors.ink3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  boxOn: { backgroundColor: colors.leafDeep, borderColor: colors.leafDeep },
   link: { color: colors.leafDeep, textDecorationLine: 'underline' },
 });
