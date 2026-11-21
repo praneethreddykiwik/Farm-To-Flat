@@ -14,6 +14,7 @@ import { Button, Small, Text } from '../ui';
 import { colors, fonts } from '../theme';
 import { kv } from '../lib/kv';
 import * as SplashScreen from 'expo-splash-screen';
+import { MAX_HOLD_MS } from '../lib/bootTiming';
 
 /**
  * The opening of the app.
@@ -31,6 +32,7 @@ import * as SplashScreen from 'expo-splash-screen';
  */
 
 const SEEN_KEY = 'ui.introSeen.v1';
+
 const readSeen = () => {
   try {
     return !!kv.getString(SEEN_KEY);
@@ -162,9 +164,10 @@ function Wordmark({ width }) {
 const INK = '#05472F';
 
 /**
- * @param {{ start: boolean }} props  `start`: the app behind is ready to be seen.
+ * @param {{ start: boolean, onDone?: () => void }} props  `start`: the app behind is ready to be
+ *   seen. `onDone`: called once the logo steps aside (for the start-up timings).
  */
-export function BrandIntro({ start }) {
+export function BrandIntro({ start, onDone }) {
   const [firstRun] = useState(() => !readSeen());
   const [gone, setGone] = useState(false);
   const [reduce, setReduce] = useState(false);
@@ -202,8 +205,18 @@ export function BrandIntro({ start }) {
     return () => clearTimeout(t);
   }, [played, reduce, word]);
 
+  // Drawn and still waiting: give it MAX_HOLD_MS, then step aside regardless (not on the very first
+  // launch, where the introduction and its button are the point).
+  const [waitedEnough, setWaitedEnough] = useState(false);
   useEffect(() => {
-    if (!drawn || !start) return undefined;
+    if (!drawn || start || firstRun) return undefined;
+    const t = setTimeout(() => setWaitedEnough(true), MAX_HOLD_MS);
+    return () => clearTimeout(t);
+  }, [drawn, start, firstRun]);
+  const go = start || waitedEnough;
+
+  useEffect(() => {
+    if (!drawn || !go) return undefined;
     if (firstRun) {
       lift.value = withTiming(1, { duration: 650, easing: Easing.inOut(Easing.cubic) });
       const t = setTimeout(() => setShowLines(true), 550);
@@ -213,8 +226,9 @@ export function BrandIntro({ start }) {
     out.value = withTiming(0, { duration: 380, easing: Easing.in(Easing.quad) }, (done) => {
       if (done) runOnJS(setGone)(true);
     });
+    onDone?.();
     return undefined;
-  }, [drawn, start, firstRun, lift, out]);
+  }, [drawn, go, firstRun, lift, out, onDone]);
 
   const finish = () => {
     markSeen();

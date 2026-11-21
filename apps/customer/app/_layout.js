@@ -1,7 +1,7 @@
 import '../global.css';
-import { initSentry } from '../src/lib/sentry';
+import { initSentry, reportSlowBoot } from '../src/lib/sentry';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { hydrateHousehold } from '../src/features/household/householdSlice';
 import { BrandIntro } from '../src/components/BrandIntro';
+import { bootMarks, markBoot, slowBootReport } from '../src/lib/bootTiming';
 import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import {
@@ -352,6 +353,20 @@ function Root() {
     configureNotifications();
   }, []);
 
+  // Start-up timings (lib/bootTiming): fonts ready, sign-in settled, logo gone. A slow start is
+  // reported with these numbers only, so a customer's stall shows up where we can see it.
+  useEffect(() => {
+    if (ready) markBoot('ready');
+  }, [ready]);
+  useEffect(() => {
+    if (auth.status !== 'booting') markBoot(`auth.${auth.status}`);
+  }, [auth.status]);
+  const onIntroDone = useCallback(() => {
+    markBoot('introDone');
+    const report = slowBootReport(bootMarks());
+    if (report) reportSlowBoot(report);
+  }, []);
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
@@ -438,7 +453,7 @@ function Root() {
       <UpdateRequired />
       {/* The opening: the logo drawing itself in, and on a phone's first launch, what Fooducia is.
           On top of everything, and started the moment the system splash comes down. */}
-      <BrandIntro start={ready && auth.status !== 'booting'} />
+      <BrandIntro start={ready && auth.status !== 'booting'} onDone={onIntroDone} />
     </View>
   );
 }
