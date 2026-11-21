@@ -29,7 +29,8 @@ import {
   IconUsers,
   IconX,
 } from './icons.jsx';
-import { clearToken } from '../lib/auth.js';
+import { clearToken, getCredential, getOperator } from '../lib/auth.js';
+import { mayOpenPage } from '../lib/nav-access.js';
 import mark from '../assets/fooducia-mark.png';
 
 const NAV = [
@@ -69,6 +70,12 @@ const NAV = [
  */
 export function Sidebar({ open = false, onClose }) {
   const { pathname } = useLocation();
+  const role = getOperator()?.role;
+  const sharedToken = getCredential()?.kind === 'token';
+  // Only the pages this role can use, and no heading left standing over an empty group.
+  const nav = NAV.filter((item) => item.section || mayOpenPage(item.to, role, sharedToken)).filter(
+    (item, i, all) => !item.section || (all[i + 1] && !all[i + 1].section),
+  );
   return (
     <nav className={`rail${open ? ' rail--open' : ''}`} aria-label="Main">
       <div className="brand">
@@ -93,7 +100,7 @@ export function Sidebar({ open = false, onClose }) {
       </div>
 
       <div className="nav">
-        {NAV.map((item, i) =>
+        {nav.map((item, i) =>
           item.section ? (
             <div className="nav__label" key={`s${i}`}>
               {item.section}

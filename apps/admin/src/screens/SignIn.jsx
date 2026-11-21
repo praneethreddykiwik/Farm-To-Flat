@@ -53,6 +53,10 @@ export function SignIn() {
   const [error, setError] = useState(null);
   const [accepted, setAccepted] = useState(false);
   const [google, setGoogle] = useState({ state: 'loading', clientId: null });
+  // The shared operator token is offered only while the server still accepts it. Once the owner
+  // sets ADMIN_TOKEN_SUNSET=1 the box is hidden, so nobody types a dead secret into it (security
+  // audit, 21 Nov 2026, S8-02).
+  const [tokenOn, setTokenOn] = useState(true);
   const buttonSlot = useRef(null);
 
   /** Hand a verified Google credential to our API and take the session it returns. */
@@ -92,6 +96,7 @@ export function SignIn() {
         return;
       }
       if (dead) return;
+      setTokenOn(config?.token?.enabled !== false);
       if (!config?.google?.enabled) return setGoogle({ state: 'off', clientId: null });
       setGoogle({ state: 'loading', clientId: config.google.clientId });
       try {
@@ -193,7 +198,7 @@ export function SignIn() {
         </h1>
         <p className="si__sub" style={{ '--i': 2 }}>
           This panel manages live orders and customer data. Sign in with your Fooducia Google
-          account, or paste the operator token.
+          account{tokenOn ? ', or paste the operator token' : ''}.
         </p>
 
         {showGoogle && (
@@ -202,41 +207,45 @@ export function SignIn() {
             {google.state === 'loading' && <div className="si__gskeleton" aria-hidden="true" />}
             {google.state === 'unavailable' && (
               <p className="si__note">
-                Google sign-in could not load. Use the operator token below.
+                Google sign-in could not load.{tokenOn ? ' Use the operator token below.' : ''}
               </p>
             )}
           </div>
         )}
 
-        {showGoogle && (
+        {showGoogle && tokenOn && (
           <div className="si__or" style={{ '--i': 4 }} aria-hidden="true">
             <span>or</span>
           </div>
         )}
 
-        <label className="si__label" htmlFor="admin-token" style={{ '--i': 5 }}>
-          Operator token
-        </label>
-        <div className="si__field" style={{ '--i': 6 }}>
-          <input
-            id="admin-token"
-            className="si__input"
-            type="password"
-            value={value}
-            autoFocus={!showGoogle}
-            autoComplete="current-password"
-            spellCheck={false}
-            disabled={disabled}
-            placeholder="Paste the token"
-            onChange={(e) => {
-              setValue(e.target.value);
-              // Clear the previous rejection as soon as they start correcting it — a stale red error
-              // sitting under a field you've just fixed reads as "still wrong".
-              if (error) setError(null);
-            }}
-          />
-          <span className="si__underline" aria-hidden="true" />
-        </div>
+        {tokenOn && (
+          <>
+            <label className="si__label" htmlFor="admin-token" style={{ '--i': 5 }}>
+              Operator token
+            </label>
+            <div className="si__field" style={{ '--i': 6 }}>
+              <input
+                id="admin-token"
+                className="si__input"
+                type="password"
+                value={value}
+                autoFocus={!showGoogle}
+                autoComplete="current-password"
+                spellCheck={false}
+                disabled={disabled}
+                placeholder="Paste the token"
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  // Clear the previous rejection as soon as they start correcting it — a stale red error
+                  // sitting under a field you've just fixed reads as "still wrong".
+                  if (error) setError(null);
+                }}
+              />
+              <span className="si__underline" aria-hidden="true" />
+            </div>
+          </>
+        )}
 
         {error && (
           <p role="alert" className="si__error">
@@ -244,25 +253,27 @@ export function SignIn() {
           </p>
         )}
 
-        <button
-          type="submit"
-          className="si__button"
-          aria-label="Sign in with the operator token"
-          disabled={disabled || !value.trim()}
-          style={{ '--i': 7 }}
-        >
-          <span className="si__sheen" aria-hidden="true" />
-          <span className="si__buttonText">
-            {accepted ? 'Signed in' : busy === 'token' ? 'Checking' : 'Sign in'}
-            {busy === 'token' && (
-              <span className="si__dots" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-            )}
-          </span>
-        </button>
+        {tokenOn && (
+          <button
+            type="submit"
+            className="si__button"
+            aria-label="Sign in with the operator token"
+            disabled={disabled || !value.trim()}
+            style={{ '--i': 7 }}
+          >
+            <span className="si__sheen" aria-hidden="true" />
+            <span className="si__buttonText">
+              {accepted ? 'Signed in' : busy === 'token' ? 'Checking' : 'Sign in'}
+              {busy === 'token' && (
+                <span className="si__dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              )}
+            </span>
+          </button>
+        )}
 
         <p className="si__foot" style={{ '--i': 8 }}>
           {busy === 'google'
