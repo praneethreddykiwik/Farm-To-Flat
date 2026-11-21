@@ -1,53 +1,30 @@
-import React, { useState } from 'react';
-import { ScrollView, Share, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Clipboard from 'expo-clipboard';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ArrowLeft, Copy, Gift, Share2, Users, Wallet } from 'lucide-react-native';
 import { Ambient, Button, Display, Glass, Label, Pressy, Small, Text } from '../src/ui';
-import { useGetInviteQuery } from '../src/api/api';
-import { selectLanguage, showToast } from '../src/features/ui/uiSlice';
-import { haptic } from '../src/lib/haptics';
+import { selectLanguage } from '../src/features/ui/uiSlice';
+import { inviteHeadline, rupeesOf, useInviteShare } from '../src/hooks/useInviteShare';
 import { t } from '../src/lib/i18n';
 import { colors, fonts, radius } from '../src/theme';
-import { track } from '../src/lib/tracking';
 
 /**
  * Invite neighbours (17 Nov 2026 review). The customer's own code, a share sheet, and what they have
  * earned. The reward is paid when the invited neighbour's FIRST order is delivered — said plainly,
- * so nobody expects money for a sign-up.
+ * so nobody expects money for a sign-up. The amounts come from the admin (Growth → Neighbour
+ * invites), so the screen never promises a figure the server will not pay.
  */
 export default function Invite() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const dispatch = useDispatch();
   const lang = useSelector(selectLanguage);
-  const { data, isLoading, isError, refetch } = useGetInviteQuery();
-  const [sharing, setSharing] = useState(false);
-  const rupees = (p) => Math.round(Number(p || 0) / 100);
-
-  const share = async () => {
-    if (!data?.shareText) return;
-    setSharing(true);
-    try {
-      const r = await Share.share({ message: data.shareText });
-      // referral_link_shared (tracking brief). iOS says whether it was sent; Android cannot tell.
-      if (r?.action !== Share.dismissedAction)
-        track('referral_link_shared', { channel: r?.activityType || 'share_sheet' });
-    } catch {
-      /* dismissed */
-    } finally {
-      setSharing(false);
-    }
-  };
-  const copy = async () => {
-    if (!data?.code) return;
-    await Clipboard.setStringAsync(data.code);
-    haptic.success();
-    dispatch(showToast({ title: t('codeCopied', lang), tone: 'success' }));
-  };
+  const invite = useInviteShare();
+  const { data, isLoading, isError, refetch, sharing, share, copy, amount, welcome } = invite;
+  const rupees = rupeesOf;
+  const head = inviteHeadline(invite, lang);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
@@ -65,9 +42,11 @@ export default function Invite() {
           </Glass>
         </Pressy>
 
-        <Display style={{ marginTop: 18 }}>{t('inviteNeighbours', lang)}</Display>
+        <Display style={{ marginTop: 18 }}>
+          {data?.enabled === false ? t('inviteNeighbours', lang) : head.title}
+        </Display>
         <Small muted style={{ marginTop: 6 }}>
-          {data?.howItWorks || t('inviteRowHint', lang)}
+          {data?.enabled === false ? data?.howItWorks : head.sub}
         </Small>
 
         {isError || (data && !data.code) ? (
@@ -105,7 +84,7 @@ export default function Invite() {
               </Pressy>
               <Button
                 title={t('shareInvite', lang)}
-                onPress={share}
+                onPress={() => share('invite_screen')}
                 loading={sharing}
                 disabled={!data}
                 icon={<Share2 size={18} color={colors.inkOnDark} />}
@@ -131,8 +110,8 @@ export default function Invite() {
             <Glass radius={radius.lg} innerStyle={{ padding: 16, gap: 12 }}>
               {[
                 t('inviteStep1', lang),
-                t('inviteStep2', lang),
-                t('inviteStep3', lang, { amount: rupees(data?.rewardPaise || 3000) }),
+                welcome > 0 ? t('inviteStep2Welcome', lang, { welcome }) : t('inviteStep2', lang),
+                t('inviteStep3', lang, { amount }),
               ].map((line, i) => (
                 <View key={i} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                   <View style={styles.stepDot}>

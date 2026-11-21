@@ -311,6 +311,8 @@ export const SETTINGS_DEFAULTS = {
     // Optional welcome credit for the person who was invited. Off until the business decides.
     // Both sides get ₹30 (Rapture7 brief, 19 Nov 2026) — the invited neighbour as a welcome credit.
     refereeRewardPaise: 3000,
+    // At most this many invite rewards paid to one inviter in an IST calendar month (was fixed at 20).
+    referralMonthlyCap: 20,
     // A waitlist community "opens" for planning when this many households are waiting.
     waitlistOpenAt: 20,
     // Ask "How did you hear about us?" before the first order.

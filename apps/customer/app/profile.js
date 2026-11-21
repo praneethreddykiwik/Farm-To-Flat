@@ -11,7 +11,6 @@ import {
   Bell,
   BellRing,
   ChevronRight,
-  Gift,
   Leaf,
   LogOut,
   Mail,
@@ -45,6 +44,7 @@ import { profileUpdated, selectProfile } from '../src/features/plan/planSlice';
 import { selectAiVisible } from '../src/features/role/roleSlice';
 import { showToast, selectLanguage } from '../src/features/ui/uiSlice';
 import { HouseholdSheet } from '../src/components/HouseholdSheet';
+import { InviteCard } from '../src/components/InviteCard';
 import { householdLabel } from '../src/lib/household';
 import { selectHousehold } from '../src/features/household/householdSlice';
 import { useSignOut } from '../src/hooks/useSession';
@@ -520,17 +520,7 @@ export default function Profile() {
         ) : null}
 
         {/* Neighbour invites (17 Nov 2026 review): share a code, earn wallet credit. */}
-        <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('inviteNeighbours', lang)}</Label>
-        <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>
-          <Row
-            icon={<Gift size={18} color={colors.ink} />}
-            label={t('inviteNeighbours', lang)}
-            value={t('inviteRowHint', lang)}
-            lines={2}
-            onPress={() => router.push('/invite')}
-            last
-          />
-        </Glass>
+        <InviteCard />
 
         <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('preferencesLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={styles.group}>

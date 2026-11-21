@@ -240,6 +240,7 @@ const GrowthSettingsBody = z.object({
   referralEnabled: z.boolean().optional(),
   referrerRewardPaise: z.number().int().min(0).max(100000).optional(),
   refereeRewardPaise: z.number().int().min(0).max(100000).optional(),
+  referralMonthlyCap: z.number().int().min(1).max(500).optional(),
   waitlistOpenAt: z.number().int().min(1).max(10000).optional(),
   askHeardFrom: z.boolean().optional(),
   mobileReferral: z.boolean().optional(),

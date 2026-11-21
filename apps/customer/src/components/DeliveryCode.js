@@ -24,33 +24,42 @@ import { selectReducedMotion } from '../features/ui/uiSlice';
  * explicit lineHeight the glyphs were taller than their box, and Android adds font padding on top.
  * Every tile sets its own lineHeight and turns that padding off, so a digit cannot be cut again.
  *
- * The digits pop in one after another and the card breathes gently afterwards, so the code is the
- * thing your eye lands on when the screen opens. Honours reduce-motion: then it simply appears.
+ * The digits rise in one after another and the card's border glows gently afterwards, so the code
+ * is the thing your eye lands on when the screen opens. Honours reduce-motion: then it simply appears.
+ *
+ * No scale transforms touch the text (21 Nov 2026). iOS draws a scaled view as a bitmap, so digits
+ * that sprang up from 40% size, inside a card that "breathed" between 100% and 102% for ever, looked
+ * blurry until the phone re-drew them. Now the digits only fade and slide, and the pulse is a
+ * separate ring's opacity, so the numbers are drawn sharp from the first frame.
  */
 export function DeliveryCode({ code, cashDuePaise = 0 }) {
   const digits = String(code ?? '').split('');
   const reduced = useSelector(selectReducedMotion);
-  const pulse = useSharedValue(1);
+  const glow = useSharedValue(0);
 
   useEffect(() => {
     if (reduced || !digits.length) return undefined;
-    // A slow breath, not a flash — it has to stay readable while someone copies it out.
-    pulse.value = withRepeat(
-      withSequence(
-        withTiming(1.02, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
-        withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+    // A slow glow on the border, not a flash, and never a size change on the digits themselves.
+    glow.value = withDelay(
+      700,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        false,
       ),
-      -1,
-      false,
     );
-    return () => cancelAnimation(pulse);
-  }, [reduced, digits.length, pulse]);
+    return () => cancelAnimation(glow);
+  }, [reduced, digits.length, glow]);
 
-  const breathe = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+  const ring = useAnimatedStyle(() => ({ opacity: glow.value }));
   if (!digits.length) return null;
 
   return (
-    <Animated.View style={[styles.card, breathe]}>
+    <View style={styles.card}>
+      <Animated.View pointerEvents="none" style={[styles.ring, ring]} />
       <Small muted>Show this code to the delivery partner</Small>
       <View
         style={styles.row}
@@ -67,20 +76,24 @@ export function DeliveryCode({ code, cashDuePaise = 0 }) {
           Keep ₹{Math.round(Number(cashDuePaise) / 100)} in cash ready
         </Small>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
-/** One tile. Pops in after the tile before it, so the code reads left to right as it lands. */
+/** One tile. Rises in after the tile before it, so the code reads left to right as it lands. */
 function Digit({ value, index, reduced }) {
-  const s = useSharedValue(reduced ? 1 : 0.4);
+  const y = useSharedValue(reduced ? 0 : 10);
   const o = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
     if (reduced) return;
-    s.value = withDelay(index * 90, withSpring(1, { damping: 11, stiffness: 190 }));
-    o.value = withDelay(index * 90, withTiming(1, { duration: 200 }));
-  }, [index, reduced, s, o]);
-  const style = useAnimatedStyle(() => ({ opacity: o.value, transform: [{ scale: s.value }] }));
+    y.value = withDelay(index * 90, withSpring(0, { damping: 14, stiffness: 190 }));
+    o.value = withDelay(index * 90, withTiming(1, { duration: 220 }));
+  }, [index, reduced, y, o]);
+  // translateY moves the layer without resampling it, so the digit stays crisp while it moves.
+  const style = useAnimatedStyle(() => ({
+    opacity: o.value,
+    transform: [{ translateY: y.value }],
+  }));
   return (
     <Animated.View style={[styles.tile, style]}>
       <Text style={styles.digit} allowFontScaling={false}>
@@ -99,6 +112,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.leaf,
     backgroundColor: colors.white,
+  },
+  ring: {
+    position: 'absolute',
+    top: -1.5,
+    left: -1.5,
+    right: -1.5,
+    bottom: -1.5,
+    borderRadius: radius.lg,
+    borderWidth: 3,
+    borderColor: colors.leaf,
   },
   row: { flexDirection: 'row', gap: 10, marginTop: 10 },
   tile: {

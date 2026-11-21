@@ -37,6 +37,7 @@ growthRouter.get(
   asyncHandler(async (req, res) => {
     const s = inviteSummary(req.customerId);
     const rupees = Math.round(Number(s.rewardPaise) / 100);
+    const welcome = Math.round(Number(s.welcomePaise) / 100);
     if (!s.code)
       return res.json({
         ...s,
@@ -49,9 +50,15 @@ growthRouter.get(
       link: shareLink(s.code),
       shareText:
         `I order my vegetables from Fooducia — harvested after you order and at the door by breakfast. ` +
-        `Use my code ${s.code} on your first order. ${shareLink(s.code)}`,
+        `Use my code ${s.code} on your first order` +
+        (s.enabled && welcome > 0
+          ? ` and get ₹${welcome} in your Fooducia wallet when it arrives. `
+          : '. ') +
+        shareLink(s.code),
       howItWorks: s.enabled
-        ? `Share your code. When a neighbour's first order is delivered, ₹${rupees} lands in your Fooducia wallet.`
+        ? welcome > 0
+          ? `Share your code. When a neighbour's first order is delivered, you get ₹${rupees} and they get ₹${welcome} in your Fooducia wallets.`
+          : `Share your code. When a neighbour's first order is delivered, ₹${rupees} lands in your Fooducia wallet.`
         : 'Invites are paused right now — you can still share Fooducia with your neighbours.',
     });
   }),
