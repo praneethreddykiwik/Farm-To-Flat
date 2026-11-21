@@ -206,8 +206,28 @@ export const api = createApi({
       invalidatesTags: ['Cart'],
       // A line taken out by its own button: any figure still being held for it would put it back
       // on screen for a moment.
-      onQueryStarted() {
+      //
+      // And it goes at once (21 Nov 2026). Removing used to wait for the DELETE and then a fresh
+      // GET of the basket — two round trips to the server before the line moved, about a second
+      // from Hyderabad — so it felt broken. Now the line leaves the cached basket immediately and
+      // the totals follow when the server answers (they are its to work out: coupons, fees, tax);
+      // if the server refuses, the line comes back.
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
         forgetSettledLines();
+        const patch = dispatch(
+          api.util.updateQueryData('getCart', undefined, (draft) => {
+            const cart = draft?.cart;
+            if (!cart?.items) return;
+            const line = cart.items.find((i) => i.id === id);
+            if (!line) return;
+            cart.items = cart.items.filter((i) => i.id !== id);
+          }),
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          patch.undo();
+        }
       },
     }),
     applyCoupon: b.mutation({
