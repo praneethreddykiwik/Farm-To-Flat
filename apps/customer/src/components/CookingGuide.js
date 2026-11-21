@@ -13,6 +13,7 @@ import { productLabel } from '../lib/i18n';
 import { api } from '../api/api';
 import { useCartLine } from '../hooks/useCart';
 import { selectDietPref, selectLanguage, showToast } from '../features/ui/uiSlice';
+import { selectHousehold } from '../features/household/householdSlice';
 
 const UNIT = { KG: '/kg', BUNCH: '/bunch', PIECE: '/pc', DOZEN: '/dozen', PACK: '/pack' };
 const CARD_W = 172;
@@ -25,6 +26,10 @@ const CARD_W = 172;
  * has earned one — its nutrition badge. Things already in the basket are ticked, so the row reads as
  * a checklist of the dish, not a list of things to buy.
  *
+ * Quantities are for this family (the "who's eating at home" numbers, or two people until they are
+ * set), rounded up to what each product is sold in. Pantry staples we don't sell are listed under
+ * "From your kitchen", and a dish whose main ingredient we don't sell says so plainly.
+ *
  * Nothing is added unless the shopper adds it. The knowledge is the app's own written cookbook
  * (lib/cookbook), so it answers at once, offline, and cannot suggest something we do not sell.
  *
@@ -34,15 +39,20 @@ const CARD_W = 172;
  */
 export function CookingGuide({ products, basket, onReveal }) {
   const diet = useSelector(selectDietPref);
+  const household = useSelector(selectHousehold);
   const [text, setText] = useState('');
   const [asked, setAsked] = useState('');
   const input = useRef(/** @type {any} */ (null));
 
   const inBasket = useMemo(() => (basket || []).map((i) => i.productId), [basket]);
+  const basketQty = useMemo(
+    () => Object.fromEntries((basket || []).map((i) => [i.productId, Number(i.quantity) || 0])),
+    [basket],
+  );
   const quick = useMemo(() => ideas(products, inBasket, 6), [products, inBasket]);
   const answer = useMemo(
-    () => (asked ? suggest(asked, products, { inBasket, diet }) : null),
-    [asked, products, inBasket, diet],
+    () => (asked ? suggest(asked, products, { inBasket, basketQty, diet, household }) : null),
+    [asked, products, inBasket, basketQty, diet, household],
   );
 
   const ask = useCallback(
@@ -169,17 +179,20 @@ export function CookingGuide({ products, basket, onReveal }) {
         </Animated.View>
       ) : null}
 
-      {answer ? <Answer key={asked} answer={answer} /> : null}
+      {answer ? <Answer key={asked} answer={answer} onAsk={ask} /> : null}
     </View>
   );
 }
 
-function Answer({ answer }) {
+/** How much to put in the basket for this pick: what the dish needs for this family. */
+const wantOf = (x) => Number(x.quantity) || Number(x.product.increment) || 1;
+
+function Answer({ answer, onAsk }) {
   const dispatch = useDispatch();
   const [adding, setAdding] = useState(false);
-  const missing = answer.picks.filter((x) => x.role === 'needs' && !x.inBasket);
+  const missing = answer.picks.filter((x) => x.role === 'needs' && !x.enough);
   const missingPaise = missing.reduce(
-    (s, x) => s + Math.round(Number(x.product.pricePaise) * Number(x.product.increment || 1)),
+    (s, x) => s + Math.round(Number(x.product.pricePaise) * wantOf(x)),
     0,
   );
 
@@ -192,7 +205,9 @@ function Answer({ answer }) {
       for (const x of missing) {
         const write = api.endpoints.setCartItem.initiate({
           productId: x.product.id,
-          quantity: String(x.product.increment || 1),
+          // The amount for this family. It sets the line, so a smaller amount already in the
+          // basket is topped up rather than doubled.
+          quantity: String(wantOf(x)),
         });
         await /** @type {any} */ (dispatch)(write).unwrap();
       }
@@ -221,6 +236,9 @@ function Answer({ answer }) {
           <Text variant="h2" numberOfLines={1}>
             {answer.title}
           </Text>
+          <Small muted style={{ marginTop: 2 }}>
+            {`Amounts for ${answer.forLabel}`}
+          </Small>
         </View>
         {answer.total > 0 ? <Progress have={answer.have} total={answer.total} /> : null}
       </View>
@@ -228,6 +246,24 @@ function Answer({ answer }) {
         <Small muted style={{ marginTop: 6, paddingHorizontal: 2 }}>
           {answer.note}
         </Small>
+      ) : null}
+      {answer.others?.length ? (
+        <View style={styles.others}>
+          <Small muted>Or did you mean</Small>
+          {answer.others.map((o) => (
+            <Pressy
+              key={o.id}
+              onPress={() => onAsk?.(o.name)}
+              haptics="select"
+              style={styles.other}
+              accessibilityRole="button"
+            >
+              <Small color={colors.leafDeep} style={{ fontFamily: fonts.bodySemi }}>
+                {o.name}
+              </Small>
+            </Pressy>
+          ))}
+        </View>
       ) : null}
 
       <ScrollView
@@ -245,6 +281,15 @@ function Answer({ answer }) {
           </Animated.View>
         ))}
       </ScrollView>
+
+      {answer.kitchen?.length ? (
+        <View style={styles.kitchen}>
+          <Small style={{ fontFamily: fonts.bodySemi }}>From your kitchen</Small>
+          <Small muted style={{ marginTop: 3 }}>
+            {answer.kitchen.join(' · ')}
+          </Small>
+        </View>
+      ) : null}
 
       {missing.length ? (
         <Button
@@ -285,10 +330,12 @@ function Progress({ have, total }) {
 }
 
 function Pick({ pick }) {
-  const { product, why, badge, role } = pick;
+  const { product, why, badge, role, amount, quantity: want } = pick;
   const lang = useSelector(selectLanguage);
   const { quantity, setQuantity } = useCartLine(product);
-  const have = quantity > 0;
+  const inBasket = quantity > 0;
+  // "Enough" is measured against what the dish needs for this family, not just "some is there".
+  const have = inBasket && (!want || quantity >= Number(want) - 1e-6);
   return (
     <View style={[styles.card, have && styles.cardHave]}>
       <View style={styles.photo}>
@@ -311,7 +358,13 @@ function Pick({ pick }) {
             style={styles.tagText}
             color={have || role === 'needs' ? colors.inkOnDark : colors.ink}
           >
-            {have ? 'IN BASKET' : role === 'needs' ? 'NEEDED' : 'MAKES IT BETTER'}
+            {have
+              ? 'IN BASKET'
+              : inBasket
+                ? 'ADD MORE'
+                : role === 'needs'
+                  ? 'NEEDED'
+                  : 'MAKES IT BETTER'}
           </Small>
         </View>
       </View>
@@ -322,6 +375,11 @@ function Pick({ pick }) {
         <Money paise={product.pricePaise} variant="smallMedium" />
         <Small muted>{` ${UNIT[product.unit] || ''}`}</Small>
       </Text>
+      {amount ? (
+        <Small color={colors.leafDeep} style={styles.amount} numberOfLines={1}>
+          {`About ${amount}`}
+        </Small>
+      ) : null}
       {/* The one line: why this, for this dish. Three lines of room so it is never cut mid-thought. */}
       <Small style={styles.why} numberOfLines={3}>
         {why}
@@ -468,6 +526,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(191,233,208,0.6)',
   },
   badgeText: { fontSize: 10.5, flexShrink: 1 },
+  amount: { marginTop: 3, fontSize: 12, fontFamily: fonts.bodySemi },
+  others: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 2,
+  },
+  other: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(191,233,208,0.45)',
+  },
+  kitchen: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: colors.hairline,
+  },
   ready: {
     marginTop: 14,
     flexDirection: 'row',
