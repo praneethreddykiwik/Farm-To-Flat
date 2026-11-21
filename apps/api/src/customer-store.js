@@ -231,16 +231,15 @@ export function hydrateCustomerData({
 // IS_PROD comes from lib/env.js so a hand-created Render service (no NODE_ENV) still counts as
 // production — otherwise the OTP leaked in the response on the live API.
 //
-// The fixed 123456 code exists for a hosted TEST deployment before DLT/MSG91 is live
-// (ALLOW_DEV_OTP=1). While that flag is on, EVERY number accepts it — staff included, because
-// otherwise the staff roles cannot be signed into at all: they would be issued a random code and
-// there is no SMS provider to deliver it, so the procurement, fulfilment and super-admin screens
-// were untestable. That is a deliberate closed-test trade, and it means anyone who guesses a staff
-// number can sign in as that role.
+// The fixed 123456 code exists for a hosted TEST deployment (ALLOW_DEV_OTP=1). In production it
+// now works ONLY for the numbers named in DEV_OTP_ALLOWLIST (comma-separated mobiles).
 //
-// DEV_OTP_ALLOWLIST (comma-separated mobiles) narrows it back down: set it and ONLY those numbers
-// accept the fixed code — everyone else, staff or not, needs a real one. Use it as soon as the
-// tester group is known.
+// It used to accept EVERY number, staff included, whenever the flag was on and no allowlist was
+// set — the closed-test posture from before WhatsApp codes were live. That was an anonymous
+// account-takeover path: anyone who guessed a staff number signed in as that role, up to super
+// admin (security audit, 21 Nov 2026). WhatsApp delivery is live now, so the open posture has no
+// purpose left. In production the flag with an empty allowlist now admits nobody; a forgotten
+// flag fails closed instead of open.
 //
 // REMOVE ALLOW_DEV_OTP entirely for the real public launch.
 const ALLOW_DEV = process.env.ALLOW_DEV_OTP === '1';
@@ -259,20 +258,13 @@ export function devOtpAllowedFor(mobile, ctx) {
   if (!ctx.allowDev) return false;
   // Named explicitly — always allowed, which is how a staff number gets in once an allowlist exists.
   if (ctx.allowlist.has(mobile)) return true;
-  // An allowlist is a confinement: anyone not on it needs a real code.
-  if (ctx.allowlist.size > 0) return false;
-  // No allowlist — the open closed-test posture: every number, staff included.
-  return true;
+  // Not named — needs a real code. With no allowlist at all, that is everyone (fails closed).
+  return false;
 }
-if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0 && msg91Enabled)
-  // eslint-disable-next-line no-console
-  console.warn(
-    '[otp] ALLOW_DEV_OTP=1 with no DEV_OTP_ALLOWLIST takes precedence over MSG91: every number gets the fixed code and NO WhatsApp message is ever sent, however well MSG91 is configured. Remove ALLOW_DEV_OTP to start delivering real codes.',
-  );
 if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
   // eslint-disable-next-line no-console
   console.warn(
-    '[otp] ALLOW_DEV_OTP=1 in production with no DEV_OTP_ALLOWLIST: EVERY number accepts 123456, including staff — anyone who guesses a staff number signs in as that role. Set DEV_OTP_ALLOWLIST to confine it, and remove ALLOW_DEV_OTP before launch.',
+    '[otp] ALLOW_DEV_OTP=1 in production with no DEV_OTP_ALLOWLIST: the fixed code is accepted for NO number (fails closed). Name test numbers in DEV_OTP_ALLOWLIST, or remove ALLOW_DEV_OTP.',
   );
 
 /**
@@ -285,16 +277,16 @@ if (IS_PROD && ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0)
  */
 export function otpStatus() {
   const channels = channelStatus();
-  const open = ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0;
+  // Since the 21 Nov 2026 audit the dev code never applies to every number in production: with no
+  // allowlist it applies to nobody, so the flag on its own changes nothing a customer sees.
+  const inert = ALLOW_DEV && DEV_OTP_ALLOWLIST.size === 0;
   const effective = !IS_PROD
     ? 'fixed dev code (not production)'
-    : open
-      ? 'fixed dev code for EVERY number — nothing is delivered'
-      : msg91Enabled
-        ? channels.whatsapp.ready
-          ? 'WhatsApp'
-          : 'SMS fallback'
-        : 'nothing — sign-in returns OTP_CHANNEL_UNCONFIGURED';
+    : msg91Enabled
+      ? channels.whatsapp.ready
+        ? 'WhatsApp'
+        : 'SMS fallback'
+      : 'nothing — sign-in returns OTP_CHANNEL_UNCONFIGURED';
   return {
     effective,
     production: IS_PROD,
@@ -303,12 +295,14 @@ export function otpStatus() {
       // The numbers are the operator's own testers and they are already typing them into this
       // panel, so the count is what matters; the list itself stays out of the response.
       allowlistSize: DEV_OTP_ALLOWLIST.size,
-      everyNumber: open,
+      everyNumber: false,
     },
     channels,
     // Ordered, so the panel can show "do this next" rather than a pile of booleans.
     blockers: [
-      ...(open ? ['ALLOW_DEV_OTP=1 with no DEV_OTP_ALLOWLIST overrides every channel'] : []),
+      ...(inert
+        ? ['ALLOW_DEV_OTP=1 is set with no DEV_OTP_ALLOWLIST, so it does nothing; remove it']
+        : []),
       ...channels.whatsapp.missing.map((k) => `${k} is not set`),
     ],
   };
