@@ -40,6 +40,7 @@ import {
   priceCart,
   rawCart,
   redeemCoupon,
+  redeemedCodes,
   releaseCoupon,
   flushWallet,
   refundablePaymentsForOrder,
@@ -202,11 +203,21 @@ customerOrdersRouter.post(
     const subtotal = Number(priced.subtotalPaise);
     let discount = 0;
     let freeLine = null;
-    const code = couponCode || rawCart(cid).couponCode;
-    if (code) {
+    const typedCode = couponCode || rawCart(cid).couponCode;
+    let code = null;
+    if (typedCode) {
       // The SAME evaluator the cart preview used (review #6, 21 Nov 2026).
-      const r = evaluateCoupon(cid, code, subtotal);
+      const r = evaluateCoupon(cid, typedCode, subtotal);
       if (r.error) throw fail(r.error.status, r.error.code, r.error.message, r.error.details);
+      // Security pentest 21 Nov 2026 (C2): the lookup is case-insensitive but the code used to be
+      // recorded AS TYPED, while the "already used" check compares the coupon's canonical code — so
+      // "farm-fresh100" after "FARM-FRESH100" (or any other casing) redeemed a single-use coupon
+      // again. From here on only the canonical code is recorded, released and stored on the order.
+      code = r.coupon.code;
+      // Redemptions recorded before this fix may be in another case; they still count as used.
+      const canon = code.toLowerCase();
+      if ([...redeemedCodes(cid)].some((u) => String(u).trim().toLowerCase() === canon))
+        throw fail(409, 'COUPON_ALREADY_USED', 'This code has already been used on your account.');
       discount = r.discountPaise;
       freeLine = r.freeLine;
     }
