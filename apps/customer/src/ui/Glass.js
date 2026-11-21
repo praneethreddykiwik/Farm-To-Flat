@@ -65,7 +65,10 @@ export function Glass({
         : 'rgba(255,255,255,0.55)'
       : isIOS && !round
         ? colors.glass
-        : 'rgba(255,255,255,0.94)';
+        : // Android: no real blur, so a near-solid fill — but 0.94 hid the background glow
+          // completely and every card read flat white next to the iPhone build (21 Nov 2026).
+          // 0.86 lets the green/yellow glow tint the card while text stays crisp.
+          'rgba(255,255,255,0.86)';
 
   // A small round button (the 44-pt back, basket and bell buttons) is drawn as ONE plain circle:
   // fill + radius on a single view, no hairline border, no clipped inner layer. The layered build
