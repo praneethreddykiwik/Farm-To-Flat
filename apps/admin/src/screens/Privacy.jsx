@@ -13,6 +13,8 @@
  * material changes.
  */
 import { useSupportEmail } from '../lib/publicSupport.js';
+import * as HI from './privacy/i18n-hi.js';
+import * as TE from './privacy/i18n-te.js';
 
 const UPDATED = '21 November 2026';
 
@@ -415,15 +417,49 @@ const SECTIONS = (CONTACT) => [
   },
 ];
 
+/**
+ * The notice in the customer's language (DPDP Act §5(3)): English, Hindi or Telugu, chosen with
+ * ?lang=hi|te (the app links here with its own language) or the switcher at the top. Hindi and
+ * Telugu are translations of this English text; the English version prevails.
+ */
+const TRANSLATIONS = { hi: HI, te: TE };
+const LANGS = [
+  ['en', 'English'],
+  ['hi', 'हिन्दी'],
+  ['te', 'తెలుగు'],
+];
+
+function pickLang() {
+  try {
+    const q = new URLSearchParams(window.location.search).get('lang');
+    return q === 'hi' || q === 'te' ? q : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
 export function Privacy() {
   const contact = useSupportEmail();
+  const lang = pickLang();
+  const tr = TRANSLATIONS[lang];
   return (
     <LegalDoc
-      title="Privacy Policy"
+      title={tr ? tr.META.title : 'Privacy Policy'}
       updated={UPDATED}
-      lede="Your trust matters. This policy is written in plain language so you know exactly what the Fooducia app collects and why — no jargon, no surprises."
-      sections={SECTIONS(contact)}
+      lede={
+        tr
+          ? tr.META.lede
+          : 'Your trust matters. This policy is written in plain language so you know exactly what the Fooducia app collects and why — no jargon, no surprises.'
+      }
+      sections={
+        tr
+          ? tr.SECTIONS({ CONTACT: contact, ENTITY, REG_ADDRESS, GRIEVANCE_OFFICER })
+          : SECTIONS(contact)
+      }
       contact={contact}
+      lang={lang}
+      chrome={tr?.META.chrome}
+      languages={LANGS}
     />
   );
 }
@@ -433,9 +469,19 @@ export function Privacy() {
  * numbered sections of paragraphs and term — description lists.
  * @param {{ title: string, updated: string, lede: string, sections: any[], contact: string }} props
  */
-export function LegalDoc({ title, updated, lede, sections, contact }) {
+export function LegalDoc({
+  title,
+  updated,
+  lede,
+  sections,
+  contact,
+  lang = 'en',
+  chrome,
+  languages,
+}) {
+  const c = chrome || {};
   return (
-    <div style={s.page}>
+    <div style={s.page} lang={lang}>
       <style>{CSS}</style>
       <main className="pp-wrap">
         <header className="pp-head">
@@ -445,8 +491,24 @@ export function LegalDoc({ title, updated, lede, sections, contact }) {
             </span>
             <span>Fooducia</span>
           </div>
+          {languages ? (
+            <nav className="pp-langs" aria-label="Language">
+              {languages.map(([code, label]) => (
+                <a
+                  key={code}
+                  className="pp-lang"
+                  href={code === 'en' ? '?' : `?lang=${code}`}
+                  aria-current={code === lang ? 'true' : undefined}
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
+          ) : null}
           <h1 className="pp-title">{title}</h1>
-          <p className="pp-updated">Last updated {updated}</p>
+          <p className="pp-updated">
+            {c.updated ? `${c.updated}: ${c.updatedDate || updated}` : `Last updated ${updated}`}
+          </p>
         </header>
 
         <p className="pp-lede">{lede}</p>
@@ -484,19 +546,19 @@ export function LegalDoc({ title, updated, lede, sections, contact }) {
             ·
           </span>
           <a className="pp-link" href="/privacy">
-            Privacy
+            {c.privacy || 'Privacy'}
           </a>
           <span className="pp-dot" aria-hidden>
             ·
           </span>
           <a className="pp-link" href="/terms">
-            Terms
+            {c.terms || 'Terms'}
           </a>
           <span className="pp-dot" aria-hidden>
             ·
           </span>
           <a className="pp-link" href="/ai-notice">
-            AI notice
+            {c.aiNotice || 'AI notice'}
           </a>
           <span className="pp-dot" aria-hidden>
             ·
@@ -520,6 +582,10 @@ const s = {
 };
 
 const CSS = `
+.pp-langs { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+.pp-lang { font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid #cfd8cf; color: #135a37; text-decoration: none; background: #fff; }
+.pp-lang[aria-current='true'] { background: #135a37; color: #fff; border-color: #135a37; }
+
 .pp-wrap{max-width:720px;margin:0 auto;padding:56px 24px 80px;
   font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   line-height:1.6;}
