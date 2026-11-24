@@ -16,7 +16,7 @@ import { useSupportEmail } from '../lib/publicSupport.js';
 import * as HI from './privacy/i18n-hi.js';
 import * as TE from './privacy/i18n-te.js';
 
-const UPDATED = '21 November 2026';
+const UPDATED = '24 November 2026';
 
 // Registered legal entity, office address, and named Grievance Officer (DPDP Act / IT Rules).
 const ENTITY = 'Kiwik Consulting Services';
@@ -104,7 +104,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Account deletion requests',
-        'when you ask us to delete your account: the date, how you asked (in the app or through support), and that you ticked the box confirming you read what is deleted and what is kept, with the version of that wording. Kept as proof that the deletion was your own request.',
+        'when you ask us to delete your account: the date, how you asked (in the app or through support), and that you ticked the box confirming you read what is deleted and what is kept, with the version of that wording. Kept as proof that the deletion was your own request. We also ask why you are leaving; you can skip it. If you answer, we keep the reason you pick and anything you write, to improve the service.',
       ],
       [
         'Location — only when you tap “Use my location”',
@@ -128,7 +128,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'How the Service is used (usage events)',
-        'we record a small set of events on our own servers to measure whether Fooducia is working for households: signing in, choosing your community and tower, placing, receiving or being refunded for an order (its value, item count, discount and whether it arrived in the 6–10 AM window), a referral reward, a waitlist vote, opening checkout, sharing your invite, reordering a past basket, using voice search (how many words, never what you said), opening a product or its story (and for how long), changing your basket, and our order-cut-off reminder being sent or opened. Events are linked to your account but never contain your name, number or flat. We use no third-party analytics or advertising SDK for this.',
+        'we record a small set of events on our own servers to measure whether Fooducia is working for households: signing in, choosing your community and tower, placing, receiving or being refunded for an order (its value, item count, discount and whether it arrived in the 6–10 AM window), a referral reward, a waitlist vote, opening checkout, sharing your invite, reordering a past basket, using voice search (how many words, never what you said), opening a product or its story (and for how long), changing your basket, our order-cut-off reminder being sent or opened, and — for accounts that have the meal planner — opening it, making or saving a plan, logging a meal (that you did, never what you ate) and our suggestion to try it being shown, tapped or closed. Events are linked to your account but never contain your name, number or flat. We use no third-party analytics or advertising SDK for this.',
       ],
       [
         'Neighbour invites',
@@ -136,7 +136,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Ratings',
-        'if you rate a delivered order: the stars, any tags you pick and anything you write. Our team reads them to improve the service and may reply; the reply appears on your order.',
+        'if you rate a delivered order: the stars, any tags you pick and anything you write. Our team reads them to improve the service and may reply; the reply appears on your order. If you review Fooducia publicly on the App Store, Google Play or elsewhere, we keep a copy of what you published there (the name shown, stars and words) to read it in one place; it is not linked to your account.',
       ],
       [
         'Photo search',
@@ -295,7 +295,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Record of a deletion request',
-        'kept after the account is deleted, as proof that you asked; it holds only an internal account reference, the date and what you confirmed — no name, number or address.',
+        'kept after the account is deleted, as proof that you asked; it holds only an internal account reference, the date, what you confirmed and the reason you picked, if you gave one — no name, number or address. Anything you wrote about why you left is removed when the account is deleted.',
       ],
       ['Sign-in', 'you stay signed in for up to 90 days of inactivity on a phone.'],
       [

@@ -28,6 +28,7 @@
  *      not yet store the answer;
  *   2. a qualified nutrition professional's review of data/dishes.js and of the wording shown.
  */
+import { track } from '../lib/events.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, fail } from '../http.js';
@@ -210,6 +211,14 @@ const LogMeal = z
 mealsRouter.post(
   '/log',
   validateBody(LogMeal),
+  // Usage for the admin's Meal planner tab: that a meal was logged and how, never what was eaten.
+  (req, res, next) => {
+    res.on('finish', () => {
+      if (res.statusCode === 201)
+        track('meal_logged', { mode: req.body.mode }, { customerId: req.customerId });
+    });
+    next();
+  },
   asyncHandler(async (req, res) => {
     const { date, slot, mode, mealName, plannedKcal, append } = req.body;
     const existing = listMealLogs(req.customerId, { from: date, to: date }).find(

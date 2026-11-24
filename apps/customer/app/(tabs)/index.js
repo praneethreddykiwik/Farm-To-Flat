@@ -20,6 +20,7 @@ import { CategoryChips } from '../../src/components/CategoryChips';
 import { HarvestBanner } from '../../src/components/HarvestBanner';
 import { ConfirmBanner } from '../../src/components/ConfirmBanner';
 import { HomeNudges } from '../../src/components/HomeNudges';
+import { PlannerNudge } from '../../src/components/PlannerNudge';
 import { LiveOrderCard } from '../../src/components/LiveOrderCard';
 import { ProductCard } from '../../src/components/ProductCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
@@ -152,6 +153,7 @@ export default function Home() {
           customer is actually waiting for. */}
       <LiveOrderCard style={{ paddingHorizontal: CARD_INSET, marginBottom: 12 }} />
       <ConfirmBanner style={{ paddingHorizontal: CARD_INSET, marginBottom: 12 }} />
+      <PlannerNudge style={{ paddingHorizontal: CARD_INSET, marginBottom: 12 }} />
       <HomeNudges nextWindow={nextWindow} />
       <View style={{ marginTop: 4 }}>
         <HarvestBanner nextWindow={nextWindow} onPress={buildBasket} />

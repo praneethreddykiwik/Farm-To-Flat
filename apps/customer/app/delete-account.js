@@ -21,6 +21,8 @@ import {
 } from '../src/api/api';
 import { selectCustomer } from '../src/features/auth/authSlice';
 import { selectLanguage, showToast } from '../src/features/ui/uiSlice';
+import { ExitQuestion } from '../src/components/ExitQuestion';
+import { exitAnswer } from '../src/lib/exitReasons';
 import { useSignOut } from '../src/hooks/useSession';
 import { prettyNumber } from '../src/lib/phone';
 import { haptic } from '../src/lib/haptics';
@@ -36,6 +38,7 @@ const CONSENT_VERSION = 'deletion-2026-11-21';
 
 /**
  * Delete my account (app stores + DPDP right to erasure), with the 60-day grace period:
+ *   0. ask why, once — one tap, and Skip is always there;
  *   1. say exactly what happens — signed out now, deleted for good after 60 days, signing in again
  *      before then keeps the account; what is removed and what the law makes us keep;
  *   2. refuse, with the order numbers, while an order is still in progress;
@@ -52,8 +55,10 @@ export default function DeleteAccount() {
   const { data, isLoading, refetch } = useGetDeletionStatusQuery();
   const [requestCode, { isLoading: sending }] = useRequestDeletionCodeMutation();
   const [confirm, { isLoading: confirming }] = useConfirmDeletionMutation();
-  const [step, setStep] = useState(/** @type {'info'|'code'|'done'} */ ('info'));
+  const [step, setStep] = useState(/** @type {'why'|'info'|'code'|'done'} */ ('why'));
   const [otp, setOtp] = useState('');
+  const [reason, setReason] = useState(/** @type {string|null} */ (null));
+  const [note, setNote] = useState('');
   const [error, setError] = useState(/** @type {string|null} */ (null));
   const [result, setResult] = useState(/** @type {any} */ (null));
   // The customer must say they read what is deleted and kept, and agree, before a code is sent.
@@ -87,6 +92,7 @@ export default function DeleteAccount() {
     try {
       const r = await confirm({
         otp,
+        exit: exitAnswer(reason, note),
         consent: {
           accepted: true,
           version: CONSENT_VERSION,
@@ -120,7 +126,11 @@ export default function DeleteAccount() {
         }}
       >
         {step !== 'done' ? (
-          <Pressy onPress={() => router.back()} haptics="select" accessibilityLabel="Back">
+          <Pressy
+            onPress={() => (step === 'info' ? setStep('why') : router.back())}
+            haptics="select"
+            accessibilityLabel="Back"
+          >
             <Glass radius={radius.pill} innerStyle={styles.back}>
               <ArrowLeft size={20} color={colors.ink} />
             </Glass>
@@ -145,6 +155,19 @@ export default function DeleteAccount() {
             ) : null}
             <Button title={t('deleteOk', lang)} onPress={done} style={{ marginTop: 26 }} />
           </Animated.View>
+        ) : step === 'why' ? (
+          <ExitQuestion
+            reason={reason}
+            note={note}
+            onReason={setReason}
+            onNote={setNote}
+            onContinue={() => setStep('info')}
+            onSkip={() => {
+              setReason(null);
+              setNote('');
+              setStep('info');
+            }}
+          />
         ) : (
           <>
             <Display style={{ marginTop: 18 }}>{t('deleteTitle', lang)}</Display>

@@ -17,6 +17,7 @@
  * schedule could be lost at the next restart and the promise to delete broken, so the request is
  * honoured IMMEDIATELY instead — the stricter outcome, never the weaker one.
  */
+import { forgetExitNotes } from './exit-reasons.js';
 import { listOrdersForCustomer } from '../store.js';
 import { deleteCustomerAccount, getCustomer, logout } from '../customer-store.js';
 import { getOps, listOps, putOps, putOpsSoft, removeOps, opsReady } from '../ops-store.js';
@@ -71,13 +72,15 @@ const consentOf = (c) =>
  * account on purpose — it is the proof that the deletion was the customer's own request — so it
  * holds the account's internal id only: no name, number or address (privacy policy §9).
  */
-async function recordDeletionConsent(cid, { consent, via, reason }) {
+async function recordDeletionConsent(cid, { consent, via, reason, exit }) {
   const at = new Date().toISOString();
   putOpsSoft('deletionConsent', `${cid}:${Date.parse(at)}`, {
     customerId: cid,
     at,
     via,
     reason: reason || null,
+    exitReason: exit?.reason || null,
+    exitNote: exit?.note || null,
     consent: consentOf(consent),
   });
 }
@@ -114,6 +117,8 @@ export async function eraseAccountNow(cid) {
     await deleteTicketsOf(cid);
     // The diet plan and profile saved for the calorie tracker.
     if (getOps('mealPlan', cid)) await removeOps('mealPlan', cid);
+    // Why they left stays as a count; what they wrote about it does not outlive the account.
+    forgetExitNotes(cid);
     for (const e of listOps('event').filter((x) => x.customerId === cid))
       putOpsSoft('event', e.id, { ...e, customerId: null });
   } catch (e) {
@@ -128,9 +133,9 @@ export async function eraseAccountNow(cid) {
  */
 export async function requestDeletion(
   cid,
-  { walletBalancePaise = 0, consent = null, via = 'APP', reason = null } = {},
+  { walletBalancePaise = 0, consent = null, via = 'APP', reason = null, exit = null } = {},
 ) {
-  await recordDeletionConsent(cid, { consent, via, reason });
+  await recordDeletionConsent(cid, { consent, via, reason, exit });
   if (!opsReady()) {
     const r = await eraseAccountNow(cid);
     return {

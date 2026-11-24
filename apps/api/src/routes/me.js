@@ -1,6 +1,7 @@
 /**
  * Profile + addresses (contract, authenticated). GET/PATCH /me, list/add addresses, set default.
  */
+import { EXIT_REASON_KEYS } from '../lib/exit-reasons.js';
 import { Router } from 'express';
 import { track } from '../lib/events.js';
 import {
@@ -180,6 +181,16 @@ meRouter.post(
           appVersion: z.string().max(40).optional(),
         })
         .optional(),
+      // "Why are you leaving?" — always optional; an unknown reason from a newer or older app is
+      // dropped rather than refused, so this question can never stand between a customer and the
+      // deletion they asked for.
+      exit: z
+        .object({
+          reason: z.enum(/** @type {[string, ...string[]]} */ (EXIT_REASON_KEYS)),
+          note: z.string().trim().max(300).optional(),
+        })
+        .nullish()
+        .catch(null),
     }),
   ),
   asyncHandler(async (req, res) => {
@@ -193,6 +204,7 @@ meRouter.post(
     const r = await requestDeletion(req.customerId, {
       walletBalancePaise: getWallet(req.customerId).balancePaise || 0,
       consent: req.body.consent || null,
+      exit: req.body.exit || null,
       via: 'APP_WITH_CODE',
     });
     logSecurityEvent('DELETION_REQUESTED', { req, customerId: req.customerId });

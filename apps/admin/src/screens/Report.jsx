@@ -595,7 +595,7 @@ function SessionDrawer({ session, communities, onClose, onSaved }) {
             onChange={set('promoterCodes')}
           />
           <span className="field__hint">
-            The codes of the people at the counter (Growth → Promoters).
+            The codes of the people at the counter (Referral program → Promoters).
           </span>
         </label>
         <label className="field">

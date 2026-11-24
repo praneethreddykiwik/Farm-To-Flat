@@ -68,9 +68,22 @@ import {
   buffer,
   finance,
   rangeOf,
+  istDate,
   DELAY_REASONS,
   EXPENSE_CATEGORIES,
 } from '../../lib/insights.js';
+import { reminderEffect } from '../../lib/reminder-effect.js';
+import { plannerUsage } from '../../lib/planner-usage.js';
+import {
+  MANUAL_STORES,
+  STORE_LABELS,
+  addManualReview,
+  listStoreReviews,
+  removeManualReview,
+  syncStoreReviews,
+} from '../../lib/store-reviews.js';
+import { funnelTotals, promoterFunnel } from '../../lib/promoter-funnel.js';
+import { exitSummary } from '../../lib/exit-reasons.js';
 import { maskMobile } from '../../lib/customer-history.js';
 import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
 import { listEvents, EVENT_NAMES } from '../../lib/events.js';
@@ -114,7 +127,7 @@ adminBusinessRouter.get(
   '/growth/promoters',
   asyncHandler(async (req, res) => {
     const range = rangeOf(req.query);
-    const stats = new Map(acquisition(range).byPromoter.map((p) => [p.code, p]));
+    const funnel = promoterFunnel(range);
     const promoters = listOps('promoter')
       .map((p) => ({
         code: p.id,
@@ -125,13 +138,13 @@ adminBusinessRouter.get(
         mobile: p.mobile || null,
         active: p.active !== false,
         createdAt: p.createdAt || null,
-        orders: stats.get(p.id)?.orders || 0,
-        firstOrders: stats.get(p.id)?.firstOrders || 0,
-        revenuePaise: stats.get(p.id)?.revenuePaise || '0',
+        ...funnel.get(p.id),
       }))
       .sort((a, b) => b.orders - a.orders || a.name.localeCompare(b.name));
     res.json({
       range,
+      totals: funnelTotals(funnel),
+      generatedAt: new Date().toISOString(),
       promoters,
       communities: listCommunities().map((c) => ({ id: c.id, name: c.name })),
     });
@@ -386,9 +399,10 @@ adminBusinessRouter.get(
       range,
       acquisition: acquisition(range),
       repeat: repeat(range),
-      routine: routine(range),
+      routine: { ...routine(range), effect: reminderEffect(range) },
       promise: promise(range),
       offers: offers(range),
+      planner: plannerUsage(range),
       delayReasons: DELAY_REASONS,
       generatedAt: new Date().toISOString(),
     });
@@ -735,6 +749,75 @@ adminBusinessRouter.put(
     if (req.body.hidden !== undefined) next.hidden = req.body.hidden;
     const saved = await putOps('review', cur.id, next);
     res.json({ review: reviewView(saved) });
+  }),
+);
+
+// Reviews published elsewhere (lib/store-reviews.js): the App Store, Google Play, or typed in.
+adminBusinessRouter.get(
+  '/feedback/store-reviews',
+  asyncHandler(async (req, res) => {
+    const rating = Number(req.query.rating);
+    res.json(
+      listStoreReviews({
+        store: STORE_LABELS[String(req.query.store)] ? String(req.query.store) : null,
+        rating: rating >= 1 && rating <= 5 ? rating : null,
+      }),
+    );
+  }),
+);
+
+let lastManualSync = 0;
+adminBusinessRouter.post(
+  '/feedback/store-reviews/sync',
+  asyncHandler(async (_req, res) => {
+    if (Date.now() - lastManualSync < 30e3)
+      throw fail(429, 'RATE_LIMITED', 'Just checked. Try again in half a minute.');
+    lastManualSync = Date.now();
+    res.json({ result: await syncStoreReviews() });
+  }),
+);
+
+adminBusinessRouter.post(
+  '/feedback/store-reviews',
+  validateBody(
+    z.object({
+      store: z.enum(/** @type {[string, ...string[]]} */ (MANUAL_STORES)),
+      rating: z.number().int().min(1).max(5),
+      body: z.string().trim().min(1).max(2000),
+      author: z.string().trim().max(80).optional().nullable(),
+      url: z
+        .string()
+        .trim()
+        .max(500)
+        .regex(/^https:\/\//, 'A link must start with https://')
+        .optional()
+        .nullable()
+        .or(z.literal('')),
+      at: z.string().datetime({ offset: true }).optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const by = req.staff?.email || req.staff?.name || 'Fooducia team';
+    res.status(201).json({ review: await addManualReview(req.body, by) });
+  }),
+);
+
+adminBusinessRouter.delete(
+  '/feedback/store-reviews/:id',
+  asyncHandler(async (req, res) => {
+    if (!(await removeManualReview(req.params.id)))
+      throw fail(404, 'NOT_FOUND', 'Only a review added by hand can be removed.');
+    await recordAction({ staff: req.staff, action: 'STORE_REVIEW_REMOVED', target: req.params.id });
+    res.json({ ok: true });
+  }),
+);
+
+/** Why customers delete their account (lib/exit-reasons.js). Counts and words, never who. */
+adminBusinessRouter.get(
+  '/feedback/exits',
+  asyncHandler(async (req, res) => {
+    const range = rangeOf(req.query);
+    res.json({ range, ...exitSummary(range, istDate) });
   }),
 );
 

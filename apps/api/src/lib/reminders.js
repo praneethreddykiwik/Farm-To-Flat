@@ -7,7 +7,7 @@
  *   How:   an app push now; WhatsApp too once an approved template is set
  *          (MSG91_WA_TEMPLATE_CUTOFF_REMINDER). Meta classes a reminder like this as a MARKETING
  *          template, which needs the customer's opt-in — so WhatsApp stays off until that exists.
- *   Off by default: switched on in the admin (Growth → Settings → Reminders).
+ *   Off by default: switched on in the admin (Friday report → Settings → Cut-off reminder).
  *
  * Runs once per IST day (an OpsRecord 'reminder' row with id auto-YYYY-MM-DD marks it done, so a
  * restart at 5:01 PM does not send twice). That row is saved to the database BEFORE anything is

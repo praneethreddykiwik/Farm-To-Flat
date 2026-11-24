@@ -13,15 +13,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import logoFull from '../assets/fooducia-logo-full.png';
-import { PLAY_STORE_URL, playUrlFor, readTag } from '../lib/storeLinks.js';
+import { APP_STORE_URL, PLAY_STORE_URL, playUrlFor, readTag } from '../lib/storeLinks.js';
 
 const API = `${import.meta.env.VITE_API_URL || ''}/api/v1`;
+const isIphone = () =>
+  typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent || '');
 const isAndroid = () =>
   typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '');
+
+// One scan per page load. React can run an effect more than once for the same page.
+let countedScan = '';
 
 function countScan(tag) {
   if (!tag.src && !tag.p) return;
   const body = JSON.stringify({ src: tag.src, p: tag.p, c: tag.c, r: tag.r });
+  if (countedScan === body) return;
+  countedScan = body;
   try {
     // sendBeacon survives the redirect that follows; fetch keepalive is the fallback.
     const blob = new Blob([body], { type: 'application/json' });
@@ -44,6 +51,8 @@ export function Join() {
   const playUrl = playUrlFor(tag) || '#';
   const live = !!PLAY_STORE_URL;
   const [leaving, setLeaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ios = isIphone();
 
   useEffect(() => {
     countScan(tag);
@@ -76,6 +85,28 @@ export function Join() {
             the app to order.
           </p>
         )}
+        {code && !leaving && (
+          <button
+            type="button"
+            className="join__copy"
+            onClick={() =>
+              navigator.clipboard
+                ?.writeText(code)
+                .then(() => setCopied(true))
+                .catch(() => {})
+            }
+          >
+            <b>{copied ? 'Copied' : 'Copy the code'}</b>
+          </button>
+        )}
+        {ios && APP_STORE_URL ? (
+          <a className="join__play" href={APP_STORE_URL} rel="noreferrer">
+            <span>
+              <small>Download on the</small>
+              <b>App Store</b>
+            </span>
+          </a>
+        ) : null}
         <a
           className="join__play"
           href={playUrl}
@@ -96,7 +127,9 @@ export function Join() {
         </a>
         <p className="join__note">
           {live
-            ? 'On an iPhone? The iPhone app is on its way — keep this code for your first order.'
+            ? APP_STORE_URL
+              ? 'Keep this code for your first order.'
+              : 'On an iPhone? The iPhone app is on its way — keep this code for your first order.'
             : 'Launching on Google Play shortly. Keep this code for your first order.'}
         </p>
       </div>

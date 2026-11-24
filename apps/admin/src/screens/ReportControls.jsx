@@ -902,7 +902,7 @@ function Referrals({ s, onSaved }) {
   return (
     <Card
       title="Neighbour referrals"
-      hint="Both rewards are wallet credit, paid once the invited household’s first order is delivered. The same settings live on Growth → Settings."
+      hint="Both rewards are wallet credit, paid once the invited household’s first order is delivered. The same settings live on Referral program → Settings."
     >
       <div className="vstack" style={{ gap: 12 }}>
         <label className="hstack" style={{ gap: 8 }}>

@@ -60,6 +60,7 @@ const TABS = [
   { key: 'routine', label: 'Routine' },
   { key: 'promise', label: 'Promise' },
   { key: 'offers', label: 'Offers' },
+  { key: 'planner', label: 'Meal planner' },
   { key: 'products', label: 'Products' },
 ];
 
@@ -105,6 +106,7 @@ export function Insights() {
             <PromiseTab p={data.promise} reasons={data.delayReasons} onChanged={reload} />
           )}
           {tab === 'offers' && <Offers o={data.offers} />}
+          {tab === 'planner' && <Planner p={data.planner} />}
         </div>
       )}
     </>
@@ -240,7 +242,7 @@ function FirstOrders({ a }) {
       <div className="grid-2 grid-2--even">
         <Card title="By promoter" pad={false}>
           {a.byPromoter.length === 0 ? (
-            <Empty>No promoters yet. Add them under Growth → Promoters.</Empty>
+            <Empty>No promoters yet. Add them under Referral program → Promoters.</Empty>
           ) : (
             <div className="table-wrap">
               <table className="data">
@@ -419,6 +421,72 @@ function Repeat({ r }) {
   );
 }
 
+// ── meal planner usage ──────────────────────────────────────────────────────
+
+const changeText = (n) => (n > 0 ? `+${n}` : n < 0 ? String(n) : 'same');
+const changeColor = (n) => (n > 0 ? 'var(--leaf-deep)' : n < 0 ? 'var(--tomato)' : undefined);
+
+/** Who uses the meal planner, and whether the "Have you tried it?" card brings people in. */
+function Planner({ p }) {
+  if (!p) return <Empty>Meal planner usage needs the latest server version.</Empty>;
+  const max = Math.max(1, ...p.steps.map((s) => s.people));
+  return (
+    <div className="vstack" style={{ gap: 16 }}>
+      <Card
+        title="People at each step"
+        pad={false}
+        hint={`Different people, not taps. Compared with ${shortDate(p.comparedWith.from)} to ${shortDate(p.comparedWith.to)}. The planner is open to super admin only for now, so these are your own team’s numbers.`}
+      >
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th style={{ width: '34%' }} />
+                <th className="num">People</th>
+                <th className="num">Times</th>
+                <th className="num">Before</th>
+                <th className="num">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {p.steps.map((s) => (
+                <tr key={s.key}>
+                  <td className="data__name">{s.label}</td>
+                  <td>
+                    <Bar pct={(s.people / max) * 100} tone="leaf" />
+                  </td>
+                  <td className="num" style={{ fontWeight: 700 }}>
+                    {s.people}
+                  </td>
+                  <td className="num">{s.times}</td>
+                  <td className="num">{s.before}</td>
+                  <td className="num" style={{ fontWeight: 700, color: changeColor(s.change) }}>
+                    {changeText(s.change)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card title="Does “Have you tried it?” work?">
+        <p style={{ fontSize: 14, lineHeight: 1.6 }}>
+          {p.nudge.shown === 0 ? (
+            'Nobody has been shown the card in this range.'
+          ) : (
+            <>
+              <b>{p.nudge.shown}</b> saw it, <b>{p.nudge.tapped}</b> tapped Try it, and{' '}
+              <b>{p.nudge.madeAfterTap}</b> of those made a plan. It was closed{' '}
+              <b>{p.nudge.dismissed}</b> {p.nudge.dismissed === 1 ? 'time' : 'times'}.
+            </>
+          )}
+        </p>
+      </Card>
+    </div>
+  );
+}
+
 // ── 3. routine ──────────────────────────────────────────────────────────────
 
 const CHANNELS = [
@@ -538,6 +606,87 @@ function ReminderDrawer({ reminder, communities, onClose, onSaved }) {
   );
 }
 
+const Trend = ({ d }) =>
+  d ? (
+    <span style={{ fontWeight: 700, color: changeColor(d.points) }}>
+      {d.way === 'up' ? '▲ rising' : d.way === 'down' ? '▼ falling' : 'steady'}
+      {d.points !== 0 && ` (${d.points > 0 ? '+' : ''}${d.points} points)`}
+    </span>
+  ) : (
+    <span className="muted">no earlier reminders to compare with</span>
+  );
+
+/** Is the cut-off reminder working, and is interest in it going up or down? */
+function ReminderEffect({ e }) {
+  if (!e) return null;
+  const share = (n, p) => (p == null ? '—' : `${n} (${p}%)`);
+  return (
+    <Card
+      title="Is the reminder working?"
+      pad={false}
+      hint={`“Ordered” is people who got the reminder and ordered later that day. “Usual” is the average number of orders in the same ${e.windowHours} hours on earlier same weekdays with no reminder. More orders after a reminder suggests it helped; it is not proof. Opens are counted for app notifications only.`}
+    >
+      <div style={{ padding: '12px 20px 4px', fontSize: 14, lineHeight: 1.8 }}>
+        {e.now.reminders === 0 ? (
+          <span className="muted">
+            No reminder has gone out in this range. Switch it on in Friday report → Settings →
+            Cut-off reminder.
+          </span>
+        ) : (
+          <>
+            <div>
+              Opened by <b>{share(e.now.opened, e.now.openedPct)}</b> of {num(e.now.sent)} sent ·{' '}
+              <Trend d={e.trend.opened} />
+            </div>
+            <div>
+              Ordered that day: <b>{share(e.now.ordered, e.now.orderedPct)}</b> ·{' '}
+              <Trend d={e.trend.ordered} />
+            </div>
+            <div className="muted" style={{ fontSize: 12.5 }}>
+              Compared with {shortDate(e.comparedWith.from)} to {shortDate(e.comparedWith.to)}.
+            </div>
+          </>
+        )}
+      </div>
+      {e.days.length > 0 && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Reminder</th>
+                <th className="num">Sent</th>
+                <th className="num">Opened</th>
+                <th className="num">Ordered</th>
+                <th className="num">Orders in {e.windowHours} h</th>
+                <th className="num">Usual</th>
+                <th className="num">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {e.days.map((d) => (
+                <tr key={d.date}>
+                  <td className="data__name">{dateTime(d.at)}</td>
+                  <td className="num">{d.sent}</td>
+                  <td className="num">{share(d.opened, d.openedPct)}</td>
+                  <td className="num">{share(d.ordered, d.orderedPct)}</td>
+                  <td className="num">{d.ordersAfter}</td>
+                  <td className="num">{d.usual == null ? '—' : d.usual}</td>
+                  <td
+                    className="num"
+                    style={{ fontWeight: 700, color: changeColor(d.change || 0) }}
+                  >
+                    {d.change == null ? '—' : d.change > 0 ? `+${d.change}` : d.change}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Routine({ r, onChanged }) {
   const communities = r.communities;
   const nameOf = (id) => communities.find((c) => c.id === id)?.name || 'All communities';
@@ -592,6 +741,7 @@ function Routine({ r, onChanged }) {
           }}
         />
       )}
+      <ReminderEffect e={r.effect} />
       <Card title="Log a reminder">
         <div className="field__row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="field">
