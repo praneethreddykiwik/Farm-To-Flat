@@ -72,6 +72,7 @@ import {
   DELAY_REASONS,
   EXPENSE_CATEGORIES,
 } from '../../lib/insights.js';
+import { reminderEffect } from '../../lib/reminder-effect.js';
 import { plannerUsage } from '../../lib/planner-usage.js';
 import { exitSummary } from '../../lib/exit-reasons.js';
 import { maskMobile } from '../../lib/customer-history.js';
@@ -389,7 +390,7 @@ adminBusinessRouter.get(
       range,
       acquisition: acquisition(range),
       repeat: repeat(range),
-      routine: routine(range),
+      routine: { ...routine(range), effect: reminderEffect(range) },
       promise: promise(range),
       offers: offers(range),
       planner: plannerUsage(range),

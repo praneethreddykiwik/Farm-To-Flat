@@ -606,6 +606,87 @@ function ReminderDrawer({ reminder, communities, onClose, onSaved }) {
   );
 }
 
+const Trend = ({ d }) =>
+  d ? (
+    <span style={{ fontWeight: 700, color: changeColor(d.points) }}>
+      {d.way === 'up' ? '▲ rising' : d.way === 'down' ? '▼ falling' : 'steady'}
+      {d.points !== 0 && ` (${d.points > 0 ? '+' : ''}${d.points} points)`}
+    </span>
+  ) : (
+    <span className="muted">no earlier reminders to compare with</span>
+  );
+
+/** Is the cut-off reminder working, and is interest in it going up or down? */
+function ReminderEffect({ e }) {
+  if (!e) return null;
+  const share = (n, p) => (p == null ? '—' : `${n} (${p}%)`);
+  return (
+    <Card
+      title="Is the reminder working?"
+      pad={false}
+      hint={`“Ordered” is people who got the reminder and ordered later that day. “Usual” is the average number of orders in the same ${e.windowHours} hours on earlier same weekdays with no reminder. More orders after a reminder suggests it helped; it is not proof. Opens are counted for app notifications only.`}
+    >
+      <div style={{ padding: '12px 20px 4px', fontSize: 14, lineHeight: 1.8 }}>
+        {e.now.reminders === 0 ? (
+          <span className="muted">
+            No reminder has gone out in this range. Switch it on in Friday report → Settings →
+            Cut-off reminder.
+          </span>
+        ) : (
+          <>
+            <div>
+              Opened by <b>{share(e.now.opened, e.now.openedPct)}</b> of {num(e.now.sent)} sent ·{' '}
+              <Trend d={e.trend.opened} />
+            </div>
+            <div>
+              Ordered that day: <b>{share(e.now.ordered, e.now.orderedPct)}</b> ·{' '}
+              <Trend d={e.trend.ordered} />
+            </div>
+            <div className="muted" style={{ fontSize: 12.5 }}>
+              Compared with {shortDate(e.comparedWith.from)} to {shortDate(e.comparedWith.to)}.
+            </div>
+          </>
+        )}
+      </div>
+      {e.days.length > 0 && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Reminder</th>
+                <th className="num">Sent</th>
+                <th className="num">Opened</th>
+                <th className="num">Ordered</th>
+                <th className="num">Orders in {e.windowHours} h</th>
+                <th className="num">Usual</th>
+                <th className="num">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {e.days.map((d) => (
+                <tr key={d.date}>
+                  <td className="data__name">{dateTime(d.at)}</td>
+                  <td className="num">{d.sent}</td>
+                  <td className="num">{share(d.opened, d.openedPct)}</td>
+                  <td className="num">{share(d.ordered, d.orderedPct)}</td>
+                  <td className="num">{d.ordersAfter}</td>
+                  <td className="num">{d.usual == null ? '—' : d.usual}</td>
+                  <td
+                    className="num"
+                    style={{ fontWeight: 700, color: changeColor(d.change || 0) }}
+                  >
+                    {d.change == null ? '—' : d.change > 0 ? `+${d.change}` : d.change}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Routine({ r, onChanged }) {
   const communities = r.communities;
   const nameOf = (id) => communities.find((c) => c.id === id)?.name || 'All communities';
@@ -660,6 +741,7 @@ function Routine({ r, onChanged }) {
           }}
         />
       )}
+      <ReminderEffect e={r.effect} />
       <Card title="Log a reminder">
         <div className="field__row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="field">
