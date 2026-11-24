@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Device from 'expo-device';
 import { track } from './tracking';
+import { friendlyVoiceError } from './voiceErrors';
 
 /** @type {any} */
 let Speech = null;
@@ -78,7 +79,7 @@ export function useVoiceSearch({ onResult, onFinal, lang = 'en-IN' } = {}) {
 
   useEvent('error', (e) => {
     // "no-speech" just means silence; not worth showing as a failure.
-    if (e?.error && e.error !== 'no-speech') setError(e.message || e.error);
+    if (e?.error && e.error !== 'no-speech') setError(friendlyVoiceError(e.message || e.error));
     setListening(false);
   });
 
@@ -123,7 +124,7 @@ export function useVoiceSearch({ onResult, onFinal, lang = 'en-IN' } = {}) {
       });
       setListening(true);
     } catch (e) {
-      setError(e?.message || 'Could not start listening');
+      setError(friendlyVoiceError(e?.message));
       setListening(false);
     }
   }, [lang]);

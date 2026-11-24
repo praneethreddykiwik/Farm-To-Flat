@@ -52,6 +52,7 @@ import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
 import { useMealReminders } from '../src/hooks/useMealReminders';
 import { usePlanSync } from '../src/hooks/usePlanSync';
+import { useAppUpdates } from '../src/hooks/useAppUpdates';
 import { routeForNotification } from '../src/lib/notificationRoutes';
 import { createHandledResponses } from '../src/lib/notificationDedup';
 import { KV_KEYS, kv } from '../src/lib/kv';
@@ -331,6 +332,7 @@ function Root() {
   useOrderLiveNotification(); // Android: keep the live order card in sync (iOS Live Activities later)
   useMealReminders(); // meal-time "snap your plate" reminders, re-armed as the plan and logs change
   usePlanSync(); // the diet plan, calendar and target profile, saved on the server
+  useAppUpdates(); // switch on published updates without waiting for a full restart
   const [fontsLoaded, fontError] = /** @type {any} */ (
     useFonts({
       Fraunces_500Medium_Italic,

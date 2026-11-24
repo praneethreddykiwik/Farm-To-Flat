@@ -53,6 +53,8 @@ import { t } from '../src/lib/i18n';
 import { colors, fonts, radius } from '../src/theme';
 import { registerForPush } from '../src/lib/notifications';
 import { env } from '../src/lib/env';
+import { describeRunningUpdate } from '../src/lib/appUpdates';
+import { loadUpdates } from '../src/lib/updatesModule';
 
 /**
  * One tappable row in a settings group.
@@ -625,6 +627,8 @@ export default function Profile() {
         <Label style={{ marginTop: 26, marginBottom: 8 }}>{t('aboutLabel', lang)}</Label>
         <Glass radius={radius.lg} blur={false} innerStyle={{ padding: 16, gap: 6 }}>
           <Small muted>Fooducia · v{env.appVersion}</Small>
+          {/* Which published update this phone runs, so "I can't see the new feature" can be checked. */}
+          <Small muted>{describeRunningUpdate(loadUpdates())}</Small>
           {/* The food-business licence number, where a customer can find it. Appears once
               EXPO_PUBLIC_FSSAI_LICENCE is set; until then there is deliberately no placeholder. */}
           {env.fssaiLicence ? (
