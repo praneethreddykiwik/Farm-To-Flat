@@ -16,7 +16,7 @@ import { useSupportEmail } from '../lib/publicSupport.js';
 import * as HI from './privacy/i18n-hi.js';
 import * as TE from './privacy/i18n-te.js';
 
-const UPDATED = '21 November 2026';
+const UPDATED = '24 November 2026';
 
 // Registered legal entity, office address, and named Grievance Officer (DPDP Act / IT Rules).
 const ENTITY = 'Kiwik Consulting Services';
@@ -104,7 +104,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Account deletion requests',
-        'when you ask us to delete your account: the date, how you asked (in the app or through support), and that you ticked the box confirming you read what is deleted and what is kept, with the version of that wording. Kept as proof that the deletion was your own request.',
+        'when you ask us to delete your account: the date, how you asked (in the app or through support), and that you ticked the box confirming you read what is deleted and what is kept, with the version of that wording. Kept as proof that the deletion was your own request. We also ask why you are leaving; you can skip it. If you answer, we keep the reason you pick and anything you write, to improve the service.',
       ],
       [
         'Location — only when you tap “Use my location”',
@@ -295,7 +295,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Record of a deletion request',
-        'kept after the account is deleted, as proof that you asked; it holds only an internal account reference, the date and what you confirmed — no name, number or address.',
+        'kept after the account is deleted, as proof that you asked; it holds only an internal account reference, the date, what you confirmed and the reason you picked, if you gave one — no name, number or address. Anything you wrote about why you left is removed when the account is deleted.',
       ],
       ['Sign-in', 'you stay signed in for up to 90 days of inactivity on a phone.'],
       [

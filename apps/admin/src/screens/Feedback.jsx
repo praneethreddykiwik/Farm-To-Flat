@@ -1,44 +1,144 @@
 /**
  * Feedback — what customers tell us, in one place: star ratings with their comments, and the
- * complaints queue. /feedback opens on Reviews; /complaints (the old address) opens on Complaints.
+ * complaints queue, and why people delete their account. /feedback opens on Reviews; /complaints
+ * (the old address) opens on Complaints; /feedback?tab=… opens the others.
  *
  * Reviews: GET /admin/feedback/reviews?rating&unreplied, PUT /admin/feedback/reviews/:orderId with
  * { reply } or { hidden }. A reply is shown to the customer on their order.
  */
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
 import { IconStar } from '../components/icons.jsx';
-import { Bar, SetupBanner, Tabs, sentence } from '../components/business.jsx';
+import {
+  Bar,
+  DateRange,
+  SetupBanner,
+  Tabs,
+  sentence,
+  useDateRange,
+} from '../components/business.jsx';
 import { dateTime } from '../lib/format.js';
 import { ComplaintsPanel } from './Complaints.jsx';
+
+const TABS = [
+  { key: 'reviews', label: 'Reviews' },
+  { key: 'complaints', label: 'Complaints' },
+  { key: 'exits', label: 'Why people leave' },
+];
 
 export function Feedback() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const tab = pathname === '/complaints' ? 'complaints' : 'reviews';
+  const [params] = useSearchParams();
+  const asked = params.get('tab');
+  const tab =
+    pathname === '/complaints'
+      ? 'complaints'
+      : TABS.some((x) => x.key === asked)
+        ? asked
+        : 'reviews';
   return (
     <>
       <header className="topbar">
         <div>
           <h1 className="page-title">Feedback</h1>
-          <p className="page-sub">
-            Ratings, comments and complaints from customers, after delivery.
-          </p>
+          <p className="page-sub">Ratings, comments and complaints, and why customers leave.</p>
         </div>
       </header>
       <SetupBanner />
       <Tabs
-        tabs={[
-          { key: 'reviews', label: 'Reviews' },
-          { key: 'complaints', label: 'Complaints' },
-        ]}
+        tabs={TABS}
         value={tab}
-        onChange={(k) => navigate(k === 'complaints' ? '/complaints' : '/feedback')}
+        onChange={(k) =>
+          navigate(
+            k === 'complaints'
+              ? '/complaints'
+              : k === 'reviews'
+                ? '/feedback'
+                : `/feedback?tab=${k}`,
+          )
+        }
       />
-      {tab === 'reviews' ? <Reviews /> : <ComplaintsPanel />}
+      {tab === 'reviews' && <Reviews />}
+      {tab === 'complaints' && <ComplaintsPanel />}
+      {tab === 'exits' && <Exits />}
+    </>
+  );
+}
+
+/** Why customers delete their account: the optional question in the app. Never who they were. */
+function Exits() {
+  const dr = useDateRange('90d');
+  const { data, loading, error, reload } = useResource(
+    `/admin/feedback/exits${dr.qs ? `?${dr.qs}` : ''}`,
+  );
+  if (error) return <ErrorNote error={error} onRetry={reload} />;
+  const max = Math.max(1, ...(data?.byReason || []).map((r) => r.count));
+  return (
+    <>
+      <DateRange dr={dr} />
+      {!data ? (
+        <div className="glass card">
+          <TableSkeleton rows={4} />
+        </div>
+      ) : (
+        <div style={{ opacity: loading ? 0.6 : 1 }}>
+          <div className="stat-grid stagger" style={{ marginBottom: 16 }}>
+            <Stat value={data.requests} label="Deletion requests" />
+            <Stat value={data.answered} label="Told us why" />
+            <Stat value={data.skipped} label="Skipped or not asked" />
+          </div>
+          <div className="glass card reveal" style={{ marginBottom: 16 }}>
+            <div className="card__head">
+              <h2 className="card__title">Reasons</h2>
+            </div>
+            {data.byReason.map((r) => (
+              <div key={r.key} className="hstack" style={{ gap: 10, padding: '5px 0' }}>
+                <span style={{ width: 210, fontSize: 13 }}>{r.label}</span>
+                <span style={{ flex: 1 }}>
+                  <Bar pct={(r.count / max) * 100} tone="amber" />
+                </span>
+                <span className="num" style={{ width: 30, textAlign: 'right' }}>
+                  {r.count}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="glass card reveal" style={{ padding: 0 }}>
+            {data.recent.length === 0 ? (
+              <div className="empty">No deletion requests in this range.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>When</th>
+                      <th>Reason</th>
+                      <th>In their words</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recent.map((r) => (
+                      <tr key={r.id}>
+                        <td className="data__name">{dateTime(r.at)}</td>
+                        <td>{r.reasonLabel || <span className="muted">No answer</span>}</td>
+                        <td style={{ whiteSpace: 'normal', maxWidth: 420 }}>{r.note || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <p className="field__hint" style={{ marginTop: 10 }}>
+            The question is optional. What a customer wrote is removed when their account is erased;
+            the reason stays as a count.
+          </p>
+        </div>
+      )}
     </>
   );
 }

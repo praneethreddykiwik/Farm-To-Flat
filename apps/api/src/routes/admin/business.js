@@ -68,9 +68,11 @@ import {
   buffer,
   finance,
   rangeOf,
+  istDate,
   DELAY_REASONS,
   EXPENSE_CATEGORIES,
 } from '../../lib/insights.js';
+import { exitSummary } from '../../lib/exit-reasons.js';
 import { maskMobile } from '../../lib/customer-history.js';
 import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
 import { listEvents, EVENT_NAMES } from '../../lib/events.js';
@@ -735,6 +737,15 @@ adminBusinessRouter.put(
     if (req.body.hidden !== undefined) next.hidden = req.body.hidden;
     const saved = await putOps('review', cur.id, next);
     res.json({ review: reviewView(saved) });
+  }),
+);
+
+/** Why customers delete their account (lib/exit-reasons.js). Counts and words, never who. */
+adminBusinessRouter.get(
+  '/feedback/exits',
+  asyncHandler(async (req, res) => {
+    const range = rangeOf(req.query);
+    res.json({ range, ...exitSummary(range, istDate) });
   }),
 );
 
