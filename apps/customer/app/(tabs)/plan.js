@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
@@ -53,6 +53,7 @@ import {
 import { showToast, selectLanguage } from '../../src/features/ui/uiSlice';
 import { selectAiVisible } from '../../src/features/role/roleSlice';
 import { generatePlan } from '../../src/lib/ai';
+import { track } from '../../src/lib/tracking';
 import { NUTRITION_SOURCE } from '../../src/lib/nutrition';
 import { scheduleOrderReminders } from '../../src/lib/reminders';
 import {
@@ -114,6 +115,12 @@ export default function Plan() {
   const scheduleSheet = useRef(null);
   const scrollRef = useRef(null);
   const profileReady = !!profile.age;
+  // Usage for the admin's Meal planner tab. Only for people who can actually use it.
+  useFocusEffect(
+    useCallback(() => {
+      if (aiVisible) track('planner_opened', {});
+    }, [aiVisible]),
+  );
 
   const run = async () => {
     if (!profileReady) {
@@ -135,6 +142,7 @@ export default function Plan() {
         serverPlan: (body) => aiPlan(body).unwrap(),
       });
       dispatch(draftSet(plan));
+      track('plan_generated', { horizon });
       haptic.success();
       setTimeout(() => scrollRef.current?.scrollTo({ y: 420, animated: true }), 250);
     } catch (e) {
@@ -164,6 +172,7 @@ export default function Plan() {
       reminderIds: [],
     };
     dispatch(planScheduled(entry));
+    track('plan_scheduled', { horizon: entry.horizon, days: entry.days.length });
     scheduleSheet.current?.dismiss();
     if (withReminder) {
       const ids = await scheduleOrderReminders(entry);

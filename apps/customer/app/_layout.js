@@ -190,6 +190,8 @@ function AuthGate({ ready }) {
           opened_at: new Date().toISOString(),
           sent_on: String(resp.notification.request.content.data.reminder || ''),
         });
+      if (resp.notification?.request?.content?.data?.kind === 'PLANNER_NUDGE')
+        track('planner_nudge_tapped', { from: 'notification' });
       const target = routeForNotification({
         actionIdentifier: resp.actionIdentifier,
         data: resp.notification?.request?.content?.data,

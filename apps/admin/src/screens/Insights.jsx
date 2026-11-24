@@ -60,6 +60,7 @@ const TABS = [
   { key: 'routine', label: 'Routine' },
   { key: 'promise', label: 'Promise' },
   { key: 'offers', label: 'Offers' },
+  { key: 'planner', label: 'Meal planner' },
   { key: 'products', label: 'Products' },
 ];
 
@@ -105,6 +106,7 @@ export function Insights() {
             <PromiseTab p={data.promise} reasons={data.delayReasons} onChanged={reload} />
           )}
           {tab === 'offers' && <Offers o={data.offers} />}
+          {tab === 'planner' && <Planner p={data.planner} />}
         </div>
       )}
     </>
@@ -414,6 +416,72 @@ function Repeat({ r }) {
             </div>
           </>
         )}
+      </Card>
+    </div>
+  );
+}
+
+// ── meal planner usage ──────────────────────────────────────────────────────
+
+const changeText = (n) => (n > 0 ? `+${n}` : n < 0 ? String(n) : 'same');
+const changeColor = (n) => (n > 0 ? 'var(--leaf-deep)' : n < 0 ? 'var(--tomato)' : undefined);
+
+/** Who uses the meal planner, and whether the "Have you tried it?" card brings people in. */
+function Planner({ p }) {
+  if (!p) return <Empty>Meal planner usage needs the latest server version.</Empty>;
+  const max = Math.max(1, ...p.steps.map((s) => s.people));
+  return (
+    <div className="vstack" style={{ gap: 16 }}>
+      <Card
+        title="People at each step"
+        pad={false}
+        hint={`Different people, not taps. Compared with ${shortDate(p.comparedWith.from)} to ${shortDate(p.comparedWith.to)}. The planner is open to super admin only for now, so these are your own team’s numbers.`}
+      >
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th style={{ width: '34%' }} />
+                <th className="num">People</th>
+                <th className="num">Times</th>
+                <th className="num">Before</th>
+                <th className="num">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {p.steps.map((s) => (
+                <tr key={s.key}>
+                  <td className="data__name">{s.label}</td>
+                  <td>
+                    <Bar pct={(s.people / max) * 100} tone="leaf" />
+                  </td>
+                  <td className="num" style={{ fontWeight: 700 }}>
+                    {s.people}
+                  </td>
+                  <td className="num">{s.times}</td>
+                  <td className="num">{s.before}</td>
+                  <td className="num" style={{ fontWeight: 700, color: changeColor(s.change) }}>
+                    {changeText(s.change)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card title="Does “Have you tried it?” work?">
+        <p style={{ fontSize: 14, lineHeight: 1.6 }}>
+          {p.nudge.shown === 0 ? (
+            'Nobody has been shown the card in this range.'
+          ) : (
+            <>
+              <b>{p.nudge.shown}</b> saw it, <b>{p.nudge.tapped}</b> tapped Try it, and{' '}
+              <b>{p.nudge.madeAfterTap}</b> of those made a plan. It was closed{' '}
+              <b>{p.nudge.dismissed}</b> {p.nudge.dismissed === 1 ? 'time' : 'times'}.
+            </>
+          )}
+        </p>
       </Card>
     </div>
   );

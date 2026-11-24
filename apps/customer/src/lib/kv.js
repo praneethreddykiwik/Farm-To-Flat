@@ -50,6 +50,8 @@ export const KV_KEYS = {
   reducedMotion: 'ui.reducedMotion',
   lastCommunity: 'ui.lastCommunity',
   plan: 'plan.v1',
+  /** "Have you tried the meal planner?" — snoozed until, last shown (lib/plannerNudge.js). */
+  plannerNudge: 'planner.nudge.v1',
   language: 'ui.language',
   /** Notification taps already acted on (lib/notificationDedup.js, review #47). Ids only. */
   handledNotifications: 'notif.handled.v1',

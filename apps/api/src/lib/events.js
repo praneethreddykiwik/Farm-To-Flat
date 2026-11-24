@@ -43,6 +43,14 @@ export const EVENT_NAMES = {
   product_viewed: 'client',
   product_story_viewed: 'client',
   cart_updated: 'client',
+  // Meal planner usage (strategy discussion, 22 Nov 2026)
+  planner_nudge_shown: 'client',
+  planner_nudge_tapped: 'client',
+  planner_nudge_dismissed: 'client',
+  planner_opened: 'client',
+  plan_generated: 'client',
+  plan_scheduled: 'client',
+  meal_logged: 'server',
 };
 
 export const CLIENT_EVENTS = Object.keys(EVENT_NAMES).filter((n) => EVENT_NAMES[n] === 'client');

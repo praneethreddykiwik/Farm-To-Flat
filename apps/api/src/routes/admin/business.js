@@ -72,6 +72,7 @@ import {
   DELAY_REASONS,
   EXPENSE_CATEGORIES,
 } from '../../lib/insights.js';
+import { plannerUsage } from '../../lib/planner-usage.js';
 import { exitSummary } from '../../lib/exit-reasons.js';
 import { maskMobile } from '../../lib/customer-history.js';
 import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
@@ -391,6 +392,7 @@ adminBusinessRouter.get(
       routine: routine(range),
       promise: promise(range),
       offers: offers(range),
+      planner: plannerUsage(range),
       delayReasons: DELAY_REASONS,
       generatedAt: new Date().toISOString(),
     });

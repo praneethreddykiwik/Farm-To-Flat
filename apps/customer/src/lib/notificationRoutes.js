@@ -14,6 +14,7 @@ export const CATEGORY = {
   MEAL: 'mealcheckin',
   PLAN: 'planconfirm',
   DELIVERED: 'orderdelivered',
+  PLANNER: 'plannertry',
 };
 
 /** Action ids, shared by the category registration and this router. */
@@ -25,6 +26,7 @@ export const ACTION = {
   SKIP_DAY: 'SKIP_DAY',
   RATE: 'RATE',
   ISSUE: 'ISSUE',
+  TRY_PLANNER: 'TRY_PLANNER',
 };
 
 /** The buttons each category shows. Every one brings the app forward — see the note above. */
@@ -42,6 +44,7 @@ export const CATEGORY_ACTIONS = {
     { identifier: ACTION.RATE, buttonTitle: 'View order' },
     { identifier: ACTION.ISSUE, buttonTitle: 'Something wrong?' },
   ],
+  [CATEGORY.PLANNER]: [{ identifier: ACTION.TRY_PLANNER, buttonTitle: 'Try it' }],
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -69,6 +72,9 @@ export function routeForNotification({ actionIdentifier, data } = {}) {
     else if (action === ACTION.SKIP_MEAL) params.do = 'skip';
     return { pathname: '/meal-checkin', params };
   }
+
+  // "have you tried the meal planner?" — the tap and its Try it button both open it
+  if (d.kind === 'PLANNER_NUDGE') return { pathname: '/(tabs)/plan' };
 
   // the evening-before "confirm tomorrow's order"
   if (d.type === 'plan-confirm' && DATE_RE.test(String(d.date || ''))) {
