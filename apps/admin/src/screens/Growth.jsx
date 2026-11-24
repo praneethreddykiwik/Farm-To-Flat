@@ -237,7 +237,7 @@ function Promoters() {
                       <td className="num">
                         {p.firstOrders}
                         {p.typed > 0 && (
-                          <div className="muted" style={{ fontSize: 11 }}>
+                          <div className="muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
                             {p.typed} typed the code
                           </div>
                         )}
@@ -311,7 +311,6 @@ function ScanWeek({ week }) {
         display: 'flex',
         gap: 2,
         alignItems: 'flex-end',
-        justifyContent: 'flex-end',
         height: 18,
         marginTop: 4,
       }}

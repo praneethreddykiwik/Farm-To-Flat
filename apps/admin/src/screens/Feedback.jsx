@@ -11,7 +11,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast, useResource } from '../lib/useApi.js';
 import { api } from '../lib/api.js';
 import { ErrorNote, Stat, TableSkeleton } from '../components/ui.jsx';
-import { IconStar } from '../components/icons.jsx';
+import { IconStar, IconUsers } from '../components/icons.jsx';
 import {
   Bar,
   DateRange,
@@ -337,7 +337,7 @@ function AddReview({ stores, onSaved }) {
 
 /** Why customers delete their account: the optional question in the app. Never who they were. */
 function Exits() {
-  const dr = useDateRange('90d');
+  const dr = useDateRange('30d');
   const { data, loading, error, reload } = useResource(
     `/admin/feedback/exits${dr.qs ? `?${dr.qs}` : ''}`,
   );
@@ -353,9 +353,13 @@ function Exits() {
       ) : (
         <div style={{ opacity: loading ? 0.6 : 1 }}>
           <div className="stat-grid stagger" style={{ marginBottom: 16 }}>
-            <Stat value={data.requests} label="Deletion requests" />
-            <Stat value={data.answered} label="Told us why" />
-            <Stat value={data.skipped} label="Skipped or not asked" />
+            <Stat icon={<IconUsers size={20} />} value={data.requests} label="Deletion requests" />
+            <Stat icon={<IconStar size={20} />} value={data.answered} label="Told us why" />
+            <Stat
+              icon={<IconUsers size={20} />}
+              value={data.skipped}
+              label="Skipped or not asked"
+            />
           </div>
           <div className="glass card reveal" style={{ marginBottom: 16 }}>
             <div className="card__head">

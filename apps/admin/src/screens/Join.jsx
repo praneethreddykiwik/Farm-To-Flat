@@ -21,9 +21,14 @@ const isIphone = () =>
 const isAndroid = () =>
   typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '');
 
+// One scan per page load. React can run an effect more than once for the same page.
+let countedScan = '';
+
 function countScan(tag) {
   if (!tag.src && !tag.p) return;
   const body = JSON.stringify({ src: tag.src, p: tag.p, c: tag.c, r: tag.r });
+  if (countedScan === body) return;
+  countedScan = body;
   try {
     // sendBeacon survives the redirect that follows; fetch keepalive is the fallback.
     const blob = new Blob([body], { type: 'application/json' });
@@ -83,13 +88,7 @@ export function Join() {
         {code && !leaving && (
           <button
             type="button"
-            className="join__play"
-            style={{
-              border: 'none',
-              cursor: 'pointer',
-              justifyContent: 'center',
-              marginBottom: 10,
-            }}
+            className="join__copy"
             onClick={() =>
               navigator.clipboard
                 ?.writeText(code)
