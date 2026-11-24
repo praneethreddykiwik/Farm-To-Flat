@@ -1076,8 +1076,19 @@ export function releaseCoupon(cid, code) {
 }
 
 // ── cart ────────────────────────────────────────────────────────────────────
-export function priceCart(cid) {
-  const cur = cart(cid);
+/**
+ * @param {string} cid
+ * @param {{ productId: string, quantity: string|number }[]} [lines]  price these instead of the
+ *   basket (POST /cart/quote). The basket itself is left exactly as it is; the coupon on it still
+ *   counts, because placing the order would apply it.
+ */
+export function priceCart(cid, lines) {
+  const cur = lines
+    ? {
+        couponCode: cart(cid).couponCode,
+        items: lines.map((l, i) => ({ id: `quote_${i}`, note: null, ...l })),
+      }
+    : cart(cid);
   // A product the admin removed from the catalog can still sit in a basket; drop such lines here
   // instead of dereferencing null (which turned the whole cart screen into a 500).
   cur.items = cur.items.filter((it) => getProduct(it.productId));
