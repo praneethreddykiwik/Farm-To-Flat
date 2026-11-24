@@ -82,6 +82,7 @@ import {
   removeManualReview,
   syncStoreReviews,
 } from '../../lib/store-reviews.js';
+import { funnelTotals, promoterFunnel } from '../../lib/promoter-funnel.js';
 import { exitSummary } from '../../lib/exit-reasons.js';
 import { maskMobile } from '../../lib/customer-history.js';
 import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
@@ -126,7 +127,7 @@ adminBusinessRouter.get(
   '/growth/promoters',
   asyncHandler(async (req, res) => {
     const range = rangeOf(req.query);
-    const stats = new Map(acquisition(range).byPromoter.map((p) => [p.code, p]));
+    const funnel = promoterFunnel(range);
     const promoters = listOps('promoter')
       .map((p) => ({
         code: p.id,
@@ -137,13 +138,13 @@ adminBusinessRouter.get(
         mobile: p.mobile || null,
         active: p.active !== false,
         createdAt: p.createdAt || null,
-        orders: stats.get(p.id)?.orders || 0,
-        firstOrders: stats.get(p.id)?.firstOrders || 0,
-        revenuePaise: stats.get(p.id)?.revenuePaise || '0',
+        ...funnel.get(p.id),
       }))
       .sort((a, b) => b.orders - a.orders || a.name.localeCompare(b.name));
     res.json({
       range,
+      totals: funnelTotals(funnel),
+      generatedAt: new Date().toISOString(),
       promoters,
       communities: listCommunities().map((c) => ({ id: c.id, name: c.name })),
     });

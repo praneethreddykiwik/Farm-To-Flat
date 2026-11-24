@@ -98,6 +98,11 @@ function Promoters() {
   const communities = data?.communities || [];
   const [editing, setEditing] = useState(/** @type {any} */ (null)); // promoter | 'new'
   const [card, setCard] = useState(/** @type {any} */ (null));
+  // Live at a stall: the numbers refresh by themselves while the page is in view.
+  useEffect(() => {
+    const t = setInterval(() => document.visibilityState === 'visible' && reload(), 30e3);
+    return () => clearInterval(t);
+  }, [reload]);
 
   async function toggle(p) {
     try {
@@ -158,84 +163,124 @@ function Promoters() {
           </div>
         </div>
       ) : (
-        <div className="glass card reveal" style={{ padding: 0, opacity: loading ? 0.6 : 1 }}>
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Name · mobile</th>
-                  <th>Stall · community</th>
-                  <th>Status</th>
-                  <th className="num">Orders</th>
-                  <th className="num">First orders</th>
-                  <th className="num">Sales</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {promoters.map((p) => (
-                  <tr key={p.code}>
-                    <td className="mono" style={{ fontWeight: 700 }}>
-                      {p.code}
-                    </td>
-                    <td>
-                      <div className="data__name" style={{ fontWeight: 600 }}>
-                        {p.name}
-                      </div>
-                      <div className="muted mono" style={{ fontSize: 12 }}>
-                        {p.mobile || 'No mobile'}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="data__name">
-                        {p.stall || <span className="muted">No stall named</span>}
-                      </div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {p.communityName || 'Any community'}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`pill ${p.active ? 'pill--leaf' : ''}`}>
-                        {p.active ? 'Active' : 'Switched off'}
-                      </span>
-                    </td>
-                    <td className="num">{p.orders}</td>
-                    <td className="num">{p.firstOrders}</td>
-                    <td className="num" style={{ fontWeight: 600 }}>
-                      {inr(p.revenuePaise)}
-                    </td>
-                    <td className="row-actions-cell">
-                      <div className="row-actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => setCard(p)}>
-                          <IconQr size={15} /> QR card
-                        </button>
-                        <button className="btn btn--ghost btn--sm" onClick={() => setEditing(p)}>
-                          <IconEdit size={15} /> Edit
-                        </button>
-                        <button className="btn btn--ghost btn--sm" onClick={() => toggle(p)}>
-                          {p.active ? 'Switch off' : 'Switch on'}
-                        </button>
-                        <button
-                          className="btn btn--ghost btn--icon"
-                          style={{ color: 'var(--tomato)' }}
-                          onClick={() => remove(p)}
-                          aria-label={`Delete ${p.code}`}
-                        >
-                          <IconTrash size={15} />
-                        </button>
-                      </div>
-                    </td>
+        <>
+          {data.totals && (
+            <div className="stat-grid" style={{ marginBottom: 16 }}>
+              <Stat icon={<IconQr size={20} />} value={num(data.totals.scans)} label="QR scans" />
+              <Stat
+                icon={<IconUsers size={20} />}
+                value={num(data.totals.signUps)}
+                label="Sign-ups from a QR (Android)"
+              />
+              <Stat
+                icon={<IconUsers size={20} />}
+                tint="sprout"
+                value={num(data.totals.firstOrders)}
+                label="First orders"
+              />
+              <Stat
+                icon={<IconRupee size={20} />}
+                value={inr(data.totals.revenuePaise)}
+                label={`Sales from ${num(data.totals.orders)} ${data.totals.orders === 1 ? 'order' : 'orders'}`}
+              />
+            </div>
+          )}
+          <div className="glass card reveal" style={{ padding: 0 }}>
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name · mobile</th>
+                    <th>Stall · community</th>
+                    <th>Status</th>
+                    <th className="num">Scans</th>
+                    <th className="num">Sign-ups</th>
+                    <th className="num">First orders</th>
+                    <th className="num">Orders</th>
+                    <th className="num">Sales</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {promoters.map((p) => (
+                    <tr key={p.code}>
+                      <td className="mono" style={{ fontWeight: 700 }}>
+                        {p.code}
+                      </td>
+                      <td>
+                        <div className="data__name" style={{ fontWeight: 600 }}>
+                          {p.name}
+                        </div>
+                        <div className="muted mono" style={{ fontSize: 12 }}>
+                          {p.mobile || 'No mobile'}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="data__name">
+                          {p.stall || <span className="muted">No stall named</span>}
+                        </div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {p.communityName || 'Any community'}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`pill ${p.active ? 'pill--leaf' : ''}`}>
+                          {p.active ? 'Active' : 'Switched off'}
+                        </span>
+                      </td>
+                      <td className="num">
+                        {p.scans ?? '—'}
+                        {p.week && <ScanWeek week={p.week} />}
+                      </td>
+                      <td className="num">{p.signUps ?? '—'}</td>
+                      <td className="num">
+                        {p.firstOrders}
+                        {p.typed > 0 && (
+                          <div className="muted" style={{ fontSize: 11 }}>
+                            {p.typed} typed the code
+                          </div>
+                        )}
+                      </td>
+                      <td className="num">{p.orders}</td>
+                      <td className="num" style={{ fontWeight: 600 }}>
+                        {inr(p.revenuePaise)}
+                      </td>
+                      <td className="row-actions-cell">
+                        <div className="row-actions">
+                          <button className="btn btn--ghost btn--sm" onClick={() => setCard(p)}>
+                            <IconQr size={15} /> QR card
+                          </button>
+                          <button className="btn btn--ghost btn--sm" onClick={() => setEditing(p)}>
+                            <IconEdit size={15} /> Edit
+                          </button>
+                          <button className="btn btn--ghost btn--sm" onClick={() => toggle(p)}>
+                            {p.active ? 'Switch off' : 'Switch on'}
+                          </button>
+                          <button
+                            className="btn btn--ghost btn--icon"
+                            style={{ color: 'var(--tomato)' }}
+                            onClick={() => remove(p)}
+                            aria-label={`Delete ${p.code}`}
+                          >
+                            <IconTrash size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="field__hint" style={{ padding: '0 16px 14px' }}>
+              For {rangeLabel(dr.range)}, refreshed every 30 seconds. A scan is the QR page being
+              opened, so one person can count twice. Sign-ups from a QR can be seen on Android only:
+              Apple does not pass the QR through the App Store, so iPhone customers type the code
+              and appear under first orders. Sales are item totals before fees, cancelled orders
+              left out.
+            </p>
           </div>
-          <p className="field__hint" style={{ padding: '0 16px 14px' }}>
-            Orders, first orders and sales are for {rangeLabel(dr.range)}. Sales are item totals
-            before fees, cancelled orders left out.
-          </p>
-        </div>
+        </>
       )}
       {editing && (
         <PromoterDrawer
@@ -250,6 +295,39 @@ function Promoters() {
       )}
       {card && <QrCardDrawer promoter={card} onClose={() => setCard(null)} />}
     </>
+  );
+}
+
+/** Scans on each of the last seven days, as seven small bars. */
+function ScanWeek({ week }) {
+  const max = Math.max(1, ...week.map((d) => d.scans));
+  const label = week.map((d) => `${d.day}: ${d.scans}`).join(', ');
+  return (
+    <div
+      role="img"
+      aria-label={`Scans by day. ${label}`}
+      title={label}
+      style={{
+        display: 'flex',
+        gap: 2,
+        alignItems: 'flex-end',
+        justifyContent: 'flex-end',
+        height: 18,
+        marginTop: 4,
+      }}
+    >
+      {week.map((d) => (
+        <span
+          key={d.day}
+          style={{
+            width: 5,
+            height: d.scans ? Math.max(3, (d.scans / max) * 18) : 2,
+            borderRadius: 2,
+            background: d.scans ? 'var(--leaf)' : 'rgba(14,27,20,0.14)',
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
