@@ -91,6 +91,7 @@ import { adminManageRouter } from './routes/admin/manage.js';
 import { listOps, loadOps, startOpsRecheck } from './ops-store.js';
 import { startDeletionSweep } from './lib/account-deletion.js';
 import { startCutoffReminders } from './lib/reminders.js';
+import { startStoreReviewSync } from './lib/store-reviews.js';
 import { startMemoryLog } from './lib/memory-log.js';
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 import { accessRouter } from './routes/access.js';
@@ -511,6 +512,8 @@ async function hydrateOnce() {
     startDeletionSweep();
     // The 5 PM cut-off reminder — off until switched on in the admin.
     startCutoffReminders();
+    // App Store and Google Play reviews, hourly. Does nothing for a store with no key.
+    startStoreReviewSync();
     // A log line of record counts and memory, so growth is visible before it is an outage.
     startMemoryLog();
   }

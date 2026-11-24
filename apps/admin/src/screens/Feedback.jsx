@@ -24,7 +24,8 @@ import { dateTime } from '../lib/format.js';
 import { ComplaintsPanel } from './Complaints.jsx';
 
 const TABS = [
-  { key: 'reviews', label: 'Reviews' },
+  { key: 'reviews', label: 'Order reviews' },
+  { key: 'stores', label: 'App store reviews' },
   { key: 'complaints', label: 'Complaints' },
   { key: 'exits', label: 'Why people leave' },
 ];
@@ -63,9 +64,274 @@ export function Feedback() {
         }
       />
       {tab === 'reviews' && <Reviews />}
+      {tab === 'stores' && <StoreReviews />}
       {tab === 'complaints' && <ComplaintsPanel />}
       {tab === 'exits' && <Exits />}
     </>
+  );
+}
+
+const NOT_CONNECTED = {
+  apple:
+    'Not connected. Add ASC_ISSUER_ID, ASC_KEY_ID and ASC_PRIVATE_KEY on Render, from an App Store Connect API key that can read reviews.',
+  google:
+    'Not connected. Add GOOGLE_PLAY_SERVICE_ACCOUNT_JSON on Render, from a service account allowed to see reviews in Play Console.',
+};
+
+/** Reviews published elsewhere: App Store and Google Play fetched hourly, others added by hand. */
+function StoreReviews() {
+  const [store, setStore] = useState('');
+  const [rating, setRating] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const p = new URLSearchParams();
+  if (store) p.set('store', store);
+  if (rating) p.set('rating', rating);
+  const { data, loading, error, reload } = useResource(
+    `/admin/feedback/store-reviews${p.size ? `?${p}` : ''}`,
+  );
+  if (error) return <ErrorNote error={error} onRetry={reload} />;
+  if (!data)
+    return (
+      <div className="glass card">
+        <TableSkeleton rows={4} />
+      </div>
+    );
+
+  async function sync() {
+    setBusy(true);
+    try {
+      const { result } = await api.post('/admin/feedback/store-reviews/sync');
+      const problem = Object.values(result).find((r) => r.error);
+      const added = Object.values(result).reduce((n, r) => n + (r.added || 0), 0);
+      if (problem) toast(problem.error, 'err');
+      else if (!Object.keys(result).length) toast('No store is connected yet.', 'err');
+      else toast(added ? `${added} new` : 'Up to date');
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not check', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(r) {
+    if (!confirm('Remove this review from the list?')) return;
+    try {
+      await api.del(`/admin/feedback/store-reviews/${encodeURIComponent(r.id)}`);
+      reload();
+    } catch (e) {
+      toast(e.message || 'Could not remove', 'err');
+    }
+  }
+  const auto = data.stores.filter((s) => !s.manual);
+  const filters = data.stores.filter((s) => !s.manual || s.count > 0);
+
+  return (
+    <>
+      <div className="stat-grid stagger" style={{ marginBottom: 16 }}>
+        {auto.map((s) => (
+          <Stat
+            key={s.key}
+            icon={<IconStar size={20} />}
+            value={s.average == null ? '—' : `${s.average} ★`}
+            label={`${s.label} · ${s.count} saved`}
+            delta={
+              s.error
+                ? { kind: 'down', text: s.error }
+                : s.connected
+                  ? {
+                      kind: 'flat',
+                      text: s.lastSyncAt ? `Checked ${dateTime(s.lastSyncAt)}` : 'Connected',
+                    }
+                  : { kind: 'flat', text: 'Not connected' }
+            }
+          />
+        ))}
+      </div>
+      {auto.some((s) => !s.connected) && (
+        <div className="glass card" style={{ marginBottom: 16 }}>
+          {auto
+            .filter((s) => !s.connected)
+            .map((s) => (
+              <p key={s.key} style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+                <b>{s.label}:</b> {NOT_CONNECTED[s.key]}
+              </p>
+            ))}
+        </div>
+      )}
+      <div className="toolbar" style={{ marginBottom: 14 }}>
+        <button className={`chip${store === '' ? ' is-active' : ''}`} onClick={() => setStore('')}>
+          All
+        </button>
+        {filters.map((s) => (
+          <button
+            key={s.key}
+            className={`chip${store === s.key ? ' is-active' : ''}`}
+            onClick={() => setStore(s.key)}
+          >
+            {s.label}
+          </button>
+        ))}
+        <select
+          className="field__select"
+          style={{ width: 130 }}
+          value={rating}
+          onChange={(e) => setRating(e.target.value)}
+          aria-label="Stars"
+        >
+          <option value="">All stars</option>
+          {[5, 4, 3, 2, 1].map((n) => (
+            <option key={n} value={n}>
+              {n} ★
+            </option>
+          ))}
+        </select>
+        <button className="btn btn--ghost btn--sm" onClick={sync} disabled={busy}>
+          {busy ? 'Checking…' : 'Check now'}
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={() => setAdding((v) => !v)}>
+          {adding ? 'Close' : 'Add one by hand'}
+        </button>
+      </div>
+      {adding && (
+        <AddReview
+          stores={data.stores.filter((s) => s.manual)}
+          onSaved={() => {
+            setAdding(false);
+            reload();
+          }}
+        />
+      )}
+      {data.reviews.length === 0 ? (
+        <div className="glass card">
+          <div className="empty">No reviews here yet.</div>
+        </div>
+      ) : (
+        <div className="vstack" style={{ gap: 14, opacity: loading ? 0.6 : 1 }}>
+          {data.reviews.map((r) => (
+            <div key={r.id} className="glass card">
+              <div className="hstack" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <Stars n={r.rating} />
+                <span className="pill">{r.storeLabel}</span>
+                <span className="muted" style={{ fontSize: 12.5 }}>
+                  {[r.author, r.country, r.version && `v${r.version}`, dateTime(r.at)]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </div>
+              {r.title && <p style={{ fontWeight: 600, marginTop: 8 }}>{r.title}</p>}
+              {r.body && <p style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{r.body}</p>}
+              {r.reply && (
+                <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+                  Our reply: {r.reply}
+                </p>
+              )}
+              <div className="hstack" style={{ gap: 12, marginTop: 8 }}>
+                {r.url && /^https:\/\//.test(r.url) && (
+                  <a href={r.url} target="_blank" rel="noreferrer">
+                    Open
+                  </a>
+                )}
+                {!auto.some((s) => s.key === r.store) && (
+                  <button className="btn btn--ghost btn--sm" onClick={() => remove(r)}>
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="field__hint" style={{ marginTop: 12 }}>
+        Google gives us only written reviews from the last seven days, so each is saved as it
+        appears. Reply in App Store Connect or Play Console.
+      </p>
+    </>
+  );
+}
+
+function AddReview({ stores, onSaved }) {
+  const [f, setF] = useState({ store: 'maps', rating: 5, body: '', author: '', url: '' });
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  async function save() {
+    if (!f.body.trim()) return toast('Write what the review says.', 'err');
+    setBusy(true);
+    try {
+      await api.post('/admin/feedback/store-reviews', {
+        store: f.store,
+        rating: Number(f.rating),
+        body: f.body.trim(),
+        author: f.author.trim() || null,
+        url: f.url.trim() || null,
+      });
+      toast('Review added');
+      onSaved();
+    } catch (e) {
+      toast(e.message || 'Could not save', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="glass card" style={{ marginBottom: 14 }}>
+      <div className="field__row">
+        <div className="field">
+          <label className="field__label">Where</label>
+          <select className="field__select" value={f.store} onChange={set('store')}>
+            {stores.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label className="field__label">Stars</label>
+          <select className="field__select" value={f.rating} onChange={set('rating')}>
+            {[5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={n}>
+                {n} ★
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="field">
+        <label className="field__label">What it says</label>
+        <textarea
+          className="field__input"
+          rows={3}
+          maxLength={2000}
+          value={f.body}
+          onChange={set('body')}
+        />
+      </div>
+      <div className="field__row">
+        <div className="field">
+          <label className="field__label">Name shown (optional)</label>
+          <input
+            className="field__input"
+            maxLength={80}
+            value={f.author}
+            onChange={set('author')}
+          />
+        </div>
+        <div className="field">
+          <label className="field__label">Link (optional)</label>
+          <input
+            className="field__input"
+            maxLength={500}
+            value={f.url}
+            onChange={set('url')}
+            placeholder="https://"
+          />
+        </div>
+      </div>
+      <button className="btn btn--primary" onClick={save} disabled={busy}>
+        {busy ? 'Saving…' : 'Add review'}
+      </button>
+    </div>
   );
 }
 

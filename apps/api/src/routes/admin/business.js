@@ -74,6 +74,14 @@ import {
 } from '../../lib/insights.js';
 import { reminderEffect } from '../../lib/reminder-effect.js';
 import { plannerUsage } from '../../lib/planner-usage.js';
+import {
+  MANUAL_STORES,
+  STORE_LABELS,
+  addManualReview,
+  listStoreReviews,
+  removeManualReview,
+  syncStoreReviews,
+} from '../../lib/store-reviews.js';
 import { exitSummary } from '../../lib/exit-reasons.js';
 import { maskMobile } from '../../lib/customer-history.js';
 import { weeklyReport, weeklyExportRows, weekOf } from '../../lib/report.js';
@@ -740,6 +748,66 @@ adminBusinessRouter.put(
     if (req.body.hidden !== undefined) next.hidden = req.body.hidden;
     const saved = await putOps('review', cur.id, next);
     res.json({ review: reviewView(saved) });
+  }),
+);
+
+// Reviews published elsewhere (lib/store-reviews.js): the App Store, Google Play, or typed in.
+adminBusinessRouter.get(
+  '/feedback/store-reviews',
+  asyncHandler(async (req, res) => {
+    const rating = Number(req.query.rating);
+    res.json(
+      listStoreReviews({
+        store: STORE_LABELS[String(req.query.store)] ? String(req.query.store) : null,
+        rating: rating >= 1 && rating <= 5 ? rating : null,
+      }),
+    );
+  }),
+);
+
+let lastManualSync = 0;
+adminBusinessRouter.post(
+  '/feedback/store-reviews/sync',
+  asyncHandler(async (_req, res) => {
+    if (Date.now() - lastManualSync < 30e3)
+      throw fail(429, 'RATE_LIMITED', 'Just checked. Try again in half a minute.');
+    lastManualSync = Date.now();
+    res.json({ result: await syncStoreReviews() });
+  }),
+);
+
+adminBusinessRouter.post(
+  '/feedback/store-reviews',
+  validateBody(
+    z.object({
+      store: z.enum(/** @type {[string, ...string[]]} */ (MANUAL_STORES)),
+      rating: z.number().int().min(1).max(5),
+      body: z.string().trim().min(1).max(2000),
+      author: z.string().trim().max(80).optional().nullable(),
+      url: z
+        .string()
+        .trim()
+        .max(500)
+        .regex(/^https:\/\//, 'A link must start with https://')
+        .optional()
+        .nullable()
+        .or(z.literal('')),
+      at: z.string().datetime({ offset: true }).optional(),
+    }),
+  ),
+  asyncHandler(async (req, res) => {
+    const by = req.staff?.email || req.staff?.name || 'Fooducia team';
+    res.status(201).json({ review: await addManualReview(req.body, by) });
+  }),
+);
+
+adminBusinessRouter.delete(
+  '/feedback/store-reviews/:id',
+  asyncHandler(async (req, res) => {
+    if (!(await removeManualReview(req.params.id)))
+      throw fail(404, 'NOT_FOUND', 'Only a review added by hand can be removed.');
+    await recordAction({ staff: req.staff, action: 'STORE_REVIEW_REMOVED', target: req.params.id });
+    res.json({ ok: true });
   }),
 );
 

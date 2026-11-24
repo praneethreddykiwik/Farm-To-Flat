@@ -136,7 +136,7 @@ export const SECTIONS = (CONTACT) => [
       ],
       [
         'Ratings',
-        'if you rate a delivered order: the stars, any tags you pick and anything you write. Our team reads them to improve the service and may reply; the reply appears on your order.',
+        'if you rate a delivered order: the stars, any tags you pick and anything you write. Our team reads them to improve the service and may reply; the reply appears on your order. If you review Fooducia publicly on the App Store, Google Play or elsewhere, we keep a copy of what you published there (the name shown, stars and words) to read it in one place; it is not linked to your account.',
       ],
       [
         'Photo search',

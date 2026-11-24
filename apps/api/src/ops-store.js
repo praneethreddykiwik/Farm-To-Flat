@@ -58,6 +58,8 @@ export const OPS_KINDS = [
   'counterSession',
   'linkClick',
   'tagLink',
+  // reviews published elsewhere: App Store, Google Play, or typed in (lib/store-reviews.js)
+  'storeReview',
   'ticket',
   'deletionConsent',
   'mealPlan',
