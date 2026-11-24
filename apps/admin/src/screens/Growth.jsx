@@ -1,5 +1,6 @@
 /**
- * Growth — where new customers come from, and the levers for it.
+ * Referral program (called "Growth" until 24 Nov 2026; the address is still /growth) — where new
+ * customers come from, and the levers for it.
  *
  *   Promoters  the people at community stalls, each with a code a customer types at checkout. Their
  *              orders, first orders and sales for a date range; a printable QR card per person.
@@ -65,7 +66,7 @@ export function Growth() {
     <>
       <header className="topbar">
         <div>
-          <h1 className="page-title">Growth</h1>
+          <h1 className="page-title">Referral program</h1>
           <p className="page-sub">
             Where new customers come from: stalls, neighbours, and the waitlist.
           </p>
@@ -1143,7 +1144,7 @@ function GrowthSettings() {
         waitlistOpenAt,
         askHeardFrom: f.askHeardFrom,
       });
-      toast('Growth settings saved');
+      toast('Referral program settings saved');
       reload();
     } catch (e) {
       toast(e.message || 'Could not save the settings', 'err');

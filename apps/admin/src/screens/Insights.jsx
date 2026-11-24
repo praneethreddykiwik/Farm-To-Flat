@@ -242,7 +242,7 @@ function FirstOrders({ a }) {
       <div className="grid-2 grid-2--even">
         <Card title="By promoter" pad={false}>
           {a.byPromoter.length === 0 ? (
-            <Empty>No promoters yet. Add them under Growth → Promoters.</Empty>
+            <Empty>No promoters yet. Add them under Referral program → Promoters.</Empty>
           ) : (
             <div className="table-wrap">
               <table className="data">

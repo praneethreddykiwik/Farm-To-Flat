@@ -52,8 +52,8 @@ const NAV = [
   // Problems with using the app (not one delivery): raised by customers, answered here.
   { to: '/tickets', label: 'Support tickets', icon: IconLifeBuoy },
   { to: '/stats', label: 'Statistics', icon: IconChart },
-  { section: 'Growth' },
-  { to: '/growth', label: 'Growth', icon: IconTrend },
+  { section: 'Referrals & reports' },
+  { to: '/growth', label: 'Referral program', icon: IconTrend },
   { to: '/insights', label: 'Weekly insights', icon: IconBulb },
   { to: '/report', label: 'Friday report', icon: IconChart },
   { to: '/finance', label: 'Finance', icon: IconLedger },
