@@ -16,13 +16,18 @@ import {
   useGetWalletQuery,
   useGetWindowsQuery,
   usePlaceOrderMutation,
+  useQuoteItemsQuery,
   useSetCartItemMutation,
   useVerifyPaymentMutation,
 } from '../../src/api/api';
 import { dayOrdered, daySkipped, selectScheduled } from '../../src/features/plan/planSlice';
 import { selectCustomer } from '../../src/features/auth/authSlice';
 import { showToast } from '../../src/features/ui/uiSlice';
-import { orderQuantityFor } from '../../src/lib/nutrition';
+import { mayAct } from '../../src/lib/orderIsland';
+import { askForIsland, claimIslandLink, orderIsland } from '../../src/lib/orderIslandNative';
+import { orderForMeals, quoteLines } from '../../src/lib/planOrder';
+import { selectAiVisible } from '../../src/features/role/roleSlice';
+import { formatPaise } from '../../src/lib/money';
 import {
   formatDateShort,
   relativeDayLabel,
@@ -42,12 +47,13 @@ import { colors, radius } from '../../src/theme';
  * order, so the customer never has to rebuild the basket by hand.
  */
 export default function ConfirmDay() {
-  const { date, do: doParam } = useLocalSearchParams();
+  const { date, do: doParam, k: linkToken } = useLocalSearchParams();
   const dateISO = String(date);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const customer = useSelector(selectCustomer);
+  const canShowIsland = useSelector(selectAiVisible) && orderIsland.supported();
   const scheduled = useSelector(selectScheduled);
   const catalog = useGetCatalogQuery();
   const addresses = useGetAddressesQuery();
@@ -70,28 +76,20 @@ export default function ConfirmDay() {
   const day = plan?.days.find((d) => d.date === dateISO);
   const meals = day?.meals;
   const alreadyOrdered = !!plan?.ordered?.includes(dateISO);
+  const skipped = !!plan?.skipped?.includes(dateISO);
 
-  const shopping = useMemo(() => {
-    const agg = {};
-    (meals || []).forEach((m) =>
-      m.items.forEach((it) => (agg[it.productId] = (agg[it.productId] || 0) + it.grams)),
-    );
-    return Object.entries(agg).map(([productId, grams]) => ({ productId, grams }));
-  }, [meals]);
-
-  const lines = useMemo(
-    () =>
-      shopping
-        .map((s) => {
-          const p = productsById[s.productId];
-          if (!p) return null;
-          const qty = orderQuantityFor(p, s.productId, s.grams);
-          return { p, qty, paise: Math.round(Number(p.pricePaise) * qty) };
-        })
-        .filter(Boolean),
-    [shopping, productsById],
+  const { shopping, lines } = useMemo(
+    () => orderForMeals(meals, productsById),
+    [meals, productsById],
   );
   const subtotal = lines.reduce((s, l) => s + l.paise, 0);
+
+  // The real bill, fees and tax included. Until it answers (or if it cannot), the items alone are
+  // shown, and the server still decides what is charged.
+  const quoteArgs = useMemo(() => quoteLines(lines), [lines]);
+  const quoteQuery = useQuoteItemsQuery(quoteArgs, { skip: quoteArgs.length === 0 });
+  const quote = quoteQuery.currentData?.quote || null;
+  const total = quote ? Number(quote.totalPaise) : subtotal;
 
   const address =
     (addresses.data?.addresses || []).find((a) => a.isDefault) ||
@@ -108,8 +106,8 @@ export default function ConfirmDay() {
   }, [windows.data, dateISO]);
   const slotIsOnDay = slot?.date === dateISO;
   const balance = Number(wallet.data?.balancePaise || 0);
-  const walletApplied = Math.min(balance, subtotal);
-  const gateway = Math.max(0, subtotal - walletApplied);
+  const walletApplied = Math.min(balance, total);
+  const gateway = Math.max(0, total - walletApplied);
   // Nothing to confirm: no plan covers this date, or the plan's day has no produce in it. Decided
   // only once the catalogue is in — before that every line is "unknown product" and the day would
   // flash as empty.
@@ -155,6 +153,32 @@ export default function ConfirmDay() {
     skip();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doParam, plan]);
+
+  // Arrived from the Dynamic Island's "Pay ₹620" or "Cash on delivery". The customer has already
+  // answered twice (Confirm order, then how to pay) with the amount in front of them, so the order
+  // goes straight through, but only for a link from our own card, and only if the total is still
+  // the one it showed. Otherwise this is the ordinary screen, with the reason in a message.
+  const actedOn = useRef(null);
+  const quoteSettled = !!quote || quoteQuery.isError;
+  useEffect(() => {
+    if (doParam !== 'pay' && doParam !== 'cod') return;
+    if (!linkToken || actedOn.current === linkToken || busy) return;
+    if (!plan || !lines.length || !address || !windows.data || !wallet.data || !quoteSettled)
+      return;
+    actedOn.current = linkToken;
+    const card = claimIslandLink({ date: dateISO, token: String(linkToken) });
+    if (!card) return;
+    const verdict = mayAct({
+      action: doParam,
+      card,
+      quote,
+      slotOnDay: slotIsOnDay && !past,
+      ordered: alreadyOrdered,
+    });
+    if (verdict.go) confirm({ cash: doParam === 'cod' });
+    else dispatch(showToast({ title: verdict.title, message: verdict.message, tone: 'neutral' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doParam, linkToken, plan, lines, address, windows.data, wallet.data, quoteSettled, busy]);
 
   const finish = (order) => {
     haptic.success();
@@ -227,7 +251,7 @@ export default function ConfirmDay() {
     }
   };
 
-  const confirm = async () => {
+  const confirm = async ({ cash = false } = {}) => {
     if (!plan || lines.length === 0) {
       dispatch(showToast({ title: 'Nothing to order for that day', tone: 'neutral' }));
       return;
@@ -256,7 +280,10 @@ export default function ConfirmDay() {
         addressId: address.id,
         deliveryDate: slot.date,
         window: slot.window,
-        useWallet: true,
+        useWallet: !cash,
+        paymentMethod: cash ? 'COD' : 'PREPAID',
+        // The total on this screen (or on the island card). A different one is refused, not charged.
+        expectedTotalPaise: quote ? String(quote.totalPaise) : undefined,
       }).unwrap();
       setPendingOrder(res.order);
       if (!res.paymentIntent) {
@@ -296,6 +323,7 @@ export default function ConfirmDay() {
             );
             setIntent(null);
             setBusy(false);
+            orderIsland.endAll(); // do not ask again while this payment is being checked
             if (res.order?.id)
               router.replace({ pathname: '/order/[id]', params: { id: res.order.id } });
             return;
@@ -319,6 +347,7 @@ export default function ConfirmDay() {
     } catch (e) {
       haptic.error();
       idem.current = idempotencyKey();
+      if (e?.code === 'PRICE_CHANGED') quoteQuery.refetch();
       dispatch(showToast({ title: e?.message || 'Could not place the order', tone: 'error' }));
       setBusy(false);
     }
@@ -442,6 +471,24 @@ export default function ConfirmDay() {
             <Label style={{ marginTop: 24, marginBottom: 8 }}>What we’ll harvest</Label>
             <PlanShoppingList shopping={shopping} productsById={productsById} compact />
 
+            {/* Cash, when the shop takes it for an order this size. The same answer the card gives. */}
+            {plan && !alreadyOrdered && !belowMin && slot && quote?.codAllowed ? (
+              <Button
+                title={`Cash on delivery · ${formatPaise(total)}`}
+                variant="ghost"
+                disabled={busy}
+                onPress={() => confirm({ cash: true })}
+                style={{ marginTop: 18 }}
+              />
+            ) : null}
+            {plan && !alreadyOrdered && !skipped && canShowIsland && dayWord === 'Tomorrow' ? (
+              <Button
+                title="Show on Dynamic Island"
+                variant="ghost"
+                onPress={askForIsland}
+                style={{ marginTop: 6 }}
+              />
+            ) : null}
             {plan && !alreadyOrdered ? (
               <Button
                 title="Skip this day — order nothing"
@@ -485,7 +532,7 @@ export default function ConfirmDay() {
                     ? `Wallet ₹${rupees(walletApplied)} + ₹${rupees(gateway)} to pay`
                     : 'UPI, card or netbanking'}
               </Small>
-              <Money paise={subtotal} animated color={colors.inkOnDark} variant="h2" />
+              <Money paise={total} animated color={colors.inkOnDark} variant="h2" />
             </View>
             <Button
               title={
@@ -501,7 +548,7 @@ export default function ConfirmDay() {
               size="md"
               full={false}
               loading={busy}
-              onPress={belowMin ? toBasket : confirm}
+              onPress={belowMin ? toBasket : () => confirm()}
             />
           </Glass>
         </View>
