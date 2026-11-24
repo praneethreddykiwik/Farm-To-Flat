@@ -185,10 +185,7 @@ function keep(list) {
 export async function syncStoreReviews() {
   const cfg = storeConfig();
   const result = {};
-  for (const [name, fetcher] of [
-    ['apple', fetchApple],
-    ['google', fetchGoogle],
-  ]) {
+  for (const [name, fetcher] of Object.entries({ apple: fetchApple, google: fetchGoogle })) {
     if (!cfg[name]) continue;
     try {
       result[name] = { added: keep(await fetcher(cfg[name])) };
