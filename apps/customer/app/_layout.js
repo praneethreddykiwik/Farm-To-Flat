@@ -50,6 +50,7 @@ import { configureNotifications, registerForPush } from '../src/lib/notification
 import { useRegisterDeviceMutation } from '../src/api/api';
 import { useReducedMotionSync } from '../src/hooks/useReducedMotion';
 import { useOrderLiveNotification } from '../src/hooks/useOrderLiveNotification';
+import { useOrderIsland } from '../src/hooks/useOrderIsland';
 import { useMealReminders } from '../src/hooks/useMealReminders';
 import { usePlanSync } from '../src/hooks/usePlanSync';
 import { useAppUpdates } from '../src/hooks/useAppUpdates';
@@ -331,7 +332,8 @@ function Root() {
   const rootSegments = /** @type {any} */ (useSegments());
   useSessionBootstrap();
   useReducedMotionSync();
-  useOrderLiveNotification(); // Android: keep the live order card in sync (iOS Live Activities later)
+  useOrderLiveNotification(); // Android: keep the live order card in sync
+  useOrderIsland(); // iPhone: "tomorrow's order" in the Dynamic Island (super admin)
   useMealReminders(); // meal-time "snap your plate" reminders, re-armed as the plan and logs change
   usePlanSync(); // the diet plan, calendar and target profile, saved on the server
   useAppUpdates(); // switch on published updates without waiting for a full restart

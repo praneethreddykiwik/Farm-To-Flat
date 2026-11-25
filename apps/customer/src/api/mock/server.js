@@ -438,6 +438,7 @@ function serialiseOrder(o) {
     totalPaise: money(o.total),
     walletAppliedPaise: money(o.walletApplied),
     gatewayAmountPaise: money(o.gatewayAmount),
+    paymentMethod: o.paymentMethod || 'PREPAID',
     couponCode: o.couponCode,
     deliveryDate: o.deliveryDate,
     window: o.window,
@@ -638,6 +639,33 @@ async function route(method, path, body, headers = {}) {
 
   // ---------- CART ----------
   if (method === 'GET' && p === '/cart') return ok({ cart: priceCart() });
+  if (method === 'POST' && p === '/cart/quote') {
+    // As the real API: price these lines, leave the basket alone.
+    const kept = state.cart.items;
+    let c;
+    try {
+      state.cart.items = (body?.items || []).map((l, i) => ({ id: `quote_${i}`, ...l }));
+      c = priceCart();
+    } finally {
+      state.cart.items = kept;
+    }
+    return ok({
+      quote: {
+        itemCount: c.items.length,
+        missing: [],
+        subtotalPaise: c.subtotalPaise,
+        discountPaise: c.couponDiscountPaise,
+        chargesTotalPaise: c.deliveryChargePaise,
+        taxPaise: money(0),
+        totalPaise: c.totalPaise,
+        minOrderValuePaise: c.minOrderValuePaise,
+        meetsMinimum: c.meetsMinimum,
+        couponError: null,
+        walletBalancePaise: c.walletBalancePaise,
+        codAllowed: Number(c.totalPaise) <= 300000,
+      },
+    });
+  }
   if (method === 'PUT' && p === '/cart/items') {
     const { productId, quantity, note } = body || {};
     const prod = PRODUCTS.find((x) => x.id === productId);
@@ -698,6 +726,7 @@ async function route(method, path, body, headers = {}) {
   // ---------- ORDERS ----------
   if (method === 'POST' && p === '/orders') {
     const { addressId, deliveryDate, window, couponCode, useWallet } = body || {};
+    const cod = body?.paymentMethod === 'COD';
     const cart = priceCart();
     if (cart.items.length === 0) return err(422, 'CART_EMPTY', 'Your basket is empty.');
     if (!cart.meetsMinimum)
@@ -733,12 +762,12 @@ async function route(method, path, body, headers = {}) {
     let walletApplied = 0;
     const id = `ord_${shortId(10)}`;
     const orderNumber = `F2F-${shortId(6)}`;
-    if (useWallet && state.wallet.balancePaise > 0) {
+    if (!cod && useWallet && state.wallet.balancePaise > 0) {
       walletApplied = Math.min(state.wallet.balancePaise, payable);
       if (walletApplied > 0)
         ledgerPush('DEBIT', walletApplied, 'ORDER', orderNumber, `Order ${orderNumber}`);
     }
-    const gatewayAmount = payable - walletApplied;
+    const gatewayAmount = cod ? 0 : payable - walletApplied;
     const now = new Date().toISOString();
     const order = {
       id,
@@ -751,6 +780,7 @@ async function route(method, path, body, headers = {}) {
       total: payable,
       walletApplied,
       gatewayAmount,
+      paymentMethod: cod ? 'COD' : 'PREPAID',
       couponCode: code || null,
       deliveryDate,
       window,

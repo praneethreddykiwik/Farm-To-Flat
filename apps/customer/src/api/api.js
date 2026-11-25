@@ -167,6 +167,12 @@ export const api = createApi({
 
     // ---- cart ----
     getCart: b.query({ query: () => '/cart', providesTags: ['Cart'] }),
+    // What a list of items would cost, fees and tax included, without touching the basket
+    // (tomorrow's plan, before it is ordered). Re-asked when the coupon or wallet changes.
+    quoteItems: b.query({
+      query: (items) => ({ url: '/cart/quote', method: 'POST', body: { items } }),
+      providesTags: ['Cart', 'Wallet'],
+    }),
     setCartItem: b.mutation({
       query: (body) => ({ url: '/cart/items', method: 'PUT', body }),
       invalidatesTags: ['Cart'],
@@ -488,6 +494,7 @@ export const {
   useGetProductQuery,
   useGetProductKnowledgeQuery,
   useGetCartQuery,
+  useQuoteItemsQuery,
   useSetCartItemMutation,
   useRemoveCartItemMutation,
   useApplyCouponMutation,

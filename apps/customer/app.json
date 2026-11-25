@@ -108,7 +108,8 @@
           }
         }
       ],
-      "./plugins/with-android-hardening"
+      "./plugins/with-android-hardening",
+      "./plugins/with-order-island"
     ],
     "experiments": {
       "reactCompiler": false
