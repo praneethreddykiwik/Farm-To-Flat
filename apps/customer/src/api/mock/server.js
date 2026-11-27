@@ -638,7 +638,20 @@ async function route(method, path, body, headers = {}) {
   if (places) return places;
 
   // ---------- CART ----------
-  if (method === 'GET' && p === '/cart') return ok({ cart: priceCart() });
+  if (method === 'GET' && p === '/cart') {
+    // Mock-only aid for looking at a big basket: EXPO_PUBLIC_MOCK_BASKET=55 refills an empty basket
+    // with 55 lines.
+    const want = Number(process.env.EXPO_PUBLIC_MOCK_BASKET) || 0;
+    if (want > 0 && state.cart.items.length === 0) {
+      state.cart.items = PRODUCTS.slice(0, want).map((x, i) => ({
+        id: `ci_seed_${i}`,
+        productId: x.id,
+        quantity: Number(x.increment),
+        note: null,
+      }));
+    }
+    return ok({ cart: priceCart() });
+  }
   if (method === 'POST' && p === '/cart/quote') {
     // As the real API: price these lines, leave the basket alone.
     const kept = state.cart.items;
