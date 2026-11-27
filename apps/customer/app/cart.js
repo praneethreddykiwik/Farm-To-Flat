@@ -57,7 +57,32 @@ import { HouseholdSheet } from '../src/components/HouseholdSheet';
 import { householdLabel } from '../src/lib/household';
 import { selectHousehold } from '../src/features/household/householdSlice';
 
-function Line({ item, catalogProduct }) {
+/**
+ * One basket row. Memoised on what it draws: the server sends a fresh object for every line with
+ * every change, so without this a tap on one stepper redrew all fifty rows.
+ */
+const Line = React.memo(LineImpl, (a, b) => {
+  if (a.catalogProduct !== b.catalogProduct) return false;
+  const x = a.item;
+  const y = b.item;
+  return (
+    x.id === y.id &&
+    x.productId === y.productId &&
+    x.name === y.name &&
+    x.image === y.image &&
+    x.unit === y.unit &&
+    x.note === y.note &&
+    x.variableWeight === y.variableWeight &&
+    x.tint === y.tint &&
+    x.blurhash === y.blurhash &&
+    String(x.increment) === String(y.increment) &&
+    String(x.unitPricePaise) === String(y.unitPricePaise) &&
+    String(x.lineTotalPaise) === String(y.lineTotalPaise) &&
+    String(x.quantity) === String(y.quantity)
+  );
+});
+
+function LineImpl({ item, catalogProduct }) {
   const { quantity, setQuantity } = useCartLine({ id: item.productId, name: item.name });
   const lang = useSelector(selectLanguage);
   // The server's cart line carries only the English name — the three-language `names` map lives on
@@ -357,7 +382,13 @@ export default function Cart() {
             automaticallyAdjustKeyboardInsets
           >
             <Animated.View entering={FadeInDown.duration(360).springify().damping(18)}>
-              <Glass radius={radius.lg} innerStyle={{ paddingHorizontal: 14 }}>
+              {/* A long basket is a tall surface: a live blur behind fifty rows is what made it
+                  stutter, so beyond a screenful it is a plain frosted fill. */}
+              <Glass
+                radius={radius.lg}
+                blur={items.length <= 8}
+                innerStyle={{ paddingHorizontal: 14 }}
+              >
                 {items.map((it) => (
                   <Line key={it.id} item={it} catalogProduct={byId.get(it.productId)} />
                 ))}

@@ -27,6 +27,7 @@ import {
   Title,
   VariableWeightNote,
 } from '../../src/ui';
+import { badgeLabel, badgeWidth } from '../../src/lib/countBadge';
 import { useGetCartQuery, useGetCatalogQuery, useGetProductQuery } from '../../src/api/api';
 import { selectIsSignedIn } from '../../src/features/auth/authSlice';
 import { farmShort } from '../../src/lib/farm';
@@ -334,9 +335,18 @@ export default function ProductDetail() {
               </Glass>
               {/* How many lines are in the basket, so the button says what it opens. */}
               {basketCount > 0 ? (
-                <View style={styles.bagCount} pointerEvents="none">
-                  <Text variant="micro" color={colors.ink} style={{ fontSize: 10 }}>
-                    {basketCount}
+                <View
+                  style={[styles.bagCount, { width: badgeWidth(basketCount) }]}
+                  pointerEvents="none"
+                >
+                  <Text
+                    variant="micro"
+                    color={colors.ink}
+                    numberOfLines={1}
+                    allowFontScaling={false}
+                    style={styles.bagCountText}
+                  >
+                    {badgeLabel(basketCount)}
                   </Text>
                 </View>
               ) : null}
@@ -415,9 +425,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    minWidth: 18,
     height: 18,
-    paddingHorizontal: 5,
     borderRadius: 9,
     backgroundColor: colors.sprout,
     alignItems: 'center',
@@ -425,6 +433,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.night,
   },
+  bagCountText: { fontSize: 10, lineHeight: 13, textAlign: 'center', includeFontPadding: false },
   bottom: { position: 'absolute', left: 16, right: 16, bottom: 0 },
   bar: {
     flexDirection: 'row',

@@ -29,6 +29,7 @@ import { selectIsSignedIn } from '../features/auth/authSlice';
 import { selectAiVisible } from '../features/role/roleSlice';
 import { useBagTarget } from './FlyToBag';
 import { measureTabBar } from '../lib/tabBarLayout';
+import { badgeLabel, badgeWidth } from '../lib/countBadge';
 
 const ICONS = {
   index: Home,
@@ -160,9 +161,15 @@ export function TabBar({ state, descriptors, navigation }) {
                       fill={focused ? ICON_WASH : 'none'}
                     />
                     {isBag && count > 0 ? (
-                      <View style={styles.badge}>
-                        <Text variant="micro" color={colors.ink} style={{ fontSize: 10 }}>
-                          {count}
+                      <View style={[styles.badge, { width: badgeWidth(count) }]}>
+                        <Text
+                          variant="micro"
+                          color={colors.ink}
+                          numberOfLines={1}
+                          allowFontScaling={false}
+                          style={styles.badgeText}
+                        >
+                          {badgeLabel(count)}
                         </Text>
                       </View>
                     ) : null}
@@ -269,9 +276,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -6,
     right: -10,
-    minWidth: 18,
     height: 18,
-    paddingHorizontal: 5,
     borderRadius: 9,
     backgroundColor: colors.sprout,
     alignItems: 'center',
@@ -279,5 +284,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.night,
   },
+  badgeText: { fontSize: 10, lineHeight: 13, textAlign: 'center', includeFontPadding: false },
   ai: { alignItems: 'center', justifyContent: 'center' },
 });
